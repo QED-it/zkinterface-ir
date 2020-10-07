@@ -6,10 +6,12 @@ use flatbuffers::{FlatBufferBuilder, WIPOffset};
 
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::Result;
+use super::header::Header;
 use super::assignment::Assignment;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Witness {
+    pub header: Header,
     pub short_witness: Vec<Assignment>,
 }
 
@@ -17,6 +19,7 @@ impl<'a> From<g::Witness<'a>> for Witness {
     /// Convert from Flatbuffers references to owned structure.
     fn from(g_witness: g::Witness) -> Witness {
         Witness {
+            header: Header::from(g_witness.header().unwrap()),
             short_witness: Assignment::from_vector(g_witness.short_witness().unwrap()),
         }
     }
@@ -40,9 +43,11 @@ impl Witness {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Root<'bldr>>
     {
+        let header = Some(self.header.build(builder));
         let short_witness = Some(Assignment::build_vector(builder, &self.short_witness));
 
         let witness = g::Witness::create(builder, &g::WitnessArgs {
+            header,
             short_witness,
         });
 

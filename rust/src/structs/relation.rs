@@ -6,21 +6,24 @@ use std::error::Error;
 
 use crate::Result;
 use crate::sieve_ir_generated::sieve_ir as g;
+use super::header::Header;
 use super::gates::Gate;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
+    pub header: Header,
     pub gates: Vec<Gate>,
 }
 
 impl<'a> From<g::Relation<'a>> for Relation {
     /// Convert from Flatbuffers references to owned structure.
-    fn from(gen_relation: g::Relation) -> Relation {
+    fn from(g_relation: g::Relation) -> Relation {
         let mut relation = Relation {
-            gates: vec![]
+            header: Header::from(g_relation.header().unwrap()),
+            gates: vec![],
         };
 
-        let gen_gates = gen_relation.gates().unwrap();
+        let gen_gates = g_relation.gates().unwrap();
         for i in 0..gen_gates.len() {
             let gen_gate = gen_gates.get(i);
             relation.gates.push(Gate::from(gen_gate));
@@ -48,12 +51,14 @@ impl Relation {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Root<'bldr>>
     {
+        let header = Some(self.header.build(builder));
         let gates: Vec<_> = self.gates.iter().map(|gate|
             gate.build(builder)
         ).collect();
         let gates = builder.create_vector(&gates);
 
         let relation = g::Relation::create(builder, &g::RelationArgs {
+            header,
             num_wires: 0,
             num_short_witness: 0,
             num_common_inputs: 0,

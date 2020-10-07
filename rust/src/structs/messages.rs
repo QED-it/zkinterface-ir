@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::consumers::reader::Reader;
 use crate::sieve_ir_generated::sieve_ir as g;
-use super::header::Header;
 use super::relation::Relation;
 use super::witness::Witness;
 use super::instance::Instance;
@@ -10,7 +9,6 @@ use super::instance::Instance;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Messages {
-    pub headers: Vec<Header>,
     pub relations: Vec<Relation>,
     pub instances: Vec<Instance>,
     pub witnesses: Vec<Witness>,
@@ -23,11 +21,6 @@ impl From<&Reader> for Messages {
 
         for msg in reader {
             match msg.message_type() {
-                g::Message::Header => {
-                    let g_header = msg.message_as_header().unwrap();
-                    messages.headers.push(
-                        Header::from(g_header));
-                }
                 g::Message::Relation => {
                     let g_constraints = msg.message_as_relation().unwrap();
                     messages.relations.push(

@@ -15,14 +15,11 @@ pub struct Simulator {
 
 impl Simulator {
     pub fn simulate(&mut self, messages: &Messages) -> Result<()> {
-        for header in &messages.headers {
-            self.ingest_header(header)?;
+        for witness in &messages.witnesses {
+            self.ingest_witness(witness)?;
         }
         for instance in &messages.instances {
             self.ingest_instance(instance)?;
-        }
-        for witness in &messages.witnesses {
-            self.ingest_witness(witness)?;
         }
         for gates in &messages.relations {
             self.ingest_relation(gates)?;
@@ -40,7 +37,7 @@ impl Simulator {
     }
 
     pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
-        self.ensure_header()?;
+        self.ingest_header(&instance.header)?;
 
         for var in &instance.common_inputs {
             self.set_encoded(var.id, &var.value);
@@ -49,7 +46,7 @@ impl Simulator {
     }
 
     pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
-        self.ensure_header()?;
+        self.ingest_header(&witness.header)?;
 
         for var in &witness.short_witness {
             self.set_encoded(var.id, &var.value);
@@ -58,7 +55,7 @@ impl Simulator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
-        self.ensure_header()?;
+        self.ingest_header(&relation.header)?;
 
         for gate in &relation.gates {
             match gate {
@@ -143,26 +140,17 @@ impl Simulator {
         self.values.get(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
-
-    fn ensure_header(&self) -> Result<()> {
-        match self.modulus.is_zero() {
-            true => Err("A header must be provided before other messages.".into()),
-            _ => Ok(()),
-        }
-    }
 }
 
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
 
-    let header = example_header();
     let relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
 
     let mut simulator = Simulator::default();
-    simulator.ingest_header(&header)?;
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;

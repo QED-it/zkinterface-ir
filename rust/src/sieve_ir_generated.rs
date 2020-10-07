@@ -22,15 +22,14 @@ pub mod sieve_ir {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Message {
   NONE = 0,
-  Header = 1,
-  Relation = 2,
-  Instance = 3,
-  Witness = 4,
+  Relation = 1,
+  Instance = 2,
+  Witness = 3,
 
 }
 
 pub const ENUM_MIN_MESSAGE: u8 = 0;
-pub const ENUM_MAX_MESSAGE: u8 = 4;
+pub const ENUM_MAX_MESSAGE: u8 = 3;
 
 impl<'a> flatbuffers::Follow<'a> for Message {
   type Inner = Self;
@@ -64,18 +63,16 @@ impl flatbuffers::Push for Message {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_MESSAGE:[Message; 5] = [
+pub const ENUM_VALUES_MESSAGE:[Message; 4] = [
   Message::NONE,
-  Message::Header,
   Message::Relation,
   Message::Instance,
   Message::Witness
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_MESSAGE:[&'static str; 5] = [
+pub const ENUM_NAMES_MESSAGE:[&'static str; 4] = [
     "NONE",
-    "Header",
     "Relation",
     "Instance",
     "Witness"
@@ -376,14 +373,20 @@ impl<'a> Relation<'a> {
       builder.add_num_short_witness(args.num_short_witness);
       builder.add_num_wires(args.num_wires);
       if let Some(x) = args.gates { builder.add_gates(x); }
+      if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
-    pub const VT_NUM_WIRES: flatbuffers::VOffsetT = 4;
-    pub const VT_NUM_SHORT_WITNESS: flatbuffers::VOffsetT = 6;
-    pub const VT_NUM_COMMON_INPUTS: flatbuffers::VOffsetT = 8;
-    pub const VT_GATES: flatbuffers::VOffsetT = 10;
+    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_NUM_WIRES: flatbuffers::VOffsetT = 6;
+    pub const VT_NUM_SHORT_WITNESS: flatbuffers::VOffsetT = 8;
+    pub const VT_NUM_COMMON_INPUTS: flatbuffers::VOffsetT = 10;
+    pub const VT_GATES: flatbuffers::VOffsetT = 12;
 
+  #[inline]
+  pub fn header(&self) -> Option<Header<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Relation::VT_HEADER, None)
+  }
   #[inline]
   pub fn num_wires(&self) -> u64 {
     self._tab.get::<u64>(Relation::VT_NUM_WIRES, Some(0)).unwrap()
@@ -403,6 +406,7 @@ impl<'a> Relation<'a> {
 }
 
 pub struct RelationArgs<'a> {
+    pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
     pub num_wires: u64,
     pub num_short_witness: u64,
     pub num_common_inputs: u64,
@@ -412,6 +416,7 @@ impl<'a> Default for RelationArgs<'a> {
     #[inline]
     fn default() -> Self {
         RelationArgs {
+            header: None,
             num_wires: 0,
             num_short_witness: 0,
             num_common_inputs: 0,
@@ -424,6 +429,10 @@ pub struct RelationBuilder<'a: 'b, 'b> {
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Relation::VT_HEADER, header);
+  }
   #[inline]
   pub fn add_num_wires(&mut self, num_wires: u64) {
     self.fbb_.push_slot::<u64>(Relation::VT_NUM_WIRES, num_wires, 0);
@@ -485,11 +494,17 @@ impl<'a> Instance<'a> {
         args: &'args InstanceArgs<'args>) -> flatbuffers::WIPOffset<Instance<'bldr>> {
       let mut builder = InstanceBuilder::new(_fbb);
       if let Some(x) = args.common_inputs { builder.add_common_inputs(x); }
+      if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
-    pub const VT_COMMON_INPUTS: flatbuffers::VOffsetT = 4;
+    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_COMMON_INPUTS: flatbuffers::VOffsetT = 6;
 
+  #[inline]
+  pub fn header(&self) -> Option<Header<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Instance::VT_HEADER, None)
+  }
   #[inline]
   pub fn common_inputs(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Assignment<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Assignment<'a>>>>>(Instance::VT_COMMON_INPUTS, None)
@@ -497,12 +512,14 @@ impl<'a> Instance<'a> {
 }
 
 pub struct InstanceArgs<'a> {
+    pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
     pub common_inputs: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Assignment<'a >>>>>,
 }
 impl<'a> Default for InstanceArgs<'a> {
     #[inline]
     fn default() -> Self {
         InstanceArgs {
+            header: None,
             common_inputs: None,
         }
     }
@@ -512,6 +529,10 @@ pub struct InstanceBuilder<'a: 'b, 'b> {
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> InstanceBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Instance::VT_HEADER, header);
+  }
   #[inline]
   pub fn add_common_inputs(&mut self, common_inputs: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Assignment<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Instance::VT_COMMON_INPUTS, common_inputs);
@@ -561,11 +582,17 @@ impl<'a> Witness<'a> {
         args: &'args WitnessArgs<'args>) -> flatbuffers::WIPOffset<Witness<'bldr>> {
       let mut builder = WitnessBuilder::new(_fbb);
       if let Some(x) = args.short_witness { builder.add_short_witness(x); }
+      if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
-    pub const VT_SHORT_WITNESS: flatbuffers::VOffsetT = 4;
+    pub const VT_HEADER: flatbuffers::VOffsetT = 4;
+    pub const VT_SHORT_WITNESS: flatbuffers::VOffsetT = 6;
 
+  #[inline]
+  pub fn header(&self) -> Option<Header<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Witness::VT_HEADER, None)
+  }
   #[inline]
   pub fn short_witness(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Assignment<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Assignment<'a>>>>>(Witness::VT_SHORT_WITNESS, None)
@@ -573,12 +600,14 @@ impl<'a> Witness<'a> {
 }
 
 pub struct WitnessArgs<'a> {
+    pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
     pub short_witness: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Assignment<'a >>>>>,
 }
 impl<'a> Default for WitnessArgs<'a> {
     #[inline]
     fn default() -> Self {
         WitnessArgs {
+            header: None,
             short_witness: None,
         }
     }
@@ -588,6 +617,10 @@ pub struct WitnessBuilder<'a: 'b, 'b> {
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
 impl<'a: 'b, 'b> WitnessBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Witness::VT_HEADER, header);
+  }
   #[inline]
   pub fn add_short_witness(&mut self, short_witness: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Assignment<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Witness::VT_SHORT_WITNESS, short_witness);
@@ -1868,16 +1901,6 @@ impl<'a> Root<'a> {
   pub fn message(&self) -> Option<flatbuffers::Table<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(Root::VT_MESSAGE, None)
   }
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn message_as_header(&self) -> Option<Header<'a>> {
-    if self.message_type() == Message::Header {
-      self.message().map(|u| Header::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
   #[inline]
   #[allow(non_snake_case)]
   pub fn message_as_relation(&self) -> Option<Relation<'a>> {

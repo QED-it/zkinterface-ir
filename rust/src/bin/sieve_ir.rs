@@ -168,25 +168,22 @@ fn main_example(opts: &Options) -> Result<()> {
     let out_dir = &opts.paths[0];
 
     if out_dir == Path::new("-") {
-        example_header().write_into(&mut stdout())?;
-        example_instance().write_into(&mut stdout())?;
         example_witness().write_into(&mut stdout())?;
+        example_instance().write_into(&mut stdout())?;
         example_relation().write_into(&mut stdout())?;
     } else if has_sieve_extension(out_dir) {
         let mut file = File::create(out_dir)?;
-        example_header().write_into(&mut file)?;
-        example_instance().write_into(&mut file)?;
         example_witness().write_into(&mut file)?;
+        example_instance().write_into(&mut file)?;
         example_relation().write_into(&mut file)?;
     } else {
         create_dir_all(out_dir)?;
 
         let path = out_dir.join("statement.sieve");
         let mut file = File::create(&path)?;
-        example_header().write_into(&mut file)?;
         example_instance().write_into(&mut file)?;
         example_relation().write_into(&mut file)?;
-        eprintln!("Written Header, Instance, and Relation into {}", path.display());
+        eprintln!("Written Instance and Relation into {}", path.display());
 
         let path = out_dir.join("witness.sieve");
         example_witness().write_into(&mut File::create(&path)?)?;

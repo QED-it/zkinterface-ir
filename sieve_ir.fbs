@@ -6,7 +6,6 @@ namespace sieve_ir;
 // ==== Message types that can be exchanged. ====
 
 union Message {
-   Header,
    Relation,
    Instance,
    Witness,
@@ -21,6 +20,8 @@ table Header {
 }
 
 table Relation {
+   header               :Header;
+
    num_wires            :uint64;
    num_short_witness    :uint64;
    num_common_inputs    :uint64;
@@ -29,10 +30,14 @@ table Relation {
 }
 
 table Instance {
+   header               :Header;
+
    common_inputs        :[Assignment];
 }
 
 table Witness {
+   header               :Header;
+
    short_witness        :[Assignment];
 }
 
@@ -48,6 +53,8 @@ table Assignment {
    value       :[ubyte];
 }
 
+// Field element = [ubyte]
+// A binary encoding of a field element in little-endian order.
 
 // ==== Gate types ====
 

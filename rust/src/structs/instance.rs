@@ -6,10 +6,12 @@ use flatbuffers::{FlatBufferBuilder, WIPOffset};
 
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::Result;
+use super::header::Header;
 use super::assignment::Assignment;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Instance {
+    pub header: Header,
     pub common_inputs: Vec<Assignment>,
 }
 
@@ -17,6 +19,7 @@ impl<'a> From<g::Instance<'a>> for Instance {
     /// Convert from Flatbuffers references to owned structure.
     fn from(g_instance: g::Instance) -> Instance {
         Instance {
+            header: Header::from(g_instance.header().unwrap()),
             common_inputs: Assignment::from_vector(g_instance.common_inputs().unwrap()),
         }
     }
@@ -40,9 +43,11 @@ impl Instance {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Root<'bldr>>
     {
+        let header = Some(self.header.build(builder));
         let common_inputs = Some(Assignment::build_vector(builder, &self.common_inputs));
 
         let instance = g::Instance::create(builder, &g::InstanceArgs {
+            header,
             common_inputs,
         });
 

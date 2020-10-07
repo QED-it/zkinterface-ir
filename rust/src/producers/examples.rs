@@ -16,6 +16,7 @@ pub fn example_relation() -> Relation {
     use crate::Gate::*;
 
     Relation {
+        header: example_header(),
         gates: vec![
             Constant(3, literal32(MODULUS - 1)), // -1
             Mul(4, 1, 1),   // witness_1 squared
@@ -24,24 +25,26 @@ pub fn example_relation() -> Relation {
             Mul(7, 0, 3),   // negative instance_0
             Add(8, 6, 7),   // sum - instance_0
             AssertZero(8),  // difference == 0
-        ]
+        ],
     }
 }
 
 pub fn example_instance() -> Instance {
     Instance {
+        header: example_header(),
         common_inputs: vec![
             Assignment { id: 0, value: literal32(25) },
-        ]
+        ],
     }
 }
 
 pub fn example_witness() -> Witness {
     Witness {
+        header: example_header(),
         short_witness: vec![
             Assignment { id: 1, value: literal32(3) },
             Assignment { id: 2, value: literal32(4) },
-        ]
+        ],
     }
 }
 
@@ -76,21 +79,19 @@ fn test_examples() {
     use crate::{Reader, Messages};
 
     let mut common_buf = Vec::<u8>::new();
-    example_header().write_into(&mut common_buf).unwrap();
-    example_relation().write_into(&mut common_buf).unwrap();
     example_instance().write_into(&mut common_buf).unwrap();
+    example_relation().write_into(&mut common_buf).unwrap();
 
     let mut prover_buf = Vec::<u8>::new();
     example_witness().write_into(&mut prover_buf).unwrap();
 
     let mut reader = Reader::default();
     reader.push_message(common_buf).unwrap();
-    assert_eq!(reader.into_iter().count(), 3);
+    assert_eq!(reader.into_iter().count(), 2);
     reader.push_message(prover_buf).unwrap();
-    assert_eq!(reader.into_iter().count(), 4);
+    assert_eq!(reader.into_iter().count(), 3);
 
     let messages = Messages::from(&reader);
-    assert_eq!(messages.headers, vec![example_header()]);
     assert_eq!(messages.relations, vec![example_relation()]);
     assert_eq!(messages.instances, vec![example_instance()]);
     assert_eq!(messages.witnesses, vec![example_witness()]);
