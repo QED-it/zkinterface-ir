@@ -1,0 +1,141 @@
+// This is a FlatBuffers schema.
+// See https://google.github.io/flatbuffers/
+
+namespace sieve_ir;
+
+// ==== Message types that can be exchanged. ====
+
+union Message {
+   Header,
+   Relation,
+   Instance,
+   Witness,
+}
+
+table Header {
+   version              :string;
+   profile              :string;
+
+   field_characteristic :[ubyte];
+   field_degree         :uint32;
+}
+
+table Relation {
+   num_wires            :uint64;
+   num_short_witness    :uint64;
+   num_common_inputs    :uint64;
+
+   gates                :[Gate];
+}
+
+table Instance {
+   common_inputs        :[Assignment];
+}
+
+table Witness {
+   short_witness        :[Assignment];
+}
+
+
+// ==== Helper types ====
+
+struct Wire {
+    id          :uint64;
+}
+
+table Assignment {
+   id          :Wire;
+   value       :[ubyte];
+}
+
+
+// ==== Gate types ====
+
+table GateConstant {
+   output      :Wire;
+   constant    :[ubyte];
+}
+
+table GateAssertZero {
+   input       :Wire;
+}
+
+table GateCopy {
+   output      :Wire;
+   input       :Wire;
+}
+
+table GateAdd {
+   output      :Wire;
+   left        :Wire;
+   right       :Wire;
+}
+
+table GateMul {
+   output      :Wire;
+   left        :Wire;
+   right       :Wire;
+}
+
+table GateAddConstant {
+   output      :Wire;
+   input       :Wire;
+   constant    :[ubyte];
+}
+
+table GateMulConstant {
+   output      :Wire;
+   input       :Wire;
+   constant    :[ubyte];
+}
+
+table GateAnd {
+   output      :Wire;
+   left        :Wire;
+   right       :Wire;
+}
+
+table GateXor {
+   output      :Wire;
+   left        :Wire;
+   right       :Wire;
+}
+
+table GateNot {
+   output      :Wire;
+   input       :Wire;
+}
+
+union GateSet {
+   GateConstant,
+   GateAssertZero,
+   GateCopy,
+   GateAdd,
+   GateMul,
+   GateAddConstant,
+   GateMulConstant,
+   GateAnd,
+   GateXor,
+   GateNot,
+}
+table Gate {
+    gate      :GateSet;
+}
+
+
+// ==== Flatbuffers details ====
+
+// All message types are encapsulated in the FlatBuffers root table.
+table Root {
+    message                 :Message;
+}
+root_type Root;
+
+// When storing messages to files, this extension and identifier should be used.
+file_extension "sieve";
+file_identifier "siev"; // a.k.a. magic bytes.
+
+// Message framing:
+//
+// All messages must be prefixed by the size of the message,
+// not including the prefix, as a 4-bytes little-endian unsigned integer.
