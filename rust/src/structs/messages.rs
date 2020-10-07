@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::consumers::reader::Reader;
@@ -14,9 +17,11 @@ pub struct Messages {
     pub witnesses: Vec<Witness>,
 }
 
-impl From<&Reader> for Messages {
+impl TryFrom<&Reader> for Messages {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers messages to owned structure.
-    fn from(reader: &Reader) -> Messages {
+    fn try_from(reader: &Reader) -> Result<Messages> {
         let mut messages = Messages::default();
 
         for msg in reader {
@@ -24,21 +29,21 @@ impl From<&Reader> for Messages {
                 g::Message::Relation => {
                     let g_constraints = msg.message_as_relation().unwrap();
                     messages.relations.push(
-                        Relation::from(g_constraints));
+                        Relation::try_from(g_constraints)?);
                 }
                 g::Message::Instance => {
                     let g_instance = msg.message_as_instance().unwrap();
                     messages.instances.push(
-                        Instance::from(g_instance));
+                        Instance::try_from(g_instance)?);
                 }
                 g::Message::Witness => {
                     let g_witness = msg.message_as_witness().unwrap();
                     messages.witnesses.push(
-                        Witness::from(g_witness));
+                        Witness::try_from(g_witness)?);
                 }
                 g::Message::NONE => {}
             }
         }
-        messages
+        Ok(messages)
     }
 }

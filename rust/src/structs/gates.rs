@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
 
@@ -22,87 +25,89 @@ pub enum Gate {
 
 use Gate::*;
 
-impl<'a> From<g::Gate<'a>> for Gate {
+impl<'a> TryFrom<g::Gate<'a>> for Gate {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(gen_gate: g::Gate) -> Gate {
-        match gen_gate.gate_type() {
-            gs::NONE => panic!("No gate type"),
+    fn try_from(gen_gate: g::Gate) -> Result<Gate> {
+        Ok(match gen_gate.gate_type() {
+            gs::NONE => return Err("No gate type".into()),
 
             gs::GateConstant => {
                 let gate = gen_gate.gate_as_gate_constant().unwrap();
                 Constant(
-                    gate.output().unwrap().id(),
-                    Vec::from(gate.constant().unwrap()))
+                    gate.output().ok_or("Missing output")?.id(),
+                    Vec::from(gate.constant().ok_or("Missing constant")?))
             }
 
             gs::GateAssertZero => {
                 let gate = gen_gate.gate_as_gate_assert_zero().unwrap();
                 AssertZero(
-                    gate.input().unwrap().id())
+                    gate.input().ok_or("Missing input")?.id())
             }
 
             gs::GateCopy => {
                 let gate = gen_gate.gate_as_gate_copy().unwrap();
                 Copy(
-                    gate.output().unwrap().id(),
-                    gate.input().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.input().ok_or("Missing input")?.id())
             }
 
             gs::GateAdd => {
                 let gate = gen_gate.gate_as_gate_add().unwrap();
                 Add(
-                    gate.output().unwrap().id(),
-                    gate.left().unwrap().id(),
-                    gate.right().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.left().ok_or("Missing left input")?.id(),
+                    gate.right().ok_or("Missing right input")?.id())
             }
 
             gs::GateMul => {
                 let gate = gen_gate.gate_as_gate_mul().unwrap();
                 Mul(
-                    gate.output().unwrap().id(),
-                    gate.left().unwrap().id(),
-                    gate.right().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.left().ok_or("Missing left input")?.id(),
+                    gate.right().ok_or("Missing right input")?.id())
             }
 
             gs::GateAddConstant => {
                 let gate = gen_gate.gate_as_gate_add_constant().unwrap();
                 AddConstant(
-                    gate.output().unwrap().id(),
-                    gate.input().unwrap().id(),
-                    Vec::from(gate.constant().unwrap()))
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.input().ok_or("Missing input")?.id(),
+                    Vec::from(gate.constant().ok_or("Missing constant")?))
             }
 
             gs::GateMulConstant => {
                 let gate = gen_gate.gate_as_gate_mul_constant().unwrap();
                 MulConstant(
-                    gate.output().unwrap().id(),
-                    gate.input().unwrap().id(),
-                    Vec::from(gate.constant().unwrap()))
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.input().ok_or("Missing input")?.id(),
+                    Vec::from(gate.constant().ok_or("Missing constant")?))
             }
 
             gs::GateAnd => {
                 let gate = gen_gate.gate_as_gate_and().unwrap();
                 And(
-                    gate.output().unwrap().id(),
-                    gate.left().unwrap().id(),
-                    gate.right().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.left().ok_or("Missing left input")?.id(),
+                    gate.right().ok_or("Missing right input")?.id())
             }
 
             gs::GateXor => {
                 let gate = gen_gate.gate_as_gate_xor().unwrap();
                 Xor(
-                    gate.output().unwrap().id(),
-                    gate.left().unwrap().id(),
-                    gate.right().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.left().ok_or("Missing left input")?.id(),
+                    gate.right().ok_or("Missing right input")?.id())
             }
 
             gs::GateNot => {
                 let gate = gen_gate.gate_as_gate_not().unwrap();
                 Not(
-                    gate.output().unwrap().id(),
-                    gate.input().unwrap().id())
+                    gate.output().ok_or("Missing output")?.id(),
+                    gate.input().ok_or("Missing input")?.id())
             }
-        }
+        })
     }
 }
 

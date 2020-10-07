@@ -1,11 +1,11 @@
-use std::io::Write;
-use std::convert::TryFrom;
 use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use serde::{Deserialize, Serialize};
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
+use std::io::Write;
 
 use crate::sieve_ir_generated::sieve_ir as g;
-use crate::Result;
 use super::header::Header;
 use super::assignment::Assignment;
 
@@ -15,24 +15,27 @@ pub struct Instance {
     pub common_inputs: Vec<Assignment>,
 }
 
-impl<'a> From<g::Instance<'a>> for Instance {
+impl<'a> TryFrom<g::Instance<'a>> for Instance {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(g_instance: g::Instance) -> Instance {
-        Instance {
-            header: Header::from(g_instance.header().unwrap()),
-            common_inputs: Assignment::from_vector(g_instance.common_inputs().unwrap()),
-        }
+    fn try_from(g_instance: g::Instance) -> Result<Instance> {
+        Ok(Instance {
+            header: Header::try_from(g_instance.header())?,
+            common_inputs: Assignment::try_from_vector(
+                g_instance.common_inputs().ok_or("Missing common_input")?)?,
+        })
     }
 }
 
 impl<'a> TryFrom<&'a [u8]> for Instance {
     type Error = Box<dyn Error>;
 
-    fn try_from(buffer: &'a [u8]) -> Result<Self> {
-        Ok(Self::from(
+    fn try_from(buffer: &'a [u8]) -> Result<Instance> {
+        Instance::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_instance()
-                .ok_or("Not a Instance message.")?))
+                .ok_or("Not a Instance message.")?)
     }
 }
 

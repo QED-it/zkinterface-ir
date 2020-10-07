@@ -1,11 +1,11 @@
-use std::io::Write;
-use std::convert::TryFrom;
 use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
+use std::io::Write;
 use serde::{Deserialize, Serialize};
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 
 use crate::sieve_ir_generated::sieve_ir as g;
-use crate::Result;
 use super::header::Header;
 use super::assignment::Assignment;
 
@@ -15,24 +15,27 @@ pub struct Witness {
     pub short_witness: Vec<Assignment>,
 }
 
-impl<'a> From<g::Witness<'a>> for Witness {
+impl<'a> TryFrom<g::Witness<'a>> for Witness {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(g_witness: g::Witness) -> Witness {
-        Witness {
-            header: Header::from(g_witness.header().unwrap()),
-            short_witness: Assignment::from_vector(g_witness.short_witness().unwrap()),
-        }
+    fn try_from(g_witness: g::Witness) -> Result<Witness> {
+        Ok(Witness {
+            header: Header::try_from(g_witness.header())?,
+            short_witness: Assignment::try_from_vector(
+                g_witness.short_witness().ok_or("Missing short_witness")?)?,
+        })
     }
 }
 
 impl<'a> TryFrom<&'a [u8]> for Witness {
     type Error = Box<dyn Error>;
 
-    fn try_from(buffer: &'a [u8]) -> Result<Self> {
-        Ok(Self::from(
+    fn try_from(buffer: &'a [u8]) -> Result<Witness> {
+        Witness::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_witness()
-                .ok_or("Not a Witness message.")?))
+                .ok_or("Not a Witness message.")?)
     }
 }
 

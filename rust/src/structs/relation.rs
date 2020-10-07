@@ -1,10 +1,10 @@
+use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use std::io::Write;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
-use std::error::Error;
 
-use crate::Result;
 use crate::sieve_ir_generated::sieve_ir as g;
 use super::header::Header;
 use super::gates::Gate;
@@ -15,32 +15,34 @@ pub struct Relation {
     pub gates: Vec<Gate>,
 }
 
-impl<'a> From<g::Relation<'a>> for Relation {
+impl<'a> TryFrom<g::Relation<'a>> for Relation {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(g_relation: g::Relation) -> Relation {
+    fn try_from(g_relation: g::Relation) -> Result<Relation> {
         let mut relation = Relation {
-            header: Header::from(g_relation.header().unwrap()),
+            header: Header::try_from(g_relation.header())?,
             gates: vec![],
         };
 
-        let gen_gates = g_relation.gates().unwrap();
-        for i in 0..gen_gates.len() {
-            let gen_gate = gen_gates.get(i);
-            relation.gates.push(Gate::from(gen_gate));
+        let g_gates = g_relation.gates().ok_or("Missing gates")?;
+        for i in 0..g_gates.len() {
+            let gen_gate = g_gates.get(i);
+            relation.gates.push(Gate::try_from(gen_gate)?);
         }
 
-        relation
+        Ok(relation)
     }
 }
 
 impl<'a> TryFrom<&'a [u8]> for Relation {
     type Error = Box<dyn Error>;
 
-    fn try_from(buffer: &'a [u8]) -> Result<Self> {
-        Ok(Self::from(
+    fn try_from(buffer: &'a [u8]) -> Result<Relation> {
+        Relation::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_relation()
-                .ok_or("Not a Relation message.")?))
+                .ok_or("Not a Relation message.")?)
     }
 }
 

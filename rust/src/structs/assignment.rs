@@ -1,5 +1,9 @@
+use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset, ForwardsUOffset, Vector};
 use serde::{Deserialize, Serialize};
+
 use crate::sieve_ir_generated::sieve_ir as g;
 use super::{WireId, Value};
 
@@ -9,25 +13,27 @@ pub struct Assignment {
     pub value: Value,
 }
 
-impl<'a> From<g::Assignment<'a>> for Assignment {
+impl<'a> TryFrom<g::Assignment<'a>> for Assignment {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(g_assignment: g::Assignment) -> Assignment {
-        Assignment {
-            id: g_assignment.id().unwrap().id(),
-            value: Vec::from(g_assignment.value().unwrap()),
-        }
+    fn try_from(g_assignment: g::Assignment) -> Result<Assignment> {
+        Ok(Assignment {
+            id: g_assignment.id().ok_or("Missing ID")?.id(),
+            value: Vec::from(g_assignment.value().ok_or("Missing value")?),
+        })
     }
 }
 
 impl Assignment {
-    pub fn from_vector<'a>(g_vector: Vector<'a, ForwardsUOffset<g::Assignment<'a>>>
-    ) -> Vec<Assignment> {
+    pub fn try_from_vector<'a>(g_vector: Vector<'a, ForwardsUOffset<g::Assignment<'a>>>
+    ) -> Result<Vec<Assignment>> {
         let mut assignments = vec![];
         for i in 0..g_vector.len() {
             let g_a = g_vector.get(i);
-            assignments.push(Assignment::from(g_a));
+            assignments.push(Assignment::try_from(g_a)?);
         }
-        assignments
+        Ok(assignments)
     }
 
     /// Add this structure into a Flatbuffers message builder.

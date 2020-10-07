@@ -1,7 +1,11 @@
 //! Helpers to write messages.
-
+//!
+use std::error::Error;
+use std::convert::TryFrom;
+use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
+
 use crate::sieve_ir_generated::sieve_ir as g;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -23,15 +27,18 @@ impl Default for Header {
     }
 }
 
-impl<'a> From<g::Header<'a>> for Header {
+impl<'a> TryFrom<Option<g::Header<'a>>> for Header {
+    type Error = Box<dyn Error>;
+
     /// Convert from Flatbuffers references to owned structure.
-    fn from(g_header: g::Header) -> Header {
-        Header {
-            version: g_header.version().unwrap().to_string(),
-            profile: g_header.profile().unwrap().to_string(),
-            field_characteristic: Vec::from(g_header.field_characteristic().unwrap()),
+    fn try_from(g_header: Option<g::Header>) -> Result<Header> {
+        let g_header = g_header.ok_or("Missing header")?;
+        Ok(Header {
+            version: g_header.version().ok_or("Missing version")?.to_string(),
+            profile: g_header.profile().ok_or("Missing profile")?.to_string(),
+            field_characteristic: Vec::from(g_header.field_characteristic().ok_or("Missing field characteristic")?),
             field_degree: g_header.field_degree(),
-        }
+        })
     }
 }
 

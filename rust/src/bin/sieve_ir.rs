@@ -6,6 +6,7 @@ use std::fs;
 use std::io::{stdin, stdout, copy};
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
+use std::convert::TryFrom;
 
 use sieve_ir::{
     Reader,
@@ -202,14 +203,14 @@ fn main_cat(opts: &Options) -> Result<()> {
 }
 
 fn main_json(reader: &Reader) -> Result<()> {
-    let messages = Messages::from(reader);
+    let messages = Messages::try_from(reader)?;
     serde_json::to_writer(stdout(), &messages)?;
     println!();
     Ok(())
 }
 
 fn main_yaml(reader: &Reader) -> Result<()> {
-    let messages = Messages::from(reader);
+    let messages = Messages::try_from(reader)?;
     serde_yaml::to_writer(stdout(), &messages)?;
     println!();
     Ok(())
@@ -226,7 +227,7 @@ fn main_explain(_reader: &Reader) -> Result<()> {
 fn main_validate(_reader: &Reader) -> Result<()> {
     unimplemented!();
     /*
-    let messages = Messages::from(reader);
+    let messages = Messages:try_:from(reader)?;
 
     // Validate semantics as verifier.
     let mut validator = Validator::new_as_verifier();
@@ -236,7 +237,7 @@ fn main_validate(_reader: &Reader) -> Result<()> {
 }
 
 fn main_simulate(reader: &Reader) -> Result<()> {
-    let messages = Messages::from(reader);
+    let messages = Messages::try_from(reader)?;
 
     /*
     // Validate semantics as prover.
