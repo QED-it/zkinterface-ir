@@ -13,6 +13,7 @@ use sieve_ir::{
     Messages,
     Result,
     consumers::simulator::Simulator,
+    consumers::validator::Validator,
 };
 use std::fs::{File, create_dir_all};
 use std::ffi::OsStr;
@@ -224,27 +225,22 @@ fn main_explain(_reader: &Reader) -> Result<()> {
     */
 }
 
-fn main_validate(_reader: &Reader) -> Result<()> {
-    unimplemented!();
-    /*
-    let messages = Messages:try_:from(reader)?;
+fn main_validate(reader: &Reader) -> Result<()> {
+    let messages = Messages::try_from(reader)?;
 
     // Validate semantics as verifier.
     let mut validator = Validator::new_as_verifier();
     validator.ingest_messages(&messages);
     print_violations(&validator.get_violations())
-     */
 }
 
 fn main_simulate(reader: &Reader) -> Result<()> {
     let messages = Messages::try_from(reader)?;
 
-    /*
     // Validate semantics as prover.
     let mut validator = Validator::new_as_prover();
     validator.ingest_messages(&messages);
     print_violations(&validator.get_violations())?;
-    */
 
     // Check whether the statement is true.
     let ok = Simulator::default().simulate(&messages);
@@ -255,7 +251,7 @@ fn main_simulate(reader: &Reader) -> Result<()> {
     ok
 }
 
-fn _print_violations(errors: &[String]) -> Result<()> {
+fn print_violations(errors: &[String]) -> Result<()> {
     if errors.len() > 0 {
         eprintln!("The statement is NOT COMPLIANT with the specification!");
         eprintln!("Violations:\n- {}\n", errors.join("\n- "));
