@@ -267,7 +267,7 @@ fn test_validator() -> crate::Result<()> {
 
     let instance = example_instance();
     let witness = example_witness();
-    let relations = example_relations();
+    let relations = example_relation();
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_instance(&instance);
