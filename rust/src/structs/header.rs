@@ -19,8 +19,8 @@ pub struct Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            version: "0".to_string(),
-            profile: "arithmetic_circuit".to_string(),
+            version: "0.0.0".to_string(),
+            profile: "circ_arithmetic_simple".to_string(),
             field_characteristic: vec![],
             field_degree: 1,
         }
