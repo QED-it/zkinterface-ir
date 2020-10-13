@@ -19,6 +19,8 @@ enum Status {
 
 use Status::*;
 
+const VERSION_REGEX :&str = r"^\d+.\d+.\d+$";
+
 
 #[derive(Clone, Default)]
 pub struct Validator {
@@ -117,7 +119,7 @@ impl Validator {
             }
 
             // check header version
-            let re = Regex::new(r"^\d+.\d+.\d+$").unwrap();
+            let re = Regex::new(VERSION_REGEX).unwrap();
             if !re.is_match(header.version.trim()) {
                 self.violate("The profile version should match the following format <major>.<minor>.<patch>.");
             } 
@@ -157,89 +159,70 @@ impl Validator {
             match gate {
                 Gate::Constant(out, value) => {
                     self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
-                    self.set_status(*out, Used);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::AssertZero(inp) => {
-                    self.ensure_defined(*inp);
-                    self.set_status(*inp, Used);
+                    self.ensure_defined_and_set(*inp);
                 }
 
                 Gate::Copy(out, inp) => {
-                    self.ensure_defined(*inp);
-                    self.set_status(*inp, Used);
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*inp);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::Add(out, left, right) => {
                     self.ensure_arithmetic("Add");
 
-                    self.ensure_defined(*left);
-                    self.set_status(*left, Used);
+                    self.ensure_defined_and_set(*left);
+                    self.ensure_defined_and_set(*right);
 
-                    self.ensure_defined(*right);
-                    self.set_status(*right, Used);
-
-                    self.set_status(*out, Used);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::Mul(out, left, right) => {
                     self.ensure_arithmetic("Mul");
 
-                    self.ensure_defined(*left);
-                    self.set_status(*left, Used);
-
-                    self.ensure_defined(*right);
-                    self.set_status(*right, Used);
+                    self.ensure_defined_and_set(*left);
+                    self.ensure_defined_and_set(*right);
                     
-                    self.set_status(*out, Used);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::AddConstant(out, inp, constant) => {
                     self.ensure_arithmetic("AddConstant");
                     self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
-                    self.ensure_defined(*inp);
-                    self.set_status(*inp, Used);
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*inp);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::MulConstant(out, inp, constant) => {
                     self.ensure_arithmetic("MulConstant");
                     self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
-                    self.ensure_defined(*inp);
-                    self.set_status(*inp, Used);
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*inp);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::And(out, left, right) => {
                     self.ensure_boolean("And");
-                    self.ensure_defined(*left);
-                    self.set_status(*left, Used);
-
-                    self.ensure_defined(*right);
-                    self.set_status(*right, Used);
-                    
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*left);
+                    self.ensure_defined_and_set(*right);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::Xor(out, left, right) => {
                     self.ensure_boolean("Xor");
 
-                    self.ensure_defined(*left);
-                    self.set_status(*left, Used);
-
-                    self.ensure_defined(*right);
-                    self.set_status(*right, Used);
-                    
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*left);
+                    self.ensure_defined_and_set(*right);
+                    self.ensure_undefined_and_set(*out);
                 }
 
                 Gate::Not(out, inp) => {
                     self.ensure_boolean("Not");
 
-                    self.ensure_defined(*inp);
-                    self.set_status(*inp, Used);
-                    self.set_status(*out, Used);
+                    self.ensure_defined_and_set(*inp);
+                    self.ensure_undefined_and_set(*out);
                 }
             }
         }
@@ -262,10 +245,21 @@ impl Validator {
         self.set_status(id, Defined);
     }
 
-    fn ensure_defined(&mut self, id: Var) {
+    fn ensure_defined_and_set(&mut self, id: Var) {
         if (self.status(id) == Undefined) && (self.as_prover) {
+            // TODO check that the 'id' identifies a witness variable
+            // because instance variable SHOULD be defined, even if self.as_prover == false.
             self.violate(format!("The witness variable_{} is used but was not assigned a value", id));
         }
+        self.set_status(id, Used);
+    }
+
+    fn ensure_undefined_and_set(&mut self, id: Var) {
+        if self.status(id) != Undefined {
+            self.violate(format!("The variable_{} has already been assigned a value.", id));
+        }
+
+        self.set_status(id, Used);
     }
 
     fn ensure_value_in_field(&mut self, value: &[u8], name: impl Fn() -> String) {
