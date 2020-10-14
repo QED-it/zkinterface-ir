@@ -20,6 +20,32 @@ enum Status {
 use Status::*;
 
 const VERSION_REGEX :&str = r"^\d+.\d+.\d+$";
+const IMPLEMENTED_CHECKS :&str = r"
+Here is the list of implemented semantic/syntactic checks:
+Header Validation
+ - Ensure that the characteristic is strictly greater than 1.
+ - Ensure that the field degree is exactly 1.
+ - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”)
+ - Ensure that the profile name is either circ_arithmetic_simple or circ_boolean_simple.
+ - Ensure header messages are coherent
+     - Profile names should be identical
+     - Versions should be identical
+     - Field characteristic and field degree should be the same
+
+Inputs Validation (Instances / Witnesses)
+ - Ensure that they are not defined more than once
+ - Ensure that they are not assigned a value more than once
+ - Ensure that the value they are set to is indeed encoding an element lying in the underlying field. For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
+
+Gates Validation
+ - Ensure that gates used are coherent with the profile
+   - @not/@and/@xor are not allowed with circ_arithmetic_simple
+   - @add/@addc/@mul/@mulc are not allowed with circ_boolean_simple
+ - Ensure constants used are actual field elements
+   - In Assignment, or @addc/@mulc
+ - Ensure input wires of gates map to an already set variable
+ - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
+";
 
 
 #[derive(Clone, Default)]
@@ -48,6 +74,10 @@ impl Validator {
 
     pub fn new_as_prover() -> Validator {
         Validator { as_prover: true, ..Self::default() }
+    }
+
+    pub fn print_implemented_checks() {
+        println!("{}", IMPLEMENTED_CHECKS);
     }
 
     pub fn ingest_messages(&mut self, messages: &Messages) {
