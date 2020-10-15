@@ -19,8 +19,8 @@ enum Status {
 
 use Status::*;
 
-const VERSION_REGEX :&str = r"^\d+.\d+.\d+$";
-const IMPLEMENTED_CHECKS :&str = r"
+const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
+const IMPLEMENTED_CHECKS: &str = r"
 Here is the list of implemented semantic/syntactic checks:
 Header Validation
  - Ensure that the characteristic is strictly greater than 1.
@@ -81,7 +81,6 @@ impl Validator {
     }
 
     pub fn ingest_messages(&mut self, messages: &Messages) {
-
         for instance in &messages.instances {
             self.ingest_instance(instance);
         }
@@ -116,10 +115,9 @@ impl Validator {
             if self.header_version != header.version {
                 self.violate("The profile version is not consistent across headers.");
             }
-
         } else {
             self.got_header = true;
-            
+
             // Check validity of field_characteristic
             self.field_characteristic = BigUint::from_bytes_le(&header.field_characteristic);
             if self.field_characteristic.cmp(&One::one()) != Ordering::Greater {
@@ -127,7 +125,7 @@ impl Validator {
             }
             self.field_bytelen = header.field_characteristic.len();
             // TODO: check if prime, or in a list of pre-defined primes.
-            
+
 
             self.field_degree = header.field_degree as usize;
             if self.field_degree != 1 {
@@ -138,10 +136,10 @@ impl Validator {
             self.header_profile = header.profile.clone();
             match &self.header_profile.trim()[..] {
                 "circ_arithmetic_simple" => {
-                    self.is_arithmetic_circuit = true; 
+                    self.is_arithmetic_circuit = true;
                 }
                 "circ_boolean_simple" => {
-                    self.is_arithmetic_circuit = false; 
+                    self.is_arithmetic_circuit = false;
                 }
                 _ => {
                     self.violate("The profile name should match either 'circ_arithmetic_simple' or 'circ_boolean_simple'.");
@@ -152,10 +150,9 @@ impl Validator {
             let re = Regex::new(VERSION_REGEX).unwrap();
             if !re.is_match(header.version.trim()) {
                 self.violate("The profile version should match the following format <major>.<minor>.<patch>.");
-            } 
+            }
             self.header_version = header.version.clone();
         }
-
     }
 
     pub fn ingest_instance(&mut self, instance: &Instance) {
@@ -166,16 +163,15 @@ impl Validator {
             self.define(var.id, &var.value, || format!("value of the instance variable_{}", var.id));
             self.set_status(var.id, Used);
         }
-
     }
 
     pub fn ingest_witness(&mut self, witness: &Witness) {
         if !self.as_prover {
             self.violate("As verifier, got an unexpected Witness message.");
         }
-        
+
         self.ingest_header(&witness.header);
-        
+
         for var in witness.short_witness.iter() {
             self.define(var.id, &var.value, || format!("value of the witness variable_{}", var.id));
             self.set_status(var.id, Used);
@@ -215,7 +211,7 @@ impl Validator {
 
                     self.ensure_defined_and_set(*left);
                     self.ensure_defined_and_set(*right);
-                    
+
                     self.ensure_undefined_and_set(*out);
                 }
 
@@ -256,7 +252,6 @@ impl Validator {
                 }
             }
         }
-
     }
 
     fn status(&mut self, id: Var) -> Status {
@@ -293,7 +288,6 @@ impl Validator {
     }
 
     fn ensure_value_in_field(&mut self, value: &[u8], name: impl Fn() -> String) {
-
         if value.len() == 0 {
             self.violate(format!("The {} is empty.", name()));
         }
@@ -335,22 +329,45 @@ impl Validator {
 
 #[test]
 fn test_validator() -> crate::Result<()> {
-
     use crate::producers::examples::*;
 
     let instance = example_instance();
     let witness = example_witness();
-    let relations = example_relation();
+    let relation = example_relation();
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_instance(&instance);
     validator.ingest_witness(&witness);
-    validator.ingest_relation(&relations);
+    validator.ingest_relation(&relation);
 
     let violations = validator.get_violations();
-    if violations.len() > 0 {
-        eprintln!("Violations:\n- {}\n", violations.join("\n- "));
-    }
+    assert_eq!(violations.len(), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_validator_violations() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let mut instance = example_instance();
+    let mut witness = example_witness();
+    let mut relation = example_relation();
+
+    // Create a violation by using a value too big for the field.
+    instance.common_inputs[0].value = instance.header.field_characteristic.clone();
+    // Create a violation by using an incorrect ID.
+    witness.short_witness[0].id += 10;
+    // Create a violation by using different headers.
+    relation.header.field_characteristic = vec![10];
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    assert_eq!(violations.len(), 3);
 
     Ok(())
 }
