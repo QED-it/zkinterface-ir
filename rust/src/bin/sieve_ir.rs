@@ -58,21 +58,23 @@ setting(ColoredHelp)
 struct Options {
     /// Which tool to run.
     ///
-    /// example     Create example statements.
+    /// example       Create example statements.
     ///
-    /// cat         Write .sieve files to stdout.
+    /// cat           Write .sieve files to stdout.
     ///
-    /// to-json     Convert to JSON on a single line.
+    /// to-json       Convert to JSON on a single line.
     ///
-    /// to-yaml     Convert to YAML.
+    /// to-yaml       Convert to YAML.
     ///
-    /// explain     Print the content in a human-readable form.
+    /// explain       Print the content in a human-readable form.
     ///
-    /// validate    Validate the format and semantics of a statement, as seen by a verifier.
+    /// validate      Validate the format and semantics of a statement, as seen by a verifier.
+    /// 
+    /// list-checks   Lists all the checks performed by the validator.
     ///
-    /// simulate    Simulate a proving system as prover by verifying that the statement is true.
+    /// simulate      Simulate a proving system as prover by verifying that the statement is true.
     ///
-    /// stats       Calculate statistics about the circuit.
+    /// stats         Calculate statistics about the circuit.
     #[structopt(default_value = "help")]
     tool: String,
 
@@ -96,6 +98,7 @@ fn cli(options: &Options) -> Result<()> {
         "to-json" => main_json(&load_messages(options)?),
         "to-yaml" => main_yaml(&load_messages(options)?),
         "explain" => main_explain(&load_messages(options)?),
+        "list-checks" => main_list_check(),
         "validate" => main_validate(&load_messages(options)?),
         "simulate" => main_simulate(&load_messages(options)?),
         "stats" => main_stats(&load_messages(options)?),
@@ -223,6 +226,11 @@ fn main_explain(_reader: &Reader) -> Result<()> {
     eprintln!("{:?}", reader);
     Ok(())
     */
+}
+
+fn main_list_check() -> Result<()> {
+    Validator::print_implemented_checks();
+    Ok(())
 }
 
 fn main_validate(reader: &Reader) -> Result<()> {
