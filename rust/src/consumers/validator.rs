@@ -94,8 +94,8 @@ impl Validator {
         }
     }
 
-    pub fn get_violations(mut self) -> Vec<String> {
-        self.ensure_all_variables_used();
+    pub fn get_violations(self) -> Vec<String> {
+        // self._ensure_all_variables_used();
         self.violations
     }
 
@@ -311,7 +311,7 @@ impl Validator {
         }
     }
 
-    fn ensure_all_variables_used(&mut self) {
+    fn _ensure_all_variables_used(&mut self) {
         for (id, status) in self.variables.iter() {
             match *status {
                 Undefined => self.violations.push(format!("variable_{} was accessed but not defined.", id)),
