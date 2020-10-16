@@ -27,6 +27,7 @@ Header Validation
  - Ensure that the field degree is exactly 1.
  - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”)
  - Ensure that the profile name is either circ_arithmetic_simple or circ_boolean_simple.
+     - If circ_boolean_simple, checks that the field characteristic is exactly 2.
  - Ensure header messages are coherent
      - Profile names should be identical
      - Versions should be identical
@@ -140,6 +141,9 @@ impl Validator {
                 }
                 "circ_boolean_simple" => {
                     self.is_arithmetic_circuit = false;
+                    if self.field_characteristic != 2 {
+                        self.violate("With profile 'circ_boolean_simple', the field characteristic can only be 2.");
+                    }
                 }
                 _ => {
                     self.violate("The profile name should match either 'circ_arithmetic_simple' or 'circ_boolean_simple'.");
