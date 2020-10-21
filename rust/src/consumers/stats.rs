@@ -123,3 +123,39 @@ impl Stats {
 
 
 }
+
+
+#[test]
+fn test_stats() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation = example_relation();
+
+    let mut stats = Stats::new();
+    stats.ingest_instance(&instance);
+    stats.ingest_witness(&witness);
+    stats.ingest_relation(&relation);
+
+
+    let expected_stats = Stats {
+            field_characteristic: literal(MODULUS),
+            field_degree: 1,
+            instance_variables: 1,
+            witness_variables: 2,
+            constants_gates: 1,
+            assert_zero_gates: 1,
+            copy_gates: 0,
+            add_gates: 2,
+            mul_gates: 3,
+            add_constant_gates: 0,
+            mul_constant_gates: 0,
+            and_gates: 0,
+            xor_gates: 0,
+            not_gates: 0,
+        };
+    assert_eq!(expected_stats, stats);
+
+    Ok(())
+}
