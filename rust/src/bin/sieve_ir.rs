@@ -14,6 +14,7 @@ use sieve_ir::{
     Result,
     consumers::simulator::Simulator,
     consumers::validator::Validator,
+    consumers::stats::Stats,
 };
 use std::fs::{File, create_dir_all};
 use std::ffi::OsStr;
@@ -270,15 +271,13 @@ fn print_violations(errors: &[String]) -> Result<()> {
     }
 }
 
-fn main_stats(_reader: &Reader) -> Result<()> {
-    unimplemented!();
-    /*
+fn main_stats(reader: &Reader) -> Result<()> {
+    let messages = Messages::try_from(reader)?;
     let mut stats = Stats::new();
-    stats.push(reader)?;
+    stats.ingest_messages(&messages);
     serde_json::to_writer_pretty(stdout(), &stats)?;
     println!();
     Ok(())
-    */
 }
 
 

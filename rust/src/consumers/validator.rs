@@ -1,7 +1,7 @@
 use crate::{Header, Relation, Instance, Witness, Messages, Gate};
 
 use std::collections::HashMap;
-use num_bigint::BigUint;
+use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
 
 use std::cmp::Ordering;
@@ -141,7 +141,7 @@ impl Validator {
                 }
                 "circ_boolean_simple" => {
                     self.is_arithmetic_circuit = false;
-                    if self.field_characteristic != 2 {
+                    if self.field_characteristic != 2.to_biguint().unwrap() {
                         self.violate("With profile 'circ_boolean_simple', the field characteristic can only be 2.");
                     }
                 }
