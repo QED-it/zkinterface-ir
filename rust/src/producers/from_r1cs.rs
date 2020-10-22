@@ -13,12 +13,32 @@ use crate::structs::assignment::Assignment;
 use crate::producers::examples::literal;
 use crate::Result;
 
+pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
+    if zki_header.field_maximum.is_none(){
+        Err("field_maximum must be provided")
+    }
+    OK(Header{
+        version: Header::default().version,
+        profile: Header::default().profile, //todo: verify default values
+        field_characteristic: vec![], //todo: add
+        field_degree: deserialize_small(&zki_header.field_maximum.unwrap())
+    })
+}
 
-pub fn ex_relation() -> Relation {
+pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSystem) -> Result<(Instance,Relation)> {
     use crate::Gate::*;
+    let header = zki_header_to_header(zki_header);
+    assert!(header.is_ok());
 
-    Relation {
-        header: ex_header(),
+    let i =  Instance {
+        header: header.unwrap(),
+        common_inputs: vec![
+            Assignment { id: 0, value: literal32(25) },
+        ],
+    };
+
+    let r = Relation {
+        header: header.unwrap(),
         gates: vec![
             Constant(3, literal32(MODULUS - 1)), // -1
             Mul(4, 1, 1),   // witness_1 squared
@@ -28,30 +48,14 @@ pub fn ex_relation() -> Relation {
             Add(8, 6, 7),   // sum - instance_0
             AssertZero(8),  // difference == 0
         ],
-    }
-}
+    };
 
-pub fn ex_instance() -> Instance {
-    Instance {
-        header: ex_header(),
-        common_inputs: vec![
-            Assignment { id: 0, value: literal32(25) },
-        ],
-    }
-}
-
-pub fn ex_witness() -> Witness {
-    Witness {
-        header: ex_header(),
-        short_witness: vec![
-            Assignment { id: 1, value: literal32(3) },
-            Assignment { id: 2, value: literal32(4) },
-        ],
-    }
+    Ok((i,r))
 }
 
 pub fn zki_witness_to_witness(zki_header: &zkiCircuitHeader, zki_witness: &zkiWitness) -> Result<Witness> {
     let header = zki_header_to_header(zki_header);
+    assert!(header.is_ok());
 
     let zki_variables = &zki_witness.assigned_variables;
     let variable_ids_len = zki_variables.variable_ids.len();
@@ -85,15 +89,6 @@ pub fn zki_witness_to_witness(zki_header: &zkiCircuitHeader, zki_witness: &zkiWi
     })
 }
 
-pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
-    OK(Header{
-        version: Header::default().version,
-        profile: Header::default().profile,
-        field_characteristic: vec![], //todo: add
-        field_degree: deserialize_small(&zki_header.field_maximum.unwrap())
-    })
-}
-
 #[test]
 fn test_r1cs_to_gates() {
     let zki_header = example_header();
@@ -102,9 +97,6 @@ fn test_r1cs_to_gates() {
     // in zkInterface the instance is inside the header
     // in ir each msg in {instance, relation, witness} has an header
     let (instance, relation) = zki_r1cs_to_ir(&zki_header, &zki_r1cs);
-
-
-    let header = zki_header_to_header(&zki_header);
 
     let zki_witness = example_witness();
     let witness = zki_witness_to_witness(&zki_header, &zki_witness);
