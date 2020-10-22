@@ -7,7 +7,6 @@ use zkinterface::KeyValue as zkiKeyValue;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::Variables as zkiVariables;
 
-
 use crate::{Header, Relation, Instance, Witness};
 use crate::structs::assignment::Assignment;
 use crate::producers::examples::literal;
@@ -15,7 +14,7 @@ use crate::Result;
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     if zki_header.field_maximum.is_none(){
-        Err("field_maximum must be provided")
+        return Err("field_maximum must be provided".into())
     }
     OK(Header{
         version: Header::default().version,
@@ -62,17 +61,17 @@ pub fn zki_witness_to_witness(zki_header: &zkiCircuitHeader, zki_witness: &zkiWi
     let values_len = zki_variables.get_variables().len();
 
     if variable_ids_len == 0 && values_len == 0 {
-        OK(Witness {
+        return OK(Witness {
             header: header.unwrap(),
             short_witness: Vec::new(),
-        })
+        });
     }
 
     if variable_ids_len != values_len {
-        Err(format!("Number of variable ids and values must be equal. Provided {0} variable ids and {1} values",
+        return Err(format!("Number of variable ids and values must be equal. Provided {0} variable ids and {1} values",
                     variable_ids_len,
                     values_len
-        ))
+        ).into());
     }
 
     let mut s_v: Vec<Assignment> = Vec::new();
