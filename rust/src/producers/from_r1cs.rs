@@ -1,7 +1,7 @@
 use flatbuffers::{emplace_scalar, EndianScalar, read_scalar};
 use std::mem::size_of;
 
-use zkinterface::ConstraintSystem as zkiConstraintSystem;
+use zkinterface::{ConstraintSystem as zkiConstraintSystem, Variables};
 use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::KeyValue as zkiKeyValue;
 use zkinterface::Witness as zkiWitness;
@@ -12,28 +12,58 @@ use crate::structs::assignment::Assignment;
 use crate::producers::examples::literal;
 use crate::Result;
 
+
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
-    if zki_header.field_maximum.is_none(){
-        return Err("field_maximum must be provided".into())
+    if zki_header.field_maximum.is_none() { //todo: replace with match
+        return Err("field_maximum must be provided".into());
     }
-    OK(Header{
+    OK(Header {
         version: Header::default().version,
         profile: Header::default().profile, //todo: verify default values
         field_characteristic: vec![], //todo: add
-        field_degree: deserialize_small(&zki_header.field_maximum.unwrap())
+        field_degree: deserialize_small(&zki_header.field_maximum.unwrap()),
     })
 }
 
-pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSystem) -> Result<(Instance,Relation)> {
+pub fn zki_variables_to_vec_assignment(vars: &Variables) -> Result<Vec<Assignment>> {
+    let variable_ids_len = vars.variable_ids.len();
+    let values_len = vars.get_variables().len();
+
+    if variable_ids_len == 0 && values_len == 0 {
+        return OK(Witness {
+            header: header.unwrap(),
+            short_witness: Vec::new(),
+        });
+    }
+
+    if variable_ids_len != values_len {
+        return Err(format!("Number of variable ids and values must be equal. Provided {0} variable ids and {1} values",
+                           variable_ids_len,
+                           values_len
+        ).into());
+    }
+
+    let mut s_v: Vec<Assignment> = Vec::new();
+    for var_id in vars.iter() {
+        s_v.extend_one(Assignment {
+            id: *var_id,
+            value: literal(zki_variables.values[var_id]),
+        });
+    }
+    s_v;
+}
+
+pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSystem) -> Result<(Instance, Relation)> {
     use crate::Gate::*;
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let i =  Instance {
+    let instance_assignment = zki_variables_to_vec_assignment(&zki_header.instance_variables);
+    assert!(instance_assignment.is_ok());
+
+    let i = Instance {
         header: header.unwrap(),
-        common_inputs: vec![
-            Assignment { id: 0, value: literal32(25) },
-        ],
+        common_inputs: instance_assignment.unwrap(),
     };
 
     let r = Relation {
@@ -49,42 +79,19 @@ pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSys
         ],
     };
 
-    Ok((i,r))
+    Ok((i, r))
 }
 
 pub fn zki_witness_to_witness(zki_header: &zkiCircuitHeader, zki_witness: &zkiWitness) -> Result<Witness> {
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let zki_variables = &zki_witness.assigned_variables;
-    let variable_ids_len = zki_variables.variable_ids.len();
-    let values_len = zki_variables.get_variables().len();
-
-    if variable_ids_len == 0 && values_len == 0 {
-        return OK(Witness {
-            header: header.unwrap(),
-            short_witness: Vec::new(),
-        });
-    }
-
-    if variable_ids_len != values_len {
-        return Err(format!("Number of variable ids and values must be equal. Provided {0} variable ids and {1} values",
-                    variable_ids_len,
-                    values_len
-        ).into());
-    }
-
-    let mut s_v: Vec<Assignment> = Vec::new();
-    for var_id in zki_variables.variable_ids.iter() {
-        s_v.extend_one(Assignment {
-            id: *var_id,
-            value: literal(zki_variables.values[var_id]),
-        });
-    }
+    let s_v = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
+    assert!(instance_assignment.is_ok());
 
     OK(Witness {
         header: header.unwrap(),
-        short_witness: s_v,
+        short_witness: s_v.unwrap(),
     })
 }
 
