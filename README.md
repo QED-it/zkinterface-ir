@@ -64,54 +64,99 @@ It also acts as a simulator in place of a proving system, and reports whether a 
 
 The command below reads the statement and prints a textual representation of it. It uses the YAML format, which is similar to JSON but easier to read and write. It is one-to-one equivalent to the information formatted with FlatBuffers.
 
-TODO: update.
 
     sieve_ir to-yaml
 
     …
-    Loading file ./witness.sieve
     Loading file ./statement.sieve
-
+    Loading file ./witness.sieve
+    
     ---
-    circuit_headers:
-      - instance_variables:
-          variable_ids: [4]
-          values: [25, 0, 0, 0]
-        free_variable_id: 10
-        field_maximum: [100, 0, 0, 0, 0, 0, 0, 0]
-        configuration:
-          - { key: Gate, text: Constant }
-          - { key: Gate, text: InstanceVar }
-          - { key: Gate, text: Witness }
-          - { key: Gate, text: AssertZero }
-          - { key: Gate, text: Add }
-          - { key: Gate, text: Mul }
-        profile_name: arithmetic_circuit
-    
-    gate_systems:
-      - gates:
+    relations:
+      - header:
+          version: 0.0.0
+          profile: circ_arithmetic_simple
+          field_characteristic:
+            - 101
+            - 0
+            - 0
+            - 0
+          field_degree: 1
+        gates:
           - Constant:
+              - 3
+              - - 100
+                - 0
+                - 0
+                - 0
+          - Mul:
+              - 4
               - 1
-              - [100, 0, 0, 0, 0, 0, 0, 0]
-          - Witness: 2
-          - Witness: 3
-          - InstanceVar: 4
-          - Mul: [5, 2, 2]
-          - Mul: [6, 3, 3]
-          - Add: [7, 5, 6]
-          - Mul: [8, 1, 4]
-          - Add: [9, 7, 8]
-          - AssertZero: 9
-    
+              - 1
+          - Mul:
+              - 5
+              - 2
+              - 2
+          - Add:
+              - 6
+              - 4
+              - 5
+          - Mul:
+              - 7
+              - 0
+              - 3
+          - Add:
+              - 8
+              - 6
+              - 7
+          - AssertZero: 8
+    instances:
+      - header:
+          version: 0.0.0
+          profile: circ_arithmetic_simple
+          field_characteristic:
+            - 101
+            - 0
+            - 0
+            - 0
+          field_degree: 1
+        common_inputs:
+          - id: 0
+            value:
+              - 25
+              - 0
+              - 0
+              - 0
     witnesses:
-      - assigned_variables:
-          variable_ids: [2, 3]
-          values: [3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]
+      - header:
+          version: 0.0.0
+          profile: circ_arithmetic_simple
+          field_characteristic:
+            - 101
+            - 0
+            - 0
+            - 0
+          field_degree: 1
+        short_witness:
+          - id: 1
+            value:
+              - 3
+              - 0
+              - 0
+              - 0
+          - id: 2
+            value:
+              - 4
+              - 0
+              - 0
+              - 0
 
 
 ### A producer: converter from R1CS
 
-This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile. It is available as a Rust function called `r1cs_to_gates(…)`, with example usage in `test_r1cs_to_gates()`. It is not yet wrapped as a CLI command but can easily be made so.
+**WIP**
+
+*This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile. It is available as a Rust function called `r1cs_to_gates(…)`, with example usage in `test_r1cs_to_gates()`. It is not yet wrapped as a CLI command but can easily be made so.*
 
 
 ## Second step: implementing a new integration
@@ -157,7 +202,7 @@ An additional circuit builder API is suggested. It may assist with common tasks 
 - De-duplication of repeated gates. See `struct CachingBuilder`.
 - Removal of identity gates. See `struct OptimizingBuilder`.
 
-This API is experimental and expected to evolve or be abandoned depending on user needs and contributions.
+This API is experimental and expected to evolve depending on user needs and contributions.
 
 
 ### Low-level serialization
