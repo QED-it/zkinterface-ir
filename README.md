@@ -1,20 +1,22 @@
 # Getting Started with the SIEVE IR toolbox
 
-This user guide is aimed at implementors of zero-knowledge systems and details how to integrate their systems using the SIEVE IR toolbox. For an introduction and more details, see the specification (TODO: final link).
+This user guide is aimed at implementors of zero-knowledge systems and details how to integrate their systems using the zkInterface SIEVE IR toolbox. For details on the zkInterface framework see [the original spec](https://github.com/QED-it/zkinterface/blob/master/zkInterface.pdf), and for details on the SIEVE IR format, see the [standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
 
-This guide uses the SIEVE IR supporting library for the Rust programming language, and its companion command-line interface (CLI). It focuses on a circuit-and-gates format. For R1CS systems, see similar content in [github.com/QED-it/zkinterface](https://github.com/QED-it/zkinterface).
+This guide uses the zkInterface SIEVE IR supporting library for the Rust programming language, and its companion command-line interface (CLI). It focuses on a circuit-and-gates format. For R1CS systems, see similar content in [github.com/QED-it/zkinterface](https://github.com/QED-it/zkinterface).
 
-SIEVE IR is a method to communicate a zero-knowledge statement from a statement generator to a proving system. In this guide, we first generate example statements, and we then consume them. These steps can serve as a starting point for a new implementation in a statement generator, or in a proving system, respectively.
+zkInterface SIEVE IR is a method to communicate a zero-knowledge statement from a statement generator to a proving system. In this guide, we first generate example SIEVE IR statements, and we then consume them. These steps can serve as a starting point for a new implementation in a statement generator, or in a proving system, respectively.
 
 ## Information Flow
 
 To communicate a statement, three types of information are transmitted:
 
-- A description of computation as a circuit of gates connected through wires.
+- A set of parameters and knobs that define the type of the statement being used, called the _Header_.
 
-- A witness used as input to the circuit by the prover side of the proving system.
+- A description of computation as a circuit of gates connected through wires, called the _Relation_.
 
-- Metadata providing additional instructions to the proving system.
+- A witness used as input to the circuit by the prover side of the proving system, caleld the _Witness_.
+
+- An instance used as inpout to the circuit both by the prover and the verifier, called the _Instance_.
 
 The exact structure of this information is specified in a FlatBuffers schema called `sieve_ir.fbs` in this repository, along with inline documentation. See the respective structures: Header, Relation, Instance, Witness.
 
@@ -24,7 +26,7 @@ In this guide, the structures are stored in intermediary files for ease and clar
 
 ### Install
 
-    git clone https://github.com/QED-it/sieve_ir.git
+    git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
     cd sieve_ir/rust/
     cargo install --path .
     
@@ -46,9 +48,19 @@ The command below generates an example statement. It stores it into files in the
 
 ### A consumer: validator and simulator
 
-The following command validates that the statement is properly formatted in compliance with the selected profile (Arithmetic Circuit).
+The `Validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
 
-It also acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
+The `Simulate` command validates that the statement is properly formatted, but also acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
+
+    sieve_ir validate
+    
+    …
+    Loading file ./witness.sieve
+    Loading file ./statement.sieve
+        
+    The statement is COMPLIANT with the profile!
+        
+ And the simulator,
 
     sieve_ir simulate
     
