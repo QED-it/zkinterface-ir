@@ -14,43 +14,38 @@ use crate::Result;
 
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
-    if zki_header.field_maximum.is_none() { //todo: replace with match
-        return Err("field_maximum must be provided".into());
+    match &zki_header.field_maximum{
+        None => Err("field_maximum must be provided".into()),
+
+        Some(field_maximum) => OK(Header {
+            field_characteristic: vec![field_maximum + 1],
+            ..Header::default()
+        })
     }
-    OK(Header {
-        version: Header::default().version,
-        profile: Header::default().profile, //todo: verify default values
-        field_characteristic: vec![], //todo: add
-        field_degree: deserialize_small(&zki_header.field_maximum.unwrap()),
-    })
 }
 
-pub fn zki_variables_to_vec_assignment(vars: &Variables) -> Result<Vec<Assignment>> {
+pub fn zki_variables_to_vec_assignment(vars: &Variables) -> (Vec<Assignment>, bool) {
     let variable_ids_len = vars.variable_ids.len();
     let values_len = vars.get_variables().len();
+    assert_eq!(variable_ids_len != values_len, format!("Number of variable ids and values must be equal."));
 
     if variable_ids_len == 0 && values_len == 0 {
-        return OK(Witness {
-            header: header.unwrap(),
-            short_witness: Vec::new(),
-        });
+        return (vec![Assignment{ id: 0, value: vec![0] }],true);
     }
 
-    if variable_ids_len != values_len {
-        return Err(format!("Number of variable ids and values must be equal. Provided {0} variable ids and {1} values",
-                           variable_ids_len,
-                           values_len
-        ).into());
-    }
-
-    let mut s_v: Vec<Assignment> = Vec::new();
+    let mut hasConstant = false;
+    let mut vec: Vec<Assignment> = Vec::new();
     for var_id in vars.iter() {
-        s_v.extend_one(Assignment {
+        if *var_id == 0 {
+            assert_eq!(zki_variables.values[var_id],0,"instance id:0 value is not 0");
+            hasConstant = true;
+        }
+        vec.extend_one(Assignment {
             id: *var_id,
             value: literal(zki_variables.values[var_id]),
         });
     }
-    s_v;
+    (vec, hasConstant);
 }
 
 pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSystem) -> Result<(Instance, Relation)> {
@@ -58,8 +53,11 @@ pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSys
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let instance_assignment = zki_variables_to_vec_assignment(&zki_header.instance_variables);
-    assert!(instance_assignment.is_ok());
+    let mut (instance_assignment,hasConstant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
+    if !hasConstant {
+        // prepend the constant 1 as instance id:0
+        instance_assignment.splice(0..0, vec![Assignment{ id: 0, value: vec![1] }]);
+    }
 
     let i = Instance {
         header: header.unwrap(),
@@ -86,8 +84,7 @@ pub fn zki_witness_to_witness(zki_header: &zkiCircuitHeader, zki_witness: &zkiWi
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let s_v = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
-    assert!(instance_assignment.is_ok());
+    let (s_v,_) = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
 
     OK(Witness {
         header: header.unwrap(),
@@ -102,6 +99,9 @@ fn test_r1cs_to_gates() {
 
     // in zkInterface the instance is inside the header
     // in ir each msg in {instance, relation, witness} has an header
+
+    // todo: add constant 1 to the instance (id:0)
+    // start counting from the free variable id in zki(for the gates)
     let (instance, relation) = zki_r1cs_to_ir(&zki_header, &zki_r1cs);
 
     let zki_witness = example_witness();
