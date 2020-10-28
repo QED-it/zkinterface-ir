@@ -31,7 +31,7 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 /// // Iterate over the files and observe the messages.
 /// let mut got = vec![];
 ///
-/// let ws = Workspace::from_dir(&dir).unwrap();
+/// let ws = Workspace::from_directory(&dir).unwrap();
 /// for msg in ws.iter_messages() {
 ///     match msg.unwrap() {
 ///         Message::Instance(h) => got.push("INSTANCE"),
@@ -44,12 +44,15 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 /// ```
 #[derive(Clone, Default, Debug, Eq, PartialEq)]
 pub struct Workspace {
+    /// Set to true to print the paths of files as they are read.
+    pub print_filenames: bool,
+
     paths: Vec<PathBuf>,
     stdin: bool,
 }
 
 impl Workspace {
-    pub fn from_dir(path: &Path) -> Result<Self> {
+    pub fn from_directory(path: &Path) -> Result<Self> {
         Self::from_dirs_and_files(&[path.to_path_buf()])
     }
 
@@ -60,7 +63,7 @@ impl Workspace {
 
     pub fn from_filenames(mut paths: Vec<PathBuf>) -> Self {
         if paths == vec![PathBuf::from("-")] {
-            Workspace { paths: vec![], stdin: true }
+            Workspace { stdin: true, ..Workspace::default() }
         } else {
             paths.sort();
             /* Alternative, sort by message type.
@@ -73,7 +76,7 @@ impl Workspace {
                     _ => 4,
                 }
             });*/
-            Workspace { paths, stdin: false }
+            Workspace { paths, ..Workspace::default() }
         }
     }
 
@@ -81,7 +84,7 @@ impl Workspace {
         let buffers: Box<dyn Iterator<Item=Vec<u8>>> = if self.stdin {
             Box::new(iterate_stream(stdin()))
         } else {
-            Box::new(iterate_files(&self.paths))
+            Box::new(iterate_files(&self.paths, self.print_filenames))
         };
 
         buffers.map(|buffer| Message::try_from(&buffer[..]))
@@ -101,9 +104,11 @@ impl Workspace {
     }
 }
 
-pub fn iterate_files<'w>(paths: &'w [PathBuf]) -> impl Iterator<Item=Vec<u8>> + 'w {
-    paths.iter().flat_map(|path|
-        iterate_file(path))
+pub fn iterate_files<'w>(paths: &'w [PathBuf], print: bool) -> impl Iterator<Item=Vec<u8>> + 'w {
+    paths.iter().flat_map(move |path| {
+        if print { eprintln!("Reading {}", path.display()); }
+        iterate_file(path)
+    })
 }
 
 pub fn iterate_file(path: &Path) -> Box<dyn Iterator<Item=Vec<u8>>> {

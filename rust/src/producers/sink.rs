@@ -15,6 +15,7 @@ pub struct WorkspaceSink {
     pub workspace: PathBuf,
     /// Set to true to print the paths of files as they are created.
     pub print_filenames: bool,
+
     file_counter: u32,
 }
 

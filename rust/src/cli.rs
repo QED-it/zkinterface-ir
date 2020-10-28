@@ -1,13 +1,12 @@
 extern crate serde;
 extern crate serde_json;
 
-use std::io::{stdin, stdout, copy};
+use std::io::{stdout, copy};
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use structopt::StructOpt;
-use std::convert::TryFrom;
 
-use crate::{Reader, Messages, Result, Workspace};
+use crate::{Messages, Result, Workspace};
 use crate::consumers::{
     evaluator::Evaluator,
     validator::Validator,
@@ -22,23 +21,14 @@ The tools below work within a workspace directory given after the tool name (`wo
 
 Create an example statement:
     sieve_ir example workspace
-Or:
-    sieve_ir example - > workspace/example.sieve
 
 Print a statement in different forms:
+    sieve_ir to-text workspace
     sieve_ir to-json workspace
     sieve_ir to-yaml workspace
-    sieve_ir explain workspace
 
-Simulate a proving system:
-    sieve_ir stats       workspace
-    sieve_ir validate    workspace
-    sieve_ir evaluate    workspace
-    sieve_ir fake_prove  workspace
-    sieve_ir fake_verify workspace
-
-Write all the statement files to stdout (to pipe to another program):
-    sieve_ir cat workspace
+Validate and evaluate a proving system:
+    sieve_ir valid-eval-metrics workspace
 
 ";
 
@@ -55,23 +45,25 @@ setting(ColoredHelp)
 pub struct Options {
     /// Which tool to run.
     ///
-    /// example       Create example statements.
+    /// example       Produce example statements.
     ///
-    /// cat           Write .sieve files to stdout.
+    /// to-text       Print the content in a human-readable form.
     ///
     /// to-json       Convert to JSON on a single line.
     ///
     /// to-yaml       Convert to YAML.
     ///
-    /// to-text       Print the content in a human-readable form.
-    ///
     /// validate      Validate the format and semantics of a statement, as seen by a verifier.
-    /// 
-    /// list-checks   Lists all the checks performed by the validator.
     ///
-    /// evaluate      Simulate a proving system as prover by verifying that the statement is true.
+    /// evaluate      Evaluate a circuit as prover to check that the statement is true, i.e. the witness satisfies the circuit.
     ///
-    /// stats         Calculate statistics about the circuit.
+    /// metrics       Calculate statistics about the circuit.
+    ///
+    /// valid-eval-metrics    Combined validate, evaluate, and metrics.
+    ///
+    /// list-validations    Lists all the checks performed by the validator.
+    ///
+    /// cat           Concatenate .sieve files to stdout to pipe to another program.
     #[structopt(default_value = "help")]
     tool: String,
 
@@ -90,14 +82,14 @@ pub fn cli(options: &Options) -> Result<()> {
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "to-yaml" => main_yaml(&load_messages(options)?),
-        "list-checks" => main_list_check(),
         "validate" => main_validate(&stream_messages(options)?),
         "evaluate" => main_evaluate(&stream_messages(options)?),
-        "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
-        "stats" => main_stats(&load_messages(options)?),
+        "metrics" => main_metrics(&stream_messages(options)?),
+        "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
+        "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
-        "fake_prove" => main_fake_prove(&load_messages(options)?),
-        "fake_verify" => main_fake_verify(&load_messages(options)?),
+        "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
+        "stats" => Err("`stats` was renamed to `metrics`".into()),
         "help" => {
             Options::clap().print_long_help()?;
             eprintln!("\n");
@@ -112,26 +104,16 @@ pub fn cli(options: &Options) -> Result<()> {
 }
 
 
-fn load_messages(opts: &Options) -> Result<Reader> {
-    let mut reader = Reader::default();
-
-    for path in list_workspace_files(&opts.paths)? {
-        if path == Path::new("-") {
-            eprintln!("Loading from stdin");
-            reader.read_from(&mut stdin())?;
-        } else {
-            eprintln!("Loading file {}", path.display());
-            reader.read_file(path)?;
-        }
-    }
-    eprintln!();
-
-    Ok(reader)
+fn load_messages(opts: &Options) -> Result<Messages> {
+    stream_messages(opts)?.read_all_messages()
 }
 
 fn stream_messages(opts: &Options) -> Result<Workspace> {
-    Workspace::from_dirs_and_files(&opts.paths)
+    let mut ws = Workspace::from_dirs_and_files(&opts.paths)?;
+    ws.print_filenames = true;
+    Ok(ws)
 }
+
 
 fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
@@ -171,25 +153,23 @@ fn main_cat(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-fn main_text(_reader: &Reader) -> Result<()> {
+fn main_text(_messages: &Messages) -> Result<()> {
     Err("Text form is not implemented yet.".into())
 }
 
-fn main_json(reader: &Reader) -> Result<()> {
-    let messages = Messages::try_from(reader)?;
-    serde_json::to_writer(stdout(), &messages)?;
+fn main_json(messages: &Messages) -> Result<()> {
+    serde_json::to_writer(stdout(), messages)?;
     println!();
     Ok(())
 }
 
-fn main_yaml(reader: &Reader) -> Result<()> {
-    let messages = Messages::try_from(reader)?;
-    serde_yaml::to_writer(stdout(), &messages)?;
+fn main_yaml(messages: &Messages) -> Result<()> {
+    serde_yaml::to_writer(stdout(), messages)?;
     println!();
     Ok(())
 }
 
-fn main_list_check() -> Result<()> {
+fn main_list_validations() -> Result<()> {
     Validator::print_implemented_checks();
     Ok(())
 }
@@ -204,21 +184,50 @@ fn main_validate(ws: &Workspace) -> Result<()> {
 }
 
 fn main_evaluate(ws: &Workspace) -> Result<()> {
+    // Validate semantics as verifier.
+    let mut evaluator = Evaluator::default();
+    for msg in ws.iter_messages() {
+        evaluator.ingest_message(&msg?);
+    }
+    print_violations(&evaluator.get_violations(), "TRUE")
+}
+
+fn main_metrics(ws: &Workspace) -> Result<()> {
+    let mut stats = Stats::default();
+    for msg in ws.iter_messages() {
+        stats.ingest_message(&msg?);
+    }
+    serde_json::to_writer_pretty(stdout(), &stats)?;
+    println!();
+    Ok(())
+}
+
+/// Joint validate, evaluate, and metrics.
+fn main_valid_eval_metrics(ws: &Workspace) -> Result<()> {
     // Validate semantics as prover.
     let mut validator = Validator::new_as_prover();
     // Check whether the statement is true.
     let mut evaluator = Evaluator::default();
+    // Measure metrics on the circuit.
+    let mut stats = Stats::default();
 
-    // Must validate and evaluate in parallel to support stdin.
+    // Feed messages to all consumers (read files or stdin only once).
     for msg in ws.iter_messages() {
         let msg = msg?;
         validator.ingest_message(&msg);
         evaluator.ingest_message(&msg);
+        stats.ingest_message(&msg);
     }
 
-    let result_val = print_violations(&validator.get_violations(), "COMPLIANT with the specification");
-    print_violations(&evaluator.get_violations(), "TRUE")?;
-    result_val
+    let res1 = print_violations(&validator.get_violations(), "COMPLIANT with the specification");
+    let res2 = print_violations(&evaluator.get_violations(), "TRUE");
+    let res3 = serde_json::to_writer_pretty(stdout(), &stats);
+    println!();
+
+    res1?;
+    res2?;
+    res3?;
+    Ok(())
 }
 
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
@@ -232,37 +241,6 @@ fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Resul
     }
 }
 
-fn main_stats(reader: &Reader) -> Result<()> {
-    let messages = Messages::try_from(reader)?;
-    let mut stats = Stats::new();
-    stats.ingest_messages(&messages);
-    serde_json::to_writer_pretty(stdout(), &stats)?;
-    println!();
-    Ok(())
-}
-
-
-fn main_fake_prove(_: &Reader) -> Result<()> {
-    unimplemented!();
-    /*
-    let mut file = File::create("fake_proof")?;
-    // TODO: write witness as fake proof.
-    eprintln!("Fake proof written to file `fake_proof`.");
-    Ok(())
-     */
-}
-
-fn main_fake_verify(_: &Reader) -> Result<()> {
-    unimplemented!();
-    /*
-    let mut file = File::open("fake_proof")?;
-    let mut proof = String::new();
-    file.read_to_string(&mut proof)?;
-    // TODO: Simulate with the witness given in the fake proof.
-    eprintln!("Fake proof verified!");
-    Ok(())
-     */
-}
 
 #[test]
 fn test_cli() -> Result<()> {
@@ -277,7 +255,7 @@ fn test_cli() -> Result<()> {
     })?;
 
     cli(&Options {
-        tool: "evaluate".to_string(),
+        tool: "valid-eval-metrics".to_string(),
         paths: vec![workspace.clone()],
     })?;
 
