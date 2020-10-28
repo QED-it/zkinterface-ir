@@ -8,19 +8,20 @@ use crate::consumers::utils::read_buffer;
 use crate::{Result, Message, Messages, FILE_EXTENSION};
 
 
-/// Workspace finds and reads IR messages from a directory.
+/// Source finds and reads IR messages from a directory.
 /// It supports reading messages one-by-one from large files or from many files.
 /// It supports reading from stdin using dash (-) as a special filename.
+/// It supports reading from given buffers.
 ///
 /// # Example
 /// ```
-/// use sieve_ir::{Workspace, WorkspaceSink, Sink, Message};
+/// use sieve_ir::{Source, FilesSink, Sink, Message};
 /// use sieve_ir::producers::examples::*;
 /// use std::path::PathBuf;
 ///
 /// // Create an example workspace including multiple constraints files.
-/// let dir = PathBuf::from("local/test_workspace");
-/// let mut sink = WorkspaceSink::new(&dir).unwrap();
+/// let dir = PathBuf::from("local/test_source");
+/// let mut sink = FilesSink::new(&dir).unwrap();
 /// sink.clean_workspace().unwrap();
 /// sink.push_instance(&example_instance());
 /// sink.push_witness(&example_witness());
@@ -31,8 +32,8 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 /// // Iterate over the files and observe the messages.
 /// let mut got = vec![];
 ///
-/// let ws = Workspace::from_directory(&dir).unwrap();
-/// for msg in ws.iter_messages() {
+/// let source = Source::from_directory(&dir).unwrap();
+/// for msg in source.iter_messages() {
 ///     match msg.unwrap() {
 ///         Message::Instance(h) => got.push("INSTANCE"),
 ///         Message::Witness(w) => got.push("WITNESS"),
@@ -43,21 +44,21 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 /// assert_eq!(got, vec!["INSTANCE", "WITNESS", "RELATION", "WITNESS", "RELATION"]);
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Workspace {
+pub struct Source {
     /// Set to true to print the paths of files as they are read.
     pub print_filenames: bool,
 
-    source: Source,
+    buffer_source: BufferSource,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum Source {
+enum BufferSource {
     Stdin,
     Files(Vec<PathBuf>),
-    Buffers(Vec<Vec<u8>>),
+    Memory(Vec<Vec<u8>>),
 }
 
-impl Workspace {
+impl Source {
     pub fn from_directory(path: &Path) -> Result<Self> {
         Self::from_dirs_and_files(&[path.to_path_buf()])
     }
@@ -69,7 +70,7 @@ impl Workspace {
 
     pub fn from_filenames(mut paths: Vec<PathBuf>) -> Self {
         let source = if paths == vec![PathBuf::from("-")] {
-            Source::Stdin
+            BufferSource::Stdin
         } else {
             paths.sort();
             /* Alternative, sort by message type.
@@ -82,22 +83,22 @@ impl Workspace {
                     _ => 4,
                 }
             });*/
-            Source::Files(paths)
+            BufferSource::Files(paths)
         };
-        Workspace { source, print_filenames: false }
+        Source { buffer_source: source, print_filenames: false }
     }
 
     pub fn from_buffers(buffers: Vec<Vec<u8>>) -> Self {
-        Workspace { source: Source::Buffers(buffers), print_filenames: false }
+        Source { buffer_source: BufferSource::Memory(buffers), print_filenames: false }
     }
 
     pub fn iter_buffers<'w>(&'w self) -> Box<dyn Iterator<Item=Vec<u8>> + 'w> {
-        match &self.source {
-            Source::Stdin => Box::new(
+        match &self.buffer_source {
+            BufferSource::Stdin => Box::new(
                 iterate_stream(stdin())),
-            Source::Files(paths) => Box::new(
+            BufferSource::Files(paths) => Box::new(
                 iterate_files(&paths[..], self.print_filenames)),
-            Source::Buffers(buffers) => Box::new(
+            BufferSource::Memory(buffers) => Box::new(
                 iterate_buffers(&buffers[..])),
         }
     }

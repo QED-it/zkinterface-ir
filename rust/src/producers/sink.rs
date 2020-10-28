@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs::{remove_file, File, create_dir_all, read_dir};
 use crate::{Result, Instance, Witness, Relation, FILE_EXTENSION};
-use crate::consumers::workspace::has_sieve_extension;
+use crate::consumers::source::has_sieve_extension;
 
 pub trait Sink {
     fn push_instance(&mut self, instance: &Instance) -> Result<()>;
@@ -11,7 +11,7 @@ pub trait Sink {
 
 
 /// Store messages into files using conventional filenames inside of a workspace.
-pub struct WorkspaceSink {
+pub struct FilesSink {
     pub workspace: PathBuf,
     /// Set to true to print the paths of files as they are created.
     pub print_filenames: bool,
@@ -19,10 +19,10 @@ pub struct WorkspaceSink {
     file_counter: u32,
 }
 
-impl WorkspaceSink {
-    pub fn new(workspace: impl AsRef<Path>) -> Result<WorkspaceSink> {
+impl FilesSink {
+    pub fn new(workspace: impl AsRef<Path>) -> Result<FilesSink> {
         create_dir_all(workspace.as_ref())?;
-        Ok(WorkspaceSink {
+        Ok(FilesSink {
             workspace: workspace.as_ref().to_path_buf(),
             print_filenames: false,
             file_counter: 0,
@@ -30,7 +30,7 @@ impl WorkspaceSink {
     }
 }
 
-impl WorkspaceSink {
+impl FilesSink {
     pub fn clean_workspace(&mut self) -> Result<()> {
         self.file_counter = 0;
         clean_workspace(&self.workspace)
@@ -49,7 +49,7 @@ impl WorkspaceSink {
     }
 }
 
-impl Sink for WorkspaceSink {
+impl Sink for FilesSink {
     fn push_instance(&mut self, instance: &Instance) -> Result<()> {
         let mut file = self.next_file("instance")?;
         instance.write_into(&mut file)
@@ -81,13 +81,13 @@ pub fn clean_workspace(workspace: impl AsRef<Path>) -> Result<()> {
 
 
 #[test]
-fn test_workspace_sink() {
+fn test_sink() {
     use std::fs::remove_dir_all;
     use crate::producers::examples::*;
 
-    let workspace = PathBuf::from("local/test_workspace_sink");
+    let workspace = PathBuf::from("local/test_sink");
     let _ = remove_dir_all(&workspace);
-    let mut sink = WorkspaceSink::new(&workspace).unwrap();
+    let mut sink = FilesSink::new(&workspace).unwrap();
 
     // workspace is empty, check it!
     assert_eq!(read_dir(&workspace).unwrap().count(), 0);

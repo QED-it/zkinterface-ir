@@ -23,11 +23,11 @@ pub mod consumers;
 pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
 pub use producers::sink::{
     Sink,
-    WorkspaceSink,
+    FilesSink,
     clean_workspace,
 };
 pub use consumers::{
-    workspace::Workspace,
+    source::Source,
 };
 pub use structs::{
     header::Header,

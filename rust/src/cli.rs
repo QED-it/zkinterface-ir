@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use std::fs::File;
 use structopt::StructOpt;
 
-use crate::{Messages, Result, Workspace};
+use crate::{Messages, Result, Source};
 use crate::consumers::{
     evaluator::Evaluator,
     validator::Validator,
     stats::Stats,
-    workspace::{list_workspace_files, has_sieve_extension},
+    source::{list_workspace_files, has_sieve_extension},
 };
 
 const ABOUT: &str = "
@@ -108,16 +108,16 @@ fn load_messages(opts: &Options) -> Result<Messages> {
     stream_messages(opts)?.read_all_messages()
 }
 
-fn stream_messages(opts: &Options) -> Result<Workspace> {
-    let mut ws = Workspace::from_dirs_and_files(&opts.paths)?;
-    ws.print_filenames = true;
-    Ok(ws)
+fn stream_messages(opts: &Options) -> Result<Source> {
+    let mut source = Source::from_dirs_and_files(&opts.paths)?;
+    source.print_filenames = true;
+    Ok(source)
 }
 
 
 fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
-    use crate::{Sink, WorkspaceSink};
+    use crate::{Sink, FilesSink};
 
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
@@ -135,7 +135,7 @@ fn main_example(opts: &Options) -> Result<()> {
         example_relation().write_into(&mut file)?;
         eprintln!("Written Instance, Witness, and Relation into {}", out_dir.display());
     } else {
-        let mut sink = WorkspaceSink::new(out_dir)?;
+        let mut sink = FilesSink::new(out_dir)?;
         sink.print_filenames = true;
         sink.push_instance(&example_instance())?;
         sink.push_witness(&example_witness())?;
@@ -174,27 +174,27 @@ fn main_list_validations() -> Result<()> {
     Ok(())
 }
 
-fn main_validate(ws: &Workspace) -> Result<()> {
+fn main_validate(source: &Source) -> Result<()> {
     // Validate semantics as verifier.
     let mut validator = Validator::new_as_verifier();
-    for msg in ws.iter_messages() {
+    for msg in source.iter_messages() {
         validator.ingest_message(&msg?);
     }
     print_violations(&validator.get_violations(), "COMPLIANT with the specification")
 }
 
-fn main_evaluate(ws: &Workspace) -> Result<()> {
+fn main_evaluate(source: &Source) -> Result<()> {
     // Validate semantics as verifier.
     let mut evaluator = Evaluator::default();
-    for msg in ws.iter_messages() {
+    for msg in source.iter_messages() {
         evaluator.ingest_message(&msg?);
     }
     print_violations(&evaluator.get_violations(), "TRUE")
 }
 
-fn main_metrics(ws: &Workspace) -> Result<()> {
+fn main_metrics(source: &Source) -> Result<()> {
     let mut stats = Stats::default();
-    for msg in ws.iter_messages() {
+    for msg in source.iter_messages() {
         stats.ingest_message(&msg?);
     }
     serde_json::to_writer_pretty(stdout(), &stats)?;
@@ -203,7 +203,7 @@ fn main_metrics(ws: &Workspace) -> Result<()> {
 }
 
 /// Joint validate, evaluate, and metrics.
-fn main_valid_eval_metrics(ws: &Workspace) -> Result<()> {
+fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     // Validate semantics as prover.
     let mut validator = Validator::new_as_prover();
     // Check whether the statement is true.
@@ -212,7 +212,7 @@ fn main_valid_eval_metrics(ws: &Workspace) -> Result<()> {
     let mut stats = Stats::default();
 
     // Feed messages to all consumers (read files or stdin only once).
-    for msg in ws.iter_messages() {
+    for msg in source.iter_messages() {
         let msg = msg?;
         validator.ingest_message(&msg);
         evaluator.ingest_message(&msg);
