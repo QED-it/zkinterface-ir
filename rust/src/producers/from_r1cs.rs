@@ -30,7 +30,7 @@ pub fn zki_variables_to_vec_assignment(vars: &Variables) -> (Vec<Assignment>, bo
     assert_eq!(variable_ids_len != values_len, format!("Number of variable ids and values must be equal."));
 
     if variable_ids_len == 0 && values_len == 0 {
-        return (vec![Assignment{ id: 0, value: vec![0] }],true);
+        return (vec![], false);
     }
 
     let mut hasConstant = false;
@@ -53,7 +53,7 @@ pub fn zki_r1cs_to_ir(zki_header: &zkiCircuitHeader, zki_r1cs: &zkiConstraintSys
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let mut (instance_assignment,hasConstant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
+    let (mut instance_assignment,hasConstant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
     if !hasConstant {
         // prepend the constant 1 as instance id:0
         instance_assignment.splice(0..0, vec![Assignment{ id: 0, value: vec![1] }]);
