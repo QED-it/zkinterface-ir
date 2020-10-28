@@ -76,8 +76,7 @@ pub fn read_literal<T: EndianScalar>(encoded: &[u8]) -> T {
 
 #[test]
 fn test_examples() {
-    use std::convert::TryFrom;
-    use crate::{Reader, Messages};
+    use crate::Workspace;
 
     let mut common_buf = Vec::<u8>::new();
     example_instance().write_into(&mut common_buf).unwrap();
@@ -86,13 +85,9 @@ fn test_examples() {
     let mut prover_buf = Vec::<u8>::new();
     example_witness().write_into(&mut prover_buf).unwrap();
 
-    let mut reader = Reader::default();
-    reader.push_message(common_buf).unwrap();
-    assert_eq!(reader.into_iter().count(), 2);
-    reader.push_message(prover_buf).unwrap();
-    assert_eq!(reader.into_iter().count(), 3);
+    let ws = Workspace::from_buffers(vec![common_buf, prover_buf]);
 
-    let messages = Messages::try_from(&reader).unwrap();
+    let messages = ws.read_all_messages().unwrap();
     assert_eq!(messages.relations, vec![example_relation()]);
     assert_eq!(messages.instances, vec![example_instance()]);
     assert_eq!(messages.witnesses, vec![example_witness()]);

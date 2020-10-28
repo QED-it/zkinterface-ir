@@ -42,13 +42,19 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 ///
 /// assert_eq!(got, vec!["INSTANCE", "WITNESS", "RELATION", "WITNESS", "RELATION"]);
 /// ```
-#[derive(Clone, Default, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Workspace {
     /// Set to true to print the paths of files as they are read.
     pub print_filenames: bool,
 
-    paths: Vec<PathBuf>,
-    stdin: bool,
+    source: Source,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Source {
+    Stdin,
+    Files(Vec<PathBuf>),
+    Buffers(Vec<Vec<u8>>),
 }
 
 impl Workspace {
@@ -62,8 +68,8 @@ impl Workspace {
     }
 
     pub fn from_filenames(mut paths: Vec<PathBuf>) -> Self {
-        if paths == vec![PathBuf::from("-")] {
-            Workspace { stdin: true, ..Workspace::default() }
+        let source = if paths == vec![PathBuf::from("-")] {
+            Source::Stdin
         } else {
             paths.sort();
             /* Alternative, sort by message type.
@@ -76,29 +82,34 @@ impl Workspace {
                     _ => 4,
                 }
             });*/
-            Workspace { paths, ..Workspace::default() }
+            Source::Files(paths)
+        };
+        Workspace { source, print_filenames: false }
+    }
+
+    pub fn from_buffers(buffers: Vec<Vec<u8>>) -> Self {
+        Workspace { source: Source::Buffers(buffers), print_filenames: false }
+    }
+
+    pub fn iter_buffers<'w>(&'w self) -> Box<dyn Iterator<Item=Vec<u8>> + 'w> {
+        match &self.source {
+            Source::Stdin => Box::new(
+                iterate_stream(stdin())),
+            Source::Files(paths) => Box::new(
+                iterate_files(&paths[..], self.print_filenames)),
+            Source::Buffers(buffers) => Box::new(
+                iterate_buffers(&buffers[..])),
         }
     }
 
     pub fn iter_messages<'w>(&'w self) -> impl Iterator<Item=Result<Message>> + 'w {
-        let buffers: Box<dyn Iterator<Item=Vec<u8>>> = if self.stdin {
-            Box::new(iterate_stream(stdin()))
-        } else {
-            Box::new(iterate_files(&self.paths, self.print_filenames))
-        };
-
-        buffers.map(|buffer| Message::try_from(&buffer[..]))
+        self.iter_buffers().map(|buffer| Message::try_from(&buffer[..]))
     }
 
     pub fn read_all_messages(&self) -> Result<Messages> {
         let mut messages = Messages::default();
-
         for msg in self.iter_messages() {
-            match msg? {
-                Message::Instance(i) => messages.instances.push(i),
-                Message::Witness(w) => messages.witnesses.push(w),
-                Message::Relation(r) => messages.relations.push(r),
-            }
+            messages.push_message(&msg?);
         }
         Ok(messages)
     }
@@ -114,7 +125,7 @@ pub fn iterate_files<'w>(paths: &'w [PathBuf], print: bool) -> impl Iterator<Ite
 pub fn iterate_file(path: &Path) -> Box<dyn Iterator<Item=Vec<u8>>> {
     match File::open(path) {
         Err(err) => {
-            eprintln!("Error opening workspace file {}: {}", path.display(), err);
+            eprintln!("Warning: failed to open file {}: {}", path.display(), err);
             Box::new(iter::empty())
         }
         Ok(file) => Box::new(
@@ -122,11 +133,17 @@ pub fn iterate_file(path: &Path) -> Box<dyn Iterator<Item=Vec<u8>>> {
     }
 }
 
+pub fn iterate_buffers<'w>(buffers: &'w [Vec<u8>]) -> impl Iterator<Item=Vec<u8>> + 'w {
+    buffers.iter().flat_map(|buffer| {
+        iterate_stream(&buffer[..])
+    })
+}
+
 pub fn iterate_stream<'s>(mut stream: impl Read + 's) -> impl Iterator<Item=Vec<u8>> + 's {
     iter::from_fn(move ||
         match read_buffer(&mut stream) {
             Err(err) => {
-                eprintln!("Error reading: {}", err);
+                eprintln!("Warning: failed to read: {}", err);
                 None
             }
             Ok(buffer) => {

@@ -27,7 +27,6 @@ pub use producers::sink::{
     clean_workspace,
 };
 pub use consumers::{
-    reader::Reader,
     workspace::Workspace,
 };
 pub use structs::{
