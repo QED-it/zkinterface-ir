@@ -1,4 +1,4 @@
-use crate::{Header, Relation, Instance, Witness, Messages, Gate};
+use crate::{Header, Relation, Instance, Witness, Message, Gate};
 
 use std::collections::HashMap;
 use num_bigint::{BigUint, ToBigUint};
@@ -81,26 +81,20 @@ impl Validator {
         println!("{}", IMPLEMENTED_CHECKS);
     }
 
-    pub fn ingest_messages(&mut self, messages: &Messages) {
-        for instance in &messages.instances {
-            self.ingest_instance(instance);
-        }
-        if self.as_prover {
-            for witness in &messages.witnesses {
-                self.ingest_witness(witness);
-            }
-        }
-        for relation in &messages.relations {
-            self.ingest_relation(relation);
-        }
-    }
-
     pub fn get_violations(self) -> Vec<String> {
         // self._ensure_all_variables_used();
         self.violations
     }
 
-    pub fn ingest_header(&mut self, header: &Header) {
+    pub fn ingest_message(&mut self, msg: &Message) {
+        match msg {
+            Message::Instance(i) => self.ingest_instance(&i),
+            Message::Witness(w) => self.ingest_witness(&w),
+            Message::Relation(r) => self.ingest_relation(&r),
+        }
+    }
+
+    fn ingest_header(&mut self, header: &Header) {
         if self.got_header {
             // in this case, ensure that headers are compatible
             if self.field_characteristic != BigUint::from_bytes_le(&header.field_characteristic) {
