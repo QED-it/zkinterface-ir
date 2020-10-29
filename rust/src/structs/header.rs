@@ -1,5 +1,3 @@
-//! Helpers to write messages.
-//!
 use std::error::Error;
 use std::convert::TryFrom;
 use crate::Result;

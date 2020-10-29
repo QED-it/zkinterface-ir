@@ -27,19 +27,19 @@ In this guide, the structures are stored in intermediary files for ease and clar
 ### Install
 
     git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
-    cd sieve_ir/rust/
+    cd zkinterface-sieve/rust/
     cargo install --path .
     
-    sieve_ir help
+    zki help
 
 This will print a list of available commands (your mileage may vary depending on your environment).
 
 
 ### A producer: example generator
 
-The command below generates an example statement. It stores it into files in the working directory (customizable, see `sieve_ir help`). The profile AC (Arithmetic Circuit) was selected.
+The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki help`). The profile AC (Arithmetic Circuit) was selected.
 
-    sieve_ir example
+    zki example
 
     …
     Written ./statement.sieve
@@ -52,7 +52,7 @@ The `Validate` command validates that the statement is properly formatted in com
 
 The `Simulate` command validates that the statement is properly formatted, but also acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
-    sieve_ir validate
+    zki validate
     
     …
     Loading file ./witness.sieve
@@ -62,7 +62,7 @@ The `Simulate` command validates that the statement is properly formatted, but a
         
  And the simulator,
 
-    sieve_ir simulate
+    zki simulate
     
     …
     Loading file ./witness.sieve
@@ -77,7 +77,7 @@ The `Simulate` command validates that the statement is properly formatted, but a
 The command below reads the statement and prints a textual representation of it. It uses the YAML format, which is similar to JSON but easier to read and write. It is one-to-one equivalent to the information formatted with FlatBuffers.
 
 
-    sieve_ir to-yaml
+    zki to-yaml
 
     …
     Loading file ./statement.sieve
@@ -175,46 +175,17 @@ The command below reads the statement and prints a textual representation of it.
 
 ### Example code.
 
-An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/sieve_ir.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
+An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/zki.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
 
 ### Basic API
 
-All information to be transmitted between systems is in data structures formally specified by the FlatBuffers schema. The simplest Rust API available is a straight one-to-one mapping of these structures. In essence:
-
-TODO: update.
-
-    pub struct Relation {
-        pub gates: Vec<Gate>,
-    }
-
-    type WireId = u64;
-    
-    pub enum Gate {
-        Constant(WireId, Vec<u8>),
-        InstanceVar(WireId),
-        Witness(WireId),
-        AssertZero(WireId),
-        Add(WireId, WireId, WireId),
-        Mul(WireId, WireId, WireId),
-    }
+All information to be transmitted between systems is in data structures formally specified by the FlatBuffers schema. The simplest Rust API available is a straight one-to-one mapping of these structures.
 
 A producer can create a `Relation` structure and populate its `gates` vector with a number of `Gate`, in compliance with the specification.
 
 A consumer can iterate over `Relation.gates` and act on the different gate types using, e.g., a `match` construct.
 
 Implementations should expect to produce or receive not one but a stream of these structures in order to process very large statements with limited memory.
-
-
-### Builder API
-
-TODO: update.
-
-An additional circuit builder API is suggested. It may assist with common tasks that arises when building a circuit. The following features are proposed:
-- Allocation of unique wire IDs. See `struct Builder`.
-- De-duplication of repeated gates. See `struct CachingBuilder`.
-- Removal of identity gates. See `struct OptimizingBuilder`.
-
-This API is experimental and expected to evolve depending on user needs and contributions.
 
 
 ### Low-level serialization

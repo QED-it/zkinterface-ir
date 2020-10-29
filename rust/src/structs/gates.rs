@@ -11,15 +11,25 @@ use super::{WireId, Value};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum Gate {
+    /// Constant(output, constant)
     Constant(WireId, Value),
+    /// AssertZero(input)
     AssertZero(WireId),
+    /// Copy(output, input)
     Copy(WireId, WireId),
+    /// Add(output, input, input)
     Add(WireId, WireId, WireId),
+    /// Mul(output, input, input)
     Mul(WireId, WireId, WireId),
+    /// AddConstant(output, input, constant)
     AddConstant(WireId, WireId, Value),
+    /// MulConstant(output, input, constant)
     MulConstant(WireId, WireId, Value),
+    /// And(output, input, input)
     And(WireId, WireId, WireId),
+    /// Xor(output, input, input)
     Xor(WireId, WireId, WireId),
+    /// Not(output, input)
     Not(WireId, WireId),
 }
 

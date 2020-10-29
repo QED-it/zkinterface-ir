@@ -1,6 +1,6 @@
-extern crate sieve_ir;
+extern crate zki;
 
-use sieve_ir::{Result, cli::{cli, Options}};
+use zki::{Result, cli::{cli, Options}};
 use structopt::StructOpt;
 
 fn main() -> Result<()> {

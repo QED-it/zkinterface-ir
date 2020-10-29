@@ -253,21 +253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sieve_ir"
-version = "0.1.0"
-dependencies = [
- "colored 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "flatbuffers 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "num-bigint 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "num-traits 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "regex 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 1.0.111 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 1.0.53 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_yaml 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "structopt 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "smallvec"
 version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -401,6 +386,21 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "linked-hash-map 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "zki"
+version = "0.1.0"
+dependencies = [
+ "colored 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "flatbuffers 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-bigint 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.111 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.53 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_yaml 0.8.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "structopt 0.3.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [metadata]
