@@ -42,34 +42,38 @@ The command below generates an example statement. It stores it into files in the
     zki example
 
     …
-    Written ./statement.sieve
-    Written ./witness.sieve
+    Writing ./000_instance.sieve
+    Writing ./001_witness.sieve
+    Writing ./002_relation.sieve
 
 
-### A consumer: validator and simulator
+### A consumer: validator and evaluator
 
 The `Validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
 
-The `Simulate` command validates that the statement is properly formatted, but also acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
+The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
     zki validate
     
     …
-    Loading file ./witness.sieve
-    Loading file ./statement.sieve
-        
-    The statement is COMPLIANT with the profile!
-        
- And the simulator,
+    Reading ./000_instance.sieve
+    Reading ./001_witness.sieve
+    Reading ./002_relation.sieve
 
-    zki simulate
+    The statement is COMPLIANT with the specification!
+
+ And the evaluator,
+
+    zki evaluate
     
     …
-    Loading file ./witness.sieve
-    Loading file ./statement.sieve
-    
-    The statement is COMPLIANT with the profile!
+    Reading ./000_instance.sieve
+    Reading ./001_witness.sieve
+    Reading ./002_relation.sieve
+
     The statement is TRUE!
+
+There is a command `zki valid-eval-metrics` which performs all checks at once.
 
 
 ### A consumer: format to human-readable YAML
@@ -78,15 +82,56 @@ The command below reads the statement and prints a textual representation of it.
 
 
     zki to-yaml
+    # Or zki to-json
 
     …
-    Loading file ./statement.sieve
-    Loading file ./witness.sieve
-    
+    Reading ./000_instance.sieve
+    Reading ./001_witness.sieve
+    Reading ./002_relation.sieve
     ---
+    instances:
+      - header:
+          version: 0.1.0
+          profile: circ_arithmetic_simple
+          field_characteristic:
+            - 101
+            - 0
+            - 0
+            - 0
+          field_degree: 1
+        common_inputs:
+          - id: 0
+            value:
+              - 25
+              - 0
+              - 0
+              - 0
+    witnesses:
+      - header:
+          version: 0.1.0
+          profile: circ_arithmetic_simple
+          field_characteristic:
+            - 101
+            - 0
+            - 0
+            - 0
+          field_degree: 1
+        short_witness:
+          - id: 1
+            value:
+              - 3
+              - 0
+              - 0
+              - 0
+          - id: 2
+            value:
+              - 4
+              - 0
+              - 0
+              - 0
     relations:
       - header:
-          version: 0.0.0
+          version: 0.1.0
           profile: circ_arithmetic_simple
           field_characteristic:
             - 101
@@ -122,46 +167,6 @@ The command below reads the statement and prints a textual representation of it.
               - 6
               - 7
           - AssertZero: 8
-    instances:
-      - header:
-          version: 0.0.0
-          profile: circ_arithmetic_simple
-          field_characteristic:
-            - 101
-            - 0
-            - 0
-            - 0
-          field_degree: 1
-        common_inputs:
-          - id: 0
-            value:
-              - 25
-              - 0
-              - 0
-              - 0
-    witnesses:
-      - header:
-          version: 0.0.0
-          profile: circ_arithmetic_simple
-          field_characteristic:
-            - 101
-            - 0
-            - 0
-            - 0
-          field_degree: 1
-        short_witness:
-          - id: 1
-            value:
-              - 3
-              - 0
-              - 0
-              - 0
-          - id: 2
-            value:
-              - 4
-              - 0
-              - 0
-              - 0
 
 
 ### A producer: converter from R1CS

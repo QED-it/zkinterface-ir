@@ -176,7 +176,7 @@ fn main_list_validations() -> Result<()> {
 
 fn main_validate(source: &Source) -> Result<()> {
     // Validate semantics as verifier.
-    let mut validator = Validator::new_as_verifier();
+    let mut validator = Validator::new_as_prover();
     for msg in source.iter_messages() {
         validator.ingest_message(&msg?);
     }
@@ -231,6 +231,7 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
 }
 
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
+    eprintln!();
     if errors.len() > 0 {
         eprintln!("The statement is NOT {}!", what_it_is_supposed_to_be);
         eprintln!("Violations:\n- {}\n", errors.join("\n- "));
