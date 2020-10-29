@@ -77,7 +77,7 @@ impl Relation {
     ///
     /// # Examples
     /// ```
-    /// use sieve_ir::Relation;
+    /// use zki::Relation;
     /// use std::convert::TryFrom;
     ///
     /// let relation = Relation::default();
