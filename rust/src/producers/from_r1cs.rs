@@ -1,5 +1,15 @@
-use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
+use flatbuffers::{emplace_scalar, EndianScalar};
 use std::mem::size_of;
+use std::ops::Add;
+use num_bigint::BigUint;
+use num_traits::ToPrimitive;
+
+use crate::Gate::*;
+use crate::structs:: {WireId, assignment::Assignment};
+use crate::{ Header, Instance, Relation, Witness,Result};
+use crate::producers::builder::{Builder, IBuilder};
+use crate::consumers::validator::Validator;
+use crate::consumers::simulator::Simulator;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
@@ -8,18 +18,6 @@ use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::{ConstraintSystem as zkiConstraintSystem, Variables};
 
-use crate::structs::assignment::Assignment;
-use crate::structs::gates::Gate::Constant;
-use crate::structs:: WireId;
-use crate::Gate::*;
-use crate::Result;
-use crate::{ Header, Instance, Relation, Witness};
-use std::ops::Add;
-use crate::producers::builder::{Builder, IBuilder};
-use num_bigint::BigUint;
-use num_traits::ToPrimitive;
-use crate::consumers::validator::Validator;
-use crate::consumers::simulator::Simulator;
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     match &zki_header.field_maximum {
@@ -201,11 +199,11 @@ fn test_with_simulator() -> Result<()> {
     let mut simulator = Simulator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
-    simulator.ingest_relation(&relation)?;
-
-    Ok(())
+    simulator.ingest_relation(&relation)
 }
 
+
+// zkInterface examples:
 
 pub const MODULUS: u64 = 101;
 pub const NEG_ONE: u64 = MODULUS - 1;
