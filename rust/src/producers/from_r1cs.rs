@@ -192,14 +192,16 @@ fn test_with_validate() {
 }
 
 #[test]
-fn test_with_simulator() -> Result<()> {
+fn test_with_evaluator() -> Result<()> {
     let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
     let witness = zki_witness_to_witness(&example_header(), &example_witness());
 
-    let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance)?;
-    simulator.ingest_witness(&witness)?;
-    simulator.ingest_relation(&relation)
+    let mut evaluator = Evaluator::default();
+    evaluator.ingest_instance(&instance)?;
+    evaluator.ingest_witness(&witness)?;
+    evaluator.ingest_relation(&relation)?;
+
+    Ok(())
 }
 
 

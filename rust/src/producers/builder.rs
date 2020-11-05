@@ -46,14 +46,15 @@ impl IBuilder for Builder {
     /// a simple example
     /// ```
     ///
-    /// use sieve_ir::structs::gates::Gate::Constant;
+    ///
+    /// use zki::structs::gates::Gate::Constant;
     /// let new_id = b.create_gate(&Constant(0,vec![1]));
     ///
     /// ```
     /// an example for a gate without output_id
     /// ```
     ///
-    /// use sieve_ir::structs::gates::Gate::AssertZero;
+    /// use zki::structs::gates::Gate::AssertZero;
     /// let new_id = b.create_gate(&AssertZero(5));
     ///
     /// ```
@@ -91,6 +92,7 @@ pub fn get_output_wire_id(gate: &Gate) -> WireId {
         And(w, _, _) => w,
         Xor(w, _, _) => w,
         Not(w, _) => w,
+
         AssertZero(_) => panic!("no output id for AssertZero gate"),
     }
 }
