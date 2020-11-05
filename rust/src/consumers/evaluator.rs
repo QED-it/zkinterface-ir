@@ -1,4 +1,4 @@
-use crate::{Result, Header, Relation, Instance, Witness, Messages, Gate};
+use crate::{Result, Header, Relation, Instance, Witness, Message, Gate};
 use std::collections::HashMap;
 use num_bigint::BigUint;
 use num_traits::identities::{Zero, One};
@@ -8,26 +8,44 @@ type Wire = u64;
 type Value = BigUint;
 
 #[derive(Clone, Default)]
-pub struct Simulator {
+pub struct Evaluator {
     values: HashMap<Wire, Value>,
     modulus: Value,
+
+    verified_at_least_one_gate: bool,
+    found_error: Option<String>,
 }
 
-impl Simulator {
-    pub fn simulate(&mut self, messages: &Messages) -> Result<()> {
-        for witness in &messages.witnesses {
-            self.ingest_witness(witness)?;
+impl Evaluator {
+    pub fn get_violations(self) -> Vec<String> {
+        let mut violations = vec![];
+        if !self.verified_at_least_one_gate {
+            violations.push("Did not receive any gate to verify.".to_string());
         }
-        for instance in &messages.instances {
-            self.ingest_instance(instance)?;
+        if let Some(err) = self.found_error {
+            violations.push(err);
         }
-        for gates in &messages.relations {
-            self.ingest_relation(gates)?;
-        }
-        Ok(())
+        violations
     }
 
-    pub fn ingest_header(&mut self, header: &Header) -> Result<()> {
+    pub fn ingest_message(&mut self, msg: &Message) {
+        if self.found_error.is_some() { return; }
+
+        match self.ingest_message_(msg) {
+            Err(err) => self.found_error = Some(err.to_string()),
+            Ok(()) => {}
+        }
+    }
+
+    fn ingest_message_(&mut self, msg: &Message) -> Result<()> {
+        match msg {
+            Message::Instance(i) => self.ingest_instance(&i),
+            Message::Witness(w) => self.ingest_witness(&w),
+            Message::Relation(r) => self.ingest_relation(&r),
+        }
+    }
+
+    fn ingest_header(&mut self, header: &Header) -> Result<()> {
         self.modulus = BigUint::from_bytes_le(&header.field_characteristic);
         if self.modulus.is_zero() {
             Err("Header.field_characteristic cannot be zero".into())
@@ -56,6 +74,10 @@ impl Simulator {
 
     pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
         self.ingest_header(&relation.header)?;
+
+        if relation.gates.len() > 0 {
+            self.verified_at_least_one_gate = true;
+        }
 
         for gate in &relation.gates {
             match gate {
@@ -150,7 +172,7 @@ fn test_simulator() -> Result<()> {
     let instance = example_instance();
     let witness = example_witness();
 
-    let mut simulator = Simulator::default();
+    let mut simulator = Evaluator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;

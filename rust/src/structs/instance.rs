@@ -64,7 +64,7 @@ impl Instance {
     ///
     /// # Examples
     /// ```
-    /// use sieve_ir::Instance;
+    /// use zki::Instance;
     /// use std::convert::TryFrom;
     ///
     /// let instance = Instance::default();
