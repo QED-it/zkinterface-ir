@@ -9,7 +9,7 @@ use crate::structs:: {WireId, assignment::Assignment};
 use crate::{ Header, Instance, Relation, Witness,Result};
 use crate::producers::builder::{Builder, IBuilder};
 use crate::consumers::validator::Validator;
-use crate::consumers::simulator::Simulator;
+use crate::consumers::evaluator::Evaluator;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
@@ -196,7 +196,7 @@ fn test_with_simulator() -> Result<()> {
     let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
     let witness = zki_witness_to_witness(&example_header(), &example_witness());
 
-    let mut simulator = Simulator::default();
+    let mut simulator = Evaluator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)
