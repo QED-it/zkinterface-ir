@@ -1,5 +1,5 @@
 use crate::Gate;
-use crate::structs::WireId;
+use crate::structs::{WireId, Value};
 use crate::Gate::*;
 
 pub trait IBuilder {
@@ -81,22 +81,22 @@ impl Builder{
 
 
 pub fn get_output_wire_id(gate: &Gate) -> WireId {
-    match gate.into() {
-        Constant(wireId, _) => wireId,
-        Copy(wireId, _) => wireId,
-        Add(wireId, _, _) => wireId,
-        Mul(wireId, _, _) => wireId,
-        AddConstant(wireId, _, _) => wireId,
-        MulConstant(wireId, _, _) => wireId,
-        And(wireId, _, _) => wireId,
-        Xor(wireId, _, _) => wireId,
-        Not(wireId, _) => wireId,
+    match *gate {
+        Constant(w, _) => w,
+        Copy(w, _) => w,
+        Add(w, _, _) => w,
+        Mul(w, _, _) => w,
+        AddConstant(w, _, _) => w,
+        MulConstant(w, _, _) => w,
+        And(w, _, _) => w,
+        Xor(w, _, _) => w,
+        Not(w, _) => w,
         AssertZero(_) => panic!("no output id for AssertZero gate"),
     }
 }
 
 fn has_output(gate: &Gate) -> bool {
-    match gate.into() {
+    match gate {
         AssertZero(_) => false,
         Constant(_, _) => true,
         Copy(_, _) => true,
@@ -112,16 +112,16 @@ fn has_output(gate: &Gate) -> bool {
 
 fn with_output(non_allocated_gate: &Gate, output_id: WireId) -> Gate {
     assert_eq!(get_output_wire_id(non_allocated_gate), 0, "output wire must be 0 for a non allocated gate");
-    match non_allocated_gate.into() {
-        Constant(_, v) => Constant(output_id, v),
-        Copy(_, w) => Copy(output_id,w),
-        Add(_, w1, w2) => Add(output_id, w1, w2),
-        Mul(_, w1, w2) => Mul(output_id, w1, w2),
-        AddConstant(_, w, v) => AddConstant(output_id,w,v),
-        MulConstant(_, w, v) => MulConstant(output_id,w,v),
-        And(_, w1, w2) => And(output_id, w1, w2),
-        Xor(_, w1, w2) => Xor(output_id, w1, w2),
-        Not(_, w) => Not(output_id,w),
+    match non_allocated_gate {
+        Constant(_, v) => Constant(output_id, v.clone()),
+        Copy(_, w) => Copy(output_id, w.clone()),
+        Add(_, w1, w2) => Add(output_id, w1.clone(), w2.clone()),
+        Mul(_, w1, w2) => Mul(output_id, w1.clone(), w2.clone()),
+        AddConstant(_, w, v) => AddConstant(output_id, w.clone(), v.clone()),
+        MulConstant(_, w, v) => MulConstant(output_id, w.clone(), v.clone()),
+        And(_, w1, w2) => And(output_id, w1.clone(), w2.clone()),
+        Xor(_, w1, w2) => Xor(output_id, w1.clone(), w2.clone()),
+        Not(_, w) => Not(output_id, w.clone()),
 
         AssertZero(_) => panic!("AssertZero has no output gate"),
     }

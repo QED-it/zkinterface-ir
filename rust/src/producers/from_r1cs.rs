@@ -22,7 +22,7 @@ pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
         None => Err("field_maximum must be provided".into()),
 
         Some(field_maximum) => Ok(Header {
-            field_characteristic: vec![field_maximum + 1],
+            field_characteristic: serialize_small(&[deserialize_small::<u64>(field_maximum) + 1]),
             ..Header::default()
         }),
     }
@@ -41,19 +41,44 @@ pub fn zki_variables_to_vec_assignment(vars: &Variables) -> (Vec<Assignment>, bo
         return (vec![], false);
     }
 
-    let mut hasConstant = false;
+    let mut has_constant = false;
     let mut vec: Vec<Assignment> = Vec::new();
     for var in vars.get_variables().iter() {
         if var.id == 0 {
             assert_eq!(var.value, serialize_small(&[1]), "value for instance id:0 should be a constant 1");
-            hasConstant = true;
+            has_constant = true;
         }
-        vec.extend_one(Assignment {
+        vec.push(Assignment {
             id: var.id,
             value: var.value.to_vec(),
         });
     }
-    (vec, hasConstant);
+    (vec, has_constant)
+}
+
+fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
+    if lc.len() == 0 {
+        // empty linear combination translates into an empty value
+        return b.create_gate(Constant(0, vec![]));
+    }
+
+    let mut sum_id = build_term(b, &lc[0]);
+
+    for term in &lc[1..] {
+        let term_id = build_term(b, term);
+        sum_id = b.create_gate(Add(0, sum_id, term_id));
+    }
+
+    sum_id
+}
+
+fn build_term(b: &mut impl IBuilder, term: &zkiVariable) -> WireId {
+    if term.id == 0 {
+        return b.create_gate(Constant(0, Vec::from(term.value)));
+    }
+
+    let val_id = b.create_gate(Constant(0, Vec::from(term.value)));
+    return b.create_gate(Mul(0, term.id, val_id));
 }
 
 pub fn zki_r1cs_to_ir(
@@ -63,8 +88,8 @@ pub fn zki_r1cs_to_ir(
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let (mut instance_assignment, hasConstant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
-    if !hasConstant {
+    let (mut instance_assignment, has_constant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
+    if !has_constant {
         // prepend the constant 1 as instance id:0
         instance_assignment.splice(
             0..0,
@@ -76,15 +101,16 @@ pub fn zki_r1cs_to_ir(
     }
 
     let i = Instance {
-        header: header.unwrap(),
-        common_inputs: instance_assignment.unwrap(),
+        header: header.as_ref().unwrap().clone(),
+        common_inputs: instance_assignment,
     };
 
     let mut bb = Builder::new(zki_header.free_variable_id);
     let b = &mut bb;
 
     // Allocate negative one for negation.
-    let neg_one_id = b.create_gate(Constant(0, zki_header.field_maximum.unwrap()));
+    let max = zki_header.field_maximum.as_ref().unwrap().clone();
+    let neg_one_id = b.create_gate(Constant(0, max));
 
     // Convert each R1CS constraint into a graph of Add/Mul/Const/AssertZero gates.
     for constraint in &zki_r1cs.constraints {
@@ -99,34 +125,9 @@ pub fn zki_r1cs_to_ir(
         b.create_gate(AssertZero(claim_zero_id));
     }
 
-    fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
-        if lc.len() == 0 {
-            // empty linear combination translates into an empty value
-            return b.create_gate(Constant(0, vec![]));
-        }
-
-        let mut sum_id = build_term(b, &lc[0]);
-
-        for term in &lc[1..] {
-            let term_id = build_term(b, term);
-            sum_id = b.create_gate(Add(0, sum_id, term_id));
-        }
-
-        sum_id
-    }
-
-    fn build_term(b: &mut impl IBuilder, term: &zkiVariable) -> WireId {
-        if term.id == 0 {
-            return b.create_gate(Constant(0, term.value.into_vec()));
-        }
-
-        let val_id = b.create_gate(Constant(0, term.value.to_vec()));
-        return b.create_gate(Mul(0, term.id, val_id));
-    }
-
     let r = Relation {
-        header: header.unwrap(),
-        gates: b.gates.into_vec(),
+        header: header.as_ref().unwrap().clone(),
+        gates: b.gates.clone(),
     };
 
     (i, r)
@@ -135,16 +136,16 @@ pub fn zki_r1cs_to_ir(
 pub fn zki_witness_to_witness(
     zki_header: &zkiCircuitHeader,
     zki_witness: &zkiWitness,
-) -> Result<Witness> {
+) -> Witness {
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
     let (witness, _) = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
 
-    Ok(Witness {
+    Witness {
         header: header.unwrap(),
-        short_witness: witness.unwrap(),
-    })
+        short_witness: witness,
+    }
 }
 
 #[test]
@@ -160,11 +161,9 @@ fn test_r1cs_to_gates() {
     let witness = zki_witness_to_witness(&zki_header, &zki_witness);
 
     eprintln!();
-    eprintln!("{}", instance);
-    eprintln!("{}", relation);
-
-    let witness = example_witness();
-    eprintln!("{}", 1);
+    eprintln!("{}", instance.header.profile);
+    eprintln!("{}", relation.header.profile);
+    eprintln!("{}", witness.header.profile);
 }
 
 pub const MODULUS: u64 = 101;
