@@ -10,21 +10,31 @@ use zkinterface::{ConstraintSystem as zkiConstraintSystem, Variables};
 
 use crate::structs::assignment::Assignment;
 use crate::structs::gates::Gate::Constant;
-use crate::structs::{Value, WireId};
+use crate::structs:: WireId;
 use crate::Gate::*;
 use crate::Result;
-use crate::{Gate, Header, Instance, Relation, Witness};
+use crate::{ Header, Instance, Relation, Witness};
 use std::ops::Add;
 use crate::producers::builder::{Builder, IBuilder};
+use num_bigint::BigUint;
+use num_traits::ToPrimitive;
+use crate::consumers::validator::Validator;
+use crate::consumers::simulator::Simulator;
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     match &zki_header.field_maximum {
         None => Err("field_maximum must be provided".into()),
 
-        Some(field_maximum) => Ok(Header {
-            field_characteristic: serialize_small(&[deserialize_small::<u64>(field_maximum) + 1]),
-            ..Header::default()
-        }),
+        Some(field_maximum) => {
+            let mut fc: BigUint = BigUint::from_bytes_le(field_maximum);
+            let one : u8 = 1;
+            fc = fc.add(one);
+
+            Ok(Header {
+                field_characteristic: fc.to_bytes_le(),
+                ..Header::default()
+            })
+        }
     }
 }
 
@@ -45,7 +55,7 @@ pub fn zki_variables_to_vec_assignment(vars: &Variables) -> (Vec<Assignment>, bo
     let mut vec: Vec<Assignment> = Vec::new();
     for var in vars.get_variables().iter() {
         if var.id == 0 {
-            assert_eq!(var.value, serialize_small(&[1]), "value for instance id:0 should be a constant 1");
+            assert_eq!(BigUint::from_bytes_le(var.value).to_u32().unwrap(), 1, "value for instance id:0 should be a constant 1");
             has_constant = true;
         }
         vec.push(Assignment {
@@ -95,7 +105,7 @@ pub fn zki_r1cs_to_ir(
             0..0,
             vec![Assignment {
                 id: 0,
-                value: vec![1],
+                value: vec![1], //todo: is it good or size should be same as the other instance_variables?
             }],
         );
     }
@@ -109,8 +119,8 @@ pub fn zki_r1cs_to_ir(
     let b = &mut bb;
 
     // Allocate negative one for negation.
-    let max = zki_header.field_maximum.as_ref().unwrap().clone();
-    let neg_one_id = b.create_gate(Constant(0, max));
+    let max = zki_header.field_maximum.as_ref().unwrap();
+    let neg_one_id = b.create_gate(Constant(0, max.clone()));
 
     // Convert each R1CS constraint into a graph of Add/Mul/Const/AssertZero gates.
     for constraint in &zki_r1cs.constraints {
@@ -126,7 +136,7 @@ pub fn zki_r1cs_to_ir(
     }
 
     let r = Relation {
-        header: header.as_ref().unwrap().clone(),
+        header: header.unwrap().clone(),
         gates: b.gates.clone(),
     };
 
@@ -165,6 +175,37 @@ fn test_r1cs_to_gates() {
     eprintln!("{}", relation.header.profile);
     eprintln!("{}", witness.header.profile);
 }
+
+
+#[test]
+fn test_with_validate() {
+    let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
+    let witness = zki_witness_to_witness(&example_header(), &example_witness());
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    if violations.len() > 0 {
+        eprintln!("Violations:\n- {}\n", violations.join("\n- "));
+    }
+}
+
+#[test]
+fn test_with_simulator() -> Result<()> {
+    let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
+    let witness = zki_witness_to_witness(&example_header(), &example_witness());
+
+    let mut simulator = Simulator::default();
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
+    simulator.ingest_relation(&relation)?;
+
+    Ok(())
+}
+
 
 pub const MODULUS: u64 = 101;
 pub const NEG_ONE: u64 = MODULUS - 1;
@@ -221,14 +262,4 @@ pub fn serialize_small<T: EndianScalar>(values: &[T]) -> Vec<u8> {
         emplace_scalar(&mut buf[sz * i..], values[i]);
     }
     buf
-}
-
-pub fn deserialize_small<T: EndianScalar>(encoded: &[u8]) -> T {
-    if encoded.len() == size_of::<T>() {
-        read_scalar(encoded)
-    } else {
-        let mut encoded = Vec::from(encoded);
-        encoded.resize(size_of::<T>(), 0);
-        read_scalar(&encoded)
-    }
 }

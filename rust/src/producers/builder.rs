@@ -1,5 +1,5 @@
 use crate::Gate;
-use crate::structs::{WireId, Value};
+use crate::structs::WireId;
 use crate::Gate::*;
 
 pub trait IBuilder {
