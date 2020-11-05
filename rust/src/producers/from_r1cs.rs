@@ -6,7 +6,7 @@ use num_traits::ToPrimitive;
 
 use crate::Gate::*;
 use crate::structs:: {WireId, assignment::Assignment};
-use crate::{ Header, Instance, Relation, Witness,Result};
+use crate::{ Header, Instance, Relation, Witness, Result};
 use crate::producers::builder::{Builder, IBuilder};
 use crate::consumers::validator::Validator;
 use crate::consumers::evaluator::Evaluator;
@@ -16,7 +16,7 @@ use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::KeyValue as zkiKeyValue;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
-use zkinterface::{ConstraintSystem as zkiConstraintSystem, Variables};
+use zkinterface::ConstraintSystem as zkiConstraintSystem;
 
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
@@ -36,7 +36,7 @@ pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     }
 }
 
-pub fn zki_variables_to_vec_assignment(vars: &Variables) -> (Vec<Assignment>, bool) {
+pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>, bool) {
     let variable_ids_len = vars.variable_ids.len();
     let values_len = vars.get_variables().len();
     assert_eq!(
@@ -168,10 +168,38 @@ fn test_r1cs_to_gates() {
     let zki_witness = example_witness();
     let witness = zki_witness_to_witness(&zki_header, &zki_witness);
 
-    eprintln!();
-    eprintln!("{}", instance.header.profile);
-    eprintln!("{}", relation.header.profile);
-    eprintln!("{}", witness.header.profile);
+    assert_header(&instance.header);
+    assert_header(&relation.header);
+    assert_header(&witness.header);
+
+    // check instance
+    assert_eq!(instance.common_inputs.len(), 4);
+    assert_assignment(&instance.common_inputs[0],0,1);
+    assert_assignment(&instance.common_inputs[1],1,3);
+    assert_assignment(&instance.common_inputs[2],2,4);
+    assert_assignment(&instance.common_inputs[3],3,25);
+
+    // check witness
+    assert_eq!(witness.short_witness.len(), 2);
+    assert_assignment(&witness.short_witness[0],4,9);
+    assert_assignment(&witness.short_witness[1],5,16);
+
+    // check relation:
+    assert_eq!(relation.gates.len(),33);
+}
+
+fn assert_header(header: &Header) {
+    assert_eq!(header.profile,"circ_arithmetic_simple");
+    assert_eq!(header.version,"0.1.0");
+    let fc = BigUint::from_bytes_le(&header.field_characteristic);
+    assert_eq!(fc.to_u8().unwrap(), 101);
+    assert_eq!(header.field_degree, 1);
+}
+
+fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
+    assert_eq!(assign.id, id);
+    let val0 = BigUint::from_bytes_le(&assign.value).to_u32().unwrap();
+    assert_eq!(val0, value);
 }
 
 
