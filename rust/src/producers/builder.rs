@@ -38,9 +38,9 @@ impl IBuilder for Builder {
     /// use zki::producers::builder::Builder;
     ///
     /// let free_variable_id = 5;
-    /// let mut bb = Builder::new(free_variable_id);
+    /// let mut b = Builder::new(free_variable_id);
     ///
-    /// let new_id = b.create_gate(&Constant(0,vec![1]));
+    /// let new_id = b.create_gate(Constant(0,vec![1]));
     ///
     /// ```
     /// an example for a gate without output_id
@@ -50,9 +50,9 @@ impl IBuilder for Builder {
     /// use zki::producers::builder::Builder;
     ///
     /// let free_variable_id = 5;
-    /// let mut bb = Builder::new(free_variable_id);
+    /// let mut b = Builder::new(free_variable_id);
     ///
-    /// let new_id = b.create_gate(&AssertZero(5));
+    /// let new_id = b.create_gate(AssertZero(5));
     ///
     /// ```
     fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId {
