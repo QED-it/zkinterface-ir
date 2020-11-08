@@ -248,4 +248,65 @@ impl Gate {
             }
         }
     }
+
+    /// Returns a boolean to indicate whether the gate has an output wire id
+    ///
+    /// # Examples
+    ///
+    /// a simple example
+    /// ```
+    ///
+    ///  use zki::Gate::*;
+    ///  let g = Add(0,1,2);
+    ///  if g.has_output() {
+    ///     println!("The gate has an output wire")
+    ///  }
+    ///
+    /// ```
+    pub fn has_output(&self) -> bool{
+        match self {
+            AssertZero(_) => false,
+            Constant(_, _) => true,
+            Copy(_, _) => true,
+            Add(_, _, _) => true,
+            Mul(_, _, _) => true,
+            AddConstant(_, _, _) => true,
+            MulConstant(_, _, _) => true,
+            And(_, _, _) => true,
+            Xor(_, _, _) => true,
+            Not(_, _) => true,
+        }
+    }
+
+    /// Returns the output wire id if exists
+    ///
+    /// # Panics
+    ///
+    /// no output wire is present for the gate.
+    ///
+    /// # Examples
+    ///
+    /// a simple example
+    /// ```
+    ///
+    ///  use zki::Gate::*;
+    ///  let g = Add(0,1,2);
+    ///  let wire_id = g.get_output_wire_id();
+    ///
+    /// ```
+    pub fn get_output_wire_id(&self) -> WireId {
+        match *self {
+            Constant(w, _) => w,
+            Copy(w, _) => w,
+            Add(w, _, _) => w,
+            Mul(w, _, _) => w,
+            AddConstant(w, _, _) => w,
+            MulConstant(w, _, _) => w,
+            And(w, _, _) => w,
+            Xor(w, _, _) => w,
+            Not(w, _) => w,
+
+            AssertZero(_) => panic!("no output id for AssertZero gate"),
+        }
+    }
 }

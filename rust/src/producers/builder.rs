@@ -56,11 +56,11 @@ impl IBuilder for Builder {
     ///
     /// ```
     fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId {
-        if !has_output(&non_allocated_gate) {
+        if ! non_allocated_gate.has_output() {
             self.push_gate(non_allocated_gate);
             return 0;
         }
-        assert_eq!(get_output_wire_id(&non_allocated_gate), 0);
+        assert_eq!(non_allocated_gate.get_output_wire_id(), 0);
         let new_id = self.alloc();
         let allocated_gate = with_output(&non_allocated_gate,new_id);
         self.push_gate(allocated_gate);
@@ -87,40 +87,8 @@ impl Builder{
     }
 }
 
-
-pub fn get_output_wire_id(gate: &Gate) -> WireId {
-    match *gate {
-        Constant(w, _) => w,
-        Copy(w, _) => w,
-        Add(w, _, _) => w,
-        Mul(w, _, _) => w,
-        AddConstant(w, _, _) => w,
-        MulConstant(w, _, _) => w,
-        And(w, _, _) => w,
-        Xor(w, _, _) => w,
-        Not(w, _) => w,
-
-        AssertZero(_) => panic!("no output id for AssertZero gate"),
-    }
-}
-
-fn has_output(gate: &Gate) -> bool {
-    match gate {
-        AssertZero(_) => false,
-        Constant(_, _) => true,
-        Copy(_, _) => true,
-        Add(_, _, _) => true,
-        Mul(_, _, _) => true,
-        AddConstant(_, _, _) => true,
-        MulConstant(_, _, _) => true,
-        And(_, _, _) => true,
-        Xor(_, _, _) => true,
-        Not(_, _) => true,
-    }
-}
-
 fn with_output(non_allocated_gate: &Gate, output_id: WireId) -> Gate {
-    assert_eq!(get_output_wire_id(non_allocated_gate), 0, "output wire must be 0 for a non allocated gate");
+    assert_eq!(non_allocated_gate.get_output_wire_id(), 0, "output wire must be 0 for a non allocated gate");
     match non_allocated_gate {
         Constant(_, v) => Constant(output_id, v.clone()),
         Copy(_, w) => Copy(output_id, w.clone()),
