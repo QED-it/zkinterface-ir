@@ -1,5 +1,3 @@
-use flatbuffers::{emplace_scalar, EndianScalar};
-use std::mem::size_of;
 use std::ops::Add;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
@@ -13,10 +11,12 @@ use crate::consumers::evaluator::Evaluator;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
-use zkinterface::KeyValue as zkiKeyValue;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
+use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
+use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
 
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
@@ -89,7 +89,7 @@ fn build_term(b: &mut impl IBuilder, term: &zkiVariable) -> WireId {
     return b.create_gate(Mul(0, term.id, val_id));
 }
 
-pub fn zki_r1cs_to_ir(
+pub fn to_ir(
     zki_header: &zkiCircuitHeader,
     zki_r1cs: &zkiConstraintSystem,
 ) -> (Instance, Relation) {
@@ -141,7 +141,7 @@ pub fn zki_r1cs_to_ir(
     (i, r)
 }
 
-pub fn zki_witness_to_witness(
+pub fn to_witness(
     zki_header: &zkiCircuitHeader,
     zki_witness: &zkiWitness,
 ) -> Witness {
@@ -157,16 +157,16 @@ pub fn zki_witness_to_witness(
 }
 
 #[test]
-fn test_r1cs_to_gates() {
-    let zki_header = example_header();
-    let zki_r1cs = example_constraints();
+fn test_r1cs_to_gates() -> Result<()> {
+    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_r1cs = zki_example_constrains();
+    let zki_witness = zki_example_witness_inputs(3, 4);
 
     // in zkInterface the instance is inside the header
     // in ir each msg in {instance, relation, witness} has an header
-    let (instance, relation) = zki_r1cs_to_ir(&zki_header, &zki_r1cs);
+    let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
 
-    let zki_witness = example_witness();
-    let witness = zki_witness_to_witness(&zki_header, &zki_witness);
+    let witness = to_witness(&zki_header, &zki_witness);
 
     assert_header(&instance.header);
     assert_header(&relation.header);
@@ -186,6 +186,7 @@ fn test_r1cs_to_gates() {
 
     // check relation:
     assert_eq!(relation.gates.len(),33);
+    Ok(())
 }
 
 fn assert_header(header: &Header) {
@@ -204,9 +205,13 @@ fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
 
 
 #[test]
-fn test_with_validate() {
-    let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
-    let witness = zki_witness_to_witness(&example_header(), &example_witness());
+fn test_with_validate() -> Result<()> {
+    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_witness = zki_example_witness_inputs(3, 4);
+    let zki_r1cs = zki_example_constrains();
+
+    let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
+    let witness = to_witness(&zki_header, &zki_witness);
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_instance(&instance);
@@ -217,12 +222,17 @@ fn test_with_validate() {
     if violations.len() > 0 {
         eprintln!("Violations:\n- {}\n", violations.join("\n- "));
     }
+    Ok(())
 }
 
 #[test]
 fn test_with_evaluator() -> Result<()> {
-    let (instance, relation) = zki_r1cs_to_ir(&example_header(), &example_constraints());
-    let witness = zki_witness_to_witness(&example_header(), &example_witness());
+    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_witness = zki_example_witness_inputs(3, 4);
+    let zki_r1cs = zki_example_constrains();
+
+    let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
+    let witness = to_witness(&zki_header, &zki_witness);
 
     let mut evaluator = Evaluator::default();
     evaluator.ingest_instance(&instance)?;
@@ -230,64 +240,4 @@ fn test_with_evaluator() -> Result<()> {
     evaluator.ingest_relation(&relation)?;
 
     Ok(())
-}
-
-
-// zkInterface examples:
-
-pub const MODULUS: u64 = 101;
-pub const NEG_ONE: u64 = MODULUS - 1;
-
-pub fn example_header() -> zkiCircuitHeader {
-    example_header_inputs(3, 4, 25)
-}
-
-/// A test circuit of inputs x,y,zz such that x^2 + y^2 = zz.
-pub fn example_header_inputs(x: u32, y: u32, zz: u32) -> zkiCircuitHeader {
-    zkiCircuitHeader {
-        instance_variables: zkiVariables {
-            variable_ids: vec![1, 2, 3], // x, y, zz
-            values: Some(serialize_small(&[x, y, zz])),
-        },
-        free_variable_id: 6,
-        field_maximum: Some(serialize_small(&[NEG_ONE])),
-        configuration: Some(vec![zkiKeyValue::from(("Name", "r1cs_to_ir_example"))]),
-    }
-}
-
-//todo: improve the example in zkI (add serialize_small)
-pub fn example_constraints() -> zkiConstraintSystem {
-    //let constraints_vec: &[((Vec<u64>, Vec<u8>), (Vec<u64>, Vec<Vec<u8>>), (Vec<u64>, Vec<u8>))] = &[
-    let constraints_vec: &[((Vec<u64>, Vec<u8>), (Vec<u64>, Vec<u8>), (Vec<u64>, Vec<u8>))] = &[
-        // (A ids values)  *  (B ids values)  =  (C ids values)
-        ((vec![1], vec![1]), (vec![1], vec![1]), (vec![4], vec![1])),       // x * x = xx
-        ((vec![2], vec![1]), (vec![2], vec![1]), (vec![5], vec![1])),       // y * y = yy
-        ((vec![0], vec![1]), (vec![4, 5], serialize_small(&[1, 1])), (vec![3], vec![1])), // 1 * (xx + yy) = zz
-    ];
-    zkiConstraintSystem::from(constraints_vec)
-}
-
-pub fn example_witness() -> zkiWitness {
-    example_witness_inputs(3, 4)
-}
-
-pub fn example_witness_inputs(x: u32, y: u32) -> zkiWitness {
-    zkiWitness {
-        assigned_variables: zkiVariables {
-            variable_ids: vec![4, 5], // xx, yy
-            values: Some(serialize_small(&[
-                x * x, // var_4 = xx = x^2
-                y * y, // var_5 = yy = y^2
-            ])),
-        },
-    }
-}
-
-pub fn serialize_small<T: EndianScalar>(values: &[T]) -> Vec<u8> {
-    let sz = size_of::<T>();
-    let mut buf = vec![0u8; sz * values.len()];
-    for i in 0..values.len() {
-        emplace_scalar(&mut buf[sz * i..], values[i]);
-    }
-    buf
 }

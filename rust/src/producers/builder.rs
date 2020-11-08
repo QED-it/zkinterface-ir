@@ -3,12 +3,9 @@ use crate::structs::WireId;
 use crate::Gate::*;
 
 pub trait IBuilder {
-    fn free_id(&self) -> WireId;
+   fn free_id(&self) -> WireId;
 
-    fn alloc(&mut self) -> WireId;
-    fn push_gate(&mut self, allocated_gate: Gate);
-
-    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
+   fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
 }
 
 #[derive(Default)]
@@ -20,16 +17,6 @@ pub struct Builder {
 impl IBuilder for Builder {
     fn free_id(&self) -> WireId {
         self.free_id
-    }
-
-    fn alloc(&mut self) -> WireId {
-        let id = self.free_id;
-        self.free_id += 1;
-        id
-    }
-
-    fn push_gate(&mut self, allocated_gate: Gate) {
-        self.gates.push(allocated_gate);
     }
 
 
@@ -48,6 +35,11 @@ impl IBuilder for Builder {
     ///
     ///
     /// use zki::structs::gates::Gate::Constant;
+    /// use zki::producers::builder::Builder;
+    ///
+    /// let free_variable_id = 5;
+    /// let mut bb = Builder::new(free_variable_id);
+    ///
     /// let new_id = b.create_gate(&Constant(0,vec![1]));
     ///
     /// ```
@@ -55,6 +47,11 @@ impl IBuilder for Builder {
     /// ```
     ///
     /// use zki::structs::gates::Gate::AssertZero;
+    /// use zki::producers::builder::Builder;
+    ///
+    /// let free_variable_id = 5;
+    /// let mut bb = Builder::new(free_variable_id);
+    ///
     /// let new_id = b.create_gate(&AssertZero(5));
     ///
     /// ```
@@ -77,6 +74,16 @@ impl Builder{
             gates: Vec::<Gate>::new(),
             free_id
         }
+    }
+
+    fn alloc(&mut self) -> WireId {
+        let id = self.free_id;
+        self.free_id += 1;
+        id
+    }
+
+    fn push_gate(&mut self, allocated_gate: Gate) {
+        self.gates.push(allocated_gate);
     }
 }
 
