@@ -60,11 +60,11 @@ impl IBuilder for Builder {
     ///
     /// ```
     fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId {
-        if ! non_allocated_gate.has_output() {
+        if non_allocated_gate.get_output_wire_id().is_none() {
             self.push_gate(non_allocated_gate);
             return 0;
         }
-        assert_eq!(non_allocated_gate.get_output_wire_id(), 0);
+        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire id should be zero for the new gate");
         let new_id = self.alloc();
         let allocated_gate = with_output(&non_allocated_gate,new_id);
         self.push_gate(allocated_gate);
@@ -92,7 +92,8 @@ impl Builder{
 }
 
 fn with_output(non_allocated_gate: &Gate, output_id: WireId) -> Gate {
-    assert_eq!(non_allocated_gate.get_output_wire_id(), 0, "output wire must be 0 for a non allocated gate");
+    assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire must be 0 for a non allocated gate");
+
     match non_allocated_gate {
         Constant(_, v) => Constant(output_id, v.clone()),
         Copy(_, w) => Copy(output_id, w.clone()),
