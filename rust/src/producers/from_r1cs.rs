@@ -1,22 +1,17 @@
 use std::ops::Add;
 use num_bigint::BigUint;
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive, One};
 
 use crate::Gate::*;
 use crate::structs:: {WireId, assignment::Assignment};
 use crate::{ Header, Instance, Relation, Witness, Result};
 use crate::producers::builder::{Builder, IBuilder};
-use crate::consumers::validator::Validator;
-use crate::consumers::evaluator::Evaluator;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
-use zkinterface::producers::examples::example_constraints as zki_example_constrains;
-use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
-use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
 
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
@@ -53,7 +48,7 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
     let mut vec: Vec<Assignment> = Vec::new();
     for var in vars.get_variables().iter() {
         if var.id == 0 {
-            assert_eq!(BigUint::from_bytes_le(var.value).to_u32().unwrap(), 1, "value for instance id:0 should be a constant 1");
+            assert!(BigUint::from_bytes_le(var.value).is_one(), "value for instance id:0 should be a constant 1");
             has_constant = true;
         }
         vec.push(Assignment {
@@ -158,6 +153,10 @@ pub fn to_witness(
 
 #[test]
 fn test_r1cs_to_gates() -> Result<()> {
+    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
+    use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
+
     let zki_header =  zki_example_header_inputs(3, 4, 25);
     let zki_r1cs = zki_example_constrains();
     let zki_witness = zki_example_witness_inputs(3, 4);
@@ -189,6 +188,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
 fn assert_header(header: &Header) {
     assert_eq!(header.profile,"circ_arithmetic_simple");
     assert_eq!(header.version,"0.1.0");
@@ -197,6 +197,7 @@ fn assert_header(header: &Header) {
     assert_eq!(header.field_degree, 1);
 }
 
+#[cfg(test)]
 fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
     assert_eq!(assign.id, id);
     let val0 = BigUint::from_bytes_le(&assign.value).to_u32().unwrap();
@@ -206,6 +207,11 @@ fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
 
 #[test]
 fn test_with_validate() -> Result<()> {
+    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
+    use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
+    use crate::consumers::validator::Validator;
+
     let zki_header =  zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constrains();
@@ -227,6 +233,11 @@ fn test_with_validate() -> Result<()> {
 
 #[test]
 fn test_with_evaluator() -> Result<()> {
+    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
+    use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
+    use crate::consumers::evaluator::Evaluator;
+
     let zki_header =  zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constrains();
