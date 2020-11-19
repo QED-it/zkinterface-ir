@@ -1,6 +1,6 @@
 use std::ops::Add;
 use num_bigint::BigUint;
-use num_traits::{ToPrimitive, One};
+use num_traits::One;
 
 use crate::Gate::*;
 use crate::structs:: {WireId, assignment::Assignment};
@@ -12,7 +12,6 @@ use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
-
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     match &zki_header.field_maximum {
@@ -130,7 +129,7 @@ pub fn to_ir(
 
     let r = Relation {
         header: header.unwrap().clone(),
-        gates: b.gates.clone(),
+        gates: bb.gates,
     };
 
     (i, r)
@@ -190,6 +189,8 @@ fn test_r1cs_to_gates() -> Result<()> {
 
 #[cfg(test)]
 fn assert_header(header: &Header) {
+    use num_traits::ToPrimitive;
+
     assert_eq!(header.profile,"circ_arithmetic_simple");
     assert_eq!(header.version,"0.1.0");
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
@@ -199,6 +200,8 @@ fn assert_header(header: &Header) {
 
 #[cfg(test)]
 fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
+    use num_traits::ToPrimitive;
+
     assert_eq!(assign.id, id);
     let val0 = BigUint::from_bytes_le(&assign.value).to_u32().unwrap();
     assert_eq!(val0, value);
