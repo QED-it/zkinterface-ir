@@ -3,9 +3,9 @@ use crate::structs::WireId;
 use crate::Gate::*;
 
 pub trait IBuilder {
-   fn free_id(&self) -> WireId;
+    fn free_id(&self) -> WireId;
 
-   fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
+    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
 }
 
 #[derive(Default)]
@@ -39,8 +39,7 @@ impl IBuilder for Builder {
     /// use zki::producers::builder::IBuilder;
     ///
     /// let free_variable_id = 5;
-    /// let mut bb = Builder::new(free_variable_id);
-    /// let b = &mut bb;
+    /// let mut b = Builder::new(free_variable_id);
     ///
     /// let new_id = b.create_gate(Constant(0,vec![1]));
     ///
@@ -53,8 +52,7 @@ impl IBuilder for Builder {
     /// use zki::producers::builder::IBuilder;
     ///
     /// let free_variable_id = 5;
-    /// let mut bb = Builder::new(free_variable_id);
-    /// let b = &mut bb;
+    /// let mut b = Builder::new(free_variable_id);
     ///
     /// let new_id = b.create_gate(AssertZero(5));
     ///
@@ -66,13 +64,14 @@ impl IBuilder for Builder {
         }
         assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire id should be zero for the new gate");
         let new_id = self.alloc();
-        let allocated_gate = with_output(&non_allocated_gate,new_id);
-        self.push_gate(allocated_gate);
+        self.push_gate_with_output(&non_allocated_gate, new_id);
         new_id
     }
 }
 
-impl Builder{
+impl Builder {
+    /// new a new builder
+
     pub fn new(free_id: u64) -> Builder {
         Builder {
             gates: Vec::<Gate>::new(),
@@ -80,31 +79,43 @@ impl Builder{
         }
     }
 
+    /// alloc allocates a new wire id
+
     fn alloc(&mut self) -> WireId {
         let id = self.free_id;
         self.free_id += 1;
         id
     }
 
+    /// push_gate pushes a gate to the gates array, the gate's input and output wires must be pre-allocated
+
     fn push_gate(&mut self, allocated_gate: Gate) {
         self.gates.push(allocated_gate);
     }
-}
 
-fn with_output(non_allocated_gate: &Gate, output_id: WireId) -> Gate {
-    assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire must be 0 for a non allocated gate");
+    /// create_gate_with_output ataches the specified wire_id as an output to the gate and pushed
+    /// it into the gates array
+    ///
+    /// # Panics
+    ///
+    /// output id for the given gate is not zero.
 
-    match non_allocated_gate {
-        Constant(_, v) => Constant(output_id, v.clone()),
-        Copy(_, w) => Copy(output_id, w.clone()),
-        Add(_, w1, w2) => Add(output_id, w1.clone(), w2.clone()),
-        Mul(_, w1, w2) => Mul(output_id, w1.clone(), w2.clone()),
-        AddConstant(_, w, v) => AddConstant(output_id, w.clone(), v.clone()),
-        MulConstant(_, w, v) => MulConstant(output_id, w.clone(), v.clone()),
-        And(_, w1, w2) => And(output_id, w1.clone(), w2.clone()),
-        Xor(_, w1, w2) => Xor(output_id, w1.clone(), w2.clone()),
-        Not(_, w) => Not(output_id, w.clone()),
+    fn push_gate_with_output(&mut self, non_allocated_gate: &Gate, output_id: WireId) {
+        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire must be 0 for a non allocated gate");
 
-        AssertZero(_) => panic!("AssertZero has no output gate"),
+        match non_allocated_gate {
+            Constant(_, v) => self.push_gate(Constant(output_id, v.clone())),
+            Copy(_, w) => self.push_gate(Copy(output_id, w.clone())),
+            Add(_, w1, w2) => self.push_gate(Add(output_id, w1.clone(), w2.clone())),
+            Mul(_, w1, w2) => self.push_gate(Mul(output_id, w1.clone(), w2.clone())),
+            AddConstant(_, w, v) => self.push_gate(AddConstant(output_id, w.clone(), v.clone())),
+            MulConstant(_, w, v) => self.push_gate(MulConstant(output_id, w.clone(), v.clone())),
+            And(_, w1, w2) => self.push_gate(And(output_id, w1.clone(), w2.clone())),
+            Xor(_, w1, w2) => self.push_gate(Xor(output_id, w1.clone(), w2.clone())),
+            Not(_, w) => self.push_gate(Not(output_id, w.clone())),
+
+            AssertZero(_) => panic!("AssertZero has no output gate"),
+        }
     }
 }
+
