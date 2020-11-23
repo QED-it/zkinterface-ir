@@ -248,4 +248,33 @@ impl Gate {
             }
         }
     }
+
+    /// Returns the output wire id if exists.
+    /// if not, returns None
+    ///
+    /// # Examples
+    ///
+    /// a simple example
+    /// ```
+    ///
+    ///  use zki::Gate::*;
+    ///  let g = Add(0,1,2);
+    ///  let wire_id = g.get_output_wire_id();
+    ///
+    /// ```
+    pub fn get_output_wire_id(&self) -> Option<WireId> {
+        match *self {
+            Constant(w, _) => Some(w),
+            Copy(w, _) => Some(w),
+            Add(w, _, _) => Some(w),
+            Mul(w, _, _) => Some(w),
+            AddConstant(w, _, _) => Some(w),
+            MulConstant(w, _, _) => Some(w),
+            And(w, _, _) => Some(w),
+            Xor(w, _, _) => Some(w),
+            Not(w, _) => Some(w),
+
+            AssertZero(_) => None
+        }
+    }
 }
