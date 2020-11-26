@@ -26,14 +26,15 @@ In this guide, the structures are stored in intermediary files for ease and clar
 
 ### Install
 
-    git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
-    cd zkinterface-sieve/rust/
-    cargo install --path .
-    
-    zki help
+```bash
+git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
+cd zkinterface-sieve/rust/
+cargo install --path .
+
+zki help
 
 This will print a list of available commands (your mileage may vary depending on your environment).
-
+```
 
 ### A producer: example generator
 
@@ -171,10 +172,23 @@ The command below reads the statement and prints a textual representation of it.
 
 ### A producer: converter from R1CS
 
-**WIP**
+This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile.
+It is available as a Rust function called r1cs_to_gates(…), with example usage in test_r1cs_to_gates()
 
-*This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile. It is available as a Rust function called `r1cs_to_gates(…)`, with example usage in `test_r1cs_to_gates()`. It is not yet wrapped as a CLI command but can easily be made so.*
+To convert from R1CS (a zkInterface owned structure), follow the following example:
+```rust
+    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_r1cs = zki_example_constrains();
+    let zki_witness = zki_example_witness_inputs(3, 4);
+    
+    // in zkInterface the instance is inside the header
+    // in ir each msg in {instance, relation, witness} has an header
+    let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
+    
+    let witness = to_witness(&zki_header, &zki_witness);
+```
 
+full example can be found as part of the `test_r1cs_to_gates()` in `from_r1cs.rs`
 
 ## Second step: implementing a new integration
 
