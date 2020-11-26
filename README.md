@@ -16,7 +16,7 @@ To communicate a statement, three types of information are transmitted:
 
 - A witness used as input to the circuit by the prover side of the proving system, caleld the _Witness_.
 
-- An instance used as inpout to the circuit both by the prover and the verifier, called the _Instance_.
+- An instance used as input to the circuit both by the prover and the verifier, called the _Instance_.
 
 The exact structure of this information is specified in a FlatBuffers schema called `sieve_ir.fbs` in this repository, along with inline documentation. See the respective structures: Header, Relation, Instance, Witness.
 
@@ -173,22 +173,24 @@ The command below reads the statement and prints a textual representation of it.
 ### A producer: converter from R1CS
 
 This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile.
-It is available as a Rust function called r1cs_to_gates(…), with example usage in test_r1cs_to_gates()
 
 To convert from R1CS (a zkInterface owned structure), follow the following example:
+
 ```rust
-    let zki_header =  zki_example_header_inputs(3, 4, 25);
-    let zki_r1cs = zki_example_constrains();
-    let zki_witness = zki_example_witness_inputs(3, 4);
-    
-    // in zkInterface the instance is inside the header
-    // in ir each msg in {instance, relation, witness} has an header
-    let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
-    
-    let witness = to_witness(&zki_header, &zki_witness);
+let zki_header =  zki_example_header_inputs(3, 4, 25);
+let zki_r1cs = zki_example_constrains();
+let zki_witness = zki_example_witness_inputs(3, 4);
+
+// in zkInterface the instance is inside the header
+// in ir each msg in {instance, relation, witness} has an header
+let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
+
+let witness = to_witness(&zki_header, &zki_witness);
 ```
 
-full example can be found as part of the `test_r1cs_to_gates()` in `from_r1cs.rs`
+A full example can be found as part of the `test_r1cs_to_gates()` in `from_r1cs.rs`.
+
+Also, example usage with the validator and the evaluator can be found in `test_with_evaluator()` and `test_with_validate()`.
 
 ## Second step: implementing a new integration
 
