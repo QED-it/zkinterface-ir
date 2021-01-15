@@ -143,6 +143,8 @@ impl Evaluator {
                     let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
                     self.set(*out, not);
                 }
+
+                Gate::Free(_, _) => { /* DO NOTHING */ }
             }
         }
         Ok(())

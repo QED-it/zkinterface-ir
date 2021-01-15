@@ -31,6 +31,8 @@ pub enum Gate {
     Xor(WireId, WireId, WireId),
     /// Not(output, input)
     Not(WireId, WireId),
+    /// Free(begin, end)
+    Free(WireId, WireId),
 }
 
 use Gate::*;
@@ -116,6 +118,13 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Not(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id())
+            }
+
+            gs::GateFree => {
+                let gate = gen_gate.gate_as_gate_free().unwrap();
+                Free(
+                    gate.first().ok_or("Missing first wire")?.id(),
+                    gate.last().unwrap_or(gate.first().unwrap()).id())
             }
         })
     }
@@ -246,6 +255,17 @@ impl Gate {
                     gate: Some(gate.as_union_value()),
                 })
             }
+
+            Free(first, last) => {
+                let gate = g::GateFree::create(builder, &g::GateFreeArgs {
+                    first: Some(&g::Wire::new(*first)),
+                    last: Some(&g::Wire::new(*last)),
+                });
+                g::Gate::create(builder, &g::GateArgs {
+                    gate_type: gs::GateFree,
+                    gate: Some(gate.as_union_value()),
+                })
+            }
         }
     }
 
@@ -274,7 +294,8 @@ impl Gate {
             Xor(w, _, _) => Some(w),
             Not(w, _) => Some(w),
 
-            AssertZero(_) => None
+            AssertZero(_) => None,
+            Free(_, _) => None
         }
     }
 }

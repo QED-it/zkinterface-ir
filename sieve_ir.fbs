@@ -113,6 +113,11 @@ table GateNot {
    input       :Wire;
 }
 
+table GateFree {
+   first       :Wire;
+   last        :Wire;
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -124,6 +129,7 @@ union GateSet {
    GateAnd,
    GateXor,
    GateNot,
+   GateFree,
 }
 table Gate {
     gate      :GateSet;

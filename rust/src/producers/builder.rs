@@ -115,6 +115,7 @@ impl Builder {
             Not(_, w) => self.push_gate(Not(output_id, w.clone())),
 
             AssertZero(_) => panic!("AssertZero has no output gate"),
+            Free(_, _) => panic!("Free has no output gate"),
         }
     }
 }

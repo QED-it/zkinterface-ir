@@ -15,6 +15,7 @@ enum Status {
     Undefined,
     Defined,
     Used,
+    Freed,
 }
 
 use Status::*;
@@ -248,6 +249,14 @@ impl Validator {
                     self.ensure_defined_and_set(*inp);
                     self.ensure_undefined_and_set(*out);
                 }
+
+                Gate::Free(first, last) => {
+                    // all wires between first and last INCLUSIVE
+                    for wire_idx in *first..=*last {
+                        self.ensure_defined_and_set(wire_idx);
+                        self.set_status(wire_idx, Freed);
+                    }
+                }
             }
         }
     }
@@ -273,6 +282,9 @@ impl Validator {
             // TODO check that the 'id' identifies a witness variable
             // because instance variable SHOULD be defined, even if self.as_prover == false.
             self.violate(format!("The witness variable_{} is used but was not assigned a value", id));
+        }
+        if self.status(id) == Freed {
+            self.violate(format!("The variable_{} has been freed already, and cannot be used anymore.", id));
         }
         self.set_status(id, Used);
     }
@@ -314,7 +326,8 @@ impl Validator {
             match *status {
                 Undefined => self.violations.push(format!("variable_{} was accessed but not defined.", id)),
                 Defined => self.violations.push(format!("variable_{} was defined but not used.", id)),
-                Used => { /* ok */ }
+                Used => { /* ok */ },
+                Freed => { /* ok */ },
             }
         }
     }
@@ -358,6 +371,28 @@ fn test_validator_violations() -> crate::Result<()> {
     witness.short_witness[0].id += 10;
     // Create a violation by using different headers.
     relation.header.field_characteristic = vec![10];
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    assert_eq!(violations.len(), 3);
+
+    Ok(())
+}
+
+#[test]
+fn test_validator_free_violations() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let mut relation = example_relation();
+
+    relation.gates.push(Gate::Free(1, 2));
+    relation.gates.push(Gate::Free(4, 4));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_instance(&instance);

@@ -24,7 +24,10 @@ pub fn example_relation() -> Relation {
             Add(6, 4, 5),   // sum of squares
             Mul(7, 0, 3),   // negative instance_0
             Add(8, 6, 7),   // sum - instance_0
+            Free(1, 1),     // free one variable
+            Free(2, 7),     // free many variables
             AssertZero(8),  // difference == 0
+            Free(8, 8),     // free remaining variables
         ],
     }
 }

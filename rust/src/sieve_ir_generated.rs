@@ -28,8 +28,8 @@ pub enum Message {
 
 }
 
-pub const ENUM_MIN_MESSAGE: u8 = 0;
-pub const ENUM_MAX_MESSAGE: u8 = 3;
+const ENUM_MIN_MESSAGE: u8 = 0;
+const ENUM_MAX_MESSAGE: u8 = 3;
 
 impl<'a> flatbuffers::Follow<'a> for Message {
   type Inner = Self;
@@ -63,7 +63,7 @@ impl flatbuffers::Push for Message {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_MESSAGE:[Message; 4] = [
+const ENUM_VALUES_MESSAGE:[Message; 4] = [
   Message::NONE,
   Message::Relation,
   Message::Instance,
@@ -71,7 +71,7 @@ pub const ENUM_VALUES_MESSAGE:[Message; 4] = [
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_MESSAGE:[&'static str; 4] = [
+const ENUM_NAMES_MESSAGE:[&'static str; 4] = [
     "NONE",
     "Relation",
     "Instance",
@@ -99,11 +99,12 @@ pub enum GateSet {
   GateAnd = 8,
   GateXor = 9,
   GateNot = 10,
+  GateFree = 11,
 
 }
 
-pub const ENUM_MIN_GATE_SET: u8 = 0;
-pub const ENUM_MAX_GATE_SET: u8 = 10;
+const ENUM_MIN_GATE_SET: u8 = 0;
+const ENUM_MAX_GATE_SET: u8 = 11;
 
 impl<'a> flatbuffers::Follow<'a> for GateSet {
   type Inner = Self;
@@ -137,7 +138,7 @@ impl flatbuffers::Push for GateSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_GATE_SET:[GateSet; 11] = [
+const ENUM_VALUES_GATE_SET:[GateSet; 12] = [
   GateSet::NONE,
   GateSet::GateConstant,
   GateSet::GateAssertZero,
@@ -148,11 +149,12 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 11] = [
   GateSet::GateMulConstant,
   GateSet::GateAnd,
   GateSet::GateXor,
-  GateSet::GateNot
+  GateSet::GateNot,
+  GateSet::GateFree
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_GATE_SET:[&'static str; 11] = [
+const ENUM_NAMES_GATE_SET:[&'static str; 12] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -163,7 +165,8 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 11] = [
     "GateMulConstant",
     "GateAnd",
     "GateXor",
-    "GateNot"
+    "GateNot",
+    "GateFree"
 ];
 
 pub fn enum_name_gate_set(e: GateSet) -> &'static str {
@@ -1668,6 +1671,94 @@ impl<'a: 'b, 'b> GateNotBuilder<'a, 'b> {
   }
 }
 
+pub enum GateFreeOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateFree<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateFree<'a> {
+    type Inner = GateFree<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateFree<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateFree {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateFreeArgs<'args>) -> flatbuffers::WIPOffset<GateFree<'bldr>> {
+      let mut builder = GateFreeBuilder::new(_fbb);
+      if let Some(x) = args.last { builder.add_last(x); }
+      if let Some(x) = args.first { builder.add_first(x); }
+      builder.finish()
+    }
+
+    pub const VT_FIRST: flatbuffers::VOffsetT = 4;
+    pub const VT_LAST: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn first(&self) -> Option<&'a Wire> {
+    self._tab.get::<Wire>(GateFree::VT_FIRST, None)
+  }
+  #[inline]
+  pub fn last(&self) -> Option<&'a Wire> {
+    self._tab.get::<Wire>(GateFree::VT_LAST, None)
+  }
+}
+
+pub struct GateFreeArgs<'a> {
+    pub first: Option<&'a  Wire>,
+    pub last: Option<&'a  Wire>,
+}
+impl<'a> Default for GateFreeArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateFreeArgs {
+            first: None,
+            last: None,
+        }
+    }
+}
+pub struct GateFreeBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateFreeBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_first(&mut self, first: &'b  Wire) {
+    self.fbb_.push_slot_always::<&Wire>(GateFree::VT_FIRST, first);
+  }
+  #[inline]
+  pub fn add_last(&mut self, last: &'b  Wire) {
+    self.fbb_.push_slot_always::<&Wire>(GateFree::VT_LAST, last);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateFreeBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateFreeBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateFree<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum GateOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -1808,6 +1899,16 @@ impl<'a> Gate<'a> {
   pub fn gate_as_gate_not(&self) -> Option<GateNot<'a>> {
     if self.gate_type() == GateSet::GateNot {
       self.gate().map(|u| GateNot::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn gate_as_gate_free(&self) -> Option<GateFree<'a>> {
+    if self.gate_type() == GateSet::GateFree {
+      self.gate().map(|u| GateFree::init_from_table(u))
     } else {
       None
     }
