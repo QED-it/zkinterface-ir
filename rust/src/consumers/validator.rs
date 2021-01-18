@@ -252,7 +252,7 @@ impl Validator {
 
                 Gate::Free(first, last) => {
                     // all wires between first and last INCLUSIVE
-                    for wire_idx in *first..=*last {
+                    for wire_idx in *first..=last.unwrap_or(*first) {
                         self.ensure_defined_and_set(wire_idx);
                         self.set_status(wire_idx, Freed);
                     }
@@ -391,8 +391,8 @@ fn test_validator_free_violations() -> crate::Result<()> {
     let witness = example_witness();
     let mut relation = example_relation();
 
-    relation.gates.push(Gate::Free(1, 2));
-    relation.gates.push(Gate::Free(4, 4));
+    relation.gates.push(Gate::Free(1, Some(2)));
+    relation.gates.push(Gate::Free(4, Some(4)));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_instance(&instance);

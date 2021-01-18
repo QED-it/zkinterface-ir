@@ -89,7 +89,8 @@ impl Stats {
                 }
 
                 Gate::Free(begin, last) => {
-                    self.variables_freed += (last - begin + 1) as usize;
+                    let last_one = last.unwrap_or(*begin);
+                    self.variables_freed += (last_one - begin + 1) as usize;
                 }
             }
         }
