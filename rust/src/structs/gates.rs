@@ -262,7 +262,6 @@ impl Gate {
             Free(first, last) => {
                 let gate = g::GateFree::create(builder, &g::GateFreeArgs {
                     first: Some(&g::Wire::new(*first)),
-                    // last: Some(&g::Wire::new(last.unwrap_or(*first))),
                     last: last.map(|id| g::Wire::new(id)).as_ref()
                 });
 
