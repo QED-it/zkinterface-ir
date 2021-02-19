@@ -31,9 +31,12 @@ pub enum Gate {
     Xor(WireId, WireId, WireId),
     /// Not(output, input)
     Not(WireId, WireId),
+    /// If(condition, outputs, branch_zero, branch_else)
+    If(WireId, Vec<WireId>, Vec<Gate>, Vec<Gate>),
 }
 
 use Gate::*;
+use std::iter::FromIterator;
 
 impl<'a> TryFrom<g::Gate<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -117,6 +120,24 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id())
             }
+
+            gs::GateIf => {
+                let gate = gen_gate.gate_as_gate_if().unwrap();
+
+                If(
+                    gate.condition().ok_or("Missing condition wire")?.id(),
+                    gate.outputs().ok_or("Missing output wires")?.iter().map(|wire| wire.id()).collect(),
+                    gate.branch_zero()
+                        .ok_or("Missing branch evaluated if condition is zero")?
+                        .iter().map(|local_gate| Gate::try_from(local_gate).unwrap())
+                        .collect(),
+                    gate.branch_else()
+                        .ok_or("Missing branch evaluated if condition is non zero")?
+                        .iter().map(|local_gate| Gate::try_from(local_gate).unwrap())
+                        .collect(),
+                )
+            }
+
         })
     }
 }
@@ -246,6 +267,28 @@ impl Gate {
                     gate: Some(gate.as_union_value()),
                 })
             }
+
+            If(condition, outputs, circuit_zero, circuit_else) => {
+                let local_outputs_vec = Vec::from_iter(outputs.iter().map(|out_wire| g::Wire::new(*out_wire)));
+                let local_outputs = builder.create_vector(&local_outputs_vec);
+
+                let local_zero_vec = Vec::from_iter(circuit_zero.iter().map(|ga| ga.build(builder)));
+                let local_zero = builder.create_vector(&local_zero_vec);
+
+                let local_else_vec = Vec::from_iter(circuit_else.iter().map(|ga| ga.build(builder)));
+                let local_else = builder.create_vector(&local_else_vec);
+
+                let gate = g::GateIf::create(builder, &g::GateIfArgs {
+                    condition: Some(&g::Wire::new(*condition)),
+                    outputs: Some(local_outputs),
+                    branch_zero: Some(local_zero),
+                    branch_else: Some(local_else),
+                });
+                g::Gate::create(builder, &g::GateArgs {
+                    gate_type: gs::GateIf,
+                    gate: Some(gate.as_union_value()),
+                })
+            }
         }
     }
 
@@ -274,7 +317,8 @@ impl Gate {
             Xor(w, _, _) => Some(w),
             Not(w, _) => Some(w),
 
-            AssertZero(_) => None
+            AssertZero(_) => None,
+            If(_, _, _, _) => None,
         }
     }
 }

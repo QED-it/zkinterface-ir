@@ -180,74 +180,96 @@ impl Validator {
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
-            match gate {
-                Gate::Constant(out, value) => {
-                    self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
-                    self.ensure_undefined_and_set(*out);
-                }
+            self.ingest_gate(gate);
+        }
+    }
 
-                Gate::AssertZero(inp) => {
-                    self.ensure_defined_and_set(*inp);
-                }
+    fn ingest_gate(&mut self, gate: &Gate) {
+        match gate {
+            Gate::Constant(out, value) => {
+                self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
+                self.ensure_undefined_and_set(*out);
+            }
 
-                Gate::Copy(out, inp) => {
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
+            Gate::AssertZero(inp) => {
+                self.ensure_defined_and_set(*inp);
+            }
 
-                Gate::Add(out, left, right) => {
-                    self.ensure_arithmetic("Add");
+            Gate::Copy(out, inp) => {
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
 
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
+            Gate::Add(out, left, right) => {
+                self.ensure_arithmetic("Add");
 
-                    self.ensure_undefined_and_set(*out);
-                }
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
 
-                Gate::Mul(out, left, right) => {
-                    self.ensure_arithmetic("Mul");
+                self.ensure_undefined_and_set(*out);
+            }
 
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
+            Gate::Mul(out, left, right) => {
+                self.ensure_arithmetic("Mul");
 
-                    self.ensure_undefined_and_set(*out);
-                }
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
 
-                Gate::AddConstant(out, inp, constant) => {
-                    self.ensure_arithmetic("AddConstant");
-                    self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
+                self.ensure_undefined_and_set(*out);
+            }
 
-                Gate::MulConstant(out, inp, constant) => {
-                    self.ensure_arithmetic("MulConstant");
-                    self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
+            Gate::AddConstant(out, inp, constant) => {
+                self.ensure_arithmetic("AddConstant");
+                self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
 
-                Gate::And(out, left, right) => {
-                    self.ensure_boolean("And");
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-                    self.ensure_undefined_and_set(*out);
-                }
+            Gate::MulConstant(out, inp, constant) => {
+                self.ensure_arithmetic("MulConstant");
+                self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
 
-                Gate::Xor(out, left, right) => {
-                    self.ensure_boolean("Xor");
+            Gate::And(out, left, right) => {
+                self.ensure_boolean("And");
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+                self.ensure_undefined_and_set(*out);
+            }
 
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-                    self.ensure_undefined_and_set(*out);
-                }
+            Gate::Xor(out, left, right) => {
+                self.ensure_boolean("Xor");
 
-                Gate::Not(out, inp) => {
-                    self.ensure_boolean("Not");
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+                self.ensure_undefined_and_set(*out);
+            }
 
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
+            Gate::Not(out, inp) => {
+                self.ensure_boolean("Not");
+
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Gate::If(cond, outputs, branch_zero, branch_else) => {
+                self.ensure_defined_and_set(*cond);
+
+                outputs.iter().for_each(|id| self.ensure_undefined(*id));
+
+                // check the 'zero' branch
+                branch_zero.iter().for_each(|ga| self.ingest_gate(ga));
+                // all the output wire should be affected a value after the branches
+                outputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
+
+                // reinitialize the status of the output wires before checking the 'else' branch
+                outputs.iter().for_each(|id| self.set_status(*id, Undefined));
+                // check the 'else' branch
+                branch_else.iter().for_each(|ga| self.ingest_gate(ga));
+                // all the output wire should be affected a value after the branches
+                outputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
             }
         }
     }
@@ -277,11 +299,14 @@ impl Validator {
         self.set_status(id, Used);
     }
 
-    fn ensure_undefined_and_set(&mut self, id: Var) {
+    fn ensure_undefined(&mut self, id: Var) {
         if self.status(id) != Undefined {
             self.violate(format!("The variable_{} has already been assigned a value.", id));
         }
+    }
 
+    fn ensure_undefined_and_set(&mut self, id: Var) {
+        self.ensure_undefined(id);
         self.set_status(id, Used);
     }
 

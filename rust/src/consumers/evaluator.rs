@@ -80,74 +80,86 @@ impl Evaluator {
         }
 
         for gate in &relation.gates {
-            match gate {
-                Gate::Constant(out, value) =>
-                    self.set_encoded(*out, value),
+            self.ingest_gate(gate)?;
+        }
+        Ok(())
+    }
 
-                Gate::AssertZero(inp) => {
-                    let val = self.get(*inp)?;
-                    if !val.is_zero() {
-                        return Err(format!("wire_{} should equal 0 but has value {}", *inp, val).into());
-                    }
+    fn ingest_gate(&mut self, gate: &Gate) -> Result<()> {
+        match gate {
+            Gate::Constant(out, value) =>
+                self.set_encoded(*out, value),
+
+            Gate::AssertZero(inp) => {
+                let val = self.get(*inp)?;
+                if !val.is_zero() {
+                    return Err(format!("wire_{} should equal 0 but has value {}", *inp, val).into());
                 }
+            }
 
-                Gate::Copy(out, inp) => {
-                    let value = self.get(*inp)?.clone();
-                    self.set(*out, value);
-                }
+            Gate::Copy(out, inp) => {
+                let value = self.get(*inp)?.clone();
+                self.set(*out, value);
+            }
 
-                Gate::Add(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let sum = l + r;
-                    self.set(*out, sum);
-                }
+            Gate::Add(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let sum = l + r;
+                self.set(*out, sum);
+            }
 
-                Gate::Mul(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let prod = l * r;
-                    self.set(*out, prod);
-                }
+            Gate::Mul(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let prod = l * r;
+                self.set(*out, prod);
+            }
 
-                Gate::AddConstant(out, inp, constant) => {
-                    let l = self.get(*inp)?;
-                    let r = BigUint::from_bytes_le(constant);
-                    let sum = l + r;
-                    self.set(*out, sum);
-                }
+            Gate::AddConstant(out, inp, constant) => {
+                let l = self.get(*inp)?;
+                let r = BigUint::from_bytes_le(constant);
+                let sum = l + r;
+                self.set(*out, sum);
+            }
 
-                Gate::MulConstant(out, inp, constant) => {
-                    let l = self.get(*inp)?;
-                    let r = BigUint::from_bytes_le(constant);
-                    let prod = l * r;
-                    self.set(*out, prod);
-                }
+            Gate::MulConstant(out, inp, constant) => {
+                let l = self.get(*inp)?;
+                let r = BigUint::from_bytes_le(constant);
+                let prod = l * r;
+                self.set(*out, prod);
+            }
 
-                Gate::And(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let and = l.bitand(r);
-                    self.set(*out, and);
-                }
+            Gate::And(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let and = l.bitand(r);
+                self.set(*out, and);
+            }
 
-                Gate::Xor(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let xor = l.bitxor(r);
-                    self.set(*out, xor);
-                }
+            Gate::Xor(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let xor = l.bitxor(r);
+                self.set(*out, xor);
+            }
 
-                Gate::Not(out, inp) => {
-                    let val = self.get(*inp)?;
-                    let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
-                    self.set(*out, not);
+            Gate::Not(out, inp) => {
+                let val = self.get(*inp)?;
+                let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
+                self.set(*out, not);
+            }
+
+            Gate::If(cond, _, branch_zero, branch_else) => {
+                let val = self.get(*cond)?;
+                let taken_branch = if val.is_zero() { branch_zero } else { branch_else };
+                for x in taken_branch {
+                    self.ingest_gate(x)?;
                 }
             }
         }
         Ok(())
     }
-
 
     fn set_encoded(&mut self, id: Wire, encoded: &[u8]) {
         self.set(id, BigUint::from_bytes_le(encoded));

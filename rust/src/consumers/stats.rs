@@ -21,7 +21,7 @@ pub struct Stats {
     pub and_gates: usize,
     pub xor_gates: usize,
     pub not_gates: usize,
-
+    pub if_gates:  usize,
 }
 
 impl Stats {
@@ -87,6 +87,10 @@ impl Stats {
                 Gate::Not(_out, _inp) => {
                     self.not_gates += 1;
                 }
+
+                Gate::If(_, _, _, _) => {
+                    self.if_gates += 1;
+                }
             }
         }
     }
@@ -127,6 +131,7 @@ fn test_stats() -> crate::Result<()> {
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
+        if_gates: 0,
     };
     assert_eq!(expected_stats, stats);
 

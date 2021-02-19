@@ -114,7 +114,8 @@ impl Builder {
             Xor(_, w1, w2) => self.push_gate(Xor(output_id, w1.clone(), w2.clone())),
             Not(_, w) => self.push_gate(Not(output_id, w.clone())),
 
-            AssertZero(_) => panic!("AssertZero has no output gate"),
+            If(_, _, _, _) => panic!("If statement has no output wire"),
+            AssertZero(_) => panic!("AssertZero has no output wire"),
         }
     }
 }

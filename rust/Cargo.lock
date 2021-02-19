@@ -85,7 +85,16 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea0c34f669be9911826facafe996adfda978aeee67285a13556869e2d8b8331f"
 dependencies = [
- "smallvec",
+ "smallvec 0.6.7",
+]
+
+[[package]]
+name = "flatbuffers"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a788f068dd10687940565bf4b5480ee943176cbd114b12e811074bcf7c04e4b9"
+dependencies = [
+ "smallvec 1.6.1",
 ]
 
 [[package]]
@@ -196,9 +205,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.18"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beae6331a816b1f65d04c45b078fd8e6c93e8071771f41b8163255bbd8d7c8fa"
+checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
  "unicode-xid",
 ]
@@ -293,6 +302,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "smallvec"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -324,9 +339,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.30"
+version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93a56fabc59dce20fe48b6c832cc249c713e7ed88fa28b0ee0a3bfcaae5fe4e2"
+checksum = "c700597eca8a5a762beb35753ef6b94df201c81cca676604f547495a0d7f0081"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -444,7 +459,7 @@ name = "zki"
 version = "0.1.0"
 dependencies = [
  "colored",
- "flatbuffers",
+ "flatbuffers 0.6.1",
  "num-bigint",
  "num-traits",
  "regex",
@@ -462,7 +477,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df096220c257cecee6cddad0303e912f5fe35201390245815301c0e18df798fd"
 dependencies = [
  "colored",
- "flatbuffers",
+ "flatbuffers 0.5.0",
  "num-bigint",
  "num-traits",
  "regex",

@@ -113,6 +113,13 @@ table GateNot {
    input       :Wire;
 }
 
+table GateIf {
+   condition   :Wire;
+   outputs     :[Wire];
+   branch_zero :[Gate];
+   branch_else :[Gate];
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -124,11 +131,16 @@ union GateSet {
    GateAnd,
    GateXor,
    GateNot,
+   GateIf,
 }
 table Gate {
     gate      :GateSet;
 }
 
+//
+// table SubCircuit {
+//     gates     :[Gate];
+// }
 
 // ==== Flatbuffers details ====
 
