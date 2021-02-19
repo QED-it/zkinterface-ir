@@ -394,3 +394,48 @@ fn test_validator_violations() -> crate::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_validator_if_violations() -> crate::Result<()> {
+    use crate::producers::examples::*;
+    use crate::Relation;
+    use crate::Gate::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation = Relation {
+        header: example_header(),
+        gates: vec![
+            Constant(3, literal((MODULUS - 1) as u32)), // -1(
+            If( 8,  // WARN: the condition wire has not been affected a value yet
+                vec![4, 5, 6, 7],
+                vec![
+                      // WARN : variable 4 is not affected a value, while it should be defined, even in a non-taken branch
+                      Constant(5, literal(16 as u32)),
+                      Add(6, 4, 5),
+                      Add(7, 0, 3),
+                ],
+                vec![
+                    Mul(4, 1, 1),
+                    Mul(5, 2, 2),
+                    Add(6, 4, 7), // WARN: it uses wire '7' while it has not been assigned a value yet
+                    Mul(7, 0, 3),
+                ],
+            ),
+            Add(8, 6, 7),   // sum - instance_0
+            AssertZero(8),  // difference == 0
+        ],
+    };
+
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    violations.iter().for_each(|str| println!("=> {}", str));
+    assert_eq!(violations.len(), 5);
+
+    Ok(())
+}

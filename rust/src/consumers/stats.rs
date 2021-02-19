@@ -47,50 +47,56 @@ impl Stats {
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
-            match gate {
-                Gate::Constant(_out, _value) => {
-                    self.constants_gates += 1;
-                }
+            self.ingest_gate(gate);
+        }
+    }
 
-                Gate::AssertZero(_inp) => {
-                    self.assert_zero_gates += 1;
-                }
+    fn ingest_gate(&mut self, gate: &Gate) {
+        match gate {
+            Gate::Constant(_out, _value) => {
+                self.constants_gates += 1;
+            }
 
-                Gate::Copy(_out, _inp) => {
-                    self.copy_gates += 1;
-                }
+            Gate::AssertZero(_inp) => {
+                self.assert_zero_gates += 1;
+            }
 
-                Gate::Add(_out, _left, _right) => {
-                    self.add_gates += 1;
-                }
+            Gate::Copy(_out, _inp) => {
+                self.copy_gates += 1;
+            }
 
-                Gate::Mul(_out, _left, _right) => {
-                    self.mul_gates += 1;
-                }
+            Gate::Add(_out, _left, _right) => {
+                self.add_gates += 1;
+            }
 
-                Gate::AddConstant(_out, _inp, _constant) => {
-                    self.add_constant_gates += 1;
-                }
+            Gate::Mul(_out, _left, _right) => {
+                self.mul_gates += 1;
+            }
 
-                Gate::MulConstant(_out, _inp, _constant) => {
-                    self.mul_constant_gates += 1;
-                }
+            Gate::AddConstant(_out, _inp, _constant) => {
+                self.add_constant_gates += 1;
+            }
 
-                Gate::And(_out, _left, _right) => {
-                    self.and_gates += 1;
-                }
+            Gate::MulConstant(_out, _inp, _constant) => {
+                self.mul_constant_gates += 1;
+            }
 
-                Gate::Xor(_out, _left, _right) => {
-                    self.xor_gates += 1;
-                }
+            Gate::And(_out, _left, _right) => {
+                self.and_gates += 1;
+            }
 
-                Gate::Not(_out, _inp) => {
-                    self.not_gates += 1;
-                }
+            Gate::Xor(_out, _left, _right) => {
+                self.xor_gates += 1;
+            }
 
-                Gate::If(_, _, _, _) => {
-                    self.if_gates += 1;
-                }
+            Gate::Not(_out, _inp) => {
+                self.not_gates += 1;
+            }
+
+            Gate::If(_, _, branch_zero, branch_else) => {
+                self.if_gates += 1;
+                branch_zero.iter().for_each(|ga| self.ingest_gate(ga));
+                branch_else.iter().for_each(|ga| self.ingest_gate(ga));
             }
         }
     }
@@ -121,17 +127,17 @@ fn test_stats() -> crate::Result<()> {
         field_degree: 1,
         instance_variables: 1,
         witness_variables: 2,
-        constants_gates: 1,
+        constants_gates: 2,
         assert_zero_gates: 1,
         copy_gates: 0,
-        add_gates: 2,
-        mul_gates: 3,
+        add_gates: 4,
+        mul_gates: 4,
         add_constant_gates: 0,
         mul_constant_gates: 0,
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
-        if_gates: 0,
+        if_gates: 1,
     };
     assert_eq!(expected_stats, stats);
 

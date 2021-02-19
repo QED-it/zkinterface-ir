@@ -18,11 +18,22 @@ pub fn example_relation() -> Relation {
     Relation {
         header: example_header(),
         gates: vec![
-            Constant(3, literal32(MODULUS - 1)), // -1
-            Mul(4, 1, 1),   // witness_1 squared
-            Mul(5, 2, 2),   // witness_2 squared
-            Add(6, 4, 5),   // sum of squares
-            Mul(7, 0, 3),   // negative instance_0
+            Constant(3, literal32(MODULUS - 1)), // -1(
+            If( 1,
+                vec![4, 5, 6, 7],
+                vec![ // this subcircuit is obviously wrong
+                    Mul(4, 1, 1),                    // witness_1 squared
+                    Constant(5, literal32(16)),   // constant 4^2 = 16
+                    Add(6, 4, 5),   // sum of squares
+                    Add(7, 0, 3),
+                ],
+                vec![
+                    Mul(4, 1, 1),   // witness_1 squared
+                    Mul(5, 2, 2),   // witness_2 squared
+                    Add(6, 4, 5),   // sum of squares
+                    Mul(7, 0, 3),   // negative instance_0
+                ],
+            ),
             Add(8, 6, 7),   // sum - instance_0
             AssertZero(8),  // difference == 0
         ],
