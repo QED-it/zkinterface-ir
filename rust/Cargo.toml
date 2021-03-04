@@ -1,5 +1,5 @@
 [package]
-name = "sieve_ir"
+name = "sieve_ir_zki"
 version = "0.1.0"
 authors = ["Aurélien Nicolas <aurel@qed-it.com>"]
 license = "MIT"
