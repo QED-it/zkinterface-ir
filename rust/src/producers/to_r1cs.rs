@@ -3,7 +3,7 @@ use std::ops::Sub;
 
 use crate::structs::assignment::Assignment;
 use crate::Gate::*;
-use crate::{Gate, Header, Instance, Relation, Witness};
+use crate::{Gate, Header, Instance, Relation, Witness, Result};
 
 use zkinterface::BilinearConstraint;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
@@ -49,11 +49,20 @@ pub fn make_combination(ids: Vec<u64>, coefficients: Vec<u8>) -> zkiVariables {
 
 pub fn gate_to_constraint(gate: &Gate) -> BilinearConstraint {
     let (a, b, c) = match gate {
-        // Constant(w, v) => Some(w),
-        // Copy(w, _) => Some(w),
+        // Note: Constant gate seems to be eclipsed by AddConstant and MulConstant - what are they for again?
+        Constant(w, v) => (
+            (vec![0], *v),
+            (vec![0], vec![1]),
+            (vec![*w], vec![1]),
+        ),
+        Copy(out, input) => (
+            (vec![*input], vec![1]),
+            (vec![0], vec![1]),
+            (vec![*out], vec![1]),
+        ),
         Add(out, x, y) => (
             (vec![*x, *y], vec![1, 1]),
-            (vec![], vec![]),
+            (vec![0], vec![1]),
             (vec![*out], vec![1]),
         ),
         Mul(out, x, y) => (
@@ -61,7 +70,11 @@ pub fn gate_to_constraint(gate: &Gate) -> BilinearConstraint {
             (vec![*y], vec![1]),
             (vec![*out], vec![1]),
         ),
-        // AddConstant(w, _, _) => Some(w),
+        AddConstant(out, x, value) => (
+            (vec![*x, 0], Vec::<u8>[1].append(value)),
+            (vec![0], vec![1]),
+            (vec![*out], vec![1]),
+        ),
         // MulConstant(w, _, _) => Some(w),
         // And(w, _, _) => Some(w),
         // Xor(w, _, _) => Some(w),
@@ -131,3 +144,55 @@ pub fn to_r1cs_witness(witness: Witness) -> zkiWitness {
 
     zkiWitness { assigned_variables }
 }
+
+
+
+// #[cfg(test)]
+// fn test
+
+
+#[test]
+fn test_with_validate() -> Result<()> {
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
+    use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
+    use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
+    use crate::consumers::validator::Validator;
+
+    // begin tests as with from_r1cs
+
+    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_witness = zki_example_witness_inputs(3, 4);
+    let zki_r1cs = zki_example_constraints();
+
+    let (instance, relation) = crate::producers::from_r1cs::to_ir(&zki_header, &zki_r1cs);
+    let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    if violations.len() > 0 {
+        eprintln!("Violations:\n- {}\n", violations.join("\n- "));
+    }
+
+    // now convert back into r1cs (there)
+    let (zki_header2, zki_r1cs2) = to_r1cs(&instance, &relation);
+    let zki_witness2 = to_r1cs_witness(witness);
+
+    let mut validator2 = zkinterface::consumers::validator::Validator::new_as_prover();   
+    validator2.ingest_constraint_system(&zki_r1cs2);
+    validator2.ingest_witness(&zki_witness2);
+    validator2.ingest_header(&zki_header2);
+
+    let violations = validator2.get_violations();
+    if violations.len() > 0 {
+        eprintln!("Violations:\n- {}\n", violations.join("\n- "));
+    }
+
+    Ok(())
+}
+
+
+

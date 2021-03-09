@@ -236,14 +236,14 @@ fn test_with_validate() -> Result<()> {
 
 #[test]
 fn test_with_evaluator() -> Result<()> {
-    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use crate::consumers::evaluator::Evaluator;
 
     let zki_header =  zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
-    let zki_r1cs = zki_example_constrains();
+    let zki_r1cs = zki_example_constraints();
 
     let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
     let witness = to_witness(&zki_header, &zki_witness);
