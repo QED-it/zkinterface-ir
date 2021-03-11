@@ -152,12 +152,12 @@ pub fn to_witness(
 
 #[test]
 fn test_r1cs_to_gates() -> Result<()> {
-    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
 
     let zki_header =  zki_example_header_inputs(3, 4, 25);
-    let zki_r1cs = zki_example_constrains();
+    let zki_r1cs = zki_example_constraints();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
     // in zkInterface the instance is inside the header
@@ -210,14 +210,14 @@ fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
 
 #[test]
 fn test_with_validate() -> Result<()> {
-    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use crate::consumers::validator::Validator;
 
     let zki_header =  zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
-    let zki_r1cs = zki_example_constrains();
+    let zki_r1cs = zki_example_constraints();
 
     let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
     let witness = to_witness(&zki_header, &zki_witness);
