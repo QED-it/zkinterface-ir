@@ -20,12 +20,12 @@ This is a collection of tools to work with zero-knowledge statements encoded in 
 The tools below work within a workspace directory given after the tool name (`workspace` in the examples below), or in the current working directory by default. To read from stdin or write to stdout, pass a dash - instead of a filename.
 
 Create an example statement:
-    zki example workspace
+    sieve_ir_zki example workspace
 
 Print a statement in different forms:
-    zki to-text workspace
-    zki to-json workspace
-    zki to-yaml workspace
+    sieve_ir_zki to-text workspace
+    sieve_ir_zki to-json workspace
+    sieve_ir_zki to-yaml workspace
 
 Validate and evaluate a proving system:
     zki valid-eval-metrics workspace
@@ -36,7 +36,7 @@ use structopt::clap::AppSettings::*;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
-name = "zki",
+name = "sieve_ir_zki",
 about = "zkInterface toolbox for SIEVE IR.",
 long_about = ABOUT,
 setting(DontCollapseArgsInUsage),
