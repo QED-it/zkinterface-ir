@@ -107,7 +107,7 @@ pub fn gate_to_simple_constraint(gate: &Gate) -> BilinearConstraint {
             (vec![*out], vec![1]),
         ),
         MulConstant(out, x, value) => (
-            (vec![*x, 0], vec![1]),
+            (vec![*x], vec![1]),
             (vec![0], value.to_vec()),
             (vec![*out], vec![1]),
         ),
@@ -147,7 +147,7 @@ pub fn gate_to_simple_constraint(gate: &Gate) -> BilinearConstraint {
 pub struct GateConverter {
     pub constraints: Vec<BilinearConstraint>,
     pub constant_values: HashMap<WireId, Value>,
-    pub gates_with_constants: Vec<Gate>,
+    pub all_gates: Vec<Gate>,
 }
 
 impl GateConverter {
@@ -167,13 +167,14 @@ impl GateConverter {
                 if let Some(val) = self.constant_values.get(x) {
                     let cg = AddConstant(*out, *y, val.to_vec());
                     self.constraints.push(gate_to_simple_constraint(&cg));
-                    self.gates_with_constants.push(cg);
+                    self.all_gates.push(cg);
                 } else if let Some(val) = self.constant_values.get(y) {
                     let cg = AddConstant(*out, *x, val.to_vec());
                     self.constraints.push(gate_to_simple_constraint(&cg));
-                    self.gates_with_constants.push(cg);
+                    self.all_gates.push(cg);
                 } else {
                     self.constraints.push(gate_to_simple_constraint(gate));
+                    self.all_gates.push(gate.clone());
                 }
             }
 
@@ -181,27 +182,21 @@ impl GateConverter {
                 if let Some(val) = self.constant_values.get(x) {
                     let cg = MulConstant(*out, *y, val.to_vec());
                     self.constraints.push(gate_to_simple_constraint(&cg));
-                    self.gates_with_constants.push(cg);
+                    self.all_gates.push(cg);
                 } else if let Some(val) = self.constant_values.get(y) {
                     let cg = MulConstant(*out, *x, val.to_vec());
                     self.constraints.push(gate_to_simple_constraint(&cg));
-                    self.gates_with_constants.push(cg);
+                    self.all_gates.push(cg);
                 } else {
                     self.constraints.push(gate_to_simple_constraint(gate));
+                    self.all_gates.push(gate.clone());
                 }
             }
 
-            MulConstant(_, _, _) => {
+            _ => {
                 self.constraints.push(gate_to_simple_constraint(gate));
-                self.gates_with_constants.push(gate.clone());
-            }
-
-            AddConstant(_, _, _) => {
-                self.constraints.push(gate_to_simple_constraint(gate));
-                self.gates_with_constants.push(gate.clone());
-            }
-
-            _ => self.constraints.push(gate_to_simple_constraint(gate)),
+                self.all_gates.push(gate.clone());
+            },
         }
     }
 }
@@ -254,45 +249,99 @@ pub fn to_r1cs(
     println!("Constants: {:?}", gc.constant_values);
     println!("All gates: {:?}", relation.gates);
 
-    (zki_header, cs, gc.gates_with_constants)
+    (zki_header, cs, gc.all_gates)
 }
 
 // Conversion works the same for the witness as for the I/O variables,
-// but constant gates need to have their witness values added.
-pub fn to_r1cs_witness(witness: &Witness, common_variables: &Vec<Assignment>, mut constant_gates: Vec<Gate>) -> zkiWitness {
+// but gates that can be inferred in the IR must have their values computed explicitly for the witness here.
+// To do this inference, we need all of the gates (with constants removed by to_r1cs) and the field size.
+pub fn to_r1cs_completed_witness(witness: &Witness, common_variables: &Vec<Assignment>, all_gates: &Vec<Gate>, field_characteristic: &BigUint) -> zkiWitness {
     let to_map = |x : &Vec<Assignment>| x.iter()
-        .map(|a| (a.id, a.value.clone()))
+        .map(|a| (a.id, BigUint::from_bytes_le(&a.value)))
         .collect();
 
-    let mut witness_assignments: HashMap<WireId, Value> = to_map(&witness.short_witness);
-    let mut all_assignments: HashMap<WireId, Value> = to_map(&common_variables);
+    let mut witness_assignments: HashMap<WireId, BigUint> = to_map(&witness.short_witness);
+    let mut all_assignments: HashMap<WireId, BigUint> = to_map(&common_variables);
     all_assignments.extend(witness_assignments.clone());
 
-    // cannot have AssertZero in constant_gates, so unwrap is fine - sort by output wire id
-    constant_gates.sort_by(|a, b| a.get_output_wire_id().unwrap().cmp(&b.get_output_wire_id().unwrap()));
+    // AssertZero adds no wires, so don't check it - this allows unwrap of output wire ID
+    // Similarly, Constant gates have been removed
+    let mut all_gates : Vec<Gate> = all_gates.iter().filter(|g| match g {
+        AssertZero(_) => false,
+        Constant(_,_) => false,
+        _ => true,
+    }).map(|g| g.clone()).collect();
+    all_gates.sort_by(|a, b| a.get_output_wire_id().unwrap().cmp(&b.get_output_wire_id().unwrap()));
 
-    println!("Witness: {:?}", witness);
-    println!("Constant gates: {:?}", constant_gates);
+    println!("All assignments: {:?}", all_assignments);
+    println!("All gates: {:?}", all_gates);
 
-    for gate in constant_gates {
+    for gate in all_gates {
         println!("Gate: {:?}", gate);
+        if all_assignments.contains_key(&gate.get_output_wire_id().unwrap()) {
+            // don't compute if a value already exists in the map
+            continue;
+        }
         match gate {
+            Copy(out, x) => {
+                let xval = all_assignments.get(&x).unwrap().clone();
+                all_assignments.insert(out, xval.clone());
+                witness_assignments.insert(out, xval);
+            },
+    
+            Add(out, x, y) => {
+                let xval = all_assignments.get(&x).unwrap();
+                let yval = all_assignments.get(&y).unwrap();
+                let oval = (xval + yval) % field_characteristic;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
+            },
+            Mul(out, x, y) => {
+                let xval = all_assignments.get(&x).unwrap();
+                let yval = all_assignments.get(&y).unwrap();
+                let oval = (xval * yval) % field_characteristic;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
+            },
+
             AddConstant(out, x, value) => {
-                let xval = BigUint::from_bytes_le(all_assignments.get(&x).unwrap());
+                let xval = all_assignments.get(&x).unwrap();
                 let cval = BigUint::from_bytes_le(&value);
-                let oval = xval + cval;
-                all_assignments.insert(out, oval.to_bytes_le());
-                witness_assignments.insert(out, oval.to_bytes_le());
+                let oval = (xval + cval) % field_characteristic;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
             },
             MulConstant(out, x, value) => {
-                let xval = BigUint::from_bytes_le(all_assignments.get(&x).unwrap());
+                let xval = all_assignments.get(&x).unwrap();
                 let cval = BigUint::from_bytes_le(&value);
-                let oval = xval * cval;
-                all_assignments.insert(out, oval.to_bytes_le());
-                witness_assignments.insert(out, oval.to_bytes_le());
+                let oval = (xval * cval) % field_characteristic;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
             }, 
 
-            _ => panic!("constant_gates must only contain AddConstant and MulConstant gates!")
+            And(out, x, y) => {
+                let xval = all_assignments.get(&x).unwrap();
+                let yval = all_assignments.get(&y).unwrap();
+                let oval = xval & yval;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
+            },    
+            Xor(out, x, y) => {
+                let xval = all_assignments.get(&x).unwrap();
+                let yval = all_assignments.get(&y).unwrap();
+                let oval = xval ^ yval;
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
+            },
+            Not(out, x) => {
+                let xval = all_assignments.get(&x).unwrap();
+                let oval : BigUint = xval ^ BigUint::from_bytes_le(b"1");
+                all_assignments.insert(out, oval.clone());
+                witness_assignments.insert(out, oval);
+            },
+
+            AssertZero(_) => panic!("all_gates must have filtered out AssertZero gates!"),
+            Constant(_,_) => panic!("all_gates must have filtered out Constant gates!"),
         }
     }
 
@@ -300,7 +349,7 @@ pub fn to_r1cs_witness(witness: &Witness, common_variables: &Vec<Assignment>, mu
         .iter()
         .map(|(id, value)| Assignment {
             id: *id,
-            value: value.clone(),
+            value: value.to_bytes_le(),
         })
         .collect();
     let assigned_variables = combine_variables(&assignment_vec);
@@ -361,8 +410,8 @@ fn test_same_values_after_conversion() -> crate::Result<()> {
     let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
 
     // now convert back into r1cs (there)
-    let (zki_header2, _, c_gates) = to_r1cs(&instance, &relation);
-    let zki_witness2 = to_r1cs_witness(&witness, &instance.common_inputs, c_gates);
+    let (zki_header2, _, all_gates) = to_r1cs(&instance, &relation);
+    let zki_witness2 = to_r1cs_completed_witness(&witness, &instance.common_inputs, &all_gates, &BigUint::from_bytes_le(&relation.header.field_characteristic));
 
     assert_same_io_values(&instance, &zki_header2)?;
 
@@ -387,8 +436,8 @@ fn test_with_validate() -> crate::Result<()> {
     let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
 
     // now convert back into r1cs (there)
-    let (zki_header2, zki_r1cs2, c_gates) = to_r1cs(&instance, &relation);
-    let zki_witness2 = to_r1cs_witness(&witness, &instance.common_inputs, c_gates);
+    let (zki_header2, zki_r1cs2, all_gates) = to_r1cs(&instance, &relation);
+    let zki_witness2 = to_r1cs_completed_witness(&witness, &instance.common_inputs, &all_gates, &BigUint::from_bytes_le(&relation.header.field_characteristic));
 
     let mut validator = zkinterface::consumers::validator::Validator::new_as_prover();
     validator.ingest_constraint_system(&zki_r1cs2);
@@ -418,8 +467,8 @@ fn test_with_simulator() -> crate::Result<()> {
     let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
 
     // now convert back into r1cs (there)
-    let (zki_header2, zki_r1cs2, c_gates) = to_r1cs(&instance, &relation);
-    let zki_witness2 = to_r1cs_witness(&witness, &instance.common_inputs, c_gates);
+    let (zki_header2, zki_r1cs2, all_gates) = to_r1cs(&instance, &relation);
+    let zki_witness2 = to_r1cs_completed_witness(&witness, &instance.common_inputs, &all_gates, &BigUint::from_bytes_le(&relation.header.field_characteristic));
 
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();
     simulator.ingest_header(&zki_header2)?;
