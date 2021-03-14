@@ -123,7 +123,7 @@ fn test_stats() -> crate::Result<()> {
 
 
     let expected_stats = Stats {
-        field_characteristic: literal(MODULUS),
+        field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
         instance_variables: 1,
         witness_variables: 2,

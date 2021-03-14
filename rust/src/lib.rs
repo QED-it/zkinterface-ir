@@ -1,4 +1,4 @@
-//! zki is an implementation of SIEVE IR.
+//! zki_sieve is an implementation of SIEVE IR.
 //!
 //! It includes Rust data structures and functions to produce and consume statements.
 //!
@@ -8,7 +8,7 @@
 //! ```text
 //! cargo install --path .
 //!
-//! zki help
+//! zki_sieve help
 //! ```
 
 pub extern crate flatbuffers;

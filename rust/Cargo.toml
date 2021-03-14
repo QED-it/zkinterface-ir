@@ -1,6 +1,6 @@
 [package]
-name = "zki"
-version = "0.1.0"
+name = "zki_sieve"
+version = "0.1.1"
 authors = ["Aurélien Nicolas <aurel@qed-it.com>"]
 license = "MIT"
 build = "build.rs"

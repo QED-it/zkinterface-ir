@@ -15,8 +15,8 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 ///
 /// # Example
 /// ```
-/// use zki::{Source, FilesSink, Sink, Message};
-/// use zki::producers::examples::*;
+/// use zki_sieve::{Source, FilesSink, Sink, Message};
+/// use zki_sieve::producers::examples::*;
 /// use std::path::PathBuf;
 ///
 /// // Create an example workspace including multiple constraints files.
