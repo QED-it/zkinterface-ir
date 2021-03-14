@@ -284,22 +284,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sieve_ir_zki"
-version = "0.1.1"
-dependencies = [
- "colored",
- "flatbuffers",
- "num-bigint",
- "num-traits",
- "regex",
- "serde",
- "serde_json",
- "serde_yaml",
- "structopt",
- "zkinterface",
-]
-
-[[package]]
 name = "smallvec"
 version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -453,6 +437,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39f0c922f1a334134dc2f7a8b67dc5d25f0735263feec974345ff706bcf20b0d"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "zki_sieve"
+version = "0.1.1"
+dependencies = [
+ "colored",
+ "flatbuffers",
+ "num-bigint",
+ "num-traits",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "structopt",
+ "zkinterface",
 ]
 
 [[package]]

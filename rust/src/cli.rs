@@ -21,15 +21,15 @@ This is a collection of tools to work with zero-knowledge statements encoded in 
 The tools below work within a workspace directory given after the tool name (`workspace` in the examples below), or in the current working directory by default. To read from stdin or write to stdout, pass a dash - instead of a filename.
 
 Create an example statement:
-    sieve_ir_zki example workspace
+    zki_sieve example workspace
 
 Print a statement in different forms:
-    sieve_ir_zki to-text workspace
-    sieve_ir_zki to-json workspace
-    sieve_ir_zki to-yaml workspace
+    zki_sieve to-text workspace
+    zki_sieve to-json workspace
+    zki_sieve to-yaml workspace
 
 Validate and evaluate a proving system:
-    zki valid-eval-metrics workspace
+    zki_sieve valid-eval-metrics workspace
 
 ";
 
@@ -37,7 +37,7 @@ use structopt::clap::AppSettings::*;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
-name = "sieve_ir_zki",
+name = "zki_sieve",
 about = "zkInterface toolbox for SIEVE IR.",
 long_about = ABOUT,
 setting(DontCollapseArgsInUsage),
@@ -271,11 +271,15 @@ fn test_cli() -> Result<()> {
     cli(&Options {
         tool: "example".to_string(),
         paths: vec![workspace.clone()],
+        field_order: BigUint::from(101 as u32),
+        incorrect: false,
     })?;
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
         paths: vec![workspace.clone()],
+        field_order: BigUint::from(101 as u32),
+        incorrect: false,
     })?;
 
     Ok(())
