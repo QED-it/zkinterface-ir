@@ -6,19 +6,39 @@ use crate::structs::assignment::Assignment;
 
 
 pub fn example_header() -> Header {
+    example_header_in_field(literal32(EXAMPLE_MODULUS))
+}
+
+pub fn example_relation() -> Relation {
+    example_relation_h(&example_header())
+}
+
+pub fn example_instance() -> Instance {
+    example_instance_h(&example_header())
+}
+
+pub fn example_witness() -> Witness {
+    example_witness_h(&example_header())
+}
+
+pub fn example_witness_incorrect() -> Witness {
+    example_witness_incorrect_h(&example_header())
+}
+
+pub fn example_header_in_field(field_order: Vec<u8>) -> Header {
     Header {
-        field_characteristic: literal32(MODULUS),
+        field_characteristic: field_order,
         ..Header::default()
     }
 }
 
-pub fn example_relation() -> Relation {
+pub fn example_relation_h(header: &Header) -> Relation {
     use crate::Gate::*;
 
     Relation {
-        header: example_header(),
+        header: header.clone(),
         gates: vec![
-            Constant(3, literal32(MODULUS - 1)), // -1
+            Constant(3, encode_negative_one(header)), // -1
             Mul(4, 1, 1),   // witness_1 squared
             Mul(5, 2, 2),   // witness_2 squared
             Add(6, 4, 5),   // sum of squares
@@ -29,18 +49,18 @@ pub fn example_relation() -> Relation {
     }
 }
 
-pub fn example_instance() -> Instance {
+pub fn example_instance_h(header: &Header) -> Instance {
     Instance {
-        header: example_header(),
+        header: header.clone(),
         common_inputs: vec![
             Assignment { id: 0, value: literal32(25) },
         ],
     }
 }
 
-pub fn example_witness() -> Witness {
+pub fn example_witness_h(header: &Header) -> Witness {
     Witness {
-        header: example_header(),
+        header: header.clone(),
         short_witness: vec![
             Assignment { id: 1, value: literal32(3) },
             Assignment { id: 2, value: literal32(4) },
@@ -48,12 +68,18 @@ pub fn example_witness() -> Witness {
     }
 }
 
-
-pub const MODULUS: u32 = 101;
-
-pub fn neg(val: u32) -> u32 {
-    MODULUS - (val % MODULUS)
+pub fn example_witness_incorrect_h(header: &Header) -> Witness {
+    Witness {
+        header: header.clone(),
+        short_witness: vec![
+            Assignment { id: 1, value: literal32(3) },
+            Assignment { id: 2, value: literal32(4 + 1) }, // incorrect.
+        ],
+    }
 }
+
+
+pub const EXAMPLE_MODULUS: u32 = 101;
 
 pub fn literal<T: EndianScalar>(value: T) -> Vec<u8> {
     let mut buf = vec![0u8; size_of::<T>()];
@@ -71,6 +97,13 @@ pub fn read_literal<T: EndianScalar>(encoded: &[u8]) -> T {
         encoded.resize(size_of::<T>(), 0);
         read_scalar(&encoded)
     }
+}
+
+fn encode_negative_one(header: &Header) -> Vec<u8> {
+    let mut neg_one = header.field_characteristic.clone();
+    assert!(neg_one.len() > 0 && neg_one[0] > 0, "Invalid field order");
+    neg_one[0] -= 1;
+    neg_one
 }
 
 
