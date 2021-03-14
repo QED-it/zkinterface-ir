@@ -5,6 +5,7 @@ use std::io::{stdout, copy};
 use std::path::{Path, PathBuf};
 use std::fs::File;
 use structopt::StructOpt;
+use num_bigint::BigUint;
 
 use crate::{Messages, Result, Source};
 use crate::consumers::{
@@ -74,6 +75,14 @@ pub struct Options {
     /// The dash - means either write to stdout or read from stdin.
     #[structopt(default_value = ".")]
     paths: Vec<PathBuf>,
+
+    /// Which field to use when generating circuits.
+    #[structopt(short, long, default_value = "101")]
+    pub field_order: BigUint,
+
+    /// `example --incorect` will generate an incorrect witness useful for negative tests.
+    #[structopt(long)]
+    pub incorrect: bool,
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -119,27 +128,36 @@ fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
     use crate::{Sink, FilesSink};
 
+    let header = example_header_in_field(opts.field_order.to_bytes_le());
+    let instance = example_instance_h(&header);
+    let relation = example_relation_h(&header);
+    let witness = if opts.incorrect {
+        example_witness_incorrect_h(&header)
+    } else {
+        example_witness_h(&header)
+    };
+
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
     }
     let out_dir = &opts.paths[0];
 
     if out_dir == Path::new("-") {
-        example_instance().write_into(&mut stdout())?;
-        example_witness().write_into(&mut stdout())?;
-        example_relation().write_into(&mut stdout())?;
+        instance.write_into(&mut stdout())?;
+        witness.write_into(&mut stdout())?;
+        relation.write_into(&mut stdout())?;
     } else if has_sieve_extension(out_dir) {
         let mut file = File::create(out_dir)?;
-        example_instance().write_into(&mut file)?;
-        example_witness().write_into(&mut file)?;
-        example_relation().write_into(&mut file)?;
+        instance.write_into(&mut file)?;
+        witness.write_into(&mut file)?;
+        relation.write_into(&mut file)?;
         eprintln!("Written Instance, Witness, and Relation into {}", out_dir.display());
     } else {
         let mut sink = FilesSink::new(out_dir)?;
         sink.print_filenames = true;
-        sink.push_instance(&example_instance())?;
-        sink.push_witness(&example_witness())?;
-        sink.push_relation(&example_relation())?;
+        sink.push_instance(&instance)?;
+        sink.push_witness(&witness)?;
+        sink.push_relation(&relation)?;
     }
     Ok(())
 }
