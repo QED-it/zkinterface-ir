@@ -24,6 +24,7 @@ pub mod assignment;
 
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
+pub const NO_ID: WireId = 0;
 
 /// A Value is a field element encoded least-significant-byte-first (little-endian). Trailing zeros may be omitted.
 ///

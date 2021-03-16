@@ -113,6 +113,14 @@ table GateNot {
    input       :Wire;
 }
 
+table GateInstance {
+   output      :Wire;
+}
+
+table GateWitness {
+   output      :Wire;
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -124,6 +132,8 @@ union GateSet {
    GateAnd,
    GateXor,
    GateNot,
+   GateInstance,
+   GateWitness,
 }
 table Gate {
     gate      :GateSet;

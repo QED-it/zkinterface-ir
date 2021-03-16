@@ -31,6 +31,10 @@ pub enum Gate {
     Xor(WireId, WireId, WireId),
     /// Not(output, input)
     Not(WireId, WireId),
+    /// Instance(output)
+    Instance(WireId),
+    /// Witness(output)
+    Witness(WireId),
 }
 
 use Gate::*;
@@ -116,6 +120,18 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Not(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id())
+            }
+
+            gs::GateInstance => {
+                let gate = gen_gate.gate_as_gate_instance().unwrap();
+                Instance(
+                    gate.output().ok_or("Missing output")?.id())
+            }
+
+            gs::GateWitness => {
+                let gate = gen_gate.gate_as_gate_witness().unwrap();
+                Witness(
+                    gate.output().ok_or("Missing output")?.id())
             }
         })
     }
@@ -246,6 +262,26 @@ impl Gate {
                     gate: Some(gate.as_union_value()),
                 })
             }
+
+            Instance(output) => {
+                let gate = g::GateInstance::create(builder, &g::GateInstanceArgs {
+                    output: Some(&g::Wire::new(*output)),
+                });
+                g::Gate::create(builder, &g::GateArgs {
+                    gate_type: gs::GateInstance,
+                    gate: Some(gate.as_union_value()),
+                })
+            }
+
+            Witness(output) => {
+                let gate = g::GateWitness::create(builder, &g::GateWitnessArgs {
+                    output: Some(&g::Wire::new(*output)),
+                });
+                g::Gate::create(builder, &g::GateArgs {
+                    gate_type: gs::GateWitness,
+                    gate: Some(gate.as_union_value()),
+                })
+            }
         }
     }
 
@@ -273,6 +309,8 @@ impl Gate {
             And(w, _, _) => Some(w),
             Xor(w, _, _) => Some(w),
             Not(w, _) => Some(w),
+            Instance(w) => Some(w),
+            Witness(w) => Some(w),
 
             AssertZero(_) => None
         }

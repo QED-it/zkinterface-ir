@@ -52,6 +52,9 @@ pub use structs::{
     message::Message,
     messages::Messages,
     gates::Gate,
+    WireId,
+    NO_ID,
+    Value,
 };
 
 /// Common definition of Result with generic errors.

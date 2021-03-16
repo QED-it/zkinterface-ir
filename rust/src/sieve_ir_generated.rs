@@ -99,11 +99,13 @@ pub enum GateSet {
   GateAnd = 8,
   GateXor = 9,
   GateNot = 10,
+  GateInstance = 11,
+  GateWitness = 12,
 
 }
 
 pub const ENUM_MIN_GATE_SET: u8 = 0;
-pub const ENUM_MAX_GATE_SET: u8 = 10;
+pub const ENUM_MAX_GATE_SET: u8 = 12;
 
 impl<'a> flatbuffers::Follow<'a> for GateSet {
   type Inner = Self;
@@ -137,7 +139,7 @@ impl flatbuffers::Push for GateSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_GATE_SET:[GateSet; 11] = [
+pub const ENUM_VALUES_GATE_SET:[GateSet; 13] = [
   GateSet::NONE,
   GateSet::GateConstant,
   GateSet::GateAssertZero,
@@ -148,11 +150,13 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 11] = [
   GateSet::GateMulConstant,
   GateSet::GateAnd,
   GateSet::GateXor,
-  GateSet::GateNot
+  GateSet::GateNot,
+  GateSet::GateInstance,
+  GateSet::GateWitness
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_GATE_SET:[&'static str; 11] = [
+pub const ENUM_NAMES_GATE_SET:[&'static str; 13] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -163,7 +167,9 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 11] = [
     "GateMulConstant",
     "GateAnd",
     "GateXor",
-    "GateNot"
+    "GateNot",
+    "GateInstance",
+    "GateWitness"
 ];
 
 pub fn enum_name_gate_set(e: GateSet) -> &'static str {
@@ -1668,6 +1674,158 @@ impl<'a: 'b, 'b> GateNotBuilder<'a, 'b> {
   }
 }
 
+pub enum GateInstanceOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateInstance<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateInstance<'a> {
+    type Inner = GateInstance<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateInstance<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateInstance {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateInstanceArgs<'args>) -> flatbuffers::WIPOffset<GateInstance<'bldr>> {
+      let mut builder = GateInstanceBuilder::new(_fbb);
+      if let Some(x) = args.output { builder.add_output(x); }
+      builder.finish()
+    }
+
+    pub const VT_OUTPUT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn output(&self) -> Option<&'a Wire> {
+    self._tab.get::<Wire>(GateInstance::VT_OUTPUT, None)
+  }
+}
+
+pub struct GateInstanceArgs<'a> {
+    pub output: Option<&'a  Wire>,
+}
+impl<'a> Default for GateInstanceArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateInstanceArgs {
+            output: None,
+        }
+    }
+}
+pub struct GateInstanceBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateInstanceBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_output(&mut self, output: &'b  Wire) {
+    self.fbb_.push_slot_always::<&Wire>(GateInstance::VT_OUTPUT, output);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateInstanceBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateInstanceBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateInstance<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum GateWitnessOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateWitness<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateWitness<'a> {
+    type Inner = GateWitness<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateWitness<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateWitness {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateWitnessArgs<'args>) -> flatbuffers::WIPOffset<GateWitness<'bldr>> {
+      let mut builder = GateWitnessBuilder::new(_fbb);
+      if let Some(x) = args.output { builder.add_output(x); }
+      builder.finish()
+    }
+
+    pub const VT_OUTPUT: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn output(&self) -> Option<&'a Wire> {
+    self._tab.get::<Wire>(GateWitness::VT_OUTPUT, None)
+  }
+}
+
+pub struct GateWitnessArgs<'a> {
+    pub output: Option<&'a  Wire>,
+}
+impl<'a> Default for GateWitnessArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateWitnessArgs {
+            output: None,
+        }
+    }
+}
+pub struct GateWitnessBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateWitnessBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_output(&mut self, output: &'b  Wire) {
+    self.fbb_.push_slot_always::<&Wire>(GateWitness::VT_OUTPUT, output);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateWitnessBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateWitnessBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateWitness<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum GateOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -1808,6 +1966,26 @@ impl<'a> Gate<'a> {
   pub fn gate_as_gate_not(&self) -> Option<GateNot<'a>> {
     if self.gate_type() == GateSet::GateNot {
       self.gate().map(|u| GateNot::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn gate_as_gate_instance(&self) -> Option<GateInstance<'a>> {
+    if self.gate_type() == GateSet::GateInstance {
+      self.gate().map(|u| GateInstance::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn gate_as_gate_witness(&self) -> Option<GateWitness<'a>> {
+    if self.gate_type() == GateSet::GateWitness {
+      self.gate().map(|u| GateWitness::init_from_table(u))
     } else {
       None
     }

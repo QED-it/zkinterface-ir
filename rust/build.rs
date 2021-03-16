@@ -1,6 +1,5 @@
 fn main() {
     #[cfg(feature = "fbs")] {
-        use std::fs::rename;
         use std::path::Path;
         use std::process::Command;
 
