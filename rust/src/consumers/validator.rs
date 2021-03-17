@@ -177,25 +177,27 @@ impl Validator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
+        use Gate::*;
+
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
             match gate {
-                Gate::Constant(out, value) => {
+                Constant(out, value) => {
                     self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::AssertZero(inp) => {
+                AssertZero(inp) => {
                     self.ensure_defined_and_set(*inp);
                 }
 
-                Gate::Copy(out, inp) => {
+                Copy(out, inp) => {
                     self.ensure_defined_and_set(*inp);
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::Add(out, left, right) => {
+                Add(out, left, right) => {
                     self.ensure_arithmetic("Add");
 
                     self.ensure_defined_and_set(*left);
@@ -204,7 +206,7 @@ impl Validator {
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::Mul(out, left, right) => {
+                Mul(out, left, right) => {
                     self.ensure_arithmetic("Mul");
 
                     self.ensure_defined_and_set(*left);
@@ -213,28 +215,28 @@ impl Validator {
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::AddConstant(out, inp, constant) => {
+                AddConstant(out, inp, constant) => {
                     self.ensure_arithmetic("AddConstant");
                     self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
                     self.ensure_defined_and_set(*inp);
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::MulConstant(out, inp, constant) => {
+                MulConstant(out, inp, constant) => {
                     self.ensure_arithmetic("MulConstant");
                     self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
                     self.ensure_defined_and_set(*inp);
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::And(out, left, right) => {
+                And(out, left, right) => {
                     self.ensure_boolean("And");
                     self.ensure_defined_and_set(*left);
                     self.ensure_defined_and_set(*right);
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::Xor(out, left, right) => {
+                Xor(out, left, right) => {
                     self.ensure_boolean("Xor");
 
                     self.ensure_defined_and_set(*left);
@@ -242,12 +244,16 @@ impl Validator {
                     self.ensure_undefined_and_set(*out);
                 }
 
-                Gate::Not(out, inp) => {
+                Not(out, inp) => {
                     self.ensure_boolean("Not");
 
                     self.ensure_defined_and_set(*inp);
                     self.ensure_undefined_and_set(*out);
                 }
+
+                Instance(_) => unimplemented!("Inline instance declaration not supported"),
+
+                Witness(_) => unimplemented!("Inline witness declaration not supported"),
             }
         }
     }

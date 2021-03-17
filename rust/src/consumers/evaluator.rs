@@ -73,6 +73,8 @@ impl Evaluator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
+        use Gate::*;
+
         self.ingest_header(&relation.header)?;
 
         if relation.gates.len() > 0 {
@@ -81,68 +83,72 @@ impl Evaluator {
 
         for gate in &relation.gates {
             match gate {
-                Gate::Constant(out, value) =>
+                Constant(out, value) =>
                     self.set_encoded(*out, value),
 
-                Gate::AssertZero(inp) => {
+                AssertZero(inp) => {
                     let val = self.get(*inp)?;
                     if !val.is_zero() {
                         return Err(format!("wire_{} should equal 0 but has value {}", *inp, val).into());
                     }
                 }
 
-                Gate::Copy(out, inp) => {
+                Copy(out, inp) => {
                     let value = self.get(*inp)?.clone();
                     self.set(*out, value);
                 }
 
-                Gate::Add(out, left, right) => {
+                Add(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let sum = l + r;
                     self.set(*out, sum);
                 }
 
-                Gate::Mul(out, left, right) => {
+                Mul(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let prod = l * r;
                     self.set(*out, prod);
                 }
 
-                Gate::AddConstant(out, inp, constant) => {
+                AddConstant(out, inp, constant) => {
                     let l = self.get(*inp)?;
                     let r = BigUint::from_bytes_le(constant);
                     let sum = l + r;
                     self.set(*out, sum);
                 }
 
-                Gate::MulConstant(out, inp, constant) => {
+                MulConstant(out, inp, constant) => {
                     let l = self.get(*inp)?;
                     let r = BigUint::from_bytes_le(constant);
                     let prod = l * r;
                     self.set(*out, prod);
                 }
 
-                Gate::And(out, left, right) => {
+                And(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let and = l.bitand(r);
                     self.set(*out, and);
                 }
 
-                Gate::Xor(out, left, right) => {
+                Xor(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let xor = l.bitxor(r);
                     self.set(*out, xor);
                 }
 
-                Gate::Not(out, inp) => {
+                Not(out, inp) => {
                     let val = self.get(*inp)?;
                     let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
                     self.set(*out, not);
                 }
+
+                Instance(_) => unimplemented!("Inline instance declaration not supported"),
+
+                Witness(_) => unimplemented!("Inline witness declaration not supported"),
             }
         }
         Ok(())

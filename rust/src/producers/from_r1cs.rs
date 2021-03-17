@@ -2,10 +2,10 @@ use std::ops::Add;
 use num_bigint::BigUint;
 use num_traits::One;
 
-use crate::Gate::*;
 use crate::structs:: {WireId, assignment::Assignment};
 use crate::{ Header, Instance, Relation, Witness, Result};
-use crate::producers::builder::{Builder, IBuilder};
+use crate::producers::builder::{Builder, IBuilder, BuildGate};
+use BuildGate::*;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
@@ -61,14 +61,14 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
 fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
     if lc.len() == 0 {
         // empty linear combination translates into an empty value
-        return b.create_gate(Constant(0, vec![]));
+        return b.create_gate(Constant(vec![]));
     }
 
     let mut sum_id = build_term(b, &lc[0]);
 
     for term in &lc[1..] {
         let term_id = build_term(b, term);
-        sum_id = b.create_gate(Add(0, sum_id, term_id));
+        sum_id = b.create_gate(Add(sum_id, term_id));
     }
 
     sum_id
@@ -76,11 +76,11 @@ fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
 
 fn build_term(b: &mut impl IBuilder, term: &zkiVariable) -> WireId {
     if term.id == 0 {
-        return b.create_gate(Constant(0, Vec::from(term.value)));
+        return b.create_gate(Constant(Vec::from(term.value)));
     }
 
-    let val_id = b.create_gate(Constant(0, Vec::from(term.value)));
-    return b.create_gate(Mul(0, term.id, val_id));
+    let val_id = b.create_gate(Constant(Vec::from(term.value)));
+    return b.create_gate(Mul(term.id, val_id));
 }
 
 pub fn to_ir(
@@ -112,7 +112,7 @@ pub fn to_ir(
 
     // Allocate negative one for negation.
     let max = zki_header.field_maximum.as_ref().unwrap();
-    let neg_one_id = b.create_gate(Constant(0, max.clone()));
+    let neg_one_id = b.create_gate(Constant(max.clone()));
 
     // Convert each R1CS constraint into a graph of Add/Mul/Const/AssertZero gates.
     for constraint in &zki_r1cs.constraints {
@@ -120,9 +120,9 @@ pub fn to_ir(
         let sum_b_id = add_lc(b,&constraint.linear_combination_b.get_variables());
         let sum_c_id = add_lc(b,&constraint.linear_combination_c.get_variables());
 
-        let prod_id = b.create_gate(Mul(0, sum_a_id, sum_b_id));
-        let neg_c_id = b.create_gate(Mul(0, neg_one_id, sum_c_id));
-        let claim_zero_id = b.create_gate(Add(0, prod_id, neg_c_id));
+        let prod_id = b.create_gate(Mul(sum_a_id, sum_b_id));
+        let neg_c_id = b.create_gate(Mul(neg_one_id, sum_c_id));
+        let claim_zero_id = b.create_gate(Add(prod_id, neg_c_id));
 
         b.create_gate(AssertZero(claim_zero_id));
     }

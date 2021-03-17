@@ -1,11 +1,25 @@
-use crate::Gate;
-use crate::structs::WireId;
-use crate::Gate::*;
+use crate::{WireId, Gate};
+use super::build_gates::NO_OUTPUT;
+
+pub use super::build_gates::BuildGate;
+
 
 pub trait IBuilder {
-    fn free_id(&self) -> WireId;
-
-    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
+    /// Allocates a new wire id for the output and creates a new gate,
+    /// Returns the newly allocated WireId.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use zki_sieve::producers::builder::{IBuilder, Builder, BuildGate};
+    /// use BuildGate::*;
+    ///
+    /// let mut b = Builder::default();
+    ///
+    /// let my_id = b.create_gate(Constant(vec![0]));
+    /// b.create_gate(AssertZero(my_id));
+    /// ```
+    fn create_gate(&mut self, non_allocated_gate: BuildGate) -> WireId;
 }
 
 #[derive(Default)]
@@ -15,107 +29,38 @@ pub struct Builder {
 }
 
 impl IBuilder for Builder {
-    fn free_id(&self) -> WireId {
-        self.free_id
-    }
+    fn create_gate(&mut self, gate: BuildGate) -> WireId {
+        let out_id = if gate.has_output() {
+            self.alloc()
+        } else {
+            NO_OUTPUT
+        };
 
+        self.push_gate(
+            gate.with_output(out_id));
 
-    /// Allocates a new wire id for the output and creates a new gate,
-    /// Returns the newly allocated WireId
-    /// The new gate must be provided with output_id == zero.
-    ///
-    /// # Panics
-    ///
-    /// output id for the gate is not zero.
-    ///
-    /// # Examples
-    ///
-    /// a simple example
-    /// ```
-    ///
-    ///
-    /// use zki_sieve::structs::gates::Gate::Constant;
-    /// use zki_sieve::producers::builder::Builder;
-    /// use zki_sieve::producers::builder::IBuilder;
-    ///
-    /// let free_variable_id = 5;
-    /// let mut b = Builder::new(free_variable_id);
-    ///
-    /// let new_id = b.create_gate(Constant(0,vec![1]));
-    ///
-    /// ```
-    /// an example for a gate without output_id
-    /// ```
-    ///
-    /// use zki_sieve::structs::gates::Gate::AssertZero;
-    /// use zki_sieve::producers::builder::Builder;
-    /// use zki_sieve::producers::builder::IBuilder;
-    ///
-    /// let free_variable_id = 5;
-    /// let mut b = Builder::new(free_variable_id);
-    ///
-    /// let new_id = b.create_gate(AssertZero(5));
-    ///
-    /// ```
-    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId {
-        if non_allocated_gate.get_output_wire_id().is_none() {
-            self.push_gate(non_allocated_gate);
-            return 0;
-        }
-        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire id should be zero for the new gate");
-        let new_id = self.alloc();
-        self.push_gate_with_output(&non_allocated_gate, new_id);
-        new_id
+        out_id
     }
 }
 
 impl Builder {
-    /// new a new builder
-
+    /// new creates a new builder. Wire IDs start at free_id (usually 0).
     pub fn new(free_id: u64) -> Builder {
         Builder {
             gates: Vec::<Gate>::new(),
-            free_id
+            free_id,
         }
     }
 
-    /// alloc allocates a new wire id
-
+    /// alloc allocates a new wire ID.
     fn alloc(&mut self) -> WireId {
         let id = self.free_id;
         self.free_id += 1;
         id
     }
 
-    /// push_gate pushes a gate to the gates array, the gate's input and output wires must be pre-allocated
-
+    /// push_gate records a gate. The input and output wires must have been allocated.
     fn push_gate(&mut self, allocated_gate: Gate) {
         self.gates.push(allocated_gate);
     }
-
-    /// create_gate_with_output ataches the specified wire_id as an output to the gate and pushed
-    /// it into the gates array
-    ///
-    /// # Panics
-    ///
-    /// output id for the given gate is not zero.
-
-    fn push_gate_with_output(&mut self, non_allocated_gate: &Gate, output_id: WireId) {
-        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire must be 0 for a non allocated gate");
-
-        match non_allocated_gate {
-            Constant(_, v) => self.push_gate(Constant(output_id, v.clone())),
-            Copy(_, w) => self.push_gate(Copy(output_id, w.clone())),
-            Add(_, w1, w2) => self.push_gate(Add(output_id, w1.clone(), w2.clone())),
-            Mul(_, w1, w2) => self.push_gate(Mul(output_id, w1.clone(), w2.clone())),
-            AddConstant(_, w, v) => self.push_gate(AddConstant(output_id, w.clone(), v.clone())),
-            MulConstant(_, w, v) => self.push_gate(MulConstant(output_id, w.clone(), v.clone())),
-            And(_, w1, w2) => self.push_gate(And(output_id, w1.clone(), w2.clone())),
-            Xor(_, w1, w2) => self.push_gate(Xor(output_id, w1.clone(), w2.clone())),
-            Not(_, w) => self.push_gate(Not(output_id, w.clone())),
-
-            AssertZero(_) => panic!("AssertZero has no output gate"),
-        }
-    }
 }
-

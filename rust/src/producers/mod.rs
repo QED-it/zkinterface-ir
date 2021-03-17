@@ -6,3 +6,5 @@ pub mod examples;
 pub mod from_r1cs;
 /// gates builder and interface
 pub mod builder;
+/// A variant of gates for use with a Builder.
+pub mod build_gates;

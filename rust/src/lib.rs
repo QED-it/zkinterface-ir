@@ -53,7 +53,6 @@ pub use structs::{
     messages::Messages,
     gates::Gate,
     WireId,
-    NO_ID,
     Value,
 };
 

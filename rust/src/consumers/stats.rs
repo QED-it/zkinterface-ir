@@ -44,48 +44,58 @@ impl Stats {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
+        use Gate::*;
+
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
             match gate {
-                Gate::Constant(_out, _value) => {
+                Constant(_out, _value) => {
                     self.constants_gates += 1;
                 }
 
-                Gate::AssertZero(_inp) => {
+                AssertZero(_inp) => {
                     self.assert_zero_gates += 1;
                 }
 
-                Gate::Copy(_out, _inp) => {
+                Copy(_out, _inp) => {
                     self.copy_gates += 1;
                 }
 
-                Gate::Add(_out, _left, _right) => {
+                Add(_out, _left, _right) => {
                     self.add_gates += 1;
                 }
 
-                Gate::Mul(_out, _left, _right) => {
+                Mul(_out, _left, _right) => {
                     self.mul_gates += 1;
                 }
 
-                Gate::AddConstant(_out, _inp, _constant) => {
+                AddConstant(_out, _inp, _constant) => {
                     self.add_constant_gates += 1;
                 }
 
-                Gate::MulConstant(_out, _inp, _constant) => {
+                MulConstant(_out, _inp, _constant) => {
                     self.mul_constant_gates += 1;
                 }
 
-                Gate::And(_out, _left, _right) => {
+                And(_out, _left, _right) => {
                     self.and_gates += 1;
                 }
 
-                Gate::Xor(_out, _left, _right) => {
+                Xor(_out, _left, _right) => {
                     self.xor_gates += 1;
                 }
 
-                Gate::Not(_out, _inp) => {
+                Not(_out, _inp) => {
                     self.not_gates += 1;
+                }
+
+                Instance(_out) => {
+                    self.instance_variables += 1;
+                }
+
+                Witness(_out) => {
+                    self.witness_variables += 1;
                 }
             }
         }
