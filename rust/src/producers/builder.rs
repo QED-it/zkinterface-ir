@@ -53,7 +53,7 @@ impl Builder {
     }
 
     /// alloc allocates a new wire ID.
-    fn alloc(&mut self) -> WireId {
+    pub fn alloc(&mut self) -> WireId {
         let id = self.free_id;
         self.free_id += 1;
         id
