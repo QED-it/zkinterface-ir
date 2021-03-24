@@ -5,12 +5,12 @@ use num_traits::identities::{Zero, One};
 use std::ops::{BitAnd, BitXor};
 
 type Wire = u64;
-type Value = BigUint;
+type Repr = BigUint;
 
 #[derive(Clone, Default)]
 pub struct Evaluator {
-    values: HashMap<Wire, Value>,
-    modulus: Value,
+    values: HashMap<Wire, Repr>,
+    modulus: Repr,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -159,12 +159,12 @@ impl Evaluator {
         self.set(id, BigUint::from_bytes_le(encoded));
     }
 
-    fn set(&mut self, id: Wire, mut value: Value) {
+    fn set(&mut self, id: Wire, mut value: Repr) {
         value %= &self.modulus;
         self.values.insert(id, value);
     }
 
-    fn get(&self, id: Wire) -> Result<&Value> {
+    pub fn get(&self, id: Wire) -> Result<&Repr> {
         self.values.get(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
