@@ -10,6 +10,31 @@ pub trait Sink {
 }
 
 
+#[derive(Default)]
+pub struct MemorySink {
+    pub instances: Vec<Instance>,
+    pub witnesses: Vec<Witness>,
+    pub relations: Vec<Relation>,
+}
+
+impl Sink for MemorySink {
+    fn push_instance(&mut self, instance: &Instance) -> Result<()> {
+        self.instances.push(instance.clone());
+        Ok(())
+    }
+
+    fn push_witness(&mut self, witness: &Witness) -> Result<()> {
+        self.witnesses.push(witness.clone());
+        Ok(())
+    }
+
+    fn push_relation(&mut self, relation: &Relation) -> Result<()> {
+        self.relations.push(relation.clone());
+        Ok(())
+    }
+}
+
+
 /// Store messages into files using conventional filenames inside of a workspace.
 pub struct FilesSink {
     pub workspace: PathBuf,

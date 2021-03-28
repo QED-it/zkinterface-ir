@@ -16,8 +16,8 @@ pub enum BuildGate {
     And(WireId, WireId),
     Xor(WireId, WireId),
     Not(WireId),
-    Instance,
-    Witness,
+    Instance(Value),
+    Witness(Option<Value>),
 }
 
 pub(crate) const NO_OUTPUT: WireId = WireId::max_value();
@@ -31,7 +31,7 @@ impl BuildGate {
             AssertZero(input) => {
                 assert_eq!(output, NO_OUTPUT);
                 Gate::AssertZero(input)
-            },
+            }
             Copy(input) => Gate::Copy(output, input),
             Add(left, right) => Gate::Add(output, left, right),
             Mul(left, right) => Gate::Mul(output, left, right),
@@ -40,8 +40,8 @@ impl BuildGate {
             And(left, right) => Gate::And(output, left, right),
             Xor(left, right) => Gate::Xor(output, left, right),
             Not(input) => Gate::Not(output, input),
-            Instance => Gate::Instance(output),
-            Witness => Gate::Witness(output),
+            Instance(_value) => Gate::Instance(output),
+            Witness(_value) => Gate::Witness(output),
         }
     }
 

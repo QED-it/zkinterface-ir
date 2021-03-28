@@ -2,9 +2,9 @@ use std::ops::Add;
 use num_bigint::BigUint;
 use num_traits::One;
 
-use crate::structs:: {WireId, assignment::Assignment};
-use crate::{ Header, Instance, Relation, Witness, Result};
-use crate::producers::builder::{Builder, IBuilder, BuildGate};
+use crate::structs::{WireId, assignment::Assignment};
+use crate::{Header, Instance, Relation, Witness, Result};
+use crate::producers::builder::{Builder, BuildGate};
 use BuildGate::*;
 
 use zkinterface::consumers::reader::Variable as zkiVariable;
@@ -12,6 +12,7 @@ use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
+use crate::producers::sink::MemorySink;
 
 pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     match &zki_header.field_maximum {
@@ -19,7 +20,7 @@ pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
 
         Some(field_maximum) => {
             let mut fc: BigUint = BigUint::from_bytes_le(field_maximum);
-            let one : u8 = 1;
+            let one: u8 = 1;
             fc = fc.add(one);
 
             Ok(Header {
@@ -58,7 +59,7 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
     (vec, has_constant)
 }
 
-fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
+fn add_lc(b: &mut Builder, lc: &Vec<zkiVariable>) -> WireId {
     if lc.len() == 0 {
         // empty linear combination translates into an empty value
         return b.create_gate(Constant(vec![]));
@@ -74,7 +75,7 @@ fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
     sum_id
 }
 
-fn build_term(b: &mut impl IBuilder, term: &zkiVariable) -> WireId {
+fn build_term(b: &mut Builder, term: &zkiVariable) -> WireId {
     if term.id == 0 {
         return b.create_gate(Constant(Vec::from(term.value)));
     }
@@ -87,8 +88,7 @@ pub fn to_ir(
     zki_header: &zkiCircuitHeader,
     zki_r1cs: &zkiConstraintSystem,
 ) -> (Instance, Relation) {
-    let header = zki_header_to_header(zki_header);
-    assert!(header.is_ok());
+    let header = zki_header_to_header(zki_header).unwrap();
 
     let (mut instance_assignment, has_constant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
     if !has_constant {
@@ -103,12 +103,12 @@ pub fn to_ir(
     }
 
     let i = Instance {
-        header: header.as_ref().unwrap().clone(),
+        header: header.clone(),
         common_inputs: instance_assignment,
     };
 
-    let mut bb = Builder::new(zki_header.free_variable_id);
-    let b = &mut bb;
+    // TODO: alloc witness up to zki_header.free_variable_id.
+    let mut b = Builder::new(MemorySink::default(), header);
 
     // Allocate negative one for negation.
     let max = zki_header.field_maximum.as_ref().unwrap();
@@ -116,9 +116,10 @@ pub fn to_ir(
 
     // Convert each R1CS constraint into a graph of Add/Mul/Const/AssertZero gates.
     for constraint in &zki_r1cs.constraints {
-        let sum_a_id = add_lc(b,&constraint.linear_combination_a.get_variables());
-        let sum_b_id = add_lc(b,&constraint.linear_combination_b.get_variables());
-        let sum_c_id = add_lc(b,&constraint.linear_combination_c.get_variables());
+        let b = &mut b;
+        let sum_a_id = add_lc(b, &constraint.linear_combination_a.get_variables());
+        let sum_b_id = add_lc(b, &constraint.linear_combination_b.get_variables());
+        let sum_c_id = add_lc(b, &constraint.linear_combination_c.get_variables());
 
         let prod_id = b.create_gate(Mul(sum_a_id, sum_b_id));
         let neg_c_id = b.create_gate(Mul(neg_one_id, sum_c_id));
@@ -127,10 +128,8 @@ pub fn to_ir(
         b.create_gate(AssertZero(claim_zero_id));
     }
 
-    let r = Relation {
-        header: header.unwrap().clone(),
-        gates: bb.gates,
-    };
+    let sink = b.finish();
+    let r = sink.relations.first().unwrap().clone();
 
     (i, r)
 }
@@ -156,7 +155,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
 
-    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_r1cs = zki_example_constrains();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
@@ -172,18 +171,18 @@ fn test_r1cs_to_gates() -> Result<()> {
 
     // check instance
     assert_eq!(instance.common_inputs.len(), 4);
-    assert_assignment(&instance.common_inputs[0],0,1);
-    assert_assignment(&instance.common_inputs[1],1,3);
-    assert_assignment(&instance.common_inputs[2],2,4);
-    assert_assignment(&instance.common_inputs[3],3,25);
+    assert_assignment(&instance.common_inputs[0], 0, 1);
+    assert_assignment(&instance.common_inputs[1], 1, 3);
+    assert_assignment(&instance.common_inputs[2], 2, 4);
+    assert_assignment(&instance.common_inputs[3], 3, 25);
 
     // check witness
     assert_eq!(witness.short_witness.len(), 2);
-    assert_assignment(&witness.short_witness[0],4,9);
-    assert_assignment(&witness.short_witness[1],5,16);
+    assert_assignment(&witness.short_witness[0], 4, 9);
+    assert_assignment(&witness.short_witness[1], 5, 16);
 
     // check relation:
-    assert_eq!(relation.gates.len(),33);
+    assert_eq!(relation.gates.len(), 33);
     Ok(())
 }
 
@@ -191,15 +190,15 @@ fn test_r1cs_to_gates() -> Result<()> {
 fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
 
-    assert_eq!(header.profile,"circ_arithmetic_simple");
-    assert_eq!(header.version,"0.1.0");
+    assert_eq!(header.profile, "circ_arithmetic_simple");
+    assert_eq!(header.version, "0.1.0");
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
     assert_eq!(fc.to_u8().unwrap(), 101);
     assert_eq!(header.field_degree, 1);
 }
 
 #[cfg(test)]
-fn assert_assignment(assign: &Assignment, id: WireId, value : u32) {
+fn assert_assignment(assign: &Assignment, id: WireId, value: u32) {
     use num_traits::ToPrimitive;
 
     assert_eq!(assign.id, id);
@@ -215,7 +214,7 @@ fn test_with_validate() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use crate::consumers::validator::Validator;
 
-    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constrains();
 
@@ -241,7 +240,7 @@ fn test_with_evaluator() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use crate::consumers::evaluator::Evaluator;
 
-    let zki_header =  zki_example_header_inputs(3, 4, 25);
+    let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constrains();
 
