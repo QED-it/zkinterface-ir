@@ -11,24 +11,24 @@ pub trait Sink {
     fn get_witness_writer(&mut self) -> &mut Self::Write;
     fn get_relation_writer(&mut self) -> &mut Self::Write;
 
-    fn push_instance(&mut self, instance: &Instance) -> Result<()> {
+    fn push_instance_message(&mut self, instance: &Instance) -> Result<()> {
         instance.write_into(self.get_instance_writer())
     }
 
-    fn push_witness(&mut self, witness: &Witness) -> Result<()> {
+    fn push_witness_message(&mut self, witness: &Witness) -> Result<()> {
         witness.write_into(self.get_witness_writer())
     }
 
-    fn push_relation(&mut self, relation: &Relation) -> Result<()> {
+    fn push_relation_message(&mut self, relation: &Relation) -> Result<()> {
         relation.write_into(self.get_relation_writer())
     }
 }
 
 #[derive(Default)]
 pub struct MemorySink {
-    instance_buffer: Vec<u8>,
-    witness_buffer: Vec<u8>,
-    relation_buffer: Vec<u8>,
+    pub instance_buffer: Vec<u8>,
+    pub witness_buffer: Vec<u8>,
+    pub relation_buffer: Vec<u8>,
 }
 
 impl Sink for MemorySink {
@@ -134,22 +134,22 @@ fn test_sink() {
     assert_eq!(read_dir(&workspace).unwrap().count(), 0);
 
     // Create files and ensure there is exactly the right number of files.
-    sink.push_instance(&example_instance()).unwrap();
+    sink.push_instance_message(&example_instance()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 1);
 
-    sink.push_witness(&example_witness()).unwrap();
+    sink.push_witness_message(&example_witness()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 2);
 
-    sink.push_relation(&example_relation()).unwrap();
+    sink.push_relation_message(&example_relation()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 3);
 
-    sink.push_instance(&example_instance()).unwrap();
+    sink.push_instance_message(&example_instance()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 4);
 
-    sink.push_witness(&example_witness()).unwrap();
+    sink.push_witness_message(&example_witness()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 5);
 
-    sink.push_relation(&example_relation()).unwrap();
+    sink.push_relation_message(&example_relation()).unwrap();
     assert_eq!(read_dir(&workspace).unwrap().count(), 6);
 
     // clean workspace, and check there is no more file in it.

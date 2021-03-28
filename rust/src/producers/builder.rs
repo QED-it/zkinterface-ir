@@ -1,16 +1,14 @@
-use crate::{WireId, Gate, Sink, Instance, Witness, Relation, Header};
 use super::build_gates::NO_OUTPUT;
+use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
 pub use super::build_gates::BuildGate;
-use crate::structs::assignment::Assignment;
 use crate::producers::sink::MemorySink;
-
+use crate::structs::assignment::Assignment;
 
 /// MessageBuilder builds messages gate by gate.
 /// Flush completed messages to a Sink.
 struct MessageBuilder<S: Sink> {
     sink: S,
-    header: Header,
 
     instance: Instance,
     witness: Witness,
@@ -21,10 +19,18 @@ impl<S: Sink> MessageBuilder<S> {
     fn new(sink: S, header: Header) -> Self {
         Self {
             sink,
-            instance: Instance { header: header.clone(), common_inputs: vec![] },
-            witness: Witness { header: header.clone(), short_witness: vec![] },
-            relation: Relation { header: header.clone(), gates: vec![] },
-            header,
+            instance: Instance {
+                header: header.clone(),
+                common_inputs: vec![],
+            },
+            witness: Witness {
+                header: header.clone(),
+                short_witness: vec![],
+            },
+            relation: Relation {
+                header: header.clone(),
+                gates: vec![],
+            },
         }
     }
 
@@ -39,15 +45,13 @@ impl<S: Sink> MessageBuilder<S> {
     fn push_gate(&mut self, gate: Gate) {
         self.relation.gates.push(gate);
     }
-
     fn finish(mut self) -> S {
-        self.sink.push_instance(&self.instance);
-        self.sink.push_witness(&self.witness);
-        self.sink.push_relation(&self.relation);
+        self.sink.push_instance_message(&self.instance).unwrap();
+        self.sink.push_witness_message(&self.witness).unwrap();
+        self.sink.push_relation_message(&self.relation).unwrap();
         self.sink
     }
 }
-
 
 /// Builder allocates wire IDs, builds gates, and tracks instance and witness values.
 ///
@@ -88,18 +92,21 @@ impl<S: Sink> Builder<S> {
 
         match &gate {
             BuildGate::Instance(value) => {
-                self.msg_build.push_instance_value(
-                    Assignment { id: out_id, value: value.clone() });
+                self.msg_build.push_instance_value(Assignment {
+                    id: out_id,
+                    value: value.clone(),
+                });
             }
             BuildGate::Witness(Some(value)) => {
-                self.msg_build.push_witness_value(
-                    Assignment { id: out_id, value: value.clone() });
+                self.msg_build.push_witness_value(Assignment {
+                    id: out_id,
+                    value: value.clone(),
+                });
             }
             _ => {}
         }
 
-        self.msg_build.push_gate(
-            gate.with_output(out_id));
+        self.msg_build.push_gate(gate.with_output(out_id));
 
         out_id
     }
@@ -111,7 +118,7 @@ impl<S: Sink> Builder<S> {
         id
     }
 
-    pub fn finish(mut self) -> S {
+    pub fn finish(self) -> S {
         self.msg_build.finish()
     }
 }

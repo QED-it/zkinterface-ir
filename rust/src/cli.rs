@@ -155,9 +155,9 @@ fn main_example(opts: &Options) -> Result<()> {
     } else {
         let mut sink = FilesSink::new(out_dir)?;
         sink.print_filenames = true;
-        sink.push_instance(&instance)?;
-        sink.push_witness(&witness)?;
-        sink.push_relation(&relation)?;
+        sink.push_instance_message(&instance)?;
+        sink.push_witness_message(&witness)?;
+        sink.push_relation_message(&relation)?;
     }
     Ok(())
 }
