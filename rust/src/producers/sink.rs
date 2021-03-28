@@ -1,39 +1,49 @@
-use std::path::{Path, PathBuf};
-use std::fs::{remove_file, File, create_dir_all, read_dir};
-use crate::{Result, Instance, Witness, Relation, FILE_EXTENSION};
 use crate::consumers::source::has_sieve_extension;
+use crate::{Instance, Relation, Result, Witness, FILE_EXTENSION};
+use std::fs::{create_dir_all, read_dir, remove_file, File};
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 pub trait Sink {
-    fn push_instance(&mut self, instance: &Instance) -> Result<()>;
-    fn push_witness(&mut self, witness: &Witness) -> Result<()>;
-    fn push_relation(&mut self, relation: &Relation) -> Result<()>;
-}
+    type Write: Write;
 
+    fn get_instance_writer(&mut self) -> &mut Self::Write;
+    fn get_witness_writer(&mut self) -> &mut Self::Write;
+    fn get_relation_writer(&mut self) -> &mut Self::Write;
 
-#[derive(Default)]
-pub struct MemorySink {
-    pub instances: Vec<Instance>,
-    pub witnesses: Vec<Witness>,
-    pub relations: Vec<Relation>,
-}
-
-impl Sink for MemorySink {
     fn push_instance(&mut self, instance: &Instance) -> Result<()> {
-        self.instances.push(instance.clone());
-        Ok(())
+        instance.write_into(self.get_instance_writer())
     }
 
     fn push_witness(&mut self, witness: &Witness) -> Result<()> {
-        self.witnesses.push(witness.clone());
-        Ok(())
+        witness.write_into(self.get_witness_writer())
     }
 
     fn push_relation(&mut self, relation: &Relation) -> Result<()> {
-        self.relations.push(relation.clone());
-        Ok(())
+        relation.write_into(self.get_relation_writer())
     }
 }
 
+#[derive(Default)]
+pub struct MemorySink {
+    instance_buffer: Vec<u8>,
+    witness_buffer: Vec<u8>,
+    relation_buffer: Vec<u8>,
+}
+
+impl Sink for MemorySink {
+    type Write = Vec<u8>;
+
+    fn get_instance_writer(&mut self) -> &mut Self::Write {
+        &mut self.instance_buffer
+    }
+    fn get_witness_writer(&mut self) -> &mut Self::Write {
+        &mut self.witness_buffer
+    }
+    fn get_relation_writer(&mut self) -> &mut Self::Write {
+        &mut self.relation_buffer
+    }
+}
 
 /// Store messages into files using conventional filenames inside of a workspace.
 pub struct FilesSink {
@@ -42,6 +52,7 @@ pub struct FilesSink {
     pub print_filenames: bool,
 
     file_counter: u32,
+    current_file: Option<File>,
 }
 
 impl FilesSink {
@@ -51,6 +62,7 @@ impl FilesSink {
             workspace: workspace.as_ref().to_path_buf(),
             print_filenames: false,
             file_counter: 0,
+            current_file: None,
         })
     }
 }
@@ -64,7 +76,8 @@ impl FilesSink {
     fn next_file(&mut self, typ: &str) -> Result<File> {
         let path = self.workspace.join(format!(
             "{:03}_{}.{}",
-            self.file_counter, typ, FILE_EXTENSION));
+            self.file_counter, typ, FILE_EXTENSION
+        ));
         if self.print_filenames {
             eprintln!("Writing {}", path.display());
         }
@@ -75,19 +88,21 @@ impl FilesSink {
 }
 
 impl Sink for FilesSink {
-    fn push_instance(&mut self, instance: &Instance) -> Result<()> {
-        let mut file = self.next_file("instance")?;
-        instance.write_into(&mut file)
+    type Write = File;
+
+    fn get_instance_writer(&mut self) -> &mut File {
+        self.current_file = Some(self.next_file("instance").unwrap());
+        self.current_file.as_mut().unwrap()
     }
 
-    fn push_witness(&mut self, witness: &Witness) -> Result<()> {
-        let mut file = self.next_file("witness")?;
-        witness.write_into(&mut file)
+    fn get_witness_writer(&mut self) -> &mut File {
+        self.current_file = Some(self.next_file("witness").unwrap());
+        self.current_file.as_mut().unwrap()
     }
 
-    fn push_relation(&mut self, relation: &Relation) -> Result<()> {
-        let mut file = self.next_file("relation")?;
-        relation.write_into(&mut file)
+    fn get_relation_writer(&mut self) -> &mut File {
+        self.current_file = Some(self.next_file("relation").unwrap());
+        self.current_file.as_mut().unwrap()
     }
 }
 
@@ -96,19 +111,20 @@ pub fn clean_workspace(workspace: impl AsRef<Path>) -> Result<()> {
 
     let files = read_dir(workspace)?;
 
-    for f in files.filter_map(std::result::Result::ok)
-        .filter(|d| has_sieve_extension(&d.path())) {
+    for f in files
+        .filter_map(std::result::Result::ok)
+        .filter(|d| has_sieve_extension(&d.path()))
+    {
         remove_file(f.path())?;
     }
 
     Ok(())
 }
 
-
 #[test]
 fn test_sink() {
-    use std::fs::remove_dir_all;
     use crate::producers::examples::*;
+    use std::fs::remove_dir_all;
 
     let workspace = PathBuf::from("local/test_sink");
     let _ = remove_dir_all(&workspace);
