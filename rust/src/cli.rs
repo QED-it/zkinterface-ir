@@ -1,19 +1,19 @@
 extern crate serde;
 extern crate serde_json;
 
-use std::io::{stdout, copy};
-use std::path::{Path, PathBuf};
-use std::fs::File;
-use structopt::StructOpt;
 use num_bigint::BigUint;
+use std::fs::File;
+use std::io::{copy, stdout};
+use std::path::{Path, PathBuf};
+use structopt::StructOpt;
 
-use crate::{Messages, Result, Source};
 use crate::consumers::{
     evaluator::Evaluator,
-    validator::Validator,
+    source::{has_sieve_extension, list_workspace_files},
     stats::Stats,
-    source::{list_workspace_files, has_sieve_extension},
+    validator::Validator,
 };
+use crate::{Messages, Result, Source};
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -112,7 +112,6 @@ pub fn cli(options: &Options) -> Result<()> {
     }
 }
 
-
 fn load_messages(opts: &Options) -> Result<Messages> {
     stream_messages(opts)?.read_all_messages()
 }
@@ -123,10 +122,9 @@ fn stream_messages(opts: &Options) -> Result<Source> {
     Ok(source)
 }
 
-
 fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
-    use crate::{Sink, FilesSink};
+    use crate::{FilesSink, Sink};
 
     let header = example_header_in_field(opts.field_order.to_bytes_le());
     let instance = example_instance_h(&header);
@@ -151,9 +149,12 @@ fn main_example(opts: &Options) -> Result<()> {
         instance.write_into(&mut file)?;
         witness.write_into(&mut file)?;
         relation.write_into(&mut file)?;
-        eprintln!("Written Instance, Witness, and Relation into {}", out_dir.display());
+        eprintln!(
+            "Written Instance, Witness, and Relation into {}",
+            out_dir.display()
+        );
     } else {
-        let mut sink = FilesSink::new(out_dir)?;
+        let mut sink = FilesSink::new_clean(out_dir)?;
         sink.print_filenames = true;
         sink.push_instance_message(&instance)?;
         sink.push_witness_message(&witness)?;
@@ -198,7 +199,10 @@ fn main_validate(source: &Source) -> Result<()> {
     for msg in source.iter_messages() {
         validator.ingest_message(&msg?);
     }
-    print_violations(&validator.get_violations(), "COMPLIANT with the specification")
+    print_violations(
+        &validator.get_violations(),
+        "COMPLIANT with the specification",
+    )
 }
 
 fn main_evaluate(source: &Source) -> Result<()> {
@@ -237,7 +241,10 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
         stats.ingest_message(&msg);
     }
 
-    let res1 = print_violations(&validator.get_violations(), "COMPLIANT with the specification");
+    let res1 = print_violations(
+        &validator.get_violations(),
+        "COMPLIANT with the specification",
+    );
     let res2 = print_violations(&evaluator.get_violations(), "TRUE");
     let res3 = serde_json::to_writer_pretty(stdout(), &stats);
     println!();
@@ -259,7 +266,6 @@ fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Resul
         Ok(())
     }
 }
-
 
 #[test]
 fn test_cli() -> Result<()> {

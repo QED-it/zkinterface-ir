@@ -53,29 +53,29 @@ impl<S: Sink> MessageBuilder<S> {
     }
 }
 
-/// Builder allocates wire IDs, builds gates, and tracks instance and witness values.
+/// GateBuilder allocates wire IDs, builds gates, and tracks instance and witness values.
 ///
 /// # Example
 /// ```
-/// use zki_sieve::producers::builder::{Builder, BuildGate::*};
+/// use zki_sieve::producers::builder::{GateBuilder, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::Header;
 ///
-/// let mut b = Builder::new(MemorySink::default(), Header::default());
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
 /// let my_id = b.create_gate(Constant(vec![0]));
 /// b.create_gate(AssertZero(my_id));
 /// ```
-pub struct Builder<S: Sink> {
+pub struct GateBuilder<S: Sink> {
     msg_build: MessageBuilder<S>,
 
     free_id: WireId,
 }
 
-impl<S: Sink> Builder<S> {
+impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
     pub fn new(sink: S, header: Header) -> Self {
-        Self {
+        GateBuilder {
             msg_build: MessageBuilder::new(sink, header),
             free_id: 0,
         }
@@ -123,6 +123,6 @@ impl<S: Sink> Builder<S> {
     }
 }
 
-pub fn new_example_builder() -> Builder<MemorySink> {
-    Builder::new(MemorySink::default(), Header::default())
+pub fn new_example_builder() -> GateBuilder<MemorySink> {
+    GateBuilder::new(MemorySink::default(), Header::default())
 }

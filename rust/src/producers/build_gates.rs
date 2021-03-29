@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{WireId, Value, Gate};
+use crate::{Gate, Value, WireId};
 
 /// BuildGate is similar to Gate but without output wires.
-/// Useful in combination with Builder.
+/// Useful in combination with GateBuilder.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum BuildGate {
     Constant(Value),
