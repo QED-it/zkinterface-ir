@@ -34,9 +34,9 @@ impl IBuilder for Builder {
     /// ```
     ///
     ///
-    /// use zki::structs::gates::Gate::Constant;
-    /// use zki::producers::builder::Builder;
-    /// use zki::producers::builder::IBuilder;
+    /// use zki_sieve::structs::gates::Gate::Constant;
+    /// use zki_sieve::producers::builder::Builder;
+    /// use zki_sieve::producers::builder::IBuilder;
     ///
     /// let free_variable_id = 5;
     /// let mut b = Builder::new(free_variable_id);
@@ -47,9 +47,9 @@ impl IBuilder for Builder {
     /// an example for a gate without output_id
     /// ```
     ///
-    /// use zki::structs::gates::Gate::AssertZero;
-    /// use zki::producers::builder::Builder;
-    /// use zki::producers::builder::IBuilder;
+    /// use zki_sieve::structs::gates::Gate::AssertZero;
+    /// use zki_sieve::producers::builder::Builder;
+    /// use zki_sieve::producers::builder::IBuilder;
     ///
     /// let free_variable_id = 5;
     /// let mut b = Builder::new(free_variable_id);

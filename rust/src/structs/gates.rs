@@ -281,7 +281,7 @@ impl Gate {
     /// a simple example
     /// ```
     ///
-    ///  use zki::Gate::*;
+    ///  use zki_sieve::Gate::*;
     ///  let g = Add(0,1,2);
     ///  let wire_id = g.get_output_wire_id();
     ///

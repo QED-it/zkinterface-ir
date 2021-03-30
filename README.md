@@ -16,7 +16,7 @@ To communicate a statement, three types of information are transmitted:
 
 - A witness used as input to the circuit by the prover side of the proving system, caleld the _Witness_.
 
-- An instance used as inpout to the circuit both by the prover and the verifier, called the _Instance_.
+- An instance used as input to the circuit both by the prover and the verifier, called the _Instance_.
 
 The exact structure of this information is specified in a FlatBuffers schema called `sieve_ir.fbs` in this repository, along with inline documentation. See the respective structures: Header, Relation, Instance, Witness.
 
@@ -26,20 +26,21 @@ In this guide, the structures are stored in intermediary files for ease and clar
 
 ### Install
 
-    git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
-    cd zkinterface-sieve/rust/
-    cargo install --path .
-    
-    zki help
+```bash
+git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
+cd zkinterface-sieve/rust/
+cargo install --path .
+
+zki_sieve help
 
 This will print a list of available commands (your mileage may vary depending on your environment).
-
+```
 
 ### A producer: example generator
 
-The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki help`). The profile AC (Arithmetic Circuit) was selected.
+The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki_sieve help`). The profile AC (Arithmetic Circuit) was selected.
 
-    zki example
+    zki_sieve example
 
     …
     Writing ./000_instance.sieve
@@ -53,7 +54,7 @@ The `Validate` command validates that the statement is properly formatted in com
 
 The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
-    zki validate
+    zki_sieve validate
     
     …
     Reading ./000_instance.sieve
@@ -64,7 +65,7 @@ The `Evaluate` command acts as a simulator in place of a proving system, and rep
 
  And the evaluator,
 
-    zki evaluate
+    zki_sieve evaluate
     
     …
     Reading ./000_instance.sieve
@@ -73,7 +74,7 @@ The `Evaluate` command acts as a simulator in place of a proving system, and rep
 
     The statement is TRUE!
 
-There is a command `zki valid-eval-metrics` which performs all checks at once.
+There is a command `zki_sieve valid-eval-metrics` which performs all checks at once.
 
 
 ### A consumer: format to human-readable YAML
@@ -81,8 +82,8 @@ There is a command `zki valid-eval-metrics` which performs all checks at once.
 The command below reads the statement and prints a textual representation of it. It uses the YAML format, which is similar to JSON but easier to read and write. It is one-to-one equivalent to the information formatted with FlatBuffers.
 
 
-    zki to-yaml
-    # Or zki to-json
+    zki_sieve to-yaml
+    # Or zki_sieve to-json
 
     …
     Reading ./000_instance.sieve
@@ -171,16 +172,31 @@ The command below reads the statement and prints a textual representation of it.
 
 ### A producer: converter from R1CS
 
-**WIP**
+This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile.
 
-*This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent statement in the arithmetic circuit profile. It is available as a Rust function called `r1cs_to_gates(…)`, with example usage in `test_r1cs_to_gates()`. It is not yet wrapped as a CLI command but can easily be made so.*
+To convert from R1CS (a zkInterface owned structure), follow the following example:
 
+```rust
+let zki_header =  zki_example_header_inputs(3, 4, 25);
+let zki_r1cs = zki_example_constrains();
+let zki_witness = zki_example_witness_inputs(3, 4);
+
+// in zkInterface the instance is inside the header
+// in ir each msg in {instance, relation, witness} has an header
+let (instance, relation) = to_ir(&zki_header, &zki_r1cs);
+
+let witness = to_witness(&zki_header, &zki_witness);
+```
+
+A full example can be found as part of the `test_r1cs_to_gates()` in `from_r1cs.rs`.
+
+Also, example usage with the validator and the evaluator can be found in `test_with_evaluator()` and `test_with_validate()`.
 
 ## Second step: implementing a new integration
 
 ### Example code.
 
-An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/zki.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
+An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/zki_sieve.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
 
 ### Basic API
 

@@ -440,8 +440,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "zki"
-version = "0.1.0"
+name = "zki_sieve"
+version = "0.1.1"
 dependencies = [
  "colored",
  "flatbuffers",

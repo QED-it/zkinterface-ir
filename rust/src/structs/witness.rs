@@ -64,7 +64,7 @@ impl Witness {
     ///
     /// # Examples
     /// ```
-    /// use zki::Witness;
+    /// use zki_sieve::Witness;
     /// use std::convert::TryFrom;
     ///
     /// let witness = Witness::default();
