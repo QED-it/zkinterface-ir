@@ -164,6 +164,13 @@ impl Evaluator {
                     let val = self.witness_queue.pop_front().unwrap();
                     self.set(*out, val);
                 }
+
+                Free(first, last) => {
+                    let last_value = last.unwrap_or(*first);
+                    for current in *first..=last_value {
+                        self.remove(current)?;
+                    }
+                }
             }
         }
         Ok(())
@@ -181,6 +188,11 @@ impl Evaluator {
 
     pub fn get(&self, id: Wire) -> Result<&Repr> {
         self.values.get(&id)
+            .ok_or(format!("No value given for wire_{}", id).into())
+    }
+
+    fn remove(&mut self, id: Wire) -> Result<Repr> {
+        self.values.remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 }

@@ -21,6 +21,7 @@ pub struct Stats {
     pub and_gates: usize,
     pub xor_gates: usize,
     pub not_gates: usize,
+    pub variables_freed: usize,
 }
 
 impl Stats {
@@ -90,6 +91,11 @@ impl Stats {
                 Witness(_out) => {
                     self.witness_variables += 1;
                 }
+
+                Gate::Free(first, last) => {
+                    let last_one = last.unwrap_or(*first);
+                    self.variables_freed += (last_one - *first + 1) as usize;
+                }
             }
         }
     }
@@ -128,6 +134,7 @@ fn test_stats() -> crate::Result<()> {
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
+        variables_freed: 8,
     };
     assert_eq!(expected_stats, stats);
 

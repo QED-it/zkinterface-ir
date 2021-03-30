@@ -34,6 +34,10 @@ pub enum Gate {
     Instance(WireId),
     /// Witness(output)
     Witness(WireId),
+    /// Free(first, last)
+    /// If the option is not given, then only the first wire is freed, otherwise all wires between
+    /// the first and the last INCLUSIVE are freed.
+    Free(WireId, Option<WireId>),
 }
 
 use Gate::*;
@@ -137,6 +141,14 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
             gs::GateWitness => {
                 let gate = gen_gate.gate_as_gate_witness().unwrap();
                 Witness(gate.output().ok_or("Missing output")?.id())
+            }
+
+            gs::GateFree => {
+                let gate = gen_gate.gate_as_gate_free().unwrap();
+                Free(
+                    gate.first().ok_or("Missing first wire")?.id(),
+                    gate.last().map(|id| id.id()),
+                )
             }
         })
     }
@@ -358,6 +370,24 @@ impl Gate {
                     },
                 )
             }
+
+            Free(first, last) => {
+                let gate = g::GateFree::create(
+                    builder,
+                    &g::GateFreeArgs {
+                        first: Some(&g::Wire::new(*first)),
+                        last: last.map(|id| g::Wire::new(id)).as_ref(),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateFree,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
         }
     }
 
@@ -389,6 +419,7 @@ impl Gate {
             Witness(w) => Some(w),
 
             AssertZero(_) => None,
+            Free(_, _) => None,
         }
     }
 }

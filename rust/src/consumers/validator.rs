@@ -15,6 +15,7 @@ enum Status {
     Undefined,
     Defined,
     Used,
+    Freed,
 }
 
 use Status::*;
@@ -282,6 +283,14 @@ impl Validator {
                         }
                     }
                 }
+
+                Gate::Free(first, last) => {
+                    // all wires between first and last INCLUSIVE
+                    for wire_id in *first..=last.unwrap_or(*first) {
+                        self.ensure_defined_and_set(wire_id);
+                        self.set_status(wire_id, Freed);
+                    }
+                }
             }
         }
     }
@@ -306,6 +315,12 @@ impl Validator {
             // because instance variable SHOULD be defined, even if self.as_prover == false.
             self.violate(format!(
                 "The wire {} is used but was not assigned a value",
+                id
+            ));
+        }
+        if self.status(id) == Freed {
+            self.violate(format!(
+                "The variable_{} has been freed already, and cannot be used anymore.",
                 id
             ));
         }
@@ -368,6 +383,7 @@ impl Validator {
                     .violations
                     .push(format!("variable_{} was defined but not used.", id)),
                 Used => { /* ok */ }
+                Freed => { /* ok */ }
             }
         }
     }
@@ -440,6 +456,35 @@ fn test_validator_violations() -> crate::Result<()> {
         "The field_characteristic field is not consistent across headers.",
         "No value available for the Witness wire 2",
     ]);
+
+    Ok(())
+}
+
+#[test]
+fn test_validator_free_violations() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let mut relation = example_relation();
+
+    relation.gates.push(Gate::Free(1, Some(2)));
+    relation.gates.push(Gate::Free(4, None));
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    assert_eq!(
+        violations,
+        vec![
+            "The variable_1 has been freed already, and cannot be used anymore.",
+            "The variable_2 has been freed already, and cannot be used anymore.",
+            "The variable_4 has been freed already, and cannot be used anymore."
+        ]
+    );
 
     Ok(())
 }

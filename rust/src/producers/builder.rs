@@ -1,10 +1,10 @@
-use super::build_gates::NO_OUTPUT;
-use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
+use std::mem::take;
 
 pub use super::build_gates::BuildGate;
+use super::build_gates::NO_OUTPUT;
 use crate::producers::sink::MemorySink;
 use crate::structs::value::Value;
-use std::mem::take;
+use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
 /// MessageBuilder builds messages gate by gate.
 /// Flush completed messages to a Sink.

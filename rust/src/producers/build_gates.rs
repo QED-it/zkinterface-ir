@@ -18,9 +18,10 @@ pub enum BuildGate {
     Not(WireId),
     Instance(Value),
     Witness(Option<Value>),
+    Free(WireId, Option<WireId>),
 }
 
-pub(crate) const NO_OUTPUT: WireId = WireId::max_value();
+pub(crate) const NO_OUTPUT: WireId = WireId::MAX;
 
 use BuildGate::*;
 
@@ -42,12 +43,17 @@ impl BuildGate {
             Not(input) => Gate::Not(output, input),
             Instance(_value) => Gate::Instance(output),
             Witness(_value) => Gate::Witness(output),
+            Free(first, last) => {
+                assert_eq!(output, NO_OUTPUT);
+                Gate::Free(first, last)
+            }
         }
     }
 
     pub fn has_output(&self) -> bool {
         match *self {
             AssertZero(_) => false,
+            Free(_, _) => false,
             _ => true,
         }
     }

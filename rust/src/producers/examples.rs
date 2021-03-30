@@ -69,6 +69,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Add(6, 4, 5),                             // sum of squares
             Mul(7, 0, 3),                             // negative instance_0
             Add(8, 6, 7),                             // sum - instance_0
+            Free(0, Some(7)),                         // Free all previous wires
             AssertZero(8),                            // difference == 0
         ],
     }

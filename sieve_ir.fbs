@@ -113,6 +113,13 @@ table GateWitness {
    output      :Wire;
 }
 
+table GateFree {
+   // First wire ID to free.
+   first       :Wire;
+   // Last wire ID is optional. Free the range [first; last] inclusive.
+   last        :Wire;
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -126,6 +133,7 @@ union GateSet {
    GateNot,
    GateInstance,
    GateWitness,
+   GateFree,
 }
 table Gate {
     gate      :GateSet;
