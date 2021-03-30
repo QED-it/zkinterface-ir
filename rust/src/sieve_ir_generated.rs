@@ -284,8 +284,8 @@ impl<'a> Header<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Header::VT_PROFILE, None)
   }
   #[inline]
-  pub fn field_characteristic(&self) -> Option<&'a [u8]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(Header::VT_FIELD_CHARACTERISTIC, None).map(|v| v.safe_slice())
+  pub fn field_characteristic(&self) -> Option<Value<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Value<'a>>>(Header::VT_FIELD_CHARACTERISTIC, None)
   }
   #[inline]
   pub fn field_degree(&self) -> u32 {
@@ -296,7 +296,7 @@ impl<'a> Header<'a> {
 pub struct HeaderArgs<'a> {
     pub version: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub profile: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub field_characteristic: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
+    pub field_characteristic: Option<flatbuffers::WIPOffset<Value<'a >>>,
     pub field_degree: u32,
 }
 impl<'a> Default for HeaderArgs<'a> {
@@ -324,8 +324,8 @@ impl<'a: 'b, 'b> HeaderBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Header::VT_PROFILE, profile);
   }
   #[inline]
-  pub fn add_field_characteristic(&mut self, field_characteristic: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Header::VT_FIELD_CHARACTERISTIC, field_characteristic);
+  pub fn add_field_characteristic(&mut self, field_characteristic: flatbuffers::WIPOffset<Value<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Value>>(Header::VT_FIELD_CHARACTERISTIC, field_characteristic);
   }
   #[inline]
   pub fn add_field_degree(&mut self, field_degree: u32) {

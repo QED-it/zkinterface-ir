@@ -15,7 +15,7 @@ table Header {
    version              :string;
    profile              :string;
 
-   field_characteristic :[ubyte];
+   field_characteristic :Value;
    field_degree         :uint32;
 }
 
@@ -41,12 +41,12 @@ struct Wire {
     id          :uint64;
 }
 
+// Field element is encoded in a vector of bytes in little-endian order.
+// There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
    value       :[ubyte];
 }
 
-// Field element = [ubyte]
-// A binary encoding of a field element in little-endian order.
 
 // ==== Gate types ====
 

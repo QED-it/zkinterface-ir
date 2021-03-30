@@ -9,7 +9,7 @@ use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 pub type Value = Vec<u8>;
 
 /// Convert from Flatbuffers references to owned structure.
-fn try_from_value(g_value: g::Value) -> Result<Value> {
+pub fn try_from_value(g_value: g::Value) -> Result<Value> {
     Ok(Vec::from(g_value.value().ok_or("Missing value")?))
 }
 
