@@ -21,13 +21,12 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 ///
 /// // Create an example workspace including multiple constraints files.
 /// let dir = PathBuf::from("local/test_source");
-/// let mut sink = FilesSink::new(&dir).unwrap();
-/// sink.clean_workspace().unwrap();
-/// sink.push_instance(&example_instance());
-/// sink.push_witness(&example_witness());
-/// sink.push_relation(&example_relation());
-/// sink.push_witness(&example_witness());
-/// sink.push_relation(&example_relation());
+/// let mut sink = FilesSink::new_clean(&dir).unwrap();
+/// sink.push_instance_message(&example_instance());
+/// sink.push_witness_message(&example_witness());
+/// sink.push_relation_message(&example_relation());
+/// sink.push_witness_message(&example_witness());
+/// sink.push_relation_message(&example_relation());
 ///
 /// // Iterate over the files and observe the messages.
 /// let mut got = vec![];

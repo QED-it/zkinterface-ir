@@ -15,30 +15,23 @@ table Header {
    version              :string;
    profile              :string;
 
-   field_characteristic :[ubyte];
+   field_characteristic :Value;
    field_degree         :uint32;
 }
 
 table Relation {
    header               :Header;
-
-   num_wires            :uint64;
-   num_short_witness    :uint64;
-   num_common_inputs    :uint64;
-
    gates                :[Gate];
 }
 
 table Instance {
    header               :Header;
-
-   common_inputs        :[Assignment];
+   common_inputs        :[Value];
 }
 
 table Witness {
    header               :Header;
-
-   short_witness        :[Assignment];
+   short_witness        :[Value];
 }
 
 
@@ -48,13 +41,12 @@ struct Wire {
     id          :uint64;
 }
 
-table Assignment {
-   id          :Wire;
+// Field element is encoded in a vector of bytes in little-endian order.
+// There is no minimum or maximum length; trailing zeros may be omitted.
+table Value {
    value       :[ubyte];
 }
 
-// Field element = [ubyte]
-// A binary encoding of a field element in little-endian order.
 
 // ==== Gate types ====
 
@@ -113,8 +105,18 @@ table GateNot {
    input       :Wire;
 }
 
+table GateInstance {
+   output      :Wire;
+}
+
+table GateWitness {
+   output      :Wire;
+}
+
 table GateFree {
+   // First wire ID to free.
    first       :Wire;
+   // Last wire ID is optional. Free the range [first; last] inclusive.
    last        :Wire;
 }
 
@@ -129,6 +131,8 @@ union GateSet {
    GateAnd,
    GateXor,
    GateNot,
+   GateInstance,
+   GateWitness,
    GateFree,
 }
 table Gate {

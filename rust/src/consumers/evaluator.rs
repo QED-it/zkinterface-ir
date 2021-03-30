@@ -1,22 +1,31 @@
 use crate::{Result, Header, Relation, Instance, Witness, Message, Gate};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use num_bigint::BigUint;
 use num_traits::identities::{Zero, One};
 use std::ops::{BitAnd, BitXor};
 
 type Wire = u64;
-type Value = BigUint;
+type Repr = BigUint;
 
 #[derive(Clone, Default)]
 pub struct Evaluator {
-    values: HashMap<Wire, Value>,
-    modulus: Value,
+    values: HashMap<Wire, Repr>,
+    modulus: Repr,
+    instance_queue: VecDeque<Repr>,
+    witness_queue: VecDeque<Repr>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
 }
 
 impl Evaluator {
+    pub fn from_messages(messages: impl Iterator<Item=Result<Message>>) -> Self {
+        let mut evaluator = Evaluator::default();
+        messages.for_each(|msg|
+            evaluator.ingest_message(&msg.unwrap()));
+        evaluator
+    }
+
     pub fn get_violations(self) -> Vec<String> {
         let mut violations = vec![];
         if !self.verified_at_least_one_gate {
@@ -57,8 +66,8 @@ impl Evaluator {
     pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
         self.ingest_header(&instance.header)?;
 
-        for var in &instance.common_inputs {
-            self.set_encoded(var.id, &var.value);
+        for value in &instance.common_inputs {
+            self.instance_queue.push_back(BigUint::from_bytes_le(value));
         }
         Ok(())
     }
@@ -66,13 +75,15 @@ impl Evaluator {
     pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
         self.ingest_header(&witness.header)?;
 
-        for var in &witness.short_witness {
-            self.set_encoded(var.id, &var.value);
+        for value in &witness.short_witness {
+            self.witness_queue.push_back(BigUint::from_bytes_le(value));
         }
         Ok(())
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
+        use Gate::*;
+
         self.ingest_header(&relation.header)?;
 
         if relation.gates.len() > 0 {
@@ -81,70 +92,80 @@ impl Evaluator {
 
         for gate in &relation.gates {
             match gate {
-                Gate::Constant(out, value) =>
+                Constant(out, value) =>
                     self.set_encoded(*out, value),
 
-                Gate::AssertZero(inp) => {
+                AssertZero(inp) => {
                     let val = self.get(*inp)?;
                     if !val.is_zero() {
                         return Err(format!("wire_{} should equal 0 but has value {}", *inp, val).into());
                     }
                 }
 
-                Gate::Copy(out, inp) => {
+                Copy(out, inp) => {
                     let value = self.get(*inp)?.clone();
                     self.set(*out, value);
                 }
 
-                Gate::Add(out, left, right) => {
+                Add(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let sum = l + r;
                     self.set(*out, sum);
                 }
 
-                Gate::Mul(out, left, right) => {
+                Mul(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let prod = l * r;
                     self.set(*out, prod);
                 }
 
-                Gate::AddConstant(out, inp, constant) => {
+                AddConstant(out, inp, constant) => {
                     let l = self.get(*inp)?;
                     let r = BigUint::from_bytes_le(constant);
                     let sum = l + r;
                     self.set(*out, sum);
                 }
 
-                Gate::MulConstant(out, inp, constant) => {
+                MulConstant(out, inp, constant) => {
                     let l = self.get(*inp)?;
                     let r = BigUint::from_bytes_le(constant);
                     let prod = l * r;
                     self.set(*out, prod);
                 }
 
-                Gate::And(out, left, right) => {
+                And(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let and = l.bitand(r);
                     self.set(*out, and);
                 }
 
-                Gate::Xor(out, left, right) => {
+                Xor(out, left, right) => {
                     let l = self.get(*left)?;
                     let r = self.get(*right)?;
                     let xor = l.bitxor(r);
                     self.set(*out, xor);
                 }
 
-                Gate::Not(out, inp) => {
+                Not(out, inp) => {
                     let val = self.get(*inp)?;
                     let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
                     self.set(*out, not);
                 }
 
-                Gate::Free(first, last) => {
+                Instance(out) => {
+                    let val = self.instance_queue.pop_front().unwrap();
+                    self.set(*out, val);
+                }
+
+                Witness(out) => {
+                    let val = self.witness_queue.pop_front().unwrap();
+                    self.set(*out, val);
+                }
+
+                Free(first, last) => {
                     let last_value = last.unwrap_or(*first);
                     for current in *first..=last_value {
                         self.remove(current)?;
@@ -160,17 +181,17 @@ impl Evaluator {
         self.set(id, BigUint::from_bytes_le(encoded));
     }
 
-    fn set(&mut self, id: Wire, mut value: Value) {
+    fn set(&mut self, id: Wire, mut value: Repr) {
         value %= &self.modulus;
         self.values.insert(id, value);
     }
 
-    fn get(&self, id: Wire) -> Result<&Value> {
+    pub fn get(&self, id: Wire) -> Result<&Repr> {
         self.values.get(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 
-    fn remove(&mut self, id: Wire) -> Result<Value> {
+    fn remove(&mut self, id: Wire) -> Result<Repr> {
         self.values.remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }

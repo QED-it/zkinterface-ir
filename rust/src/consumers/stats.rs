@@ -3,7 +3,7 @@ extern crate serde_json;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Header, Relation, Instance, Witness, Message, Gate};
+use crate::{Gate, Header, Instance, Message, Relation, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -33,64 +33,68 @@ impl Stats {
         }
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance) {
-        self.ingest_header(&instance.header);
-        self.instance_variables += instance.common_inputs.len();
-    }
+    pub fn ingest_instance(&mut self, _instance: &Instance) {}
 
-    pub fn ingest_witness(&mut self, witness: &Witness) {
-        self.ingest_header(&witness.header);
-        self.witness_variables += witness.short_witness.len();
-    }
+    pub fn ingest_witness(&mut self, _witness: &Witness) {}
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
+        use Gate::*;
+
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
             match gate {
-                Gate::Constant(_out, _value) => {
+                Constant(_out, _value) => {
                     self.constants_gates += 1;
                 }
 
-                Gate::AssertZero(_inp) => {
+                AssertZero(_inp) => {
                     self.assert_zero_gates += 1;
                 }
 
-                Gate::Copy(_out, _inp) => {
+                Copy(_out, _inp) => {
                     self.copy_gates += 1;
                 }
 
-                Gate::Add(_out, _left, _right) => {
+                Add(_out, _left, _right) => {
                     self.add_gates += 1;
                 }
 
-                Gate::Mul(_out, _left, _right) => {
+                Mul(_out, _left, _right) => {
                     self.mul_gates += 1;
                 }
 
-                Gate::AddConstant(_out, _inp, _constant) => {
+                AddConstant(_out, _inp, _constant) => {
                     self.add_constant_gates += 1;
                 }
 
-                Gate::MulConstant(_out, _inp, _constant) => {
+                MulConstant(_out, _inp, _constant) => {
                     self.mul_constant_gates += 1;
                 }
 
-                Gate::And(_out, _left, _right) => {
+                And(_out, _left, _right) => {
                     self.and_gates += 1;
                 }
 
-                Gate::Xor(_out, _left, _right) => {
+                Xor(_out, _left, _right) => {
                     self.xor_gates += 1;
                 }
 
-                Gate::Not(_out, _inp) => {
+                Not(_out, _inp) => {
                     self.not_gates += 1;
                 }
 
-                Gate::Free(begin, last) => {
-                    let last_one = last.unwrap_or(*begin);
-                    self.variables_freed += (last_one - begin + 1) as usize;
+                Instance(_out) => {
+                    self.instance_variables += 1;
+                }
+
+                Witness(_out) => {
+                    self.witness_variables += 1;
+                }
+
+                Gate::Free(first, last) => {
+                    let last_one = last.unwrap_or(*first);
+                    self.variables_freed += (last_one - *first + 1) as usize;
                 }
             }
         }
@@ -101,7 +105,6 @@ impl Stats {
         self.field_degree = header.field_degree;
     }
 }
-
 
 #[test]
 fn test_stats() -> crate::Result<()> {
@@ -115,7 +118,6 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_instance(&instance);
     stats.ingest_witness(&witness);
     stats.ingest_relation(&relation);
-
 
     let expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
