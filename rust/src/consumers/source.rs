@@ -21,8 +21,7 @@ use crate::{Result, Message, Messages, FILE_EXTENSION};
 ///
 /// // Create an example workspace including multiple constraints files.
 /// let dir = PathBuf::from("local/test_source");
-/// let mut sink = FilesSink::new(&dir).unwrap();
-/// sink.clean_workspace().unwrap();
+/// let mut sink = FilesSink::new_clean(&dir).unwrap();
 /// sink.push_instance_message(&example_instance());
 /// sink.push_witness_message(&example_witness());
 /// sink.push_relation_message(&example_relation());

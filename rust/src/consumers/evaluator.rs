@@ -1,5 +1,5 @@
 use crate::{Result, Header, Relation, Instance, Witness, Message, Gate};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use num_bigint::BigUint;
 use num_traits::identities::{Zero, One};
 use std::ops::{BitAnd, BitXor};
@@ -11,12 +11,21 @@ type Repr = BigUint;
 pub struct Evaluator {
     values: HashMap<Wire, Repr>,
     modulus: Repr,
+    instance_queue: VecDeque<Repr>,
+    witness_queue: VecDeque<Repr>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
 }
 
 impl Evaluator {
+    pub fn from_messages(messages: impl Iterator<Item=Result<Message>>) -> Self {
+        let mut evaluator = Evaluator::default();
+        messages.for_each(|msg|
+            evaluator.ingest_message(&msg.unwrap()));
+        evaluator
+    }
+
     pub fn get_violations(self) -> Vec<String> {
         let mut violations = vec![];
         if !self.verified_at_least_one_gate {
@@ -58,7 +67,7 @@ impl Evaluator {
         self.ingest_header(&instance.header)?;
 
         for var in &instance.common_inputs {
-            self.set_encoded(var.id, &var.value);
+            self.instance_queue.push_back(BigUint::from_bytes_le(&var.value));
         }
         Ok(())
     }
@@ -67,7 +76,7 @@ impl Evaluator {
         self.ingest_header(&witness.header)?;
 
         for var in &witness.short_witness {
-            self.set_encoded(var.id, &var.value);
+            self.witness_queue.push_back(BigUint::from_bytes_le(&var.value));
         }
         Ok(())
     }
@@ -146,9 +155,15 @@ impl Evaluator {
                     self.set(*out, not);
                 }
 
-                Instance(_) => unimplemented!("Inline instance declaration not supported"),
+                Instance(out) => {
+                    let val = self.instance_queue.pop_front().unwrap();
+                    self.set(*out, val);
+                }
 
-                Witness(_) => unimplemented!("Inline witness declaration not supported"),
+                Witness(out) => {
+                    let val = self.witness_queue.pop_front().unwrap();
+                    self.set(*out, val);
+                }
             }
         }
         Ok(())
