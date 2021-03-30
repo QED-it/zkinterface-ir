@@ -4,6 +4,7 @@ use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 pub use super::build_gates::BuildGate;
 use crate::producers::sink::MemorySink;
 use crate::structs::value::Value;
+use std::mem::take;
 
 /// MessageBuilder builds messages gate by gate.
 /// Flush completed messages to a Sink.
@@ -83,19 +84,19 @@ impl<S: Sink> GateBuilder<S> {
 
     /// Allocates a new wire id for the output and creates a new gate,
     /// Returns the newly allocated WireId.
-    pub fn create_gate(&mut self, gate: BuildGate) -> WireId {
+    pub fn create_gate(&mut self, mut gate: BuildGate) -> WireId {
         let out_id = if gate.has_output() {
             self.alloc()
         } else {
             NO_OUTPUT
         };
 
-        match &gate {
-            BuildGate::Instance(value) => {
-                self.msg_build.push_instance_value(value.clone());
+        match gate {
+            BuildGate::Instance(ref mut value) => {
+                self.msg_build.push_instance_value(take(value));
             }
-            BuildGate::Witness(Some(value)) => {
-                self.msg_build.push_witness_value(value.clone());
+            BuildGate::Witness(Some(ref mut value)) => {
+                self.msg_build.push_witness_value(take(value));
             }
             _ => {}
         }
