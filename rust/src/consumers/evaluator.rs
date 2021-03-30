@@ -66,8 +66,8 @@ impl Evaluator {
     pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
         self.ingest_header(&instance.header)?;
 
-        for var in &instance.common_inputs {
-            self.instance_queue.push_back(BigUint::from_bytes_le(&var.value));
+        for value in &instance.common_inputs {
+            self.instance_queue.push_back(BigUint::from_bytes_le(value));
         }
         Ok(())
     }
@@ -75,8 +75,8 @@ impl Evaluator {
     pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
         self.ingest_header(&witness.header)?;
 
-        for var in &witness.short_witness {
-            self.witness_queue.push_back(BigUint::from_bytes_le(&var.value));
+        for value in &witness.short_witness {
+            self.witness_queue.push_back(BigUint::from_bytes_le(value));
         }
         Ok(())
     }

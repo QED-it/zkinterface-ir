@@ -1,6 +1,5 @@
 fn main() {
     #[cfg(feature = "fbs")] {
-        use std::path::Path;
         use std::process::Command;
 
         // Latest flatc version: 1.12.0
@@ -21,7 +20,9 @@ fn main() {
                 // Fix an issue in generated Rust code.
                 // The lifetime 'a should be on the return value, not on &self.
                 // Published at https://github.com/google/flatbuffers/pull/5140
+                /* No longer necessary.
                 {
+                    use std::path::Path;
                     let file = &Path::new("src").join("sieve_ir_generated.rs");
                     let code = std::fs::read_to_string(file).expect("could not read file");
 
@@ -43,6 +44,7 @@ fn main() {
 
                     std::fs::write(file, fixed2).expect("could not write file");
                 }
+                */
             }
             Err(_) => {
                 println!("cargo:warning=Install FlatBuffers (flatc) if you modify `sieve_ir.fbs`. Code was not regenerated.");

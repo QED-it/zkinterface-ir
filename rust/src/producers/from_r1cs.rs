@@ -3,8 +3,7 @@ use num_traits::One;
 use std::ops::Add;
 
 use crate::producers::builder::{BuildGate, GateBuilder};
-use crate::structs::{assignment::Assignment, WireId};
-use crate::{Header, Instance, Relation, Result, Witness};
+use crate::{Header, Instance, Relation, Result, Value, WireId, Witness};
 use BuildGate::*;
 
 use crate::producers::sink::MemorySink;
@@ -31,7 +30,7 @@ pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     }
 }
 
-pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>, bool) {
+pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Value>, bool) {
     let variable_ids_len = vars.variable_ids.len();
     let values_len = vars.get_variables().len();
     assert_eq!(
@@ -44,7 +43,7 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
     }
 
     let mut has_constant = false;
-    let mut vec: Vec<Assignment> = Vec::new();
+    let mut vec: Vec<Value> = Vec::new();
     for var in vars.get_variables().iter() {
         if var.id == 0 {
             assert!(
@@ -53,7 +52,7 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
             );
             has_constant = true;
         }
-        vec.push(Assignment {
+        vec.push(Value {
             id: var.id,
             value: var.value.to_vec(),
         });
@@ -98,7 +97,7 @@ pub fn to_ir(
         // prepend the constant 1 as instance id:0
         instance_assignment.splice(
             0..0,
-            vec![Assignment {
+            vec![Value {
                 id: 0,
                 value: vec![1], //todo: is it good or size should be same as the other instance_variables?
             }],
@@ -198,7 +197,7 @@ fn assert_header(header: &Header) {
 }
 
 #[cfg(test)]
-fn assert_assignment(assign: &Assignment, id: WireId, value: u32) {
+fn assert_assignment(assign: &Value, id: WireId, value: u32) {
     use num_traits::ToPrimitive;
 
     assert_eq!(assign.id, id);

@@ -3,7 +3,7 @@ use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
 pub use super::build_gates::BuildGate;
 use crate::producers::sink::MemorySink;
-use crate::structs::assignment::Assignment;
+use crate::structs::value::Value;
 
 /// MessageBuilder builds messages gate by gate.
 /// Flush completed messages to a Sink.
@@ -34,12 +34,12 @@ impl<S: Sink> MessageBuilder<S> {
         }
     }
 
-    fn push_instance_value(&mut self, assignment: Assignment) {
-        self.instance.common_inputs.push(assignment);
+    fn push_instance_value(&mut self, value: Value) {
+        self.instance.common_inputs.push(value);
     }
 
-    fn push_witness_value(&mut self, assignment: Assignment) {
-        self.witness.short_witness.push(assignment);
+    fn push_witness_value(&mut self, value: Value) {
+        self.witness.short_witness.push(value);
     }
 
     fn push_gate(&mut self, gate: Gate) {
@@ -92,16 +92,10 @@ impl<S: Sink> GateBuilder<S> {
 
         match &gate {
             BuildGate::Instance(value) => {
-                self.msg_build.push_instance_value(Assignment {
-                    id: out_id,
-                    value: value.clone(),
-                });
+                self.msg_build.push_instance_value(value.clone());
             }
             BuildGate::Witness(Some(value)) => {
-                self.msg_build.push_witness_value(Assignment {
-                    id: out_id,
-                    value: value.clone(),
-                });
+                self.msg_build.push_witness_value(value.clone());
             }
             _ => {}
         }

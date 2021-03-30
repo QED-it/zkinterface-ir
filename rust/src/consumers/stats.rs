@@ -3,7 +3,7 @@ extern crate serde_json;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Header, Relation, Instance, Witness, Message, Gate};
+use crate::{Gate, Header, Instance, Message, Relation, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -21,7 +21,6 @@ pub struct Stats {
     pub and_gates: usize,
     pub xor_gates: usize,
     pub not_gates: usize,
-
 }
 
 impl Stats {
@@ -33,15 +32,9 @@ impl Stats {
         }
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance) {
-        self.ingest_header(&instance.header);
-        self.instance_variables += instance.common_inputs.len();
-    }
+    pub fn ingest_instance(&mut self, _instance: &Instance) {}
 
-    pub fn ingest_witness(&mut self, witness: &Witness) {
-        self.ingest_header(&witness.header);
-        self.witness_variables += witness.short_witness.len();
-    }
+    pub fn ingest_witness(&mut self, _witness: &Witness) {}
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
         use Gate::*;
@@ -107,7 +100,6 @@ impl Stats {
     }
 }
 
-
 #[test]
 fn test_stats() -> crate::Result<()> {
     use crate::producers::examples::*;
@@ -120,7 +112,6 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_instance(&instance);
     stats.ingest_witness(&witness);
     stats.ingest_relation(&relation);
-
 
     let expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),

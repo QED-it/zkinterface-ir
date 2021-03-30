@@ -21,24 +21,17 @@ table Header {
 
 table Relation {
    header               :Header;
-
-   num_wires            :uint64;
-   num_short_witness    :uint64;
-   num_common_inputs    :uint64;
-
    gates                :[Gate];
 }
 
 table Instance {
    header               :Header;
-
-   common_inputs        :[Assignment];
+   common_inputs        :[Value];
 }
 
 table Witness {
    header               :Header;
-
-   short_witness        :[Assignment];
+   short_witness        :[Value];
 }
 
 
@@ -48,8 +41,7 @@ struct Wire {
     id          :uint64;
 }
 
-table Assignment {
-   id          :Wire;
+table Value {
    value       :[ubyte];
 }
 
