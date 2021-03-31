@@ -6,7 +6,13 @@ use crate::producers::sink::MemorySink;
 use crate::structs::value::Value;
 use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
-/// MessageBuilder builds messages gate by gate.
+pub trait GateBuilderT {
+    /// Allocates a new wire id for the output and creates a new gate,
+    /// Returns the newly allocated WireId.
+    fn create_gate(&mut self, gate: BuildGate) -> WireId;
+}
+
+/// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
 /// Flush completed messages to a Sink.
 struct MessageBuilder<S: Sink> {
     sink: S,
@@ -46,6 +52,7 @@ impl<S: Sink> MessageBuilder<S> {
     fn push_gate(&mut self, gate: Gate) {
         self.relation.gates.push(gate);
     }
+
     fn finish(mut self) -> S {
         self.sink.push_instance_message(&self.instance).unwrap();
         self.sink.push_witness_message(&self.witness).unwrap();
@@ -58,7 +65,7 @@ impl<S: Sink> MessageBuilder<S> {
 ///
 /// # Example
 /// ```
-/// use zki_sieve::producers::builder::{GateBuilder, BuildGate::*};
+/// use zki_sieve::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::Header;
 ///
@@ -73,18 +80,8 @@ pub struct GateBuilder<S: Sink> {
     free_id: WireId,
 }
 
-impl<S: Sink> GateBuilder<S> {
-    /// new creates a new builder.
-    pub fn new(sink: S, header: Header) -> Self {
-        GateBuilder {
-            msg_build: MessageBuilder::new(sink, header),
-            free_id: 0,
-        }
-    }
-
-    /// Allocates a new wire id for the output and creates a new gate,
-    /// Returns the newly allocated WireId.
-    pub fn create_gate(&mut self, mut gate: BuildGate) -> WireId {
+impl<S: Sink> GateBuilderT for GateBuilder<S> {
+    fn create_gate(&mut self, mut gate: BuildGate) -> WireId {
         let out_id = if gate.has_output() {
             self.alloc()
         } else {
@@ -104,6 +101,16 @@ impl<S: Sink> GateBuilder<S> {
         self.msg_build.push_gate(gate.with_output(out_id));
 
         out_id
+    }
+}
+
+impl<S: Sink> GateBuilder<S> {
+    /// new creates a new builder.
+    pub fn new(sink: S, header: Header) -> Self {
+        GateBuilder {
+            msg_build: MessageBuilder::new(sink, header),
+            free_id: 0,
+        }
     }
 
     /// alloc allocates a new wire ID.
