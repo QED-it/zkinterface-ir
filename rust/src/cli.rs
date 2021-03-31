@@ -5,7 +5,8 @@ use num_bigint::BigUint;
 use std::fs::File;
 use std::io::{copy, stdout};
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
+use structopt::clap::AppSettings::*;
+pub use structopt::StructOpt;
 
 use crate::consumers::{
     evaluator::Evaluator,
@@ -32,8 +33,6 @@ Validate and evaluate a proving system:
     zki_sieve valid-eval-metrics workspace
 
 ";
-
-use structopt::clap::AppSettings::*;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -66,7 +65,7 @@ pub struct Options {
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
     #[structopt(default_value = "help")]
-    tool: String,
+    pub tool: String,
 
     /// The tools work in a workspace directory containing .sieve files.
     ///
@@ -74,7 +73,7 @@ pub struct Options {
     ///
     /// The dash - means either write to stdout or read from stdin.
     #[structopt(default_value = ".")]
-    paths: Vec<PathBuf>,
+    pub paths: Vec<PathBuf>,
 
     /// Which field to use when generating circuits.
     #[structopt(short, long, default_value = "101")]
