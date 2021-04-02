@@ -33,9 +33,13 @@ impl Stats {
         }
     }
 
-    pub fn ingest_instance(&mut self, _instance: &Instance) {}
+    pub fn ingest_instance(&mut self, instance: &Instance) {
+        self.ingest_header(&instance.header);
+    }
 
-    pub fn ingest_witness(&mut self, _witness: &Witness) {}
+    pub fn ingest_witness(&mut self, witness: &Witness) {
+        self.ingest_header(&witness.header);
+    }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
         use Gate::*;
