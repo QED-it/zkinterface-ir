@@ -7,10 +7,13 @@ use crate::{Gate, Header, Instance, Message, Relation, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
+    // Header.
     pub field_characteristic: Vec<u8>,
     pub field_degree: u32,
+    // Inputs.
     pub instance_variables: usize,
     pub witness_variables: usize,
+    // Gates.
     pub constants_gates: usize,
     pub assert_zero_gates: usize,
     pub copy_gates: usize,
@@ -22,6 +25,10 @@ pub struct Stats {
     pub xor_gates: usize,
     pub not_gates: usize,
     pub variables_freed: usize,
+    // The number of messages into which the statement was split.
+    pub instance_messages: usize,
+    pub witness_messages: usize,
+    pub relation_messages: usize,
 }
 
 impl Stats {
@@ -35,16 +42,19 @@ impl Stats {
 
     pub fn ingest_instance(&mut self, instance: &Instance) {
         self.ingest_header(&instance.header);
+        self.instance_messages += 1;
     }
 
     pub fn ingest_witness(&mut self, witness: &Witness) {
         self.ingest_header(&witness.header);
+        self.witness_messages += 1;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
         use Gate::*;
 
         self.ingest_header(&relation.header);
+        self.relation_messages += 1;
 
         for gate in &relation.gates {
             match gate {
@@ -139,6 +149,9 @@ fn test_stats() -> crate::Result<()> {
         xor_gates: 0,
         not_gates: 0,
         variables_freed: 8,
+        instance_messages: 1,
+        witness_messages: 1,
+        relation_messages: 1,
     };
     assert_eq!(expected_stats, stats);
 

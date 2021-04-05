@@ -154,7 +154,7 @@ fn main_example(opts: &Options) -> Result<()> {
         );
     } else {
         let mut sink = FilesSink::new_clean(out_dir)?;
-        sink.print_filenames = true;
+        sink.print_filenames();
         sink.push_instance_message(&instance)?;
         sink.push_witness_message(&witness)?;
         sink.push_relation_message(&relation)?;

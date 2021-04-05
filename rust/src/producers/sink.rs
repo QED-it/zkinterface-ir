@@ -58,42 +58,51 @@ impl Into<Source> for MemorySink {
 /// Store messages into files using conventional filenames inside of a workspace.
 pub struct FilesSink {
     pub workspace: PathBuf,
-    /// Set to true to print the paths of files as they are created.
-    pub print_filenames: bool,
 
-    file_counter: u32,
-    current_file: Option<File>,
+    instance_file: File,
+    witness_file: File,
+    relation_file: File,
 }
 
 impl FilesSink {
     pub fn new_clean(workspace: &impl AsRef<Path>) -> Result<FilesSink> {
         create_dir_all(workspace)?;
         clean_workspace(workspace)?;
-        Ok(Self::new_no_cleanup(workspace))
+        Self::new_no_cleanup(workspace)
     }
 
-    pub fn new_no_cleanup(workspace: &impl AsRef<Path>) -> FilesSink {
-        FilesSink {
+    pub fn new_no_cleanup(workspace: &impl AsRef<Path>) -> Result<FilesSink> {
+        Ok(FilesSink {
             workspace: workspace.as_ref().to_path_buf(),
-            print_filenames: false,
-            file_counter: 0,
-            current_file: None,
-        }
-    }
-}
 
-impl FilesSink {
-    fn next_file(&mut self, typ: &str) -> Result<File> {
-        let path = self.workspace.join(format!(
-            "{:03}_{}.{}",
-            self.file_counter, typ, FILE_EXTENSION
-        ));
-        if self.print_filenames {
-            eprintln!("Writing {}", path.display());
-        }
-        let file = File::create(path)?;
-        self.file_counter += 1;
-        Ok(file)
+            instance_file: File::create(Self::instance_path(workspace))?,
+            witness_file: File::create(Self::witness_path(workspace))?,
+            relation_file: File::create(Self::relation_path(workspace))?,
+        })
+    }
+
+    pub fn instance_path(workspace: &impl AsRef<Path>) -> PathBuf {
+        workspace
+            .as_ref()
+            .join(format!("000_instance.{}", FILE_EXTENSION))
+    }
+
+    pub fn witness_path(workspace: &impl AsRef<Path>) -> PathBuf {
+        workspace
+            .as_ref()
+            .join(format!("001_witness.{}", FILE_EXTENSION))
+    }
+
+    pub fn relation_path(workspace: &impl AsRef<Path>) -> PathBuf {
+        workspace
+            .as_ref()
+            .join(format!("002_relation.{}", FILE_EXTENSION))
+    }
+
+    pub fn print_filenames(&self) {
+        eprintln!("Writing {}", Self::instance_path(&self.workspace).display());
+        eprintln!("Writing {}", Self::witness_path(&self.workspace).display());
+        eprintln!("Writing {}", Self::relation_path(&self.workspace).display());
     }
 }
 
@@ -101,18 +110,15 @@ impl Sink for FilesSink {
     type Write = File;
 
     fn get_instance_writer(&mut self) -> &mut File {
-        self.current_file = Some(self.next_file("instance").unwrap());
-        self.current_file.as_mut().unwrap()
+        &mut self.instance_file
     }
 
     fn get_witness_writer(&mut self) -> &mut File {
-        self.current_file = Some(self.next_file("witness").unwrap());
-        self.current_file.as_mut().unwrap()
+        &mut self.witness_file
     }
 
     fn get_relation_writer(&mut self) -> &mut File {
-        self.current_file = Some(self.next_file("relation").unwrap());
-        self.current_file.as_mut().unwrap()
+        &mut self.relation_file
     }
 }
 
@@ -144,29 +150,43 @@ fn test_sink() {
 
     let workspace = PathBuf::from("local/test_sink");
     let _ = remove_dir_all(&workspace);
+
     let mut sink = FilesSink::new_clean(&workspace).unwrap();
-
-    // workspace is empty, check it!
-    assert_eq!(read_dir(&workspace).unwrap().count(), 0);
-
-    // Create files and ensure there is exactly the right number of files.
-    sink.push_instance_message(&example_instance()).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 1);
-
-    sink.push_witness_message(&example_witness()).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 2);
-
-    sink.push_relation_message(&example_relation()).unwrap();
+    // Workspace has 3 files for instance, witness, relation.
     assert_eq!(read_dir(&workspace).unwrap().count(), 3);
 
+    let mut file_sizes = read_dir(&workspace)
+        .unwrap()
+        .map(|res| {
+            let e = res.unwrap();
+            (e.path(), e.metadata().unwrap().len())
+        })
+        .collect::<Vec<_>>();
+
+    file_sizes.sort();
+
+    assert_eq!(
+        file_sizes,
+        vec![
+            ("local/test_sink/000_instance.sieve".into(), 0),
+            ("local/test_sink/001_witness.sieve".into(), 0),
+            ("local/test_sink/002_relation.sieve".into(), 0)
+        ]
+    );
+
+    return;
+
     sink.push_instance_message(&example_instance()).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 4);
 
     sink.push_witness_message(&example_witness()).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 5);
 
     sink.push_relation_message(&example_relation()).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 6);
+
+    sink.push_instance_message(&example_instance()).unwrap();
+
+    sink.push_witness_message(&example_witness()).unwrap();
+
+    sink.push_relation_message(&example_relation()).unwrap();
 
     // clean workspace, and check there is no more file in it.
     clean_workspace(&workspace).unwrap();
