@@ -120,6 +120,21 @@ table GateFree {
    last        :Wire;
 }
 
+table Function {
+    name          :string;
+    output_count  :uint64;
+    input_count   :uint64;
+    local_count   :uint64;
+    refImpl       :[Gate];
+}
+
+table Call {
+    name              :string;
+    output_wires      :[Wire];
+    input_wires       :[Wire];
+    first_local_wire  :Wire;
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -134,6 +149,8 @@ union GateSet {
    GateInstance,
    GateWitness,
    GateFree,
+   Function,
+   Call,
 }
 table Gate {
     gate      :GateSet;

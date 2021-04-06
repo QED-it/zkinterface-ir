@@ -38,6 +38,8 @@ pub enum Gate {
     /// If the option is not given, then only the first wire is freed, otherwise all wires between
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
+    /// Function Gate for generic custom gates
+    Function(String, u64, u64, u64, Vec<Gate>),
 }
 
 use Gate::*;
@@ -148,6 +150,19 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Free(
                     gate.first().ok_or("Missing first wire")?.id(),
                     gate.last().map(|id| id.id()),
+                )
+            }
+
+            gs::Function => {
+                let gate = gen_gate.gate_as_function().unwrap();
+                Function(
+                    gate.name().ok_or("Missing name")?.to_string(),
+                    gate.output_count(),
+                    gate.input_count(),
+                    gate.local_count(),
+                    //gate.refImpl().ok_or("Missing reference implementation")?.
+                    vec![],
+                    // see relation.rs line 22 try_from example
                 )
             }
         })
@@ -384,6 +399,29 @@ impl Gate {
                     builder,
                     &g::GateArgs {
                         gate_type: gs::GateFree,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+            Function(name, output_count, input_count, local_count, refImpl) => {
+                //TODO: copy the arguments into the fields
+                let gate = g::Function::create(
+                    builder,
+                    &g::FunctionArgs {
+                        name: None,
+                        output_count: 0,
+                        input_count: 0,
+                        local_count: 0,
+                        refImpl: None,
+                        // look at relation.rs line 62
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::Function,
                         gate: Some(gate.as_union_value()),
                     },
                 )
