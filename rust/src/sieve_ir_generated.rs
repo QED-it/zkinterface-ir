@@ -1907,7 +1907,7 @@ impl<'a> Function<'a> {
       builder.add_local_count(args.local_count);
       builder.add_input_count(args.input_count);
       builder.add_output_count(args.output_count);
-      if let Some(x) = args.refImpl { builder.add_refImpl(x); }
+      if let Some(x) = args.implementation { builder.add_implementation(x); }
       if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
@@ -1916,7 +1916,7 @@ impl<'a> Function<'a> {
     pub const VT_OUTPUT_COUNT: flatbuffers::VOffsetT = 6;
     pub const VT_INPUT_COUNT: flatbuffers::VOffsetT = 8;
     pub const VT_LOCAL_COUNT: flatbuffers::VOffsetT = 10;
-    pub const VT_REFIMPL: flatbuffers::VOffsetT = 12;
+    pub const VT_IMPLEMENTATION: flatbuffers::VOffsetT = 12;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
@@ -1935,8 +1935,8 @@ impl<'a> Function<'a> {
     self._tab.get::<u64>(Function::VT_LOCAL_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn refImpl(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Function::VT_REFIMPL, None)
+  pub fn implementation(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Function::VT_IMPLEMENTATION, None)
   }
 }
 
@@ -1945,7 +1945,7 @@ pub struct FunctionArgs<'a> {
     pub output_count: u64,
     pub input_count: u64,
     pub local_count: u64,
-    pub refImpl: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+    pub implementation: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
     #[inline]
@@ -1955,7 +1955,7 @@ impl<'a> Default for FunctionArgs<'a> {
             output_count: 0,
             input_count: 0,
             local_count: 0,
-            refImpl: None,
+            implementation: None,
         }
     }
 }
@@ -1981,8 +1981,8 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(Function::VT_LOCAL_COUNT, local_count, 0);
   }
   #[inline]
-  pub fn add_refImpl(&mut self, refImpl: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_REFIMPL, refImpl);
+  pub fn add_implementation(&mut self, implementation: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_IMPLEMENTATION, implementation);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> FunctionBuilder<'a, 'b> {

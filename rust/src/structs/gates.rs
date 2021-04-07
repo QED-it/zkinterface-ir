@@ -1,5 +1,5 @@
 use crate::Result;
-use flatbuffers::{FlatBufferBuilder, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
@@ -39,7 +39,10 @@ pub enum Gate {
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
     /// Function Gate for generic custom gates
-    Function(String, u64, u64, u64, Vec<Gate>),
+    /// Function(name, output_count, input_count, local_count, implementation).
+    Function(String, usize, usize, usize, Vec<Gate>),
+    /// Call(name, output_wires, input_wires, first_local_wire)
+    Call(String, Vec<WireId>, Vec<WireId>, WireId),
 }
 
 use Gate::*;
@@ -154,17 +157,20 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
             }
 
             gs::Function => {
-                let gate = gen_gate.gate_as_function().unwrap();
+                let g_func = gen_gate.gate_as_function().unwrap();
+                let g_ref_impl = g_func.implementation().ok_or("Missing reference implementation")?;
+                let ref_impl = Gate::try_from_vector(g_ref_impl)?;
+
                 Function(
-                    gate.name().ok_or("Missing name")?.to_string(),
-                    gate.output_count(),
-                    gate.input_count(),
-                    gate.local_count(),
-                    //gate.refImpl().ok_or("Missing reference implementation")?.
-                    vec![],
-                    // see relation.rs line 22 try_from example
+                    g_func.name().ok_or("Missing name")?.to_string(),
+                    g_func.output_count() as usize,
+                    g_func.input_count() as usize,
+                    g_func.local_count() as usize,
+                    ref_impl,
                 )
             }
+
+            gs::Call => unimplemented!(),
         })
     }
 }
@@ -404,17 +410,20 @@ impl Gate {
                 )
             }
 
-            Function(name, output_count, input_count, local_count, refImpl) => {
-                //TODO: copy the arguments into the fields
-                let gate = g::Function::create(
+            Function(name, output_count, input_count, local_count, implementation) => {
+                // NICE-TO-HAVE: reuse strings.
+                let g_name = builder.create_string(name);
+
+                let impl_gates = Gate::build_vector(builder, &implementation);
+
+                let g_gate = g::Function::create(
                     builder,
                     &g::FunctionArgs {
-                        name: None,
-                        output_count: 0,
-                        input_count: 0,
-                        local_count: 0,
-                        refImpl: None,
-                        // look at relation.rs line 62
+                        name: Some(g_name),
+                        output_count: *output_count as u64,
+                        input_count: *input_count as u64,
+                        local_count: *local_count as u64,
+                        implementation: Some(impl_gates),
                     },
                 );
 
@@ -422,11 +431,35 @@ impl Gate {
                     builder,
                     &g::GateArgs {
                         gate_type: gs::Function,
-                        gate: Some(gate.as_union_value()),
+                        gate: Some(g_gate.as_union_value()),
                     },
                 )
             }
+
+            Call(_, _, _, _) => unimplemented!(),
         }
+    }
+
+    /// Convert from a Flatbuffers vector to owned structures.
+    pub fn try_from_vector<'a>(
+        g_vector: Vector<'a, ForwardsUOffset<g::Gate<'a>>>,
+    ) -> Result<Vec<Gate>> {
+        let mut gates = vec![];
+        for i in 0..g_vector.len() {
+            let g_a = g_vector.get(i);
+            gates.push(Gate::try_from(g_a)?);
+        }
+        Ok(gates)
+    }
+
+    /// Add a vector of this structure into a Flatbuffers message builder.
+    pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+        gates: &'args [Gate],
+    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Gate<'bldr>>>> {
+        let g_gates: Vec<_> = gates.iter().map(|gate| gate.build(builder)).collect();
+        let g_vector = builder.create_vector(&g_gates);
+        g_vector
     }
 
     /// Returns the output wire id if exists.
@@ -442,7 +475,7 @@ impl Gate {
     ///  let wire_id = g.get_output_wire_id();
     ///
     /// ```
-    pub fn get_output_wire_id(&self) -> Option<WireId> {
+    fn _get_output_wire_id(&self) -> Option<WireId> {
         match *self {
             Constant(w, _) => Some(w),
             Copy(w, _) => Some(w),
@@ -458,6 +491,9 @@ impl Gate {
 
             AssertZero(_) => None,
             Free(_, _) => None,
+
+            Function(_, _, _, _, _) => None,
+            Call(_, _, _, _) => unimplemented!(),
         }
     }
 }

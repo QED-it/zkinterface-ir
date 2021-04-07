@@ -121,11 +121,11 @@ table GateFree {
 }
 
 table Function {
-    name          :string;
-    output_count  :uint64;
-    input_count   :uint64;
-    local_count   :uint64;
-    refImpl       :[Gate];
+    name            :string;
+    output_count    :uint64;
+    input_count     :uint64;
+    local_count     :uint64;
+    implementation  :[Gate];
 }
 
 table Call {

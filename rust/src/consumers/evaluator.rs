@@ -171,6 +171,9 @@ impl Evaluator {
                         self.remove(current)?;
                     }
                 }
+
+                Function(_, _, _, _, _) => unimplemented!(),
+                Call(_, _, _, _) => unimplemented!(),
             }
         }
         Ok(())

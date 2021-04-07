@@ -284,13 +284,16 @@ impl Validator {
                     }
                 }
 
-                Gate::Free(first, last) => {
+                Free(first, last) => {
                     // all wires between first and last INCLUSIVE
                     for wire_id in *first..=last.unwrap_or(*first) {
                         self.ensure_defined_and_set(wire_id);
                         self.set_status(wire_id, Freed);
                     }
                 }
+
+                Function(_, _, _, _, _) => unimplemented!(),
+                Call(_, _, _, _) => unimplemented!(),
             }
         }
     }

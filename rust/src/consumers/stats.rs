@@ -106,10 +106,13 @@ impl Stats {
                     self.witness_variables += 1;
                 }
 
-                Gate::Free(first, last) => {
+                Free(first, last) => {
                     let last_one = last.unwrap_or(*first);
                     self.variables_freed += (last_one - *first + 1) as usize;
                 }
+
+                Function(_, _, _, _, _) => unimplemented!(),
+                Call(_, _, _, _) => unimplemented!(),
             }
         }
     }
