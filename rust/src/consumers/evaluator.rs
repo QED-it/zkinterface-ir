@@ -1,7 +1,7 @@
-use crate::{Result, Header, Relation, Instance, Witness, Message, Gate};
-use std::collections::{HashMap, VecDeque};
+use crate::{Gate, Header, Instance, Message, Relation, Result, Witness};
 use num_bigint::BigUint;
-use num_traits::identities::{Zero, One};
+use num_traits::identities::{One, Zero};
+use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
 
 type Wire = u64;
@@ -19,10 +19,9 @@ pub struct Evaluator {
 }
 
 impl Evaluator {
-    pub fn from_messages(messages: impl Iterator<Item=Result<Message>>) -> Self {
+    pub fn from_messages(messages: impl Iterator<Item = Result<Message>>) -> Self {
         let mut evaluator = Evaluator::default();
-        messages.for_each(|msg|
-            evaluator.ingest_message(&msg.unwrap()));
+        messages.for_each(|msg| evaluator.ingest_message(&msg.unwrap()));
         evaluator
     }
 
@@ -38,7 +37,9 @@ impl Evaluator {
     }
 
     pub fn ingest_message(&mut self, msg: &Message) {
-        if self.found_error.is_some() { return; }
+        if self.found_error.is_some() {
+            return;
+        }
 
         match self.ingest_message_(msg) {
             Err(err) => self.found_error = Some(err.to_string()),
@@ -82,8 +83,6 @@ impl Evaluator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
-        use Gate::*;
-
         self.ingest_header(&relation.header)?;
 
         if relation.gates.len() > 0 {
@@ -91,94 +90,105 @@ impl Evaluator {
         }
 
         for gate in &relation.gates {
-            match gate {
-                Constant(out, value) =>
-                    self.set_encoded(*out, value),
-
-                AssertZero(inp) => {
-                    let val = self.get(*inp)?;
-                    if !val.is_zero() {
-                        return Err(format!("wire_{} should equal 0 but has value {}", *inp, val).into());
-                    }
-                }
-
-                Copy(out, inp) => {
-                    let value = self.get(*inp)?.clone();
-                    self.set(*out, value);
-                }
-
-                Add(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let sum = l + r;
-                    self.set(*out, sum);
-                }
-
-                Mul(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let prod = l * r;
-                    self.set(*out, prod);
-                }
-
-                AddConstant(out, inp, constant) => {
-                    let l = self.get(*inp)?;
-                    let r = BigUint::from_bytes_le(constant);
-                    let sum = l + r;
-                    self.set(*out, sum);
-                }
-
-                MulConstant(out, inp, constant) => {
-                    let l = self.get(*inp)?;
-                    let r = BigUint::from_bytes_le(constant);
-                    let prod = l * r;
-                    self.set(*out, prod);
-                }
-
-                And(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let and = l.bitand(r);
-                    self.set(*out, and);
-                }
-
-                Xor(out, left, right) => {
-                    let l = self.get(*left)?;
-                    let r = self.get(*right)?;
-                    let xor = l.bitxor(r);
-                    self.set(*out, xor);
-                }
-
-                Not(out, inp) => {
-                    let val = self.get(*inp)?;
-                    let not = if val.is_zero() { BigUint::one() } else { BigUint::zero() };
-                    self.set(*out, not);
-                }
-
-                Instance(out) => {
-                    let val = self.instance_queue.pop_front().unwrap();
-                    self.set(*out, val);
-                }
-
-                Witness(out) => {
-                    let val = self.witness_queue.pop_front().unwrap();
-                    self.set(*out, val);
-                }
-
-                Free(first, last) => {
-                    let last_value = last.unwrap_or(*first);
-                    for current in *first..=last_value {
-                        self.remove(current)?;
-                    }
-                }
-
-                Function(_, _, _, _, _) => unimplemented!(),
-                Call(_, _, _, _) => unimplemented!(),
-            }
+            self.ingest_gate(gate)?;
         }
         Ok(())
     }
 
+    fn ingest_gate(&mut self, gate: &Gate) -> Result<()> {
+        use Gate::*;
+
+        match gate {
+            Constant(out, value) => self.set_encoded(*out, value),
+
+            AssertZero(inp) => {
+                let val = self.get(*inp)?;
+                if !val.is_zero() {
+                    return Err(
+                        format!("wire_{} should equal 0 but has value {}", *inp, val).into(),
+                    );
+                }
+            }
+
+            Copy(out, inp) => {
+                let value = self.get(*inp)?.clone();
+                self.set(*out, value);
+            }
+
+            Add(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let sum = l + r;
+                self.set(*out, sum);
+            }
+
+            Mul(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let prod = l * r;
+                self.set(*out, prod);
+            }
+
+            AddConstant(out, inp, constant) => {
+                let l = self.get(*inp)?;
+                let r = BigUint::from_bytes_le(constant);
+                let sum = l + r;
+                self.set(*out, sum);
+            }
+
+            MulConstant(out, inp, constant) => {
+                let l = self.get(*inp)?;
+                let r = BigUint::from_bytes_le(constant);
+                let prod = l * r;
+                self.set(*out, prod);
+            }
+
+            And(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let and = l.bitand(r);
+                self.set(*out, and);
+            }
+
+            Xor(out, left, right) => {
+                let l = self.get(*left)?;
+                let r = self.get(*right)?;
+                let xor = l.bitxor(r);
+                self.set(*out, xor);
+            }
+
+            Not(out, inp) => {
+                let val = self.get(*inp)?;
+                let not = if val.is_zero() {
+                    BigUint::one()
+                } else {
+                    BigUint::zero()
+                };
+                self.set(*out, not);
+            }
+
+            Instance(out) => {
+                let val = self.instance_queue.pop_front().unwrap();
+                self.set(*out, val);
+            }
+
+            Witness(out) => {
+                let val = self.witness_queue.pop_front().unwrap();
+                self.set(*out, val);
+            }
+
+            Free(first, last) => {
+                let last_value = last.unwrap_or(*first);
+                for current in *first..=last_value {
+                    self.remove(current)?;
+                }
+            }
+
+            Function(_, _, _, _, _) => unimplemented!(),
+            Call(_, _, _, _) => unimplemented!(),
+        }
+        Ok(())
+    }
 
     fn set_encoded(&mut self, id: Wire, encoded: &[u8]) {
         self.set(id, BigUint::from_bytes_le(encoded));
@@ -190,12 +200,14 @@ impl Evaluator {
     }
 
     pub fn get(&self, id: Wire) -> Result<&Repr> {
-        self.values.get(&id)
+        self.values
+            .get(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 
     fn remove(&mut self, id: Wire) -> Result<Repr> {
-        self.values.remove(&id)
+        self.values
+            .remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 }

@@ -145,36 +145,44 @@ pub fn clean_workspace(workspace: impl AsRef<Path>) -> Result<()> {
 
 #[test]
 fn test_sink() {
+    use crate::consumers::stats::Stats;
     use crate::producers::examples::*;
-    use std::fs::remove_dir_all;
 
     let workspace = PathBuf::from("local/test_sink");
-    let _ = remove_dir_all(&workspace);
+
+    // Helper to look at file names and sizes.
+    let get_file_sizes = || {
+        let mut file_sizes = read_dir(&workspace)
+            .unwrap()
+            .map(|res| {
+                let e = res.unwrap();
+                (e.path(), e.metadata().unwrap().len())
+            })
+            .collect::<Vec<_>>();
+
+        file_sizes.sort();
+
+        let filenames = file_sizes
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+
+        let sizes = file_sizes.iter().map(|(_, size)| *size).collect::<Vec<_>>();
+
+        (filenames, sizes)
+    };
 
     let mut sink = FilesSink::new_clean(&workspace).unwrap();
-    // Workspace has 3 files for instance, witness, relation.
-    assert_eq!(read_dir(&workspace).unwrap().count(), 3);
 
-    let mut file_sizes = read_dir(&workspace)
-        .unwrap()
-        .map(|res| {
-            let e = res.unwrap();
-            (e.path(), e.metadata().unwrap().len())
-        })
-        .collect::<Vec<_>>();
+    let expected_filenames = &[
+        ("local/test_sink/000_instance.sieve".into()),
+        ("local/test_sink/001_witness.sieve".into()),
+        ("local/test_sink/002_relation.sieve".into()),
+    ] as &[PathBuf];
 
-    file_sizes.sort();
-
-    assert_eq!(
-        file_sizes,
-        vec![
-            ("local/test_sink/000_instance.sieve".into(), 0),
-            ("local/test_sink/001_witness.sieve".into(), 0),
-            ("local/test_sink/002_relation.sieve".into(), 0)
-        ]
-    );
-
-    return;
+    let (filenames, sizes) = get_file_sizes();
+    assert_eq!(&filenames, expected_filenames);
+    assert_eq!(sizes, vec![0, 0, 0]);
 
     sink.push_instance_message(&example_instance()).unwrap();
 
@@ -182,13 +190,34 @@ fn test_sink() {
 
     sink.push_relation_message(&example_relation()).unwrap();
 
+    let (filenames, sizes1) = get_file_sizes();
+    assert_eq!(&filenames, expected_filenames);
+    assert!(sizes[0] < sizes1[0]);
+    assert!(sizes[1] < sizes1[1]);
+    assert!(sizes[2] < sizes1[2]);
+
     sink.push_instance_message(&example_instance()).unwrap();
 
     sink.push_witness_message(&example_witness()).unwrap();
 
     sink.push_relation_message(&example_relation()).unwrap();
+
+    let (filenames, sizes2) = get_file_sizes();
+    assert_eq!(&filenames, expected_filenames);
+    assert!(sizes1[0] < sizes2[0]);
+    assert!(sizes1[1] < sizes2[1]);
+    assert!(sizes1[2] < sizes2[2]);
+
+    let source: Source = sink.into();
+    let mut stats = Stats::default();
+    for msg in source.iter_messages() {
+        stats.ingest_message(&msg.unwrap());
+    }
+    assert_eq!(stats.instance_messages, 2);
+    assert_eq!(stats.witness_messages, 2);
+    assert_eq!(stats.relation_messages, 2);
 
     // clean workspace, and check there is no more file in it.
     clean_workspace(&workspace).unwrap();
-    assert_eq!(read_dir(&workspace).unwrap().count(), 0);
+    assert!(get_file_sizes().0.is_empty());
 }

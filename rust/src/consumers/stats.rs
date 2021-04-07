@@ -51,69 +51,73 @@ impl Stats {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
-        use Gate::*;
-
         self.ingest_header(&relation.header);
         self.relation_messages += 1;
 
         for gate in &relation.gates {
-            match gate {
-                Constant(_out, _value) => {
-                    self.constants_gates += 1;
-                }
+            self.ingest_gate(gate);
+        }
+    }
 
-                AssertZero(_inp) => {
-                    self.assert_zero_gates += 1;
-                }
+    fn ingest_gate(&mut self, gate: &Gate) {
+        use Gate::*;
 
-                Copy(_out, _inp) => {
-                    self.copy_gates += 1;
-                }
-
-                Add(_out, _left, _right) => {
-                    self.add_gates += 1;
-                }
-
-                Mul(_out, _left, _right) => {
-                    self.mul_gates += 1;
-                }
-
-                AddConstant(_out, _inp, _constant) => {
-                    self.add_constant_gates += 1;
-                }
-
-                MulConstant(_out, _inp, _constant) => {
-                    self.mul_constant_gates += 1;
-                }
-
-                And(_out, _left, _right) => {
-                    self.and_gates += 1;
-                }
-
-                Xor(_out, _left, _right) => {
-                    self.xor_gates += 1;
-                }
-
-                Not(_out, _inp) => {
-                    self.not_gates += 1;
-                }
-
-                Instance(_out) => {
-                    self.instance_variables += 1;
-                }
-
-                Witness(_out) => {
-                    self.witness_variables += 1;
-                }
-
-                Free(first, last) => {
-                    let last_one = last.unwrap_or(*first);
-                    self.variables_freed += (last_one - *first + 1) as usize;
-                }
-
-                Function(_, _, _, _, _) => unimplemented!(),
-                Call(_, _, _, _) => unimplemented!(),
+        match gate {
+            Constant(_out, _value) => {
+                self.constants_gates += 1;
             }
+
+            AssertZero(_inp) => {
+                self.assert_zero_gates += 1;
+            }
+
+            Copy(_out, _inp) => {
+                self.copy_gates += 1;
+            }
+
+            Add(_out, _left, _right) => {
+                self.add_gates += 1;
+            }
+
+            Mul(_out, _left, _right) => {
+                self.mul_gates += 1;
+            }
+
+            AddConstant(_out, _inp, _constant) => {
+                self.add_constant_gates += 1;
+            }
+
+            MulConstant(_out, _inp, _constant) => {
+                self.mul_constant_gates += 1;
+            }
+
+            And(_out, _left, _right) => {
+                self.and_gates += 1;
+            }
+
+            Xor(_out, _left, _right) => {
+                self.xor_gates += 1;
+            }
+
+            Not(_out, _inp) => {
+                self.not_gates += 1;
+            }
+
+            Instance(_out) => {
+                self.instance_variables += 1;
+            }
+
+            Witness(_out) => {
+                self.witness_variables += 1;
+            }
+
+            Free(first, last) => {
+                let last_one = last.unwrap_or(*first);
+                self.variables_freed += (last_one - *first + 1) as usize;
+            }
+
+            Function(_, _, _, _, _) => unimplemented!(),
+            Call(_, _, _, _) => unimplemented!(),
         }
     }
 
