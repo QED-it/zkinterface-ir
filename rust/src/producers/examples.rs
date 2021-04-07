@@ -71,7 +71,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Add(8, 6, 7),                             // sum - instance_0
             Free(0, Some(7)),                         // Free all previous wires
             AssertZero(8),                            // difference == 0
-            Function("test_mul".to_string(), 2, 2, 0, vec![Mul(0,1,2)]), // mul gate with ref implementation id1*id2 = id0
+            Function("example_mul".to_string(), 2, 2, 0, vec![Mul(0,1,2)]), // mul gate with ref implementation id1*id2 = id0
         ],
     }
 }

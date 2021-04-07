@@ -1,6 +1,8 @@
 extern crate serde;
 extern crate serde_json;
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness};
@@ -29,6 +31,8 @@ pub struct Stats {
     pub instance_messages: usize,
     pub witness_messages: usize,
     pub relation_messages: usize,
+    // Function definitions
+    pub functions: HashMap<String, Stats>,
 }
 
 impl Stats {
@@ -116,9 +120,40 @@ impl Stats {
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
 
-            Function(_, _, _, _, _) => unimplemented!(),
-            Call(_, _, _, _) => unimplemented!(),
+            Function(name, output_count, input_count, local_count, implementation) => {
+                let mut func_stats = Stats::default();
+                for gate in implementation {
+                    func_stats.ingest_gate(gate);
+                }
+                self.functions.insert(name.clone(), func_stats);
+            }
+
+            Call(name, output_wires, input_wires, first_local_wire) => {
+                if let Some(func_stats) = self.functions.get(name).cloned() {
+                    self.ingest_call_stats(&func_stats);
+                } else {
+                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                }
+            }
         }
+    }
+
+    fn ingest_call_stats(&mut self, other: &Stats) {
+        // Inputs.
+        self.instance_variables += other.instance_variables;
+        self.witness_variables += other.witness_variables;
+        // Gates.
+        self.constants_gates += other.constants_gates;
+        self.assert_zero_gates += other.assert_zero_gates;
+        self.copy_gates += other.copy_gates;
+        self.add_gates += other.add_gates;
+        self.mul_gates += other.mul_gates;
+        self.add_constant_gates += other.add_constant_gates;
+        self.mul_constant_gates += other.mul_constant_gates;
+        self.and_gates += other.and_gates;
+        self.xor_gates += other.xor_gates;
+        self.not_gates += other.not_gates;
+        self.variables_freed += other.variables_freed;
     }
 
     fn ingest_header(&mut self, header: &Header) {
@@ -130,6 +165,7 @@ impl Stats {
 #[test]
 fn test_stats() -> crate::Result<()> {
     use crate::producers::examples::*;
+    use std::iter::FromIterator;
 
     let instance = example_instance();
     let witness = example_witness();
@@ -140,7 +176,7 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_witness(&witness);
     stats.ingest_relation(&relation);
 
-    let expected_stats = Stats {
+    let mut expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
         instance_variables: 1,
@@ -159,7 +195,16 @@ fn test_stats() -> crate::Result<()> {
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,
+        functions: HashMap::new(),
     };
+    expected_stats.functions.insert(
+        "example_mul".to_string(),
+        Stats {
+            mul_gates: 1,
+            ..Stats::default()
+        },
+    );
+
     assert_eq!(expected_stats, stats);
 
     Ok(())
