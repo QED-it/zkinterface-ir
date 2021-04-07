@@ -14,12 +14,18 @@ pub trait GateBuilderT {
 
 /// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
 /// Flush completed messages to a Sink.
+/// finish() must be called.
 struct MessageBuilder<S: Sink> {
     sink: S,
 
     instance: Instance,
     witness: Witness,
     relation: Relation,
+
+    /// Maximum number of gates or witness or instance values to hold at once.
+    /// Default 100,000 or ~12MB of memory.
+    /// Size estimation: 40 per witness + 40 per instance + 48 per gate = 128 bytes.
+    pub max_len: usize,
 }
 
 impl<S: Sink> MessageBuilder<S> {
@@ -38,25 +44,56 @@ impl<S: Sink> MessageBuilder<S> {
                 header: header.clone(),
                 gates: vec![],
             },
+            max_len: 100 * 1000,
         }
     }
 
     fn push_instance_value(&mut self, value: Value) {
         self.instance.common_inputs.push(value);
+        if self.instance.common_inputs.len() == self.max_len {
+            self.flush_instance();
+        }
     }
 
     fn push_witness_value(&mut self, value: Value) {
         self.witness.short_witness.push(value);
+        if self.witness.short_witness.len() == self.max_len {
+            self.flush_witness();
+        }
     }
 
     fn push_gate(&mut self, gate: Gate) {
         self.relation.gates.push(gate);
+        if self.relation.gates.len() == self.max_len {
+            self.flush_relation();
+        }
+    }
+
+    fn flush_instance(&mut self) {
+        self.sink.push_instance_message(&self.instance).unwrap();
+        self.instance.common_inputs.clear();
+    }
+
+    fn flush_witness(&mut self) {
+        self.sink.push_witness_message(&self.witness).unwrap();
+        self.witness.short_witness.clear();
+    }
+
+    fn flush_relation(&mut self) {
+        self.sink.push_relation_message(&self.relation).unwrap();
+        self.relation.gates.clear();
     }
 
     fn finish(mut self) -> S {
-        self.sink.push_instance_message(&self.instance).unwrap();
-        self.sink.push_witness_message(&self.witness).unwrap();
-        self.sink.push_relation_message(&self.relation).unwrap();
+        if !self.instance.common_inputs.is_empty() {
+            self.flush_instance();
+        }
+        if !self.witness.short_witness.is_empty() {
+            self.flush_witness();
+        }
+        if !self.relation.gates.is_empty() {
+            self.flush_relation();
+        }
         self.sink
     }
 }
