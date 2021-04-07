@@ -185,111 +185,112 @@ impl Validator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
-        use Gate::*;
-
         self.ingest_header(&relation.header);
 
         for gate in &relation.gates {
-            match gate {
-                Constant(out, value) => {
-                    self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
-                    self.ensure_undefined_and_set(*out);
+            self.ingest_gate(gate);
+        }
+    }
+
+    fn ingest_gate(&mut self, gate: &Gate) {
+        use Gate::*;
+
+        match gate {
+            Constant(out, value) => {
+                self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
+                self.ensure_undefined_and_set(*out);
+            }
+
+            AssertZero(inp) => {
+                self.ensure_defined_and_set(*inp);
+            }
+
+            Copy(out, inp) => {
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Add(out, left, right) => {
+                self.ensure_arithmetic("Add");
+
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Mul(out, left, right) => {
+                self.ensure_arithmetic("Mul");
+
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+
+                self.ensure_undefined_and_set(*out);
+            }
+
+            AddConstant(out, inp, constant) => {
+                self.ensure_arithmetic("AddConstant");
+                self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            MulConstant(out, inp, constant) => {
+                self.ensure_arithmetic("MulConstant");
+                self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            And(out, left, right) => {
+                self.ensure_boolean("And");
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Xor(out, left, right) => {
+                self.ensure_boolean("Xor");
+
+                self.ensure_defined_and_set(*left);
+                self.ensure_defined_and_set(*right);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Not(out, inp) => {
+                self.ensure_boolean("Not");
+
+                self.ensure_defined_and_set(*inp);
+                self.ensure_undefined_and_set(*out);
+            }
+
+            Instance(out) => {
+                self.declare(*out, || format!("instance wire {}", out));
+                // Consume value.
+                if self.instance_queue_len > 0 {
+                    self.instance_queue_len -= 1;
+                } else {
+                    self.violate(format!("No value available for the Instance wire {}", out));
                 }
+            }
 
-                AssertZero(inp) => {
-                    self.ensure_defined_and_set(*inp);
-                }
-
-                Copy(out, inp) => {
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                Add(out, left, right) => {
-                    self.ensure_arithmetic("Add");
-
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                Mul(out, left, right) => {
-                    self.ensure_arithmetic("Mul");
-
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                AddConstant(out, inp, constant) => {
-                    self.ensure_arithmetic("AddConstant");
-                    self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                MulConstant(out, inp, constant) => {
-                    self.ensure_arithmetic("MulConstant");
-                    self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                And(out, left, right) => {
-                    self.ensure_boolean("And");
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                Xor(out, left, right) => {
-                    self.ensure_boolean("Xor");
-
-                    self.ensure_defined_and_set(*left);
-                    self.ensure_defined_and_set(*right);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                Not(out, inp) => {
-                    self.ensure_boolean("Not");
-
-                    self.ensure_defined_and_set(*inp);
-                    self.ensure_undefined_and_set(*out);
-                }
-
-                Instance(out) => {
-                    self.declare(*out, || format!("instance wire {}", out));
-                    // Consume value.
-                    if self.instance_queue_len > 0 {
-                        self.instance_queue_len -= 1;
+            Witness(out) => {
+                self.declare(*out, || format!("witness wire {}", out));
+                // Consume value.
+                if self.as_prover {
+                    if self.witness_queue_len > 0 {
+                        self.witness_queue_len -= 1;
                     } else {
-                        self.violate(format!("No value available for the Instance wire {}", out));
+                        self.violate(format!("No value available for the Witness wire {}", out));
                     }
                 }
+            }
 
-                Witness(out) => {
-                    self.declare(*out, || format!("witness wire {}", out));
-                    // Consume value.
-                    if self.as_prover {
-                        if self.witness_queue_len > 0 {
-                            self.witness_queue_len -= 1;
-                        } else {
-                            self.violate(format!(
-                                "No value available for the Witness wire {}",
-                                out
-                            ));
-                        }
-                    }
-                }
-
-                Gate::Free(first, last) => {
-                    // all wires between first and last INCLUSIVE
-                    for wire_id in *first..=last.unwrap_or(*first) {
-                        self.ensure_defined_and_set(wire_id);
-                        self.set_status(wire_id, Freed);
-                    }
+            Free(first, last) => {
+                // all wires between first and last INCLUSIVE
+                for wire_id in *first..=last.unwrap_or(*first) {
+                    self.ensure_defined_and_set(wire_id);
+                    self.set_status(wire_id, Freed);
                 }
             }
         }
