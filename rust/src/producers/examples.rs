@@ -64,14 +64,14 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Witness(1),
             Witness(2),
             Constant(3, encode_negative_one(header)), // -1
-            Mul(4, 1, 1),                             // witness_1 squared
+            Function("example_mul".to_string(), 1, 2, 0, vec![Mul(0,1,2)]), // mul gate with ref implementation id1*id2 = id0
+            Call("example_mul".to_string(), vec![4], vec![1, 1], 0),  // witness_1 squared using the function call
             Mul(5, 2, 2),                             // witness_2 squared
             Add(6, 4, 5),                             // sum of squares
-            Mul(7, 0, 3),                             // negative instance_0
+            Call("example_mul".to_string(), vec![7], vec![0, 3], 0),  // negative instance_0 using the function call
             Add(8, 6, 7),                             // sum - instance_0
             Free(0, Some(7)),                         // Free all previous wires
             AssertZero(8),                            // difference == 0
-            Function("example_mul".to_string(), 2, 2, 0, vec![Mul(0,1,2)]), // mul gate with ref implementation id1*id2 = id0
         ],
     }
 }

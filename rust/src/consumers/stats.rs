@@ -27,6 +27,10 @@ pub struct Stats {
     pub xor_gates: usize,
     pub not_gates: usize,
     pub variables_freed: usize,
+
+    pub functions_defined: usize,
+    pub functions_called: usize,
+
     // The number of messages into which the statement was split.
     pub instance_messages: usize,
     pub witness_messages: usize,
@@ -120,7 +124,8 @@ impl Stats {
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
 
-            Function(name, output_count, input_count, local_count, implementation) => {
+            Function(name, _, _, _, implementation) => {
+                self.functions_defined += 1;
                 let mut func_stats = Stats::default();
                 for gate in implementation {
                     func_stats.ingest_gate(gate);
@@ -128,7 +133,8 @@ impl Stats {
                 self.functions.insert(name.clone(), func_stats);
             }
 
-            Call(name, output_wires, input_wires, first_local_wire) => {
+            Call(name, _, _, _) => {
+                self.functions_called += 1;
                 if let Some(func_stats) = self.functions.get(name).cloned() {
                     self.ingest_call_stats(&func_stats);
                 } else {
@@ -192,6 +198,8 @@ fn test_stats() -> crate::Result<()> {
         xor_gates: 0,
         not_gates: 0,
         variables_freed: 8,
+        functions_defined: 1,
+        functions_called: 2,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,

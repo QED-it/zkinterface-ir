@@ -181,7 +181,7 @@ fn test_sink() {
     ] as &[PathBuf];
 
     let (filenames, sizes) = get_file_sizes();
-    assert_eq!(&filenames, expected_filenames);
+    assert_eq!(filenames.as_slice(), expected_filenames);
     assert_eq!(sizes, vec![0, 0, 0]);
 
     sink.push_instance_message(&example_instance()).unwrap();
@@ -191,7 +191,7 @@ fn test_sink() {
     sink.push_relation_message(&example_relation()).unwrap();
 
     let (filenames, sizes1) = get_file_sizes();
-    assert_eq!(&filenames, expected_filenames);
+    assert_eq!(filenames.as_slice(), expected_filenames);
     assert!(sizes[0] < sizes1[0]);
     assert!(sizes[1] < sizes1[1]);
     assert!(sizes[2] < sizes1[2]);
@@ -203,7 +203,7 @@ fn test_sink() {
     sink.push_relation_message(&example_relation()).unwrap();
 
     let (filenames, sizes2) = get_file_sizes();
-    assert_eq!(&filenames, expected_filenames);
+    assert_eq!(filenames.as_slice(), expected_filenames);
     assert!(sizes1[0] < sizes2[0]);
     assert!(sizes1[1] < sizes2[1]);
     assert!(sizes1[2] < sizes2[2]);
