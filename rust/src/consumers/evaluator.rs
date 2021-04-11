@@ -184,16 +184,18 @@ impl Evaluator {
                 }
             }
 
-            Function(_, _, _, _, _) => {
+            Function(_, _, _, _, _, _) => {
                 // TODO:
                 // - store signature and implementation.
-                unimplemented!()
+                unimplemented!("Function definition")
             }
+
             Call(_, _, _, _) => {
                 // TODO:
                 // - load implementation and execute in its own scope.
                 // - map inputs and outputs.
-                todo!()}
+                unimplemented!("Call gate")
+            }
         }
         Ok(())
     }

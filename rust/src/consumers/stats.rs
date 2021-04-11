@@ -124,7 +124,7 @@ impl Stats {
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
 
-            Function(name, _, _, _, implementation) => {
+            Function(name, _, _, _, _, implementation) => {
                 self.functions_defined += 1;
                 let mut func_stats = Stats::default();
                 for gate in implementation {
@@ -171,7 +171,6 @@ impl Stats {
 #[test]
 fn test_stats() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use std::iter::FromIterator;
 
     let instance = example_instance();
     let witness = example_witness();

@@ -294,21 +294,21 @@ impl Validator {
                 }
             }
 
-            Function(_, _, _, _, _) => {
+            Function(_, _, _, _, _, _) => {
                 // TODO:
                 // - Validate the implementation in its own scope.
                 // - Record the signature.
-                unimplemented!()
+                unimplemented!("Function definition")
             }
 
-            Call(_, _, _, _) =>{
+            Call(_, _, _, _) => {
                 // TODO:
                 // - Check exists
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs, reserve locals.
                 // - consume witness.
-                 unimplemented!()
-                },
+                unimplemented!("Call gate")
+            }
         }
     }
 

@@ -1904,6 +1904,7 @@ impl<'a> Function<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args FunctionArgs<'args>) -> flatbuffers::WIPOffset<Function<'bldr>> {
       let mut builder = FunctionBuilder::new(_fbb);
+      builder.add_witness_count(args.witness_count);
       builder.add_local_count(args.local_count);
       builder.add_input_count(args.input_count);
       builder.add_output_count(args.output_count);
@@ -1916,7 +1917,8 @@ impl<'a> Function<'a> {
     pub const VT_OUTPUT_COUNT: flatbuffers::VOffsetT = 6;
     pub const VT_INPUT_COUNT: flatbuffers::VOffsetT = 8;
     pub const VT_LOCAL_COUNT: flatbuffers::VOffsetT = 10;
-    pub const VT_IMPLEMENTATION: flatbuffers::VOffsetT = 12;
+    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 12;
+    pub const VT_IMPLEMENTATION: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
@@ -1935,6 +1937,10 @@ impl<'a> Function<'a> {
     self._tab.get::<u64>(Function::VT_LOCAL_COUNT, Some(0)).unwrap()
   }
   #[inline]
+  pub fn witness_count(&self) -> u64 {
+    self._tab.get::<u64>(Function::VT_WITNESS_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
   pub fn implementation(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Function::VT_IMPLEMENTATION, None)
   }
@@ -1945,6 +1951,7 @@ pub struct FunctionArgs<'a> {
     pub output_count: u64,
     pub input_count: u64,
     pub local_count: u64,
+    pub witness_count: u64,
     pub implementation: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
@@ -1955,6 +1962,7 @@ impl<'a> Default for FunctionArgs<'a> {
             output_count: 0,
             input_count: 0,
             local_count: 0,
+            witness_count: 0,
             implementation: None,
         }
     }
@@ -1979,6 +1987,10 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
   #[inline]
   pub fn add_local_count(&mut self, local_count: u64) {
     self.fbb_.push_slot::<u64>(Function::VT_LOCAL_COUNT, local_count, 0);
+  }
+  #[inline]
+  pub fn add_witness_count(&mut self, witness_count: u64) {
+    self.fbb_.push_slot::<u64>(Function::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
   pub fn add_implementation(&mut self, implementation: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {

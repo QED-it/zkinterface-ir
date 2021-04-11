@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
+use super::wire::{build_wire, build_wires_vector, from_id, from_ids_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
@@ -39,8 +40,8 @@ pub enum Gate {
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
     /// Function Gate for generic custom gates
-    /// Function(name, output_count, input_count, local_count, implementation).
-    Function(String, usize, usize, usize, Vec<Gate>),
+    /// Function(name, output_count, input_count, local_count, witness count, implementation).
+    Function(String, usize, usize, usize, usize, Vec<Gate>),
     /// Call(name, output_wires, input_wires, first_local_wire)
     Call(String, Vec<WireId>, Vec<WireId>, WireId),
 }
@@ -158,7 +159,9 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
 
             gs::Function => {
                 let g_func = gen_gate.gate_as_function().unwrap();
-                let g_ref_impl = g_func.implementation().ok_or("Missing reference implementation")?;
+                let g_ref_impl = g_func
+                    .implementation()
+                    .ok_or("Missing reference implementation")?;
                 let ref_impl = Gate::try_from_vector(g_ref_impl)?;
 
                 Function(
@@ -166,11 +169,25 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     g_func.output_count() as usize,
                     g_func.input_count() as usize,
                     g_func.local_count() as usize,
+                    g_func.witness_count() as usize,
                     ref_impl,
                 )
             }
 
-            gs::Call => unimplemented!(),
+            gs::Call => {
+                let g_call = gen_gate.gate_as_call().unwrap();
+
+                Call(
+                    g_call.name().ok_or("Missing name")?.to_string(),
+                    from_ids_vector(g_call.output_wires().ok_or("Missing outputs")?),
+                    from_ids_vector(g_call.input_wires().ok_or("Missing inputs")?),
+                    from_id(
+                        g_call
+                            .first_local_wire()
+                            .ok_or("Missing first local wire")?,
+                    ),
+                )
+            }
         })
     }
 }
@@ -410,7 +427,14 @@ impl Gate {
                 )
             }
 
-            Function(name, output_count, input_count, local_count, implementation) => {
+            Function(
+                name,
+                output_count,
+                input_count,
+                local_count,
+                witness_count,
+                implementation,
+            ) => {
                 // NICE-TO-HAVE: reuse strings.
                 let g_name = builder.create_string(name);
 
@@ -423,6 +447,7 @@ impl Gate {
                         output_count: *output_count as u64,
                         input_count: *input_count as u64,
                         local_count: *local_count as u64,
+                        witness_count: *witness_count as u64,
                         implementation: Some(impl_gates),
                     },
                 );
@@ -436,7 +461,30 @@ impl Gate {
                 )
             }
 
-            Call(_, _, _, _) => unimplemented!(),
+            Call(name, outputs, inputs, first_local_id) => {
+                // NICE-TO-HAVE: reuse strings.
+                let g_name = builder.create_string(name);
+                let g_outputs = build_wires_vector(builder, outputs);
+                let g_inputs = build_wires_vector(builder, inputs);
+
+                let g_gate = g::Call::create(
+                    builder,
+                    &g::CallArgs {
+                        name: Some(g_name),
+                        output_wires: Some(g_outputs),
+                        input_wires: Some(g_inputs),
+                        first_local_wire: Some(&build_wire(*first_local_id)),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::Call,
+                        gate: Some(g_gate.as_union_value()),
+                    },
+                )
+            }
         }
     }
 
@@ -492,8 +540,8 @@ impl Gate {
             AssertZero(_) => None,
             Free(_, _) => None,
 
-            Function(_, _, _, _, _) => None,
-            Call(_, _, _, _) => unimplemented!(),
+            Function(_, _, _, _, _, _) => None,
+            Call(_, _, _, _) => unimplemented!("Call gate"),
         }
     }
 }

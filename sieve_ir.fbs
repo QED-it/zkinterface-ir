@@ -125,6 +125,7 @@ table Function {
     output_count    :uint64;
     input_count     :uint64;
     local_count     :uint64;
+    witness_count   :uint64;
     implementation  :[Gate];
 }
 
