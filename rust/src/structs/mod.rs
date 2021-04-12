@@ -19,14 +19,8 @@ pub mod messages;
 /// Gate is an enum that can represent all types of gates.
 pub mod gates;
 
-/// Assignment holds a value assigned to a wire.
-pub mod assignment;
+/// Value holds a value assigned to a wire.
+pub mod value;
 
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
-
-/// A Value is a field element encoded least-significant-byte-first (little-endian). Trailing zeros may be omitted.
-///
-/// Example: the element `one` on a 32 bits fields is encoded `[1, 0, 0, 0]`.
-/// The compact form `[1]` is also valid.
-pub type Value = Vec<u8>;

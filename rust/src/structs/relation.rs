@@ -61,9 +61,6 @@ impl Relation {
 
         let relation = g::Relation::create(builder, &g::RelationArgs {
             header,
-            num_wires: 0,
-            num_short_witness: 0,
-            num_common_inputs: 0,
             gates: Some(gates),
         });
 

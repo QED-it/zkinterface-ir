@@ -1,121 +1,167 @@
-use crate::Gate;
-use crate::structs::WireId;
-use crate::Gate::*;
+use std::mem::take;
 
-pub trait IBuilder {
-    fn free_id(&self) -> WireId;
+pub use super::build_gates::BuildGate;
+use super::build_gates::NO_OUTPUT;
+use crate::producers::sink::MemorySink;
+use crate::structs::value::Value;
+use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
-    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId;
+pub trait GateBuilderT {
+    /// Allocates a new wire id for the output and creates a new gate,
+    /// Returns the newly allocated WireId.
+    fn create_gate(&mut self, gate: BuildGate) -> WireId;
 }
 
-#[derive(Default)]
-pub struct Builder {
-    pub gates: Vec<Gate>,
+/// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
+/// Flush completed messages to a Sink.
+/// finish() must be called.
+struct MessageBuilder<S: Sink> {
+    sink: S,
+
+    instance: Instance,
+    witness: Witness,
+    relation: Relation,
+
+    /// Maximum number of gates or witness or instance values to hold at once.
+    /// Default 100,000 or ~12MB of memory.
+    /// Size estimation: 40 per witness + 40 per instance + 48 per gate = 128 bytes.
+    pub max_len: usize,
+}
+
+impl<S: Sink> MessageBuilder<S> {
+    fn new(sink: S, header: Header) -> Self {
+        Self {
+            sink,
+            instance: Instance {
+                header: header.clone(),
+                common_inputs: vec![],
+            },
+            witness: Witness {
+                header: header.clone(),
+                short_witness: vec![],
+            },
+            relation: Relation {
+                header: header.clone(),
+                gates: vec![],
+            },
+            max_len: 100 * 1000,
+        }
+    }
+
+    fn push_instance_value(&mut self, value: Value) {
+        self.instance.common_inputs.push(value);
+        if self.instance.common_inputs.len() == self.max_len {
+            self.flush_instance();
+        }
+    }
+
+    fn push_witness_value(&mut self, value: Value) {
+        self.witness.short_witness.push(value);
+        if self.witness.short_witness.len() == self.max_len {
+            self.flush_witness();
+        }
+    }
+
+    fn push_gate(&mut self, gate: Gate) {
+        self.relation.gates.push(gate);
+        if self.relation.gates.len() == self.max_len {
+            self.flush_relation();
+        }
+    }
+
+    fn flush_instance(&mut self) {
+        self.sink.push_instance_message(&self.instance).unwrap();
+        self.instance.common_inputs.clear();
+    }
+
+    fn flush_witness(&mut self) {
+        self.sink.push_witness_message(&self.witness).unwrap();
+        self.witness.short_witness.clear();
+    }
+
+    fn flush_relation(&mut self) {
+        self.sink.push_relation_message(&self.relation).unwrap();
+        self.relation.gates.clear();
+    }
+
+    fn finish(mut self) -> S {
+        if !self.instance.common_inputs.is_empty() {
+            self.flush_instance();
+        }
+        if !self.witness.short_witness.is_empty() {
+            self.flush_witness();
+        }
+        if !self.relation.gates.is_empty() {
+            self.flush_relation();
+        }
+        self.sink
+    }
+}
+
+/// GateBuilder allocates wire IDs, builds gates, and tracks instance and witness values.
+///
+/// # Example
+/// ```
+/// use zki_sieve::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*};
+/// use zki_sieve::producers::sink::MemorySink;
+/// use zki_sieve::Header;
+///
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
+///
+/// let my_id = b.create_gate(Constant(vec![0]));
+/// b.create_gate(AssertZero(my_id));
+/// ```
+pub struct GateBuilder<S: Sink> {
+    msg_build: MessageBuilder<S>,
+
     free_id: WireId,
 }
 
-impl IBuilder for Builder {
-    fn free_id(&self) -> WireId {
-        self.free_id
-    }
+impl<S: Sink> GateBuilderT for GateBuilder<S> {
+    fn create_gate(&mut self, mut gate: BuildGate) -> WireId {
+        let out_id = if gate.has_output() {
+            self.alloc()
+        } else {
+            NO_OUTPUT
+        };
 
-
-    /// Allocates a new wire id for the output and creates a new gate,
-    /// Returns the newly allocated WireId
-    /// The new gate must be provided with output_id == zero.
-    ///
-    /// # Panics
-    ///
-    /// output id for the gate is not zero.
-    ///
-    /// # Examples
-    ///
-    /// a simple example
-    /// ```
-    ///
-    ///
-    /// use zki_sieve::structs::gates::Gate::Constant;
-    /// use zki_sieve::producers::builder::Builder;
-    /// use zki_sieve::producers::builder::IBuilder;
-    ///
-    /// let free_variable_id = 5;
-    /// let mut b = Builder::new(free_variable_id);
-    ///
-    /// let new_id = b.create_gate(Constant(0,vec![1]));
-    ///
-    /// ```
-    /// an example for a gate without output_id
-    /// ```
-    ///
-    /// use zki_sieve::structs::gates::Gate::AssertZero;
-    /// use zki_sieve::producers::builder::Builder;
-    /// use zki_sieve::producers::builder::IBuilder;
-    ///
-    /// let free_variable_id = 5;
-    /// let mut b = Builder::new(free_variable_id);
-    ///
-    /// let new_id = b.create_gate(AssertZero(5));
-    ///
-    /// ```
-    fn create_gate(&mut self, non_allocated_gate: Gate) -> WireId {
-        if non_allocated_gate.get_output_wire_id().is_none() {
-            self.push_gate(non_allocated_gate);
-            return 0;
+        match gate {
+            BuildGate::Instance(ref mut value) => {
+                self.msg_build.push_instance_value(take(value));
+            }
+            BuildGate::Witness(Some(ref mut value)) => {
+                self.msg_build.push_witness_value(take(value));
+            }
+            _ => {}
         }
-        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire id should be zero for the new gate");
-        let new_id = self.alloc();
-        self.push_gate_with_output(&non_allocated_gate, new_id);
-        new_id
+
+        self.msg_build.push_gate(gate.with_output(out_id));
+
+        out_id
     }
 }
 
-impl Builder {
-    /// new a new builder
-
-    pub fn new(free_id: u64) -> Builder {
-        Builder {
-            gates: Vec::<Gate>::new(),
-            free_id
+impl<S: Sink> GateBuilder<S> {
+    /// new creates a new builder.
+    pub fn new(sink: S, header: Header) -> Self {
+        GateBuilder {
+            msg_build: MessageBuilder::new(sink, header),
+            free_id: 0,
         }
     }
 
-    /// alloc allocates a new wire id
-
+    /// alloc allocates a new wire ID.
     fn alloc(&mut self) -> WireId {
         let id = self.free_id;
         self.free_id += 1;
         id
     }
 
-    /// push_gate pushes a gate to the gates array, the gate's input and output wires must be pre-allocated
-
-    fn push_gate(&mut self, allocated_gate: Gate) {
-        self.gates.push(allocated_gate);
-    }
-
-    /// create_gate_with_output ataches the specified wire_id as an output to the gate and pushed
-    /// it into the gates array
-    ///
-    /// # Panics
-    ///
-    /// output id for the given gate is not zero.
-
-    fn push_gate_with_output(&mut self, non_allocated_gate: &Gate, output_id: WireId) {
-        assert_eq!(non_allocated_gate.get_output_wire_id().unwrap(), 0, "output wire must be 0 for a non allocated gate");
-
-        match non_allocated_gate {
-            Constant(_, v) => self.push_gate(Constant(output_id, v.clone())),
-            Copy(_, w) => self.push_gate(Copy(output_id, w.clone())),
-            Add(_, w1, w2) => self.push_gate(Add(output_id, w1.clone(), w2.clone())),
-            Mul(_, w1, w2) => self.push_gate(Mul(output_id, w1.clone(), w2.clone())),
-            AddConstant(_, w, v) => self.push_gate(AddConstant(output_id, w.clone(), v.clone())),
-            MulConstant(_, w, v) => self.push_gate(MulConstant(output_id, w.clone(), v.clone())),
-            And(_, w1, w2) => self.push_gate(And(output_id, w1.clone(), w2.clone())),
-            Xor(_, w1, w2) => self.push_gate(Xor(output_id, w1.clone(), w2.clone())),
-            Not(_, w) => self.push_gate(Not(output_id, w.clone())),
-
-            AssertZero(_) => panic!("AssertZero has no output gate"),
-        }
+    pub fn finish(self) -> S {
+        self.msg_build.finish()
     }
 }
 
+pub fn new_example_builder() -> GateBuilder<MemorySink> {
+    GateBuilder::new(MemorySink::default(), Header::default())
+}

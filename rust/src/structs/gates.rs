@@ -1,13 +1,12 @@
-use std::error::Error;
-use std::convert::TryFrom;
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use std::error::Error;
 
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
-use super::{WireId, Value};
-
+use crate::{Value, WireId};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum Gate {
@@ -31,6 +30,14 @@ pub enum Gate {
     Xor(WireId, WireId, WireId),
     /// Not(output, input)
     Not(WireId, WireId),
+    /// Instance(output)
+    Instance(WireId),
+    /// Witness(output)
+    Witness(WireId),
+    /// Free(first, last)
+    /// If the option is not given, then only the first wire is freed, otherwise all wires between
+    /// the first and the last INCLUSIVE are freed.
+    Free(WireId, Option<WireId>),
 }
 
 use Gate::*;
@@ -47,20 +54,21 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 let gate = gen_gate.gate_as_gate_constant().unwrap();
                 Constant(
                     gate.output().ok_or("Missing output")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?))
+                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                )
             }
 
             gs::GateAssertZero => {
                 let gate = gen_gate.gate_as_gate_assert_zero().unwrap();
-                AssertZero(
-                    gate.input().ok_or("Missing input")?.id())
+                AssertZero(gate.input().ok_or("Missing input")?.id())
             }
 
             gs::GateCopy => {
                 let gate = gen_gate.gate_as_gate_copy().unwrap();
                 Copy(
                     gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id())
+                    gate.input().ok_or("Missing input")?.id(),
+                )
             }
 
             gs::GateAdd => {
@@ -68,7 +76,8 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Add(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id())
+                    gate.right().ok_or("Missing right input")?.id(),
+                )
             }
 
             gs::GateMul => {
@@ -76,7 +85,8 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Mul(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id())
+                    gate.right().ok_or("Missing right input")?.id(),
+                )
             }
 
             gs::GateAddConstant => {
@@ -84,7 +94,8 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 AddConstant(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?))
+                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                )
             }
 
             gs::GateMulConstant => {
@@ -92,7 +103,8 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 MulConstant(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?))
+                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                )
             }
 
             gs::GateAnd => {
@@ -100,7 +112,8 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 And(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id())
+                    gate.right().ok_or("Missing right input")?.id(),
+                )
             }
 
             gs::GateXor => {
@@ -108,14 +121,34 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Xor(
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id())
+                    gate.right().ok_or("Missing right input")?.id(),
+                )
             }
 
             gs::GateNot => {
                 let gate = gen_gate.gate_as_gate_not().unwrap();
                 Not(
                     gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id())
+                    gate.input().ok_or("Missing input")?.id(),
+                )
+            }
+
+            gs::GateInstance => {
+                let gate = gen_gate.gate_as_gate_instance().unwrap();
+                Instance(gate.output().ok_or("Missing output")?.id())
+            }
+
+            gs::GateWitness => {
+                let gate = gen_gate.gate_as_gate_witness().unwrap();
+                Witness(gate.output().ok_or("Missing output")?.id())
+            }
+
+            gs::GateFree => {
+                let gate = gen_gate.gate_as_gate_free().unwrap();
+                Free(
+                    gate.first().ok_or("Missing first wire")?.id(),
+                    gate.last().map(|id| id.id()),
+                )
             }
         })
     }
@@ -126,125 +159,234 @@ impl Gate {
     pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         &'args self,
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Gate<'bldr>>
-    {
+    ) -> WIPOffset<g::Gate<'bldr>> {
         match self {
             Constant(output, constant) => {
                 let constant = builder.create_vector(constant);
-                let gate = g::GateConstant::create(builder, &g::GateConstantArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    constant: Some(constant),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateConstant,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateConstant::create(
+                    builder,
+                    &g::GateConstantArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        constant: Some(constant),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateConstant,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             AssertZero(input) => {
-                let gate = g::GateAssertZero::create(builder, &g::GateAssertZeroArgs {
-                    input: Some(&g::Wire::new(*input)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateAssertZero,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateAssertZero::create(
+                    builder,
+                    &g::GateAssertZeroArgs {
+                        input: Some(&g::Wire::new(*input)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateAssertZero,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             Copy(output, input) => {
-                let gate = g::GateCopy::create(builder, &g::GateCopyArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    input: Some(&g::Wire::new(*input)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateCopy,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateCopy::create(
+                    builder,
+                    &g::GateCopyArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        input: Some(&g::Wire::new(*input)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateCopy,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             Add(output, left, right) => {
-                let gate = g::GateAdd::create(builder, &g::GateAddArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    left: Some(&g::Wire::new(*left)),
-                    right: Some(&g::Wire::new(*right)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateAdd,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateAdd::create(
+                    builder,
+                    &g::GateAddArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        left: Some(&g::Wire::new(*left)),
+                        right: Some(&g::Wire::new(*right)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateAdd,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             Mul(output, left, right) => {
-                let gate = g::GateMul::create(builder, &g::GateMulArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    left: Some(&g::Wire::new(*left)),
-                    right: Some(&g::Wire::new(*right)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateMul,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateMul::create(
+                    builder,
+                    &g::GateMulArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        left: Some(&g::Wire::new(*left)),
+                        right: Some(&g::Wire::new(*right)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateMul,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             AddConstant(output, input, constant) => {
                 let constant = builder.create_vector(constant);
-                let gate = g::GateAddConstant::create(builder, &g::GateAddConstantArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    input: Some(&g::Wire::new(*input)),
-                    constant: Some(constant),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateAddConstant,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateAddConstant::create(
+                    builder,
+                    &g::GateAddConstantArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        input: Some(&g::Wire::new(*input)),
+                        constant: Some(constant),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateAddConstant,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             MulConstant(output, input, constant) => {
                 let constant = builder.create_vector(constant);
-                let gate = g::GateMulConstant::create(builder, &g::GateMulConstantArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    input: Some(&g::Wire::new(*input)),
-                    constant: Some(constant),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateMulConstant,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateMulConstant::create(
+                    builder,
+                    &g::GateMulConstantArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        input: Some(&g::Wire::new(*input)),
+                        constant: Some(constant),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateMulConstant,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             And(output, left, right) => {
-                let gate = g::GateAnd::create(builder, &g::GateAndArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    left: Some(&g::Wire::new(*left)),
-                    right: Some(&g::Wire::new(*right)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateAnd,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateAnd::create(
+                    builder,
+                    &g::GateAndArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        left: Some(&g::Wire::new(*left)),
+                        right: Some(&g::Wire::new(*right)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateAnd,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             Xor(output, left, right) => {
-                let gate = g::GateXor::create(builder, &g::GateXorArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    left: Some(&g::Wire::new(*left)),
-                    right: Some(&g::Wire::new(*right)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateXor,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateXor::create(
+                    builder,
+                    &g::GateXorArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        left: Some(&g::Wire::new(*left)),
+                        right: Some(&g::Wire::new(*right)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateXor,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
 
             Not(output, input) => {
-                let gate = g::GateNot::create(builder, &g::GateNotArgs {
-                    output: Some(&g::Wire::new(*output)),
-                    input: Some(&g::Wire::new(*input)),
-                });
-                g::Gate::create(builder, &g::GateArgs {
-                    gate_type: gs::GateNot,
-                    gate: Some(gate.as_union_value()),
-                })
+                let gate = g::GateNot::create(
+                    builder,
+                    &g::GateNotArgs {
+                        output: Some(&g::Wire::new(*output)),
+                        input: Some(&g::Wire::new(*input)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateNot,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+            Instance(output) => {
+                let gate = g::GateInstance::create(
+                    builder,
+                    &g::GateInstanceArgs {
+                        output: Some(&g::Wire::new(*output)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateInstance,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+            Witness(output) => {
+                let gate = g::GateWitness::create(
+                    builder,
+                    &g::GateWitnessArgs {
+                        output: Some(&g::Wire::new(*output)),
+                    },
+                );
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateWitness,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+            Free(first, last) => {
+                let gate = g::GateFree::create(
+                    builder,
+                    &g::GateFreeArgs {
+                        first: Some(&g::Wire::new(*first)),
+                        last: last.map(|id| g::Wire::new(id)).as_ref(),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateFree,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
             }
         }
     }
@@ -273,8 +415,11 @@ impl Gate {
             And(w, _, _) => Some(w),
             Xor(w, _, _) => Some(w),
             Not(w, _) => Some(w),
+            Instance(w) => Some(w),
+            Witness(w) => Some(w),
 
-            AssertZero(_) => None
+            AssertZero(_) => None,
+            Free(_, _) => None,
         }
     }
 }
