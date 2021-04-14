@@ -21,7 +21,7 @@ pub enum BuildGate {
     Free(WireId, Option<WireId>),
 }
 
-pub(crate) const NO_OUTPUT: WireId = WireId::MAX;
+pub const NO_OUTPUT: WireId = WireId::MAX;
 
 use std::hash::Hash;
 use BuildGate::*;
