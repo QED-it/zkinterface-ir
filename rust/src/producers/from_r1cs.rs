@@ -30,7 +30,7 @@ pub fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
     }
 }
 
-pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>, bool) {
+pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> Vec<Assignment> {
     let variable_ids_len = vars.variable_ids.len();
     let values_len = vars.get_variables().len();
     assert_eq!(
@@ -40,22 +40,20 @@ pub fn zki_variables_to_vec_assignment(vars: &zkiVariables) -> (Vec<Assignment>,
     );
 
     if variable_ids_len == 0 && values_len == 0 {
-        return (vec![], false);
+        return vec![];
     }
 
-    let mut has_constant = false;
     let mut vec: Vec<Assignment> = Vec::new();
     for var in vars.get_variables().iter() {
         if var.id == 0 {
             assert!(BigUint::from_bytes_le(var.value).is_one(), "value for instance id:0 should be a constant 1");
-            has_constant = true;
         }
         vec.push(Assignment {
             id: var.id,
             value: var.value.to_vec(),
         });
     }
-    (vec, has_constant)
+    vec
 }
 
 fn add_lc(b: &mut impl IBuilder, lc: &Vec<zkiVariable>) -> WireId {
@@ -90,17 +88,10 @@ pub fn to_ir(
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let (mut instance_assignment, has_constant) = zki_variables_to_vec_assignment(&zki_header.instance_variables);
-    if !has_constant {
-        // prepend the constant 1 as instance id:0
-        instance_assignment.splice(
-            0..0,
-            vec![Assignment {
-                id: 0,
-                value: vec![1], //todo: is it good or size should be same as the other instance_variables?
-            }],
-        );
-    }
+    let instance_assignment = zki_variables_to_vec_assignment(&zki_header.instance_variables);
+
+    // to_ir converts all uses of id:0 to Constant(value) gates.
+    // So, no need to include it as a variable.
 
     let i = Instance {
         header: header.as_ref().unwrap().clone(),
@@ -142,7 +133,7 @@ pub fn to_witness(
     let header = zki_header_to_header(zki_header);
     assert!(header.is_ok());
 
-    let (witness, _) = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
+    let witness = zki_variables_to_vec_assignment(&zki_witness.assigned_variables);
 
     Witness {
         header: header.unwrap(),
@@ -171,11 +162,10 @@ fn test_r1cs_to_gates() -> Result<()> {
     assert_header(&witness.header);
 
     // check instance
-    assert_eq!(instance.common_inputs.len(), 4);
-    assert_assignment(&instance.common_inputs[0],0,1);
-    assert_assignment(&instance.common_inputs[1],1,3);
-    assert_assignment(&instance.common_inputs[2],2,4);
-    assert_assignment(&instance.common_inputs[3],3,25);
+    assert_eq!(instance.common_inputs.len(), 3);
+    assert_assignment(&instance.common_inputs[0],1,3);
+    assert_assignment(&instance.common_inputs[1],2,4);
+    assert_assignment(&instance.common_inputs[2],3,25);
 
     // check witness
     assert_eq!(witness.short_witness.len(), 2);

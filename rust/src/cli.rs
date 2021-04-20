@@ -3,7 +3,7 @@ extern crate serde_json;
 
 use std::io::{stdout, copy};
 use std::path::{Path, PathBuf};
-use std::fs::File;
+use std::fs::{File, create_dir_all};
 use structopt::StructOpt;
 
 use crate::{Messages, Result, Source};
@@ -26,6 +26,7 @@ Print a statement in different forms:
     zki to-text workspace
     zki to-json workspace
     zki to-yaml workspace
+    zki to-r1cs workspace
 
 Validate and evaluate a proving system:
     zki valid-eval-metrics workspace
@@ -52,6 +53,8 @@ pub struct Options {
     /// to-json       Convert to JSON on a single line.
     ///
     /// to-yaml       Convert to YAML.
+    ///
+    /// to-r1cs       Convert to zkInterface R1CS format.
     ///
     /// validate      Validate the format and semantics of a statement, as seen by a verifier.
     ///
@@ -82,6 +85,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "to-yaml" => main_yaml(&load_messages(options)?),
+        "to-r1cs" => main_to_r1cs(options),
         "validate" => main_validate(&stream_messages(options)?),
         "evaluate" => main_evaluate(&stream_messages(options)?),
         "metrics" => main_metrics(&stream_messages(options)?),
@@ -227,6 +231,62 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     res1?;
     res2?;
     res3?;
+    Ok(())
+}
+
+// Convert to R1CS zkinterface format.
+// Expects one instance, witness, and relation only.
+fn main_to_r1cs(opts: &Options) -> Result<()> {
+    use crate::producers::to_r1cs::to_r1cs;
+
+    let mut source = Source::from_directory(&std::env::current_dir()?)?;
+    source.print_filenames = true;
+    let messages = source.read_all_messages()?;
+
+    assert_eq!(messages.instances.len(), 1);
+    assert_eq!(messages.relations.len(), 1);
+    assert_eq!(messages.witnesses.len(), 1);
+
+    let instance = &messages.instances[0];
+    let relation = &messages.relations[0];
+    let witness = &messages.witnesses[0];
+
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, relation, witness);
+
+    zki_header.write_into(&mut stdout())?;
+    zki_r1cs.write_into(&mut stdout())?;
+    zki_witness.write_into(&mut stdout())?;
+
+    if opts.paths.len() != 1 {
+        return Err("Specify a single directory to write r1cs into.".into());
+    }
+    let out_dir = &opts.paths[0];
+
+    if out_dir == Path::new("-") {
+        zki_header.write_into(&mut stdout())?;
+        zki_witness.write_into(&mut stdout())?;
+        zki_r1cs.write_into(&mut stdout())?;
+    } else if zkinterface::consumers::workspace::has_zkif_extension(out_dir) {
+        let mut file = File::create(out_dir)?;
+        zki_header.write_into(&mut file)?;
+        zki_witness.write_into(&mut file)?;
+        zki_r1cs.write_into(&mut file)?;
+    } else {
+        create_dir_all(out_dir)?;
+
+        let path = out_dir.join("header.zkif");
+        zki_header.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("witness.zkif");
+        zki_witness.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("constraints.zkif");
+        zki_r1cs.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+    }
+    
     Ok(())
 }
 
