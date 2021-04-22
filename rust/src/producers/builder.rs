@@ -5,11 +5,12 @@ use super::build_gates::NO_OUTPUT;
 use crate::producers::sink::MemorySink;
 use crate::structs::value::Value;
 use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
+use std::cell::{RefCell, Cell};
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
     /// Returns the newly allocated WireId.
-    fn create_gate(&mut self, gate: BuildGate) -> WireId;
+    fn create_gate(&self, gate: BuildGate) -> WireId;
 }
 
 /// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
@@ -112,13 +113,13 @@ impl<S: Sink> MessageBuilder<S> {
 /// b.create_gate(AssertZero(my_id));
 /// ```
 pub struct GateBuilder<S: Sink> {
-    msg_build: MessageBuilder<S>,
+    msg_build: RefCell<MessageBuilder<S>>,
 
-    free_id: WireId,
+    free_id: Cell<WireId>,
 }
 
 impl<S: Sink> GateBuilderT for GateBuilder<S> {
-    fn create_gate(&mut self, mut gate: BuildGate) -> WireId {
+    fn create_gate(&self, mut gate: BuildGate) -> WireId {
         let out_id = if gate.has_output() {
             self.alloc()
         } else {
@@ -127,15 +128,15 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
         match gate {
             BuildGate::Instance(ref mut value) => {
-                self.msg_build.push_instance_value(take(value));
+                self.msg_build.borrow_mut().push_instance_value(take(value));
             }
             BuildGate::Witness(Some(ref mut value)) => {
-                self.msg_build.push_witness_value(take(value));
+                self.msg_build.borrow_mut().push_witness_value(take(value));
             }
             _ => {}
         }
 
-        self.msg_build.push_gate(gate.with_output(out_id));
+        self.msg_build.borrow_mut().push_gate(gate.with_output(out_id));
 
         out_id
     }
@@ -145,20 +146,20 @@ impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
     pub fn new(sink: S, header: Header) -> Self {
         GateBuilder {
-            msg_build: MessageBuilder::new(sink, header),
-            free_id: 0,
+            msg_build: RefCell::new(MessageBuilder::new(sink, header)),
+            free_id: Cell::new(0),
         }
     }
 
     /// alloc allocates a new wire ID.
-    fn alloc(&mut self) -> WireId {
-        let id = self.free_id;
-        self.free_id += 1;
+    fn alloc(&self) -> WireId {
+        let id = self.free_id.take();
+        self.free_id.set(id + 1);
         id
     }
 
     pub fn finish(self) -> S {
-        self.msg_build.finish()
+        self.msg_build.into_inner().finish()
     }
 }
 
