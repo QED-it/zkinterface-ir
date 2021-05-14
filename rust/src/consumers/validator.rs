@@ -80,7 +80,7 @@ impl Validator {
         self.ensure_all_instance_values_consumed();
         self.ensure_all_witness_values_consumed();
         if self.live_wires.len() != 0 {
-            println!("{}", format!("WARNING: {} variables were not freed.", self.live_wires.len()));
+            println!("{}", format!("WARNING: these variables were not freed: {:?}.", self.live_wires.into_iter().nth(10)));
         }
         self.violations
     }

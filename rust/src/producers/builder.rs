@@ -128,10 +128,10 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
         match gate {
             BuildGate::Instance(ref mut value) => {
-                self.msg_build.borrow_mut().push_instance_value(take(value));
+                self.push_instance_value(take(value));
             }
             BuildGate::Witness(Some(ref mut value)) => {
-                self.msg_build.borrow_mut().push_witness_value(take(value));
+                self.push_witness_value(take(value));
             }
             _ => {}
         }
@@ -156,6 +156,14 @@ impl<S: Sink> GateBuilder<S> {
         let id = self.free_id.take();
         self.free_id.set(id + 1);
         id
+    }
+
+    pub(crate) fn push_witness_value(&self, val: Value) {
+        self.msg_build.borrow_mut().push_witness_value(val);
+    }
+
+    pub(crate) fn push_instance_value(&self, val: Value) {
+        self.msg_build.borrow_mut().push_instance_value(val);
     }
 
     pub fn finish(self) -> S {
