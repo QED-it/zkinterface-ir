@@ -14,6 +14,7 @@ use crate::consumers::{
     stats::Stats,
     validator::Validator,
 };
+use crate::producers::from_r1cs::R1CSConverter;
 use crate::{Messages, Result, Source};
 
 const ABOUT: &str = "
@@ -61,6 +62,8 @@ pub struct Options {
     ///
     /// valid-eval-metrics    Combined validate, evaluate, and metrics.
     ///
+    /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -94,6 +97,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "evaluate" => main_evaluate(&stream_messages(options)?),
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
+        "zkif-to-ir" => main_zkif_to_ir(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -251,6 +255,45 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     res1?;
     res2?;
     res3?;
+    Ok(())
+}
+
+fn main_zkif_to_ir(opts: &Options) -> Result<()> {
+    use zkinterface::Workspace;
+    use zkinterface::consumers::validator::Validator;
+
+    use crate::FilesSink;
+
+    // Load and validate zkinterface input
+    let workspace = Workspace::from_dirs_and_files(&opts.paths)?;
+    let mut validator = Validator::new_as_verifier();
+    for msg in workspace.iter_messages() {
+        validator.ingest_message(&msg);
+    }
+    print_violations(
+        &validator.get_violations(),
+        "COMPLIANT with the zkinterface specification"
+    )?;
+
+    // Convert to SIEVE IR
+    let zkif_msgs = workspace.read_all_messages();
+    let zkif_headers = zkif_msgs.circuit_headers;
+    let zkif_constraints = zkif_msgs.constraint_systems;
+    let zkif_witnesses = zkif_msgs.witnesses;
+    assert_eq!(zkif_headers.len(), 1);
+
+    let mut converter = R1CSConverter::new(
+        FilesSink::new_clean(&PathBuf::from(".")).unwrap(), 
+        &zkif_headers[0]
+    );
+    for zkif_witness in zkif_witnesses {
+        converter.ingest_witness(&zkif_witness)?;   
+    }
+    for zkif_constraint in zkif_constraints {
+        converter.ingest_constraints(&zkif_constraint)?;
+    }
+    converter.finish();
+
     Ok(())
 }
 
