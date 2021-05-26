@@ -2,23 +2,13 @@ use crate::{Gate, Header, Instance, Message, Relation, Witness};
 
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use regex::Regex;
 use std::cmp::Ordering;
 
 type Var = u64;
 type Field = BigUint;
-
-#[derive(Copy, Clone, PartialEq)]
-enum Status {
-    Undefined,
-    Defined,
-    Used,
-    Freed,
-}
-
-use Status::*;
 
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
 const IMPLEMENTED_CHECKS: &str = r"
@@ -56,7 +46,7 @@ pub struct Validator {
 
     instance_queue_len: usize,
     witness_queue_len: usize,
-    wire_statuses: HashMap<Var, Status>,
+    live_wires: HashSet<Var>,
 
     got_header: bool,
     header_profile: String,
@@ -87,9 +77,11 @@ impl Validator {
     }
 
     pub fn get_violations(mut self) -> Vec<String> {
-        // self._ensure_all_variables_used();
         self.ensure_all_instance_values_consumed();
         self.ensure_all_witness_values_consumed();
+        if self.live_wires.len() != 0 {
+            println!("{}", format!("WARNING: these variables were not freed: {:?}.", self.live_wires.into_iter().nth(10)));
+        }
         self.violations
     }
 
@@ -265,7 +257,7 @@ impl Validator {
             }
 
             Instance(out) => {
-                self.declare(*out, || format!("instance wire {}", out));
+                self.declare(*out);
                 // Consume value.
                 if self.instance_queue_len > 0 {
                     self.instance_queue_len -= 1;
@@ -275,7 +267,7 @@ impl Validator {
             }
 
             Witness(out) => {
-                self.declare(*out, || format!("witness wire {}", out));
+                self.declare(*out);
                 // Consume value.
                 if self.as_prover {
                     if self.witness_queue_len > 0 {
@@ -290,53 +282,51 @@ impl Validator {
                 // all wires between first and last INCLUSIVE
                 for wire_id in *first..=last.unwrap_or(*first) {
                     self.ensure_defined_and_set(wire_id);
-                    self.set_status(wire_id, Freed);
+                    self.remove(wire_id);
                 }
             }
         }
     }
 
-    fn status(&mut self, id: Var) -> Status {
-        *self.wire_statuses.entry(id).or_insert(Undefined)
+    fn is_defined(&self, id: Var) -> bool {
+        self.live_wires.contains(&id)
     }
 
-    fn set_status(&mut self, id: Var, status: Status) {
-        self.wire_statuses.insert(id, status);
+    fn declare(&mut self, id: Var) {
+        self.live_wires.insert(id);
     }
 
-    fn declare(&mut self, id: Var, name: impl Fn() -> String) {
-        if self.status(id) != Undefined {
-            self.violate(format!("Multiple declaration of the {}", name()));
+    fn remove(&mut self, id: Var) {
+        if !self.live_wires.remove(&id) {
+            self.violate(format!("The variable {} is being freed, but was not defined previously, or has been already freed", id));
         }
-        self.set_status(id, Defined);
     }
 
     fn ensure_defined_and_set(&mut self, id: Var) {
-        if (self.status(id) == Undefined) && (self.as_prover) {
-            // because instance variable SHOULD be defined, even if self.as_prover == false.
-            self.violate(format!(
-                "The wire {} is used but was not assigned a value",
-                id
-            ));
+        if !self.is_defined(id) {
+            if self.as_prover {
+                // in this case, this is a violation, since all variables must have been defined
+                // previously
+                self.violate(format!(
+                    "The wire {} is used but was not assigned a value, or has been freed already.",
+                    id
+                ));
+            }
+            // this line is useful to avoid having many times the same message if the validator already
+            // detected that this wire was not previously initialized.
+            self.declare(id);
         }
-        if self.status(id) == Freed {
-            self.violate(format!(
-                "The variable_{} has been freed already, and cannot be used anymore.",
-                id
-            ));
-        }
-        self.set_status(id, Used);
     }
 
     fn ensure_undefined_and_set(&mut self, id: Var) {
-        if self.status(id) != Undefined {
+        if self.is_defined(id) {
             self.violate(format!(
-                "The wire {} has already been assigned a value.",
+                "The wire {} has already been initialized before. This violates the SSA property.",
                 id
             ));
         }
-
-        self.set_status(id, Used);
+        // define it.
+        self.declare(id);
     }
 
     fn ensure_value_in_field(&mut self, value: &[u8], name: impl Fn() -> String) {
@@ -374,21 +364,6 @@ impl Validator {
         }
     }
 
-    fn _ensure_all_variables_used(&mut self) {
-        for (id, status) in self.wire_statuses.iter() {
-            match *status {
-                Undefined => self
-                    .violations
-                    .push(format!("variable_{} was accessed but not defined.", id)),
-                Defined => self
-                    .violations
-                    .push(format!("variable_{} was defined but not used.", id)),
-                Used => { /* ok */ }
-                Freed => { /* ok */ }
-            }
-        }
-    }
-
     fn ensure_all_instance_values_consumed(&mut self) {
         if self.instance_queue_len > 0 {
             self.violate(format!(
@@ -409,6 +384,7 @@ impl Validator {
 
     fn violate(&mut self, msg: impl Into<String>) {
         self.violations.push(msg.into());
+        // println!("{}", msg.into());
     }
 }
 
@@ -481,9 +457,9 @@ fn test_validator_free_violations() -> crate::Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The variable_1 has been freed already, and cannot be used anymore.",
-            "The variable_2 has been freed already, and cannot be used anymore.",
-            "The variable_4 has been freed already, and cannot be used anymore."
+            "The wire 1 is used but was not assigned a value, or has been freed already.",
+            "The wire 2 is used but was not assigned a value, or has been freed already.",
+            "The wire 4 is used but was not assigned a value, or has been freed already.",
         ]
     );
 
