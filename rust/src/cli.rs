@@ -259,38 +259,49 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
 }
 
 fn main_zkif_to_ir(opts: &Options) -> Result<()> {
-    use zkinterface::Workspace;
+    use zkinterface::{Workspace, Message};
     use zkinterface::consumers::validator::Validator;
 
     use crate::FilesSink;
 
     // Load and validate zkinterface input
     let workspace = Workspace::from_dirs_and_files(&opts.paths)?;
-    let mut validator = Validator::new_as_verifier();
-    for msg in workspace.iter_messages() {
-        validator.ingest_message(&msg);
+    {
+        // enclosed in bracket to free the potential memory hold by the ZKIF validator.
+        let mut validator = Validator::new_as_verifier();
+        for msg in workspace.iter_messages() {
+            validator.ingest_message(&msg);
+        }
+        print_violations(
+            &validator.get_violations(),
+            "COMPLIANT with the zkinterface specification"
+        )?;
     }
-    print_violations(
-        &validator.get_violations(),
-        "COMPLIANT with the zkinterface specification"
-    )?;
 
     // Convert to SIEVE IR
-    let zkif_msgs = workspace.read_all_messages();
-    let zkif_headers = zkif_msgs.circuit_headers;
-    let zkif_constraints = zkif_msgs.constraint_systems;
-    let zkif_witnesses = zkif_msgs.witnesses;
-    assert_eq!(zkif_headers.len(), 1);
 
+    // get the first header in the workspace
+    // NB: the successful call to the validator above states that a header exist (and if many, are coherent)
+    //     so unwrapping is safe.
+    let zki_header = workspace
+        .iter_messages()
+        .find_map(|mess| match mess {
+            Message::Header(head) => Some(head),
+            _ => None,
+        }).ok_or("Header not present in ZKIF workspace.")?;
+
+    // instantiate the converter
     let mut converter = R1CSConverter::new(
         FilesSink::new_clean(&PathBuf::from(".")).unwrap(), 
-        &zkif_headers[0]
+        &zki_header
     );
-    for zkif_witness in zkif_witnesses {
-        converter.ingest_witness(&zkif_witness)?;   
-    }
-    for zkif_constraint in zkif_constraints {
-        converter.ingest_constraints(&zkif_constraint)?;
+    // Ingest all non-header messages
+    for message in workspace.iter_messages() {
+        match message {
+            Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+            Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
+            _ => {}
+        }
     }
     converter.finish();
 
