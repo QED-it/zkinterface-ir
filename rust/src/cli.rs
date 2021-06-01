@@ -14,6 +14,7 @@ use crate::consumers::{
     stats::Stats,
     validator::Validator,
 };
+use crate::producers::from_r1cs::R1CSConverter;
 use crate::{Messages, Result, Source};
 
 const ABOUT: &str = "
@@ -61,6 +62,8 @@ pub struct Options {
     ///
     /// valid-eval-metrics    Combined validate, evaluate, and metrics.
     ///
+    /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -94,6 +97,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "evaluate" => main_evaluate(&stream_messages(options)?),
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
+        "zkif-to-ir" => main_zkif_to_ir(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -251,6 +255,56 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     res1?;
     res2?;
     res3?;
+    Ok(())
+}
+
+fn main_zkif_to_ir(opts: &Options) -> Result<()> {
+    use zkinterface::{Workspace, Message};
+    use zkinterface::consumers::validator::Validator;
+
+    use crate::FilesSink;
+
+    // Load and validate zkinterface input
+    let workspace = Workspace::from_dirs_and_files(&opts.paths)?;
+    {
+        // enclosed in bracket to free the potential memory hold by the ZKIF validator.
+        let mut validator = Validator::new_as_verifier();
+        for msg in workspace.iter_messages() {
+            validator.ingest_message(&msg);
+        }
+        print_violations(
+            &validator.get_violations(),
+            "COMPLIANT with the zkinterface specification"
+        )?;
+    }
+
+    // Convert to SIEVE IR
+
+    // get the first header in the workspace
+    // NB: the successful call to the validator above states that a header exist (and if many, are coherent)
+    //     so unwrapping is safe.
+    let zki_header = workspace
+        .iter_messages()
+        .find_map(|mess| match mess {
+            Message::Header(head) => Some(head),
+            _ => None,
+        }).ok_or("Header not present in ZKIF workspace.")?;
+
+    // instantiate the converter
+    let mut converter = R1CSConverter::new(
+        FilesSink::new_clean(&PathBuf::from(".")).unwrap(), 
+        &zki_header
+    );
+    // Ingest all non-header messages
+    for message in workspace.iter_messages() {
+        match message {
+            Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+            Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
+            _ => {}
+        }
+    }
+    converter.finish();
+
     Ok(())
 }
 
