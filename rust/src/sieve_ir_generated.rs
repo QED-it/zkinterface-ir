@@ -103,12 +103,13 @@ pub enum GateSet {
   GateWitness = 12,
   GateFree = 13,
   Function = 14,
-  Call = 15,
+  GateCall = 15,
+  GateAnonCall = 16,
 
 }
 
 pub const ENUM_MIN_GATE_SET: u8 = 0;
-pub const ENUM_MAX_GATE_SET: u8 = 15;
+pub const ENUM_MAX_GATE_SET: u8 = 16;
 
 impl<'a> flatbuffers::Follow<'a> for GateSet {
   type Inner = Self;
@@ -142,7 +143,7 @@ impl flatbuffers::Push for GateSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_GATE_SET:[GateSet; 16] = [
+pub const ENUM_VALUES_GATE_SET:[GateSet; 17] = [
   GateSet::NONE,
   GateSet::GateConstant,
   GateSet::GateAssertZero,
@@ -158,11 +159,12 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 16] = [
   GateSet::GateWitness,
   GateSet::GateFree,
   GateSet::Function,
-  GateSet::Call
+  GateSet::GateCall,
+  GateSet::GateAnonCall
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_GATE_SET:[&'static str; 16] = [
+pub const ENUM_NAMES_GATE_SET:[&'static str; 17] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -178,7 +180,8 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 16] = [
     "GateWitness",
     "GateFree",
     "Function",
-    "Call"
+    "GateCall",
+    "GateAnonCall"
 ];
 
 pub fn enum_name_gate_set(e: GateSet) -> &'static str {
@@ -1904,66 +1907,34 @@ impl<'a> Function<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args FunctionArgs<'args>) -> flatbuffers::WIPOffset<Function<'bldr>> {
       let mut builder = FunctionBuilder::new(_fbb);
-      builder.add_witness_count(args.witness_count);
-      builder.add_local_count(args.local_count);
-      builder.add_input_count(args.input_count);
-      builder.add_output_count(args.output_count);
-      if let Some(x) = args.implementation { builder.add_implementation(x); }
+      if let Some(x) = args.body { builder.add_body(x); }
       if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
 
     pub const VT_NAME: flatbuffers::VOffsetT = 4;
-    pub const VT_OUTPUT_COUNT: flatbuffers::VOffsetT = 6;
-    pub const VT_INPUT_COUNT: flatbuffers::VOffsetT = 8;
-    pub const VT_LOCAL_COUNT: flatbuffers::VOffsetT = 10;
-    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 12;
-    pub const VT_IMPLEMENTATION: flatbuffers::VOffsetT = 14;
+    pub const VT_BODY: flatbuffers::VOffsetT = 6;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Function::VT_NAME, None)
   }
   #[inline]
-  pub fn output_count(&self) -> u64 {
-    self._tab.get::<u64>(Function::VT_OUTPUT_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn input_count(&self) -> u64 {
-    self._tab.get::<u64>(Function::VT_INPUT_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn local_count(&self) -> u64 {
-    self._tab.get::<u64>(Function::VT_LOCAL_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn witness_count(&self) -> u64 {
-    self._tab.get::<u64>(Function::VT_WITNESS_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn implementation(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Function::VT_IMPLEMENTATION, None)
+  pub fn body(&self) -> Option<GateAnonCall<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<GateAnonCall<'a>>>(Function::VT_BODY, None)
   }
 }
 
 pub struct FunctionArgs<'a> {
     pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub output_count: u64,
-    pub input_count: u64,
-    pub local_count: u64,
-    pub witness_count: u64,
-    pub implementation: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+    pub body: Option<flatbuffers::WIPOffset<GateAnonCall<'a >>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
     #[inline]
     fn default() -> Self {
         FunctionArgs {
             name: None,
-            output_count: 0,
-            input_count: 0,
-            local_count: 0,
-            witness_count: 0,
-            implementation: None,
+            body: None,
         }
     }
 }
@@ -1977,24 +1948,8 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_NAME, name);
   }
   #[inline]
-  pub fn add_output_count(&mut self, output_count: u64) {
-    self.fbb_.push_slot::<u64>(Function::VT_OUTPUT_COUNT, output_count, 0);
-  }
-  #[inline]
-  pub fn add_input_count(&mut self, input_count: u64) {
-    self.fbb_.push_slot::<u64>(Function::VT_INPUT_COUNT, input_count, 0);
-  }
-  #[inline]
-  pub fn add_local_count(&mut self, local_count: u64) {
-    self.fbb_.push_slot::<u64>(Function::VT_LOCAL_COUNT, local_count, 0);
-  }
-  #[inline]
-  pub fn add_witness_count(&mut self, witness_count: u64) {
-    self.fbb_.push_slot::<u64>(Function::VT_WITNESS_COUNT, witness_count, 0);
-  }
-  #[inline]
-  pub fn add_implementation(&mut self, implementation: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_IMPLEMENTATION, implementation);
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<GateAnonCall<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<GateAnonCall>>(Function::VT_BODY, body);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> FunctionBuilder<'a, 'b> {
@@ -2011,15 +1966,15 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
   }
 }
 
-pub enum CallOffset {}
+pub enum GateCallOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct Call<'a> {
+pub struct GateCall<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for Call<'a> {
-    type Inner = Call<'a>;
+impl<'a> flatbuffers::Follow<'a> for GateCall<'a> {
+    type Inner = GateCall<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2028,19 +1983,18 @@ impl<'a> flatbuffers::Follow<'a> for Call<'a> {
     }
 }
 
-impl<'a> Call<'a> {
+impl<'a> GateCall<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Call {
+        GateCall {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args CallArgs<'args>) -> flatbuffers::WIPOffset<Call<'bldr>> {
-      let mut builder = CallBuilder::new(_fbb);
-      if let Some(x) = args.first_local_wire { builder.add_first_local_wire(x); }
+        args: &'args GateCallArgs<'args>) -> flatbuffers::WIPOffset<GateCall<'bldr>> {
+      let mut builder = GateCallBuilder::new(_fbb);
       if let Some(x) = args.input_wires { builder.add_input_wires(x); }
       if let Some(x) = args.output_wires { builder.add_output_wires(x); }
       if let Some(x) = args.name { builder.add_name(x); }
@@ -2050,74 +2004,187 @@ impl<'a> Call<'a> {
     pub const VT_NAME: flatbuffers::VOffsetT = 4;
     pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 6;
     pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 8;
-    pub const VT_FIRST_LOCAL_WIRE: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Call::VT_NAME, None)
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(GateCall::VT_NAME, None)
   }
   #[inline]
   pub fn output_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(Call::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateCall::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
   }
   #[inline]
   pub fn input_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(Call::VT_INPUT_WIRES, None).map(|v| v.safe_slice() )
-  }
-  #[inline]
-  pub fn first_local_wire(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(Call::VT_FIRST_LOCAL_WIRE, None)
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateCall::VT_INPUT_WIRES, None).map(|v| v.safe_slice() )
   }
 }
 
-pub struct CallArgs<'a> {
+pub struct GateCallArgs<'a> {
     pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub output_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
     pub input_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
-    pub first_local_wire: Option<&'a  Wire>,
 }
-impl<'a> Default for CallArgs<'a> {
+impl<'a> Default for GateCallArgs<'a> {
     #[inline]
     fn default() -> Self {
-        CallArgs {
+        GateCallArgs {
             name: None,
             output_wires: None,
             input_wires: None,
-            first_local_wire: None,
         }
     }
 }
-pub struct CallBuilder<'a: 'b, 'b> {
+pub struct GateCallBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> CallBuilder<'a, 'b> {
+impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   #[inline]
   pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Call::VT_NAME, name);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_NAME, name);
   }
   #[inline]
   pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Call::VT_OUTPUT_WIRES, output_wires);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_OUTPUT_WIRES, output_wires);
   }
   #[inline]
   pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Call::VT_INPUT_WIRES, input_wires);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_INPUT_WIRES, input_wires);
   }
   #[inline]
-  pub fn add_first_local_wire(&mut self, first_local_wire: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(Call::VT_FIRST_LOCAL_WIRE, first_local_wire);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CallBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateCallBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    CallBuilder {
+    GateCallBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Call<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateCall<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum GateAnonCallOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateAnonCall<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateAnonCall<'a> {
+    type Inner = GateAnonCall<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateAnonCall<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateAnonCall {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateAnonCallArgs<'args>) -> flatbuffers::WIPOffset<GateAnonCall<'bldr>> {
+      let mut builder = GateAnonCallBuilder::new(_fbb);
+      builder.add_witness_count(args.witness_count);
+      builder.add_instance_count(args.instance_count);
+      if let Some(x) = args.directives { builder.add_directives(x); }
+      if let Some(x) = args.inpute_wires { builder.add_inpute_wires(x); }
+      if let Some(x) = args.output_wires { builder.add_output_wires(x); }
+      builder.finish()
+    }
+
+    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 4;
+    pub const VT_INPUTE_WIRES: flatbuffers::VOffsetT = 6;
+    pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 8;
+    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
+    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 12;
+
+  #[inline]
+  pub fn output_wires(&self) -> Option<&'a [Wire]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateAnonCall::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
+  }
+  #[inline]
+  pub fn inpute_wires(&self) -> Option<&'a [Wire]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateAnonCall::VT_INPUTE_WIRES, None).map(|v| v.safe_slice() )
+  }
+  #[inline]
+  pub fn instance_count(&self) -> u64 {
+    self._tab.get::<u64>(GateAnonCall::VT_INSTANCE_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn witness_count(&self) -> u64 {
+    self._tab.get::<u64>(GateAnonCall::VT_WITNESS_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn directives(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(GateAnonCall::VT_DIRECTIVES, None)
+  }
+}
+
+pub struct GateAnonCallArgs<'a> {
+    pub output_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
+    pub inpute_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
+    pub instance_count: u64,
+    pub witness_count: u64,
+    pub directives: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+}
+impl<'a> Default for GateAnonCallArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateAnonCallArgs {
+            output_wires: None,
+            inpute_wires: None,
+            instance_count: 0,
+            witness_count: 0,
+            directives: None,
+        }
+    }
+}
+pub struct GateAnonCallBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateAnonCallBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateAnonCall::VT_OUTPUT_WIRES, output_wires);
+  }
+  #[inline]
+  pub fn add_inpute_wires(&mut self, inpute_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateAnonCall::VT_INPUTE_WIRES, inpute_wires);
+  }
+  #[inline]
+  pub fn add_instance_count(&mut self, instance_count: u64) {
+    self.fbb_.push_slot::<u64>(GateAnonCall::VT_INSTANCE_COUNT, instance_count, 0);
+  }
+  #[inline]
+  pub fn add_witness_count(&mut self, witness_count: u64) {
+    self.fbb_.push_slot::<u64>(GateAnonCall::VT_WITNESS_COUNT, witness_count, 0);
+  }
+  #[inline]
+  pub fn add_directives(&mut self, directives: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateAnonCall::VT_DIRECTIVES, directives);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAnonCallBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateAnonCallBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateAnonCall<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -2310,9 +2377,19 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_call(&self) -> Option<Call<'a>> {
-    if self.gate_type() == GateSet::Call {
-      self.gate().map(|u| Call::init_from_table(u))
+  pub fn gate_as_gate_call(&self) -> Option<GateCall<'a>> {
+    if self.gate_type() == GateSet::GateCall {
+      self.gate().map(|u| GateCall::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn gate_as_gate_anon_call(&self) -> Option<GateAnonCall<'a>> {
+    if self.gate_type() == GateSet::GateAnonCall {
+      self.gate().map(|u| GateAnonCall::init_from_table(u))
     } else {
       None
     }
