@@ -6,7 +6,7 @@ use std::error::Error;
 
 use super::wire::{build_wire, build_wires_vector, from_id, from_ids_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
-use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
+use crate::sieve_ir_generated::sieve_ir::{GateSet as gs, Wire};
 use crate::{Value, WireId};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -40,10 +40,12 @@ pub enum Gate {
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
     /// Function Gate for generic custom gates
-    /// Function(name, output_count, input_count, local_count, witness count, implementation).
+    /// Function(name, output_count, input_count, instance_count, witness_count, directives).
     Function(String, usize, usize, usize, usize, Vec<Gate>),
-    /// Call(name, output_wires, input_wires, first_local_wire)
-    Call(String, Vec<WireId>, Vec<WireId>, WireId),
+    /// GateCall(name, output_wires, input_wires)
+    GateCall(String, Vec<WireId>, Vec<WireId>),
+    /// GateAnonCall(output_wires, input_wires, instance_count, witness_count, directives)
+    GateAnonCall(Vec<WireId>, Vec<WireId>, usize, usize, Vec<Gate>),
 }
 
 use Gate::*;
@@ -158,34 +160,43 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
             }
 
             gs::Function => {
-                let g_func = gen_gate.gate_as_function().unwrap();
-                let g_ref_impl = g_func
+                let gate = gen_gate.gate_as_function().unwrap();
+                let g_directives = gate
                     .implementation()
                     .ok_or("Missing reference implementation")?;
-                let ref_impl = Gate::try_from_vector(g_ref_impl)?;
-
+                let directives = Gate::try_from_vector(g_directives)?;
                 Function(
-                    g_func.name().ok_or("Missing name")?.to_string(),
-                    g_func.output_count() as usize,
-                    g_func.input_count() as usize,
-                    g_func.local_count() as usize,
-                    g_func.witness_count() as usize,
-                    ref_impl,
+                    gate.name().ok_or("Missing name")?.to_string(),
+                    gate.output_count() as usize,
+                    gate.input_count() as usize,
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    directives,
                 )
             }
 
-            gs::Call => {
-                let g_call = gen_gate.gate_as_call().unwrap();
+            gs::GateCall => {
+                let gate = gen_gate.gate_as_gate_call().unwrap();
+                GateCall(
+                    gate.name().ok_or("Missing name")?.to_string(),
+                    from_ids_vector(gate.output_wires().ok_or("Missing outputs")?),
+                    from_ids_vector(gate.input_wires().ok_or("Missing inputs")?),
+                )
+            }
 
-                Call(
-                    g_call.name().ok_or("Missing name")?.to_string(),
-                    from_ids_vector(g_call.output_wires().ok_or("Missing outputs")?),
-                    from_ids_vector(g_call.input_wires().ok_or("Missing inputs")?),
-                    from_id(
-                        g_call
-                            .first_local_wire()
-                            .ok_or("Missing first local wire")?,
-                    ),
+            gs::GateAnonCall => {
+                let gate = gen_gate.gate_as_gate_anon_call().unwrap();
+                /// todo
+                let g_directives = gate
+                    .directives()
+                    .ok_or("Missing reference implementation")?;
+                let directives = Gate::try_from_vector(g_directives)?;
+                GateAnonCall(
+                    from_ids_vector(gate.output_wires().ok_or("Missing outputs")?),
+                    from_ids_vector(gate.input_wires().ok_or("Missing inputs")?),
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    directives,
                 )
             }
         })
@@ -431,24 +442,21 @@ impl Gate {
                 name,
                 output_count,
                 input_count,
-                local_count,
+                instance_count,
                 witness_count,
-                implementation,
+                directives,
             ) => {
-                // NICE-TO-HAVE: reuse strings.
                 let g_name = builder.create_string(name);
-
-                let impl_gates = Gate::build_vector(builder, &implementation);
-
+                let impl_gates = Gate::build_vector(builder, &directives);
                 let g_gate = g::Function::create(
                     builder,
                     &g::FunctionArgs {
                         name: Some(g_name),
                         output_count: *output_count as u64,
                         input_count: *input_count as u64,
-                        local_count: *local_count as u64,
+                        instance_count: *instance_count as u64,
                         witness_count: *witness_count as u64,
-                        implementation: Some(impl_gates),
+                        directives: Some(impl_gates),
                     },
                 );
 
@@ -461,26 +469,53 @@ impl Gate {
                 )
             }
 
-            Call(name, outputs, inputs, first_local_id) => {
-                // NICE-TO-HAVE: reuse strings.
+            GateCall(name, output_wires, input_wires) => {
                 let g_name = builder.create_string(name);
-                let g_outputs = build_wires_vector(builder, outputs);
-                let g_inputs = build_wires_vector(builder, inputs);
-
-                let g_gate = g::Call::create(
+                let g_outputs = build_wires_vector(builder, output_wires);
+                let g_inputs = build_wires_vector(builder, input_wires);
+                let g_gate = g::GateCall::create(
                     builder,
-                    &g::CallArgs {
+                    &g::GateCallArgs {
                         name: Some(g_name),
                         output_wires: Some(g_outputs),
                         input_wires: Some(g_inputs),
-                        first_local_wire: Some(&build_wire(*first_local_id)),
                     },
                 );
 
                 g::Gate::create(
                     builder,
                     &g::GateArgs {
-                        gate_type: gs::Call,
+                        gate_type: gs::GateCall,
+                        gate: Some(g_gate.as_union_value()),
+                    },
+                )
+            }
+
+            GateAnonCall(
+                output_wires,
+                input_wires,
+                instance_count,
+                witness_count,
+                directives
+            ) => {
+                let g_outputs = build_wires_vector(builder, output_wires);
+                let g_inputs = build_wires_vector(builder, input_wires);
+                let impl_gates = Gate::build_vector(builder, &directives);
+                let g_gate = g::GateAnonCall::create(
+                    builder,
+                    &g::GateAnonCallArgs {
+                        output_wires: Some(g_outputs),
+                        input_wires: Some(g_inputs),
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
+                        directives: Some(impl_gates),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateAnonCall,
                         gate: Some(g_gate.as_union_value()),
                     },
                 )
@@ -488,7 +523,7 @@ impl Gate {
         }
     }
 
-    /// Convert from a Flatbuffers vector to owned structures.
+    /// Convert from a Flatbuffers vector of gates to owned structures.
     pub fn try_from_vector<'a>(
         g_vector: Vector<'a, ForwardsUOffset<g::Gate<'a>>>,
     ) -> Result<Vec<Gate>> {

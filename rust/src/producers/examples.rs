@@ -65,7 +65,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Witness(2),
             Constant(3, encode_negative_one(header)), // -1
             Function("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation id1*id2 = id0
-            Call("example/mul".to_string(), vec![4], vec![1, 1], 0), // witness_1 squared using the function call
+            GateCall("example/mul".to_string(), vec![4], vec![1, 1]), // witness_1 squared using the function call
+            GateAnonCall(vec![4], vec![1, 1], 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation
             Mul(5, 2, 2),                                            // witness_2 squared
             Add(6, 4, 5),                                            // sum of squares
             Call("example/mul".to_string(), vec![7], vec![0, 3], 0), // negative instance_0 using the function call
