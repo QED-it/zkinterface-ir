@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Gate, Header, Instance, Message, Relation, Witness};
+use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -40,6 +40,12 @@ pub struct Stats {
 }
 
 impl Stats {
+    pub fn from_messages(messages: impl Iterator<Item = Result<Message>>) -> Self {
+        let mut stats = Stats::default();
+        messages.for_each(|msg| stats.ingest_message(&msg.unwrap()));
+        stats
+    }
+
     pub fn ingest_message(&mut self, msg: &Message) {
         match msg {
             Message::Instance(i) => self.ingest_instance(&i),
