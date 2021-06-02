@@ -121,9 +121,13 @@ table GateFree {
 }
 
 table Function {
-    // declares a Function gate (as a custom gate computation)
-    name        :string;
-    body        :GateAnonCall;
+    // Declare a Function gate as a custom computation
+    name            :string;
+    output_count    :uint64;
+    input_count     :uint64;
+    instance_count  :uint64;
+    witness_count   :uint64;
+    directives      :[Gate];
 }
 
 table GateCall {
@@ -136,7 +140,7 @@ table GateCall {
 table GateAnonCall {
     // Declares and invokes a Function gate
     output_wires    :[Wire];
-    inpute_wires    :[Wire];
+    input_wires     :[Wire];
     instance_count  :uint64;
     witness_count   :uint64;
     directives      :[Gate];
