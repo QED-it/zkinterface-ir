@@ -6,6 +6,7 @@ use std::collections::HashSet;
 
 use regex::Regex;
 use std::cmp::Ordering;
+use std::iter::FromIterator;
 
 type Var = u64;
 type Field = BigUint;
@@ -259,23 +260,13 @@ impl Validator {
             Instance(out) => {
                 self.declare(*out);
                 // Consume value.
-                if self.instance_queue_len > 0 {
-                    self.instance_queue_len -= 1;
-                } else {
-                    self.violate(format!("No value available for the Instance wire {}", out));
-                }
+                self.consume_instance(1);
             }
 
             Witness(out) => {
                 self.declare(*out);
                 // Consume value.
-                if self.as_prover {
-                    if self.witness_queue_len > 0 {
-                        self.witness_queue_len -= 1;
-                    } else {
-                        self.violate(format!("No value available for the Witness wire {}", out));
-                    }
-                }
+                self.consume_witness(1);
             }
 
             Free(first, last) => {
@@ -301,6 +292,58 @@ impl Validator {
                 // - consume witness.
                 unimplemented!("Call gate")
             }
+
+            Switch(condition, outputs_list, cases, subcircuits) => {
+                self.ensure_defined_and_set(*condition);
+
+                // Ensure that the number of cases value match the number of subcircuits.
+                if cases.len() != subcircuits.len() {
+                    self.violate("Gate::Switch: The number of cases value does not match the number of branches.");
+                }
+
+                // If there is no branch, just return.
+                // If the list of output wires is not empty, then it's an issue.
+                // TODO: check if this is semantic failure.
+                if cases.len() == 0 {
+                    return;
+                }
+
+                // Ensure each value of cases are in the proper field.
+                let mut cases_set = HashSet::new();
+                for case in cases {
+                    self.ensure_value_in_field(case, || format!("Gate::Switch case value: {}", Field::from_bytes_le(case)));
+                    cases_set.insert(Field::from_bytes_le(case));
+                }
+
+                if cases_set.len() != cases.len() {
+                    self.violate("Gate::Switch: The cases values contain duplicates.");
+                }
+
+                let mut max_instances_consumed: usize = 0;
+                let mut max_witnesses_consumed: usize = 0;
+                // 'Execute' each branch of the switch independently, and perform checks
+                for circuit in subcircuits {
+                    let mut current_validator = self.clone();
+                    current_validator.violations.clear();
+
+                    // check the current branch
+                    circuit.iter().for_each(|ga| current_validator.ingest_gate(ga));
+
+                    max_instances_consumed = std::cmp::max(max_instances_consumed, self.instance_queue_len - current_validator.instance_queue_len);
+                    max_witnesses_consumed = std::cmp::max(max_witnesses_consumed, self.witness_queue_len  - current_validator.witness_queue_len);
+
+
+                    // all the output wire should be affected a value after each branch
+                    outputs_list.iter().for_each(|id| current_validator.ensure_defined_and_set(*id));
+
+                    self.violations.append(&mut current_validator.violations);
+                }
+                // Now, consume instances and witnesses from self.
+                self.consume_instance(max_instances_consumed);
+                self.consume_witness(max_witnesses_consumed);
+                // set the output wires as defined, since we checked they were in each branch.
+                outputs_list.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+            }
         }
     }
 
@@ -315,6 +358,24 @@ impl Validator {
     fn remove(&mut self, id: Var) {
         if !self.live_wires.remove(&id) {
             self.violate(format!("The variable {} is being freed, but was not defined previously, or has been already freed", id));
+        }
+    }
+
+    fn consume_instance(&mut self, how_many :usize) {
+        if self.instance_queue_len >= how_many {
+            self.instance_queue_len -= how_many;
+        } else {
+            self.violate("Not enough Instance value to consume.");
+        }
+    }
+
+    fn consume_witness(&mut self, how_many :usize) {
+        if self.as_prover {
+            if self.witness_queue_len >= how_many {
+                self.witness_queue_len -= how_many;
+            } else {
+                self.violate("Not enough Witness value to consume.");
+            }
         }
     }
 
@@ -334,13 +395,17 @@ impl Validator {
         }
     }
 
-    fn ensure_undefined_and_set(&mut self, id: Var) {
+    fn ensure_undefined(&mut self, id: Var) {
         if self.is_defined(id) {
             self.violate(format!(
                 "The wire {} has already been initialized before. This violates the SSA property.",
                 id
             ));
         }
+    }
+
+    fn ensure_undefined_and_set(&mut self, id: Var) {
+        self.ensure_undefined(id);
         // define it.
         self.declare(id);
     }
