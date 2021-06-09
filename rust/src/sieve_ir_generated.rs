@@ -104,11 +104,12 @@ pub enum GateSet {
   GateFree = 13,
   Function = 14,
   Call = 15,
+  GateSwitch = 16,
 
 }
 
 pub const ENUM_MIN_GATE_SET: u8 = 0;
-pub const ENUM_MAX_GATE_SET: u8 = 15;
+pub const ENUM_MAX_GATE_SET: u8 = 16;
 
 impl<'a> flatbuffers::Follow<'a> for GateSet {
   type Inner = Self;
@@ -142,7 +143,7 @@ impl flatbuffers::Push for GateSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_GATE_SET:[GateSet; 16] = [
+pub const ENUM_VALUES_GATE_SET:[GateSet; 17] = [
   GateSet::NONE,
   GateSet::GateConstant,
   GateSet::GateAssertZero,
@@ -158,11 +159,12 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 16] = [
   GateSet::GateWitness,
   GateSet::GateFree,
   GateSet::Function,
-  GateSet::Call
+  GateSet::Call,
+  GateSet::GateSwitch
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_GATE_SET:[&'static str; 16] = [
+pub const ENUM_NAMES_GATE_SET:[&'static str; 17] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -178,7 +180,8 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 16] = [
     "GateWitness",
     "GateFree",
     "Function",
-    "Call"
+    "Call",
+    "GateSwitch"
 ];
 
 pub fn enum_name_gate_set(e: GateSet) -> &'static str {
@@ -2123,6 +2126,194 @@ impl<'a: 'b, 'b> CallBuilder<'a, 'b> {
   }
 }
 
+pub enum SubCircuitOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct SubCircuit<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for SubCircuit<'a> {
+    type Inner = SubCircuit<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> SubCircuit<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        SubCircuit {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args SubCircuitArgs<'args>) -> flatbuffers::WIPOffset<SubCircuit<'bldr>> {
+      let mut builder = SubCircuitBuilder::new(_fbb);
+      if let Some(x) = args.gates { builder.add_gates(x); }
+      builder.finish()
+    }
+
+    pub const VT_GATES: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn gates(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(SubCircuit::VT_GATES, None)
+  }
+}
+
+pub struct SubCircuitArgs<'a> {
+    pub gates: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+}
+impl<'a> Default for SubCircuitArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        SubCircuitArgs {
+            gates: None,
+        }
+    }
+}
+pub struct SubCircuitBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> SubCircuitBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_gates(&mut self, gates: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SubCircuit::VT_GATES, gates);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> SubCircuitBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    SubCircuitBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<SubCircuit<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum GateSwitchOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateSwitch<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateSwitch<'a> {
+    type Inner = GateSwitch<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateSwitch<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateSwitch {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateSwitchArgs<'args>) -> flatbuffers::WIPOffset<GateSwitch<'bldr>> {
+      let mut builder = GateSwitchBuilder::new(_fbb);
+      if let Some(x) = args.branches { builder.add_branches(x); }
+      if let Some(x) = args.cases { builder.add_cases(x); }
+      if let Some(x) = args.output_wires { builder.add_output_wires(x); }
+      if let Some(x) = args.condition { builder.add_condition(x); }
+      builder.finish()
+    }
+
+    pub const VT_CONDITION: flatbuffers::VOffsetT = 4;
+    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 6;
+    pub const VT_CASES: flatbuffers::VOffsetT = 8;
+    pub const VT_BRANCHES: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn condition(&self) -> Option<&'a Wire> {
+    self._tab.get::<Wire>(GateSwitch::VT_CONDITION, None)
+  }
+  #[inline]
+  pub fn output_wires(&self) -> Option<&'a [Wire]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateSwitch::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
+  }
+  #[inline]
+  pub fn cases(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(GateSwitch::VT_CASES, None)
+  }
+  #[inline]
+  pub fn branches(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<SubCircuit<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<SubCircuit<'a>>>>>(GateSwitch::VT_BRANCHES, None)
+  }
+}
+
+pub struct GateSwitchArgs<'a> {
+    pub condition: Option<&'a  Wire>,
+    pub output_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
+    pub cases: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
+    pub branches: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<SubCircuit<'a >>>>>,
+}
+impl<'a> Default for GateSwitchArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateSwitchArgs {
+            condition: None,
+            output_wires: None,
+            cases: None,
+            branches: None,
+        }
+    }
+}
+pub struct GateSwitchBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateSwitchBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_condition(&mut self, condition: &'b  Wire) {
+    self.fbb_.push_slot_always::<&Wire>(GateSwitch::VT_CONDITION, condition);
+  }
+  #[inline]
+  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_OUTPUT_WIRES, output_wires);
+  }
+  #[inline]
+  pub fn add_cases(&mut self, cases: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_CASES, cases);
+  }
+  #[inline]
+  pub fn add_branches(&mut self, branches: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<SubCircuit<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_BRANCHES, branches);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateSwitchBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateSwitchBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateSwitch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum GateOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -2313,6 +2504,16 @@ impl<'a> Gate<'a> {
   pub fn gate_as_call(&self) -> Option<Call<'a>> {
     if self.gate_type() == GateSet::Call {
       self.gate().map(|u| Call::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn gate_as_gate_switch(&self) -> Option<GateSwitch<'a>> {
+    if self.gate_type() == GateSet::GateSwitch {
+      self.gate().map(|u| GateSwitch::init_from_table(u))
     } else {
       None
     }

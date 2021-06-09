@@ -48,6 +48,7 @@ table Value {
 }
 
 
+
 // ==== Gate types ====
 
 table GateConstant {
@@ -136,6 +137,17 @@ table Call {
     first_local_wire  :Wire;
 }
 
+table SubCircuit {
+    gates     :[Gate];
+}
+
+table GateSwitch {
+    condition         :Wire;
+    output_wires      :[Wire];
+    cases             :[Value];
+    branches          :[SubCircuit];
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -152,6 +164,7 @@ union GateSet {
    GateFree,
    Function,
    Call,
+   GateSwitch,
 }
 table Gate {
     gate      :GateSet;

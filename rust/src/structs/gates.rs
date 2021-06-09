@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 use super::wire::{build_wire, build_wires_vector, from_id, from_ids_vector};
+use super::value::{try_from_values_vector, build_values_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
@@ -44,6 +45,8 @@ pub enum Gate {
     Function(String, usize, usize, usize, usize, Vec<Gate>),
     /// Call(name, output_wires, input_wires, first_local_wire)
     Call(String, Vec<WireId>, Vec<WireId>, WireId),
+    /// GateSwitch(condition, output_wires, cases, subcircuits)
+    Switch(WireId, Vec<WireId>, Vec<Value>, Vec<Vec<Gate>>),
 }
 
 use Gate::*;
@@ -186,6 +189,26 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                             .first_local_wire()
                             .ok_or("Missing first local wire")?,
                     ),
+                )
+            }
+
+            gs::GateSwitch => {
+                let gate = gen_gate.gate_as_gate_switch().unwrap();
+                let mut subcircuits = Vec::default();
+                for subcircuit in  gate.branches().ok_or("Missing subcircuits.")?.iter() {
+
+                    let subgates = subcircuit.gates().ok_or("Missing SubGates")?;
+                    subcircuits.push(Gate::try_from_vector(subgates)?);
+                }
+
+                let cases = try_from_values_vector(gate.cases()
+                    .ok_or("Missing cases values")?)?;
+
+                Switch(
+                    from_id(gate.condition().ok_or("Missing condition wire.")?),
+                    from_ids_vector(gate.output_wires().ok_or("Missing output wires")?),
+                    cases,
+                    subcircuits,
                 )
             }
         })
@@ -485,6 +508,44 @@ impl Gate {
                     },
                 )
             }
+
+            Switch(condition, outputs_list, cases, subcircuits) => {
+
+                let output_wires = build_wires_vector(builder, outputs_list);
+                let cases = build_values_vector(builder, cases);
+                let subbranches: Vec<WIPOffset<g::SubCircuit>> = subcircuits.iter()
+                    .map(|subgates| {
+                        let gates = Gate::build_vector(builder, subgates);
+                        g::SubCircuit::create(
+                            builder,
+                            &g::SubCircuitArgs {
+                                gates : Some(gates),
+                            }
+                        )
+                    }).collect();
+                let branches = builder.create_vector(&subbranches);
+
+                let gate = g::GateSwitch::create(
+                    builder,
+                    &g::GateSwitchArgs {
+                        condition: Some(&g::Wire::new(*condition)),
+                        output_wires: Some(output_wires),
+
+                        cases: Some(cases),
+                        branches: Some(branches),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateSwitch,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+
         }
     }
 
@@ -542,6 +603,7 @@ impl Gate {
 
             Function(_, _, _, _, _, _) => None,
             Call(_, _, _, _) => unimplemented!("Call gate"),
+            Switch(_, _, _, _) =>  unimplemented!("Switch gate"),
         }
     }
 }

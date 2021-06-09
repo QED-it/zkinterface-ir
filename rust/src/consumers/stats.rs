@@ -31,6 +31,9 @@ pub struct Stats {
     pub functions_defined: usize,
     pub functions_called: usize,
 
+    pub switches: usize,
+    pub branches: usize,
+
     // The number of messages into which the statement was split.
     pub instance_messages: usize,
     pub witness_messages: usize,
@@ -147,6 +150,16 @@ impl Stats {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
             }
+
+            Switch(_, _, _, subcircuits) => {
+                self.switches += 1;
+                for circuit in subcircuits {
+                    self.branches += 1;
+                    for gate in circuit {
+                        self.ingest_gate(gate);
+                    }
+                }
+            }
         }
     }
 
@@ -166,6 +179,9 @@ impl Stats {
         self.xor_gates += other.xor_gates;
         self.not_gates += other.not_gates;
         self.variables_freed += other.variables_freed;
+
+        self.switches += other.switches;
+        self.branches += other.branches;
     }
 
     fn ingest_header(&mut self, header: &Header) {
@@ -205,13 +221,15 @@ fn test_stats() -> crate::Result<()> {
         variables_freed: 8,
         functions_defined: 1,
         functions_called: 2,
+        switches: 0,
+        branches: 0,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,
         functions: HashMap::new(),
     };
     expected_stats.functions.insert(
-        "example_mul".to_string(),
+        "example/mul".to_string(),
         Stats {
             mul_gates: 1,
             ..Stats::default()
