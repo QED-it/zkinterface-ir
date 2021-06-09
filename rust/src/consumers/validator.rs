@@ -293,7 +293,7 @@ impl Validator {
                 unimplemented!("Function definition")
             }
 
-            Call(_, _, _, _) => {
+            GateCall(_, _, _, _) => {
                 // TODO:
                 // - Check exists
                 // - Outputs and inputs match function signature

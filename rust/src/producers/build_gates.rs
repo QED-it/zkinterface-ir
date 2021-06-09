@@ -27,7 +27,8 @@ use std::hash::Hash;
 use BuildGate::*;
 
 impl BuildGate {
-    pub fn with_output(self, output: WireId) -> Gate {
+    pub fn with_output(self, outputs: &[WireId]) -> Gate {
+        let output = outputs[0];
         match self {
             Constant(value) => Gate::Constant(output, value),
             AssertZero(input) => {
@@ -47,6 +48,12 @@ impl BuildGate {
             Free(first, last) => {
                 assert_eq!(output, NO_OUTPUT);
                 Gate::Free(first, last)
+            }
+            Function() => {
+                // TODO: check that outputs is indeed an array
+
+
+
             }
         }
     }
