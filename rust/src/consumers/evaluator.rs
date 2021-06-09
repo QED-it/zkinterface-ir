@@ -3,6 +3,7 @@ use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
+use crate::producers::examples::example_header;
 
 type Wire = u64;
 type Repr = BigUint;
@@ -196,6 +197,25 @@ impl Evaluator {
                 // - map inputs and outputs.
                 unimplemented!("Call gate")
             }
+
+            Switch(condition, _, cases, subcircuits) => {
+                let mut selected  :bool = false;
+                for (case, subcircuit) in cases.iter().zip(subcircuits.iter()) {
+                    if self.get(*condition).ok() == Some(&Repr::from_bytes_le(case)) {
+                        selected = true;
+                        // execute the corresponding branch
+                        for gate in subcircuit.iter() {
+                            self.ingest_gate(gate)?;
+                        }
+                    }
+                }
+
+                if !selected {
+                    return Err(
+                        format!("wire_{} value does not match any of the cases", *condition).into(),
+                    );
+                }
+            }
         }
         Ok(())
     }
@@ -234,6 +254,45 @@ fn test_simulator() -> Result<()> {
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;
+
+    assert_eq!(simulator.get_violations().len(), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_switch() -> Result<()> {
+    use Gate::*;
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation =
+        Relation {
+            header: example_header(),
+            gates: vec![
+                Instance(0),
+                Witness(1),
+                Witness(2),
+                Constant(3, encode_negative_one(header)), // -1
+                Switch
+                Mul(4, 1, 1),
+                Mul(5, 2, 2),                                            // witness_2 squared
+                Add(6, 4, 5),                                            // sum of squares
+                Mul(7, 3, 0),
+                Add(8, 6, 7),                                            // sum - instance_0
+                Free(0, Some(7)),                                        // Free all previous wires
+                AssertZero(8),                                           // difference == 0
+            ],
+        };
+
+
+    let mut simulator = Evaluator::default();
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
+    simulator.ingest_relation(&relation)?;
+
+    assert_eq!(simulator.get_violations().len(), 0);
 
     Ok(())
 }

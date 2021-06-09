@@ -99,7 +99,7 @@ pub fn read_literal<T: EndianScalar>(encoded: &[u8]) -> T {
     }
 }
 
-fn encode_negative_one(header: &Header) -> Vec<u8> {
+pub fn encode_negative_one(header: &Header) -> Vec<u8> {
     let mut neg_one = header.field_characteristic.clone();
     assert!(neg_one.len() > 0 && neg_one[0] > 0, "Invalid field order");
     neg_one[0] -= 1;
