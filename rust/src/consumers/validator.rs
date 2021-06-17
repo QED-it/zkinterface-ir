@@ -2,11 +2,11 @@ use crate::{Gate, Header, Instance, Message, Relation, Witness};
 
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use regex::Regex;
 use std::cmp::Ordering;
-use std::iter::FromIterator;
+use crate::structs::functions::Directive;
 
 type Var = u64;
 type Field = BigUint;
@@ -56,7 +56,9 @@ pub struct Validator {
 
     field_characteristic: Field,
     field_degree: usize,
-    field_bytelen: usize, // length in bytes of a base field element
+
+    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+    known_functions: HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>,
 
     violations: Vec<String>,
 }
@@ -118,7 +120,6 @@ impl Validator {
             if self.field_characteristic.cmp(&One::one()) != Ordering::Greater {
                 self.violate("The field_characteristic should be > 1");
             }
-            self.field_bytelen = header.field_characteristic.len();
             // TODO: check if prime, or in a list of pre-defined primes.
 
             self.field_degree = header.field_degree as usize;
@@ -277,27 +278,32 @@ impl Validator {
                 }
             }
 
-            Function(_, _, _, _, _, _) => {
-                // TODO:
-                // - Validate the implementation in its own scope.
-                // - Record the signature.
-                unimplemented!("Function definition")
+            Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
+                // Just record the signature.
+                // The validation will be done when the function will be called.
+                if self.known_functions.contains_key(name) {
+                    self.violate(format!("A function with the name '{}' already exists", name));
+                } else {
+                    self.known_functions.insert(name.clone(), (*output_count, *input_count, *instance_count, *witness_count, subcircuit.clone()));
+                }
             }
 
-            GateCall(_, _, _, _) => {
-                // TODO:
+            Call(output_wires, directive) => {
                 // - Check exists
                 // - Outputs and inputs match function signature
-                // - define outputs, check inputs, reserve locals.
+                // - define outputs, check inputs
                 // - consume witness.
-                unimplemented!("Call gate")
+                let (instance_nbr, witness_nbr) = self.ingest_directive(directive, output_wires.len());
+                output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                self.consume_instance(instance_nbr);
+                self.consume_witness(witness_nbr);
             }
 
-            Switch(condition, outputs_list, cases, subcircuits) => {
+            Switch(condition, outputs_list, cases, branches) => {
                 self.ensure_defined_and_set(*condition);
 
                 // Ensure that the number of cases value match the number of subcircuits.
-                if cases.len() != subcircuits.len() {
+                if cases.len() != branches.len() {
                     self.violate("Gate::Switch: The number of cases value does not match the number of branches.");
                 }
 
@@ -322,21 +328,14 @@ impl Validator {
                 let mut max_instances_consumed: usize = 0;
                 let mut max_witnesses_consumed: usize = 0;
                 // 'Execute' each branch of the switch independently, and perform checks
-                for circuit in subcircuits {
-                    let mut current_validator = self.clone();
-                    current_validator.violations.clear();
+                for dir in branches {
+                    let output_nbr = outputs_list.len();
 
                     // check the current branch
-                    circuit.iter().for_each(|ga| current_validator.ingest_gate(ga));
+                    let (instance_nbr, witness_nbr) = self.ingest_directive(dir, output_nbr);
 
-                    max_instances_consumed = std::cmp::max(max_instances_consumed, self.instance_queue_len - current_validator.instance_queue_len);
-                    max_witnesses_consumed = std::cmp::max(max_witnesses_consumed, self.witness_queue_len  - current_validator.witness_queue_len);
-
-
-                    // all the output wire should be affected a value after each branch
-                    outputs_list.iter().for_each(|id| current_validator.ensure_defined_and_set(*id));
-
-                    self.violations.append(&mut current_validator.violations);
+                    max_instances_consumed = std::cmp::max(max_instances_consumed, instance_nbr);
+                    max_witnesses_consumed = std::cmp::max(max_witnesses_consumed, witness_nbr);
                 }
                 // Now, consume instances and witnesses from self.
                 self.consume_instance(max_instances_consumed);
@@ -345,6 +344,64 @@ impl Validator {
                 outputs_list.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
         }
+    }
+
+    /// Read the Directive and check its syntactic and semantic validity, returns (input_nbr, instance_nbr, witness_nbr)
+    fn ingest_directive(&mut self, dir: &Directive, output_nbr: usize) -> (usize, usize) {
+        let mut current_validator = self.clone();
+        current_validator.instance_queue_len = 0;
+        current_validator.witness_queue_len = 0;
+        current_validator.live_wires = Default::default();
+        current_validator.violations = vec![];
+
+        let (input_wires, output_count, input_count, instance_count, witness_count, subcircuit)
+            = match dir {
+                Directive::AbstractCall(name, input_wires) => {
+
+                    let (output_count, input_count, instance_count, witness_count, subcircuit)
+                        = if let Some(function_signature) = self.known_functions.get(name) {
+                        (function_signature.0, function_signature.1, function_signature.2, function_signature.3, function_signature.4.clone())
+                        } else {
+                            self.violate(format!("Unknown Function gate {}", name));
+                            (0usize, 0usize, 0usize, 0usize, vec![])
+                        };
+
+                    (input_wires, output_count, input_count, instance_count, witness_count, subcircuit)
+                }
+                Directive::AbstractAnonCall(input_wires,instance_count, witness_count, subcircuit) => {
+                    (input_wires, output_nbr, input_wires.len(), *instance_count, *witness_count, subcircuit.clone())
+                }
+            };
+
+        if output_count != output_nbr {
+            self.violate("AbstractCall: number of output wires mismatch.");
+        }
+
+        if input_count != input_wires.len() {
+            self.violate("AbstractCall: number of input wires mismatch.");
+        }
+
+        input_wires.iter().for_each(|id| self.ensure_defined_and_set(*id));
+
+        current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
+        current_validator.instance_queue_len = instance_count;
+
+        // input wires should be already defined, and they are numbered from
+        // output_wire, so we will artificially define them in the inner
+        // validator.
+        for wire in output_count..(output_count+input_count) {
+            current_validator.live_wires.insert(wire as u64);
+        }
+
+        for x in subcircuit.iter() {
+            current_validator.ingest_gate(x);
+        }
+
+        // ensure that all output wires are set.
+        (0..output_count).for_each(|id| current_validator.ensure_defined_and_set(id as u64));
+
+        self.violations.append(&mut current_validator.violations);
+        return (instance_count, witness_count);
     }
 
     fn is_defined(&self, id: Var) -> bool {

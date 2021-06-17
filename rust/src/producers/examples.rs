@@ -2,6 +2,7 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::{Header, Instance, Relation, Witness};
+use crate::structs::functions::Directive::AbstractCall;
 
 pub fn example_header() -> Header {
     example_header_in_field(literal32(EXAMPLE_MODULUS))
@@ -65,11 +66,10 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Witness(2),
             Constant(3, encode_negative_one(header)), // -1
             Function("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation id1*id2 = id0
-            GateCall("example/mul".to_string(), vec![4], vec![1, 1]), // witness_1 squared using the function call
-            GateAnonCall(vec![4], vec![1, 1], 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation
+            Call(vec![4], AbstractCall("example/mul".to_string(), vec![1, 1])), // witness_1 squared using the function call
             Mul(5, 2, 2),                                            // witness_2 squared
             Add(6, 4, 5),                                            // sum of squares
-            Call("example/mul".to_string(), vec![7], vec![0, 3], 0), // negative instance_0 using the function call
+            Call(vec![7], AbstractCall("example/mul".to_string(), vec![0, 3])), // negative instance_0 using the function call
             Add(8, 6, 7),                                            // sum - instance_0
             Free(0, Some(7)),                                        // Free all previous wires
             AssertZero(8),                                           // difference == 0

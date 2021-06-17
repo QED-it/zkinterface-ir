@@ -127,23 +127,29 @@ table Function {
     input_count     :uint64;
     instance_count  :uint64;
     witness_count   :uint64;
-    directives      :[Gate];
+    subcircuit      :[Gate];
 }
 
 table GateCall {
     // Invokes a previously defined Function gate
-    name              :string;
     output_wires      :[Wire];
+    inner             : AbstractGateCall;
+}
+
+/// The two Abstract types cannot exist by themselves in a circuit,
+/// they MUST be included in another gate (For / Switch / Call / ...)
+table AbstractGateCall {
+    // Invokes a previously defined Function gate
+    name              :string;
     input_wires       :[Wire];
 }
 
-table GateAnonCall {
+table AbstractAnonCall {
     // Declares and invokes a Function gate
-    output_wires    :[Wire];
     input_wires     :[Wire];
     instance_count  :uint64;
     witness_count   :uint64;
-    directives      :[Gate];
+    subcircuit      :[Gate];
 }
 
 table SubCircuit {
@@ -173,9 +179,9 @@ union GateSet {
    GateFree,
    Function,
    GateCall,
-   GateAnonCall,
    GateSwitch,
 }
+
 table Gate {
     gate      :GateSet;
 }

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
+use crate::structs::functions::Directive;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -142,23 +143,24 @@ impl Stats {
                 self.functions.insert(name.clone(), func_stats);
             }
 
-            Call(name, _, _, _) => {
+            Call(_, dir) => {
                 self.functions_called += 1;
-                if let Some(func_stats) = self.functions.get(name).cloned() {
-                    self.ingest_call_stats(&func_stats);
-                } else {
-                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                match dir {
+                    Directive::AbstractCall(name, _) => {
+                        if let Some(func_stats) = self.functions.get(name).cloned() {
+                            self.ingest_call_stats(&func_stats);
+                        } else {
+                            eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                        }
+                    }
+                    Directive::AbstractAnonCall(_, _, _, _) => unimplemented!("Call with AbstractAnonCall"),
                 }
+
             }
 
-            Switch(_, _, _, subcircuits) => {
+            Switch(_, _, _, _) => {
                 self.switches += 1;
-                for circuit in subcircuits {
-                    self.branches += 1;
-                    for gate in circuit {
-                        self.ingest_gate(gate);
-                    }
-                }
+                unimplemented!("Switch");
             }
         }
     }

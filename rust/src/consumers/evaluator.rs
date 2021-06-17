@@ -3,7 +3,7 @@ use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
-use crate::producers::examples::example_header;
+use crate::structs::functions::{Directive, translate_gates};
 
 type Wire = u64;
 type Repr = BigUint;
@@ -14,6 +14,9 @@ pub struct Evaluator {
     modulus: Repr,
     instance_queue: VecDeque<Repr>,
     witness_queue: VecDeque<Repr>,
+
+    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+    known_functions: HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -185,27 +188,40 @@ impl Evaluator {
                 }
             }
 
-            Function(_, _, _, _, _, _) => {
-                // TODO:
-                // - store signature and implementation.
-                unimplemented!("Function definition")
+            Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
+                self.known_functions.insert(name.clone(), (*output_count, *input_count, *instance_count, *witness_count, subcircuit.clone()));
             }
 
-            Call(_, _, _, _) => {
+            Call(_, _) => {
                 // TODO:
                 // - load implementation and execute in its own scope.
                 // - map inputs and outputs.
                 unimplemented!("Call gate")
             }
 
-            Switch(condition, _, cases, subcircuits) => {
+            Switch(condition, output_wires, cases, branches) => {
+
                 let mut selected  :bool = false;
-                for (case, subcircuit) in cases.iter().zip(subcircuits.iter()) {
+                let (mut max_inst, mut max_wit) = (0usize, 0usize);
+                for directive in branches.iter() {
+                    let (inst, wit) = self.get_inst_wit_nbr(directive)?;
+                    max_inst = std::cmp::max(max_inst, inst);
+                    max_wit  = std::cmp::max(max_wit, wit);
+                }
+
+
+                for (case, directive) in cases.iter().zip(branches.iter()) {
                     if self.get(*condition).ok() == Some(&Repr::from_bytes_le(case)) {
                         selected = true;
-                        // execute the corresponding branch
-                        for gate in subcircuit.iter() {
-                            self.ingest_gate(gate)?;
+                        let (inst, wit) = self.get_inst_wit_nbr(directive)?;
+                        self.ingest_directive(directive, output_wires)?;
+
+                        // consume instances and witnesses to the maximum
+                        for _ in inst..max_inst {
+                            self.instance_queue.pop_front();
+                        }
+                        for _ in wit..max_wit {
+                            self.witness_queue.pop_front();
                         }
                     }
                 }
@@ -239,6 +255,34 @@ impl Evaluator {
         self.values
             .remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
+    }
+
+    fn get_inst_wit_nbr(&self, directive: &Directive) -> Result<(usize, usize)> {
+        match directive {
+            Directive::AbstractCall(name, _) => {
+                let (_, _, instance_count, witness_count, _) = self.known_functions.get(name).ok_or("unknown function")?;
+                Ok((*instance_count, *witness_count))
+            }
+            Directive::AbstractAnonCall(_, instance_count, witness_count, _) => Ok((*instance_count, *witness_count))
+        }
+    }
+
+    fn ingest_directive(&mut self, directive: &Directive, output_wires: &[Wire]) -> Result<()> {
+
+        let (input_wires, subcircuit) = match directive {
+            Directive::AbstractCall(name, input_wires) => {
+                let (_, _, _, _, subcircuit) = self.known_functions.get(name).ok_or("unknown function")?;
+                (input_wires, subcircuit.clone())
+            }
+            Directive::AbstractAnonCall(input_wires, _, _, subcircuit) => (input_wires, subcircuit.clone())
+        };
+
+        let output_input_wires = [output_wires, input_wires].concat();
+        for gate in translate_gates(&subcircuit, &output_input_wires) {
+            self.ingest_gate(&gate)?;
+        }
+
+        Ok(())
     }
 }
 
