@@ -152,15 +152,20 @@ table AbstractAnonCall {
     subcircuit      :[Gate];
 }
 
-table SubCircuit {
-    gates     :[Gate];
+union Invocation {
+    AbstractGateCall,
+    AbstractAnonCall,
+}
+
+table Directive {
+    gate      :Invocation;
 }
 
 table GateSwitch {
     condition         :Wire;
     output_wires      :[Wire];
     cases             :[Value];
-    branches          :[SubCircuit];
+    branches          :[Directive];
 }
 
 union GateSet {
