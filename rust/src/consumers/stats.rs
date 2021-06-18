@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
 use crate::structs::functions::Directive;
+use std::cmp::max;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -145,22 +146,29 @@ impl Stats {
 
             Call(_, dir) => {
                 self.functions_called += 1;
-                match dir {
-                    Directive::AbstractCall(name, _) => {
-                        if let Some(func_stats) = self.functions.get(name).cloned() {
-                            self.ingest_call_stats(&func_stats);
-                        } else {
-                            eprintln!("WARNING Stats: function not defined \"{}\"", name);
-                        }
-                    }
-                    Directive::AbstractAnonCall(_, _, _, _) => unimplemented!("Call with AbstractAnonCall"),
-                }
-
+                self.ingest_directive(dir);
             }
 
-            Switch(_, _, _, _) => {
+            Switch(_, _, _, branches) => {
                 self.switches += 1;
-                unimplemented!("Switch");
+                self.branches += branches.len();
+                let (mut max_inst, mut max_wit) = (0usize, 0usize);
+                for dir in branches {
+                    let (inst, wit) = self.get_inst_wit_nbr(dir).unwrap();
+                    max_inst = max(max_inst, inst);
+                    max_wit = max(max_wit, wit);
+                }
+
+                for dir in branches {
+                    let (inst, wit) = self.get_inst_wit_nbr(dir).unwrap();
+                    self.ingest_directive(dir);
+                    self.instance_variables -= inst;
+                    self.witness_variables -= wit;
+                }
+
+                self.instance_variables += max_inst;
+                self.witness_variables += max_wit;
+
             }
         }
     }
@@ -190,6 +198,34 @@ impl Stats {
         self.field_characteristic = header.field_characteristic.clone();
         self.field_degree = header.field_degree;
     }
+
+    fn get_inst_wit_nbr(&self, directive: &Directive) -> Result<(usize, usize)> {
+        match directive {
+            Directive::AbstractCall(name, _) => {
+                let stats = self.functions.get(name).ok_or("unknown function")?;
+                Ok((stats.instance_variables, stats.witness_variables))
+            }
+            Directive::AbstractAnonCall(_, instance_count, witness_count, _) => Ok((*instance_count, *witness_count))
+        }
+    }
+
+    fn ingest_directive(&mut self, dir: &Directive) {
+        use Directive::*;
+        match dir {
+            AbstractCall(name, _) => {
+                if let Some(func_stats) = self.functions.get(name).cloned() {
+                    self.ingest_call_stats(&func_stats);
+                } else {
+                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                }
+            }
+            AbstractAnonCall(_, _, _, subcircuit) => {
+                for gate in subcircuit {
+                    self.ingest_gate(gate);
+                }
+            },
+        }
+    }
 }
 
 #[test]
@@ -213,8 +249,8 @@ fn test_stats() -> crate::Result<()> {
         constants_gates: 1,
         assert_zero_gates: 1,
         copy_gates: 0,
-        add_gates: 2,
-        mul_gates: 3,
+        add_gates: 3,
+        mul_gates: 6,
         add_constant_gates: 0,
         mul_constant_gates: 0,
         and_gates: 0,
@@ -222,9 +258,9 @@ fn test_stats() -> crate::Result<()> {
         not_gates: 0,
         variables_freed: 8,
         functions_defined: 1,
-        functions_called: 2,
-        switches: 0,
-        branches: 0,
+        functions_called: 4,
+        switches: 1,
+        branches: 2,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,

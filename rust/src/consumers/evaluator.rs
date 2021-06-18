@@ -192,11 +192,8 @@ impl Evaluator {
                 self.known_functions.insert(name.clone(), (*output_count, *input_count, *instance_count, *witness_count, subcircuit.clone()));
             }
 
-            Call(_, _) => {
-                // TODO:
-                // - load implementation and execute in its own scope.
-                // - map inputs and outputs.
-                unimplemented!("Call gate")
+            Call(output_wires, directive) => {
+                self.ingest_directive(directive, output_wires)?;
             }
 
             Switch(condition, output_wires, cases, branches) => {
@@ -278,6 +275,7 @@ impl Evaluator {
         };
 
         let output_input_wires = [output_wires, input_wires].concat();
+
         for gate in translate_gates(&subcircuit, &output_input_wires) {
             self.ingest_gate(&gate)?;
         }
@@ -307,6 +305,7 @@ fn test_simulator() -> Result<()> {
 #[test]
 fn test_switch() -> Result<()> {
     use Gate::*;
+    use Directive::*;
     use crate::producers::examples::*;
 
     let instance = example_instance();
@@ -315,18 +314,42 @@ fn test_switch() -> Result<()> {
         Relation {
             header: example_header(),
             gates: vec![
-                Instance(0),
                 Witness(1),
-                Witness(2),
-                Constant(3, encode_negative_one(header)), // -1
-                Switch
-                Mul(4, 1, 1),
-                Mul(5, 2, 2),                                            // witness_2 squared
-                Add(6, 4, 5),                                            // sum of squares
-                Mul(7, 3, 0),
-                Add(8, 6, 7),                                            // sum - instance_0
-                Free(0, Some(7)),                                        // Free all previous wires
-                AssertZero(8),                                           // difference == 0
+                Switch(1,                     // condition
+                    vec![0, 2, 4, 5, 6],      // output wires
+                    vec![vec![3], vec![5]],   // cases
+                    vec![                     // branches
+                        AbstractAnonCall(     // case 3
+                            vec![1],
+                            1,
+                            1,
+                            vec![
+                                Instance(0),
+                                Witness(1),
+                                Mul(2, 5, 5),
+                                Mul(3, 1, 1),
+                                Add(4, 2, 3),
+                            ],
+                        ),
+                        AbstractAnonCall(     // case 5
+                            vec![1],
+                            1,
+                            0,
+                            vec![
+                                Instance(0),
+                                Mul(1, 5, 0),
+                                Mul(2, 5, 5),
+                                Mul(3, 1, 2),
+                                Add(4, 2, 3),
+                            ],
+                        ),
+                    ],
+                ),
+                Constant(3, encode_negative_one(&example_header())), // -1
+                Mul(7, 3, 0),                                              // - instance_0
+                Add(8, 6, 7),                                              // sum - instance_0
+                Free(0, Some(7)),                                          // Free all previous wires
+                AssertZero(8),                                             // difference == 0
             ],
         };
 

@@ -545,17 +545,6 @@ impl Gate {
 
     /// Returns the output wire id if exists.
     /// if not, returns None
-    ///
-    /// # Examples
-    ///
-    /// a simple example
-    /// ```
-    ///
-    ///  use zki_sieve::Gate::*;
-    ///  let g = Add(0,1,2);
-    ///  let wire_id = g.get_output_wire_id();
-    ///
-    /// ```
     fn _get_output_wire_id(&self) -> Option<WireId> {
         match *self {
             Constant(w, _) => Some(w),

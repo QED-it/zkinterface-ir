@@ -83,7 +83,7 @@ impl Validator {
         self.ensure_all_instance_values_consumed();
         self.ensure_all_witness_values_consumed();
         if self.live_wires.len() != 0 {
-            println!("{}", format!("WARNING: these variables were not freed: {:?}.", self.live_wires.into_iter().nth(10)));
+            println!("WARNING: few variables were not freed.");
         }
         self.violations
     }
@@ -569,7 +569,7 @@ fn test_validator_violations() -> crate::Result<()> {
     assert_eq!(violations, vec![
         "The instance value [101, 0, 0, 0] cannot be represented in the field specified in Header (101 >= 101).",
         "The field_characteristic field is not consistent across headers.",
-        "No value available for the Witness wire 2",
+        "Not enough Witness value to consume.",
     ]);
 
     Ok(())

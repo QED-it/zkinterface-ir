@@ -2,7 +2,6 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::{Header, Instance, Relation, Witness};
-use crate::structs::functions::Directive::AbstractCall;
 
 pub fn example_header() -> Header {
     example_header_in_field(literal32(EXAMPLE_MODULUS))
@@ -56,23 +55,53 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
 }
 
 pub fn example_relation_h(header: &Header) -> Relation {
+    use crate::structs::functions::Directive::*;
     use crate::Gate::*;
 
     Relation {
         header: header.clone(),
         gates: vec![
-            Instance(0),
-            Witness(1),
-            Witness(2),
-            Constant(3, encode_negative_one(header)), // -1
             Function("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation id1*id2 = id0
-            Call(vec![4], AbstractCall("example/mul".to_string(), vec![1, 1])), // witness_1 squared using the function call
-            Mul(5, 2, 2),                                            // witness_2 squared
-            Add(6, 4, 5),                                            // sum of squares
-            Call(vec![7], AbstractCall("example/mul".to_string(), vec![0, 3])), // negative instance_0 using the function call
-            Add(8, 6, 7),                                            // sum - instance_0
-            Free(0, Some(7)),                                        // Free all previous wires
-            AssertZero(8),                                           // difference == 0
+            Witness(1),
+            Switch(
+                1,                      // condition
+                vec![0, 2, 4, 5, 6],    // output wires
+                vec![vec![3], vec![5]], // cases
+                vec![
+                    // branches
+                    AbstractAnonCall(
+                        // case 3
+                        vec![1],
+                        1,
+                        1,
+                        vec![
+                            Instance(0),
+                            Witness(1),
+                            Call(vec![2], AbstractCall("example/mul".to_string(), vec![5, 5])),
+                            Call(vec![3], AbstractCall("example/mul".to_string(), vec![1, 1])),
+                            Add(4, 2, 3),
+                        ],
+                    ),
+                    AbstractAnonCall(
+                        // case 5
+                        vec![1],
+                        1,
+                        0,
+                        vec![
+                            Instance(0),
+                            Call(vec![1], AbstractCall("example/mul".to_string(), vec![5, 0])),
+                            Mul(2, 5, 5),
+                            Mul(3, 1, 2),
+                            Add(4, 2, 3),
+                        ],
+                    ),
+                ],
+            ),
+            Constant(3, encode_negative_one(&example_header())), // -1
+            Call(vec![7], AbstractCall("example/mul".to_string(), vec![3, 0])), // - instance_0
+            Add(8, 6, 7),                                        // sum - instance_0
+            Free(0, Some(7)),                                    // Free all previous wires
+            AssertZero(8),                                       // difference == 0
         ],
     }
 }

@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 use std::error::Error;
-use std::iter;
 use serde::{Deserialize, Serialize};
 
 use crate::Result;
@@ -141,43 +140,46 @@ pub fn build_gate_call<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 pub fn translate_gates<'s>(subcircuit: &'s[Gate], output_input_wires: &'s[WireId]) -> impl Iterator<Item = Gate> + 's {
     subcircuit
         .iter()
-        .flat_map(move |gate| iter::from_fn(move || match gate {
-            Gate::Constant(out, val) => Some(Gate::Constant(output_input_wires[*out as usize], val.clone())),
-            Gate::AssertZero(out) => Some(Gate::AssertZero(output_input_wires[*out as usize])),
-            Gate::Copy(out, inp) => Some(Gate::Copy(output_input_wires[*out as usize], output_input_wires[*inp as usize])),
-            Gate::Add(out, a, b) => Some(Gate::Add(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize])),
-            Gate::Mul(out, a, b) => Some(Gate::Mul(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize])),
-            Gate::AddConstant(out, a, val) => Some(Gate::AddConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone())),
-            Gate::MulConstant(out, a, val) => Some(Gate::MulConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone())),
-            Gate::And(out, a, b) => Some(Gate::And(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize])),
-            Gate::Xor(out, a, b) => Some(Gate::Xor(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize])),
-            Gate::Not(out, a) => Some(Gate::Not(output_input_wires[*out as usize], output_input_wires[*a as usize])),
-            Gate::Instance(out) => Some(Gate::Instance(output_input_wires[*out as usize])),
-            Gate::Witness(out) => Some(Gate::Witness(output_input_wires[*out as usize])),
-            Gate::Free(from, end) => Some(Gate::Free(output_input_wires[*from as usize], end.map(|id| output_input_wires[id as usize]))),
+        .map(move |gate| translate_gate(gate, output_input_wires))
+}
 
-            Gate::Call(outs,dir) => {
-                match dir {
-                    AbstractCall(name, input_wires) => Some(Gate::Call(
-                        translate_vector_wires(outs, output_input_wires),
-                        Directive::AbstractCall(name.clone(), translate_vector_wires(input_wires, output_input_wires))
-                    )),
-                    // This one should never happen
-                    _ => None
-                }
-            }
-            Gate::Switch(condition, output_wires, cases, branches) => {
-                Some(Gate::Switch(
-                    output_input_wires[*condition as usize],
-                    translate_vector_wires(output_wires, output_input_wires),
-                    cases.clone(),
-                    branches.iter().map(|dir| translate_directive(dir, output_input_wires)).collect(),
-                ))
-            }
+fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
+    match gate {
+        Gate::Constant(out, val) => Gate::Constant(output_input_wires[*out as usize], val.clone()),
+        Gate::AssertZero(out) => Gate::AssertZero(output_input_wires[*out as usize]),
+        Gate::Copy(out, inp) => Gate::Copy(output_input_wires[*out as usize], output_input_wires[*inp as usize]),
+        Gate::Add(out, a, b) => Gate::Add(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
+        Gate::Mul(out, a, b) => Gate::Mul(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
+        Gate::AddConstant(out, a, val) => Gate::AddConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone()),
+        Gate::MulConstant(out, a, val) => Gate::MulConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone()),
+        Gate::And(out, a, b) => Gate::And(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
+        Gate::Xor(out, a, b) => Gate::Xor(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
+        Gate::Not(out, a) => Gate::Not(output_input_wires[*out as usize], output_input_wires[*a as usize]),
+        Gate::Instance(out) => Gate::Instance(output_input_wires[*out as usize]),
+        Gate::Witness(out) => Gate::Witness(output_input_wires[*out as usize]),
+        Gate::Free(from, end) => Gate::Free(output_input_wires[*from as usize], end.map(|id| output_input_wires[id as usize])),
 
-            // This one should never happen
-            Gate::Function(..) => None,
-            }))
+        Gate::Call(outs,dir) => {
+            match dir {
+                AbstractCall(name, input_wires) => Gate::Call(
+                    translate_vector_wires(outs, output_input_wires),
+                    Directive::AbstractCall(name.clone(), translate_vector_wires(input_wires, output_input_wires))
+                ),
+                // This one should never happen
+                _ => panic!("Gate::Call should be called only with Directive::AbstractCall"),
+            }
+        }
+        Gate::Switch(condition, output_wires, cases, branches) =>
+            Gate::Switch(
+                output_input_wires[*condition as usize],
+                translate_vector_wires(output_wires, output_input_wires),
+                cases.clone(),
+                branches.iter().map(|dir| translate_directive(dir, output_input_wires)).collect(),
+            ),
+
+        // This one should never happen
+        Gate::Function(..) => panic!("Function should not be defined within bodies."),
+    }
 }
 
 fn translate_vector_wires(wires: &[WireId], output_input_wires: &[WireId]) -> Vec<WireId> {
