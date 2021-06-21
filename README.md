@@ -31,16 +31,16 @@ git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
 cd zkinterface-sieve/rust/
 cargo install --path .
 
-zki help
+zki_sieve help
 
 This will print a list of available commands (your mileage may vary depending on your environment).
 ```
 
 ### A producer: example generator
 
-The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki help`). The profile AC (Arithmetic Circuit) was selected.
+The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki_sieve help`). The profile AC (Arithmetic Circuit) was selected.
 
-    zki example
+    zki_sieve example
 
     …
     Writing ./000_instance.sieve
@@ -54,7 +54,7 @@ The `Validate` command validates that the statement is properly formatted in com
 
 The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
-    zki validate
+    zki_sieve validate
     
     …
     Reading ./000_instance.sieve
@@ -65,7 +65,7 @@ The `Evaluate` command acts as a simulator in place of a proving system, and rep
 
  And the evaluator,
 
-    zki evaluate
+    zki_sieve evaluate
     
     …
     Reading ./000_instance.sieve
@@ -74,7 +74,7 @@ The `Evaluate` command acts as a simulator in place of a proving system, and rep
 
     The statement is TRUE!
 
-There is a command `zki valid-eval-metrics` which performs all checks at once.
+There is a command `zki_sieve valid-eval-metrics` which performs all checks at once.
 
 
 ### A consumer: format to human-readable YAML
@@ -82,8 +82,8 @@ There is a command `zki valid-eval-metrics` which performs all checks at once.
 The command below reads the statement and prints a textual representation of it. It uses the YAML format, which is similar to JSON but easier to read and write. It is one-to-one equivalent to the information formatted with FlatBuffers.
 
 
-    zki to-yaml
-    # Or zki to-json
+    zki_sieve to-yaml
+    # Or zki_sieve to-json
 
     …
     Reading ./000_instance.sieve
@@ -196,7 +196,7 @@ Also, example usage with the validator and the evaluator can be found in `test_w
 
 ### Example code.
 
-An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/zki.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
+An easy way to start a new integration is to explore the source code of the library, which is itself called from the CLI commands. The entry points are the functions called `main_…` in the file `src/bin/zki_sieve.rs`.  Additional example code can be found in the `test_…` functions in the directory `src/producers/` and `src/consumers/`.
 
 ### Basic API
 

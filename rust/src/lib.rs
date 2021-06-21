@@ -1,4 +1,4 @@
-//! zki is an implementation of SIEVE IR.
+//! zki_sieve is an implementation of SIEVE IR.
 //!
 //! It includes Rust data structures and functions to produce and consume statements.
 //!
@@ -8,7 +8,7 @@
 //! ```text
 //! cargo install --path .
 //!
-//! zki help
+//! zki_sieve help
 //! ```
 
 pub extern crate flatbuffers;
@@ -34,24 +34,13 @@ pub mod producers;
 pub mod consumers;
 
 // Exports.
+pub use consumers::source::Source;
+pub use producers::sink::{clean_workspace, FilesSink, Sink};
 /// The extension of files containing messages encoded in FlatBuffers-binary.
 pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
-pub use producers::sink::{
-    Sink,
-    FilesSink,
-    clean_workspace,
-};
-pub use consumers::{
-    source::Source,
-};
 pub use structs::{
-    header::Header,
-    relation::Relation,
-    instance::Instance,
-    witness::Witness,
-    message::Message,
-    messages::Messages,
-    gates::Gate,
+    gates::Gate, header::Header, instance::Instance, message::Message, messages::Messages,
+    relation::Relation, value::Value, witness::Witness, WireId,
 };
 
 /// Common definition of Result with generic errors.

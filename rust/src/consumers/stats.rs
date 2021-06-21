@@ -3,14 +3,17 @@ extern crate serde_json;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Header, Relation, Instance, Witness, Message, Gate};
+use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
+    // Header.
     pub field_characteristic: Vec<u8>,
     pub field_degree: u32,
+    // Inputs.
     pub instance_variables: usize,
     pub witness_variables: usize,
+    // Gates.
     pub constants_gates: usize,
     pub assert_zero_gates: usize,
     pub copy_gates: usize,
@@ -21,10 +24,20 @@ pub struct Stats {
     pub and_gates: usize,
     pub xor_gates: usize,
     pub not_gates: usize,
-
+    pub variables_freed: usize,
+    // The number of messages into which the statement was split.
+    pub instance_messages: usize,
+    pub witness_messages: usize,
+    pub relation_messages: usize,
 }
 
 impl Stats {
+    pub fn from_messages(messages: impl Iterator<Item = Result<Message>>) -> Self {
+        let mut stats = Stats::default();
+        messages.for_each(|msg| stats.ingest_message(&msg.unwrap()));
+        stats
+    }
+
     pub fn ingest_message(&mut self, msg: &Message) {
         match msg {
             Message::Instance(i) => self.ingest_instance(&i),
@@ -35,58 +48,78 @@ impl Stats {
 
     pub fn ingest_instance(&mut self, instance: &Instance) {
         self.ingest_header(&instance.header);
-        self.instance_variables += instance.common_inputs.len();
+        self.instance_messages += 1;
     }
 
     pub fn ingest_witness(&mut self, witness: &Witness) {
         self.ingest_header(&witness.header);
-        self.witness_variables += witness.short_witness.len();
+        self.witness_messages += 1;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
+        self.relation_messages += 1;
 
         for gate in &relation.gates {
-            match gate {
-                Gate::Constant(_out, _value) => {
-                    self.constants_gates += 1;
-                }
+            self.ingest_gate(gate);
+        }
+    }
 
-                Gate::AssertZero(_inp) => {
-                    self.assert_zero_gates += 1;
-                }
+    fn ingest_gate(&mut self, gate: &Gate) {
+        use Gate::*;
 
-                Gate::Copy(_out, _inp) => {
-                    self.copy_gates += 1;
-                }
+        match gate {
+            Constant(_out, _value) => {
+                self.constants_gates += 1;
+            }
 
-                Gate::Add(_out, _left, _right) => {
-                    self.add_gates += 1;
-                }
+            AssertZero(_inp) => {
+                self.assert_zero_gates += 1;
+            }
 
-                Gate::Mul(_out, _left, _right) => {
-                    self.mul_gates += 1;
-                }
+            Copy(_out, _inp) => {
+                self.copy_gates += 1;
+            }
 
-                Gate::AddConstant(_out, _inp, _constant) => {
-                    self.add_constant_gates += 1;
-                }
+            Add(_out, _left, _right) => {
+                self.add_gates += 1;
+            }
 
-                Gate::MulConstant(_out, _inp, _constant) => {
-                    self.mul_constant_gates += 1;
-                }
+            Mul(_out, _left, _right) => {
+                self.mul_gates += 1;
+            }
 
-                Gate::And(_out, _left, _right) => {
-                    self.and_gates += 1;
-                }
+            AddConstant(_out, _inp, _constant) => {
+                self.add_constant_gates += 1;
+            }
 
-                Gate::Xor(_out, _left, _right) => {
-                    self.xor_gates += 1;
-                }
+            MulConstant(_out, _inp, _constant) => {
+                self.mul_constant_gates += 1;
+            }
 
-                Gate::Not(_out, _inp) => {
-                    self.not_gates += 1;
-                }
+            And(_out, _left, _right) => {
+                self.and_gates += 1;
+            }
+
+            Xor(_out, _left, _right) => {
+                self.xor_gates += 1;
+            }
+
+            Not(_out, _inp) => {
+                self.not_gates += 1;
+            }
+
+            Instance(_out) => {
+                self.instance_variables += 1;
+            }
+
+            Witness(_out) => {
+                self.witness_variables += 1;
+            }
+
+            Free(first, last) => {
+                let last_one = last.unwrap_or(*first);
+                self.variables_freed += (last_one - *first + 1) as usize;
             }
         }
     }
@@ -96,7 +129,6 @@ impl Stats {
         self.field_degree = header.field_degree;
     }
 }
-
 
 #[test]
 fn test_stats() -> crate::Result<()> {
@@ -111,9 +143,8 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_witness(&witness);
     stats.ingest_relation(&relation);
 
-
     let expected_stats = Stats {
-        field_characteristic: literal(MODULUS),
+        field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
         instance_variables: 1,
         witness_variables: 2,
@@ -127,6 +158,10 @@ fn test_stats() -> crate::Result<()> {
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
+        variables_freed: 8,
+        instance_messages: 1,
+        witness_messages: 1,
+        relation_messages: 1,
     };
     assert_eq!(expected_stats, stats);
 
