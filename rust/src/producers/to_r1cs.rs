@@ -1,8 +1,8 @@
 use num_bigint::BigUint;
 use std::ops::Sub;
 
-use crate::structs::assignment::Assignment;
-use crate::structs::{Value, WireId};
+use crate::structs::value::Value;
+use crate::structs::WireId;
 use crate::Gate::*;
 use crate::{Gate, Header, Instance, Relation, Witness};
 
@@ -29,19 +29,19 @@ pub fn pad_le_u8_vec(v: Value, len: usize) -> Value {
     }
 }
 
-//instance variables: values explicitly set for a wire, not as R1CS constraints
-// return the zkInterface Variables struct, plus the free_variable_id
-pub fn combine_variables(assignments: &[Assignment]) -> zkiVariables {
+// variables: values explicitly set for a wire, not as R1CS constraints
+// return the zkInterface Variables struct
+pub fn combine_variables(assignments: &BTreeMap<WireId, Value>) -> zkiVariables {
     let mut ids: Vec<u64> = vec![];
     let mut values: Vec<u8> = vec![];
 
     let maxlen = assignments
-        .iter()
-        .fold(0, |acc, a| std::cmp::max(acc, a.value.len()));
+        .values()
+        .fold(0, |acc, a| std::cmp::max(acc, a.len()));
 
-    for a in assignments {
-        ids.push(a.id);
-        values.extend(pad_le_u8_vec(a.value.to_vec(), maxlen));
+    for (k, v) in assignments {
+        ids.push(*k);
+        values.extend(pad_le_u8_vec(v.to_vec(), maxlen));
     }
 
     zkiVariables {
@@ -84,10 +84,16 @@ pub fn pad_to_max(vals: &[&Value]) -> Vec<u8> {
 #[derive(Default)]
 pub struct GateConverter {
     pub constraints: Vec<BilinearConstraint>,
-    pub field_characteristic: Vec<u8>,
+    pub field_characteristic: Value,
     pub new_modulus: Option<Vec<u8>>,
 
-    // map of original wire ID of Constant() gate to the value
+    // map of original Instance() wire ID to its value
+    pub instance_values: BTreeMap<WireId, Value>,
+
+    // map of original Witness() wire ID to its value
+    pub witness_values: BTreeMap<WireId, Value>,
+
+    // map of original Constant() wire ID to its value
     pub constant_values: BTreeMap<WireId, Value>,
 
     // map of original wire ID to new wire ID
@@ -123,6 +129,7 @@ impl GateConverter {
         return new_id
     }
 
+    // create a new wire id for the R1CS instance to replace the old wire ID
     pub fn to_new_id(&mut self, id: &WireId) -> WireId {
         match self.shifted_wire_ids.entry(*id) {
             Entry::Occupied(o) => *o.get(),
@@ -212,6 +219,9 @@ impl GateConverter {
                     (vec![0], vec![0]),
                 )
             }
+            Gate::Instance(_) => panic!("Instance gate should have been removed!"),
+            Gate::Witness(_) => panic!("Witness gate should have been removed!"),
+            Free(_, _) => panic!("Free should have been removed!"),
         };
         self.constraints.push(BilinearConstraint {
             linear_combination_a: make_combination(a.0, a.1),
@@ -351,35 +361,39 @@ impl GateConverter {
             Xor(_,_,_) => panic!("Xor should have been rewritten!"),
             Not(_,_) => panic!("Not should have been rewritten!"),
 
+            // Instance and Witness are ignored here because they are read in before relations, and don't need more
+            Instance(_) => {},
+            Witness(_) => {},
+
             AssertZero(x) => {
                 let x = self.to_new_id(x);
                 let gate = AssertZero(x);
                 self.gate_to_simple_constraint(&gate);
                 self.all_gates.push(gate);
             }
+
+            Free(_,_) => panic!("Free is not yet supported!"),
         }
     }
 
-    pub fn ingest_header_and_relation(
+    pub fn build_header_and_relation(
         &mut self,
-        instance: &Instance,
-        relation: &Relation,
+        header: &Header,
+        gates: &Vec<Gate>,
     ) -> (zkiCircuitHeader, zkiConstraintSystem) {
-        assert_eq!(instance.header, relation.header);
-        let header = &instance.header;
-
         let fm = self.extract_field_maximum(&header);
 
-        let assignments: Vec<Assignment> = instance
-            .common_inputs
-            .iter()
-            .map(|a| Assignment {
-                id: self.to_new_id(&a.id),
-                value: a.value.clone(),
-            })
+        let assignments: BTreeMap<WireId, Value> = self.instance_values
+            .clone()
+            .into_iter()
+            .map(|(k, v)| (
+                self.to_new_id(&
+                    k),
+                v
+            ))
             .collect();
 
-        for g in &relation.gates {
+        for g in gates {
             self.add_gate(g);
         }
 
@@ -406,18 +420,16 @@ impl GateConverter {
     // To do this inference, we need all of the gates (with constants removed by to_r1cs) and the field size.
     pub fn update_witness(
         &self,
-        witness: &Witness,
-        common_variables: &Vec<Assignment>,
         field_characteristic: &BigUint,
     ) -> zkiWitness {
-        let to_map = |x: &Vec<Assignment>| {
+        let to_map = |x: &BTreeMap<WireId, Value>| {
             x.iter()
-                .map(|a| (a.id, BigUint::from_bytes_le(&a.value)))
+                .map(|(k, v)| (*k, BigUint::from_bytes_le(v)))
                 .collect()
         };
 
-        let mut witness_assignments: BTreeMap<WireId, BigUint> = to_map(&witness.short_witness);
-        let mut all_assignments_original: BTreeMap<WireId, BigUint> = to_map(&common_variables);
+        let mut witness_assignments: BTreeMap<WireId, BigUint> = to_map(&self.witness_values);
+        let mut all_assignments_original: BTreeMap<WireId, BigUint> = to_map(&self.instance_values);
         all_assignments_original.extend(witness_assignments.clone());
 
         // Rewrite to new wire IDs
@@ -512,20 +524,24 @@ impl GateConverter {
                 And(_,_,_) => panic!("And should have been rewritten!"),
                 Xor(_,_,_) => panic!("Xor should have been rewritten!"),
                 Not(_,_) => panic!("Not should have been rewritten!"),
-                Constant(_, _) => panic!("all_gates must have filtered out Constant gates!"),
+                Constant(_,_) => panic!("all_gates must have filtered out Constant gates!"),
                 AssertZero(_) => panic!("all_gates must have filtered out AssertZero gates!"),
+                Instance(_) => panic!("all_gates must have filtered out Instance gates!"),
+                Witness(_) => panic!("all_gates must have filtered out Witness gates!"),
+
+                Free(_,_) => panic!("Free gates are not yet supported!"),
+
             }
         }
 
-        let mut assignment_vec: Vec<Assignment> = witness_assignments
+        let witness_assignments: BTreeMap<WireId, Value> = witness_assignments
             .iter()
-            .map(|(id, value)| Assignment {
-                id: *id,
-                value: value.to_bytes_le(),
-            })
+            .map(|(id, value)| (
+                *id,
+                value.to_bytes_le()
+            ))
             .collect();
-        assignment_vec.sort_by(|a, b| a.id.partial_cmp(&b.id).unwrap());
-        let assigned_variables = combine_variables(&assignment_vec);
+        let assigned_variables = combine_variables(&witness_assignments);
         zkiWitness { assigned_variables }
     }
 }
@@ -539,21 +555,39 @@ pub fn to_r1cs(
         free_variable_id: 1, //skip 0 for constant
         ..GateConverter::default()
     };
+    assert_eq!(instance.header, relation.header);
+    assert_eq!(witness.header, relation.header);
 
-    // reserve wire ID maps for common inputs, then witness inputs
-    for a in instance
-        .common_inputs
-        .iter()
-        .chain(witness.short_witness.iter())
-    {
-        gc.to_new_id(&a.id);
+    let mut instance_index = 0;
+    let mut witness_index = 0;
+    // load instance and witness wire values
+    for g in relation.gates.iter() {
+        match g {
+            Instance(id) => {
+                gc.instance_values.insert(*id, instance.common_inputs[instance_index].clone());
+                instance_index += 1;
+            },
+            Witness(id) => {
+                gc.witness_values.insert(*id, witness.short_witness[witness_index].clone());
+                witness_index += 1;
+            },
+            _ => continue,
+        }
     }
 
-    let (zki_header, zki_r1cs) = gc.ingest_header_and_relation(&instance, &relation);
+    // reserve wire ID maps for common inputs, then witness inputs, each in a contiguous block
+    let keys_to_add: Vec<WireId> = gc.instance_values
+        .keys()
+        .chain(gc.witness_values.keys())
+        .map(|k| *k)
+        .collect();
+    for k in keys_to_add {
+        gc.to_new_id(&k);
+    }
+
+    let (zki_header, zki_r1cs) = gc.build_header_and_relation(&instance.header, &relation.gates);
 
     let zki_witness = gc.update_witness(
-        &witness,
-        &instance.common_inputs,
         &BigUint::from_bytes_le(&relation.header.field_characteristic),
     );
 
@@ -561,39 +595,44 @@ pub fn to_r1cs(
 }
 
 #[cfg(test)]
+use crate::producers::sink::MemorySink;
+#[cfg(test)]
+use crate::Source;
+#[cfg(test)]
+use crate::producers::from_r1cs::R1CSConverter;
+
+#[cfg(test)]
 fn assert_same_io_values(instance: &Instance, zki_header: &zkiCircuitHeader) -> crate::Result<()> {
-    let converted_vars = crate::producers::from_r1cs::zki_variables_to_vec_assignment(
-        &zki_header.instance_variables,
-    );
-    let r1cs_vals: BTreeMap<WireId, BigUint> = converted_vars
+    let zki_vals: Vec<BigUint> = zki_header.instance_variables
+        .get_variables()
         .iter()
-        .map(|x| (x.id, BigUint::from_bytes_le(&x.value)))
+        .map(|v| BigUint::from_bytes_le(&v.value))
+        .collect();
+    let ir_vals: Vec<BigUint> = instance.common_inputs
+        .iter()
+        .map(|v| BigUint::from_bytes_le(&v))
         .collect();
 
-    for a in instance.common_inputs.iter() {
-        let aval = BigUint::from_bytes_le(&a.value);
-        let bval = r1cs_vals.get(&a.id).clone().unwrap();
-        assert_eq!(aval, *bval);
-    }
+    assert!(zki_vals.iter().all(|v| ir_vals.contains(v)));
+    assert!(ir_vals.iter().all(|v| zki_vals.contains(v)));
 
     Ok(())
 }
 
 #[cfg(test)]
 fn assert_same_witness_values(witness: &Witness, zki_witness: &zkiWitness) -> crate::Result<()> {
-    let converted_vars = crate::producers::from_r1cs::zki_variables_to_vec_assignment(
-        &zki_witness.assigned_variables,
-    );
-    let r1cs_vals: std::collections::BTreeMap<crate::structs::WireId, BigUint> = converted_vars
+    let zki_vals: Vec<BigUint> = zki_witness.assigned_variables
+        .get_variables()
         .iter()
-        .map(|x| (x.id, BigUint::from_bytes_le(&x.value)))
+        .map(|v| BigUint::from_bytes_le(&v.value))
+        .collect();
+    let ir_vals: Vec<BigUint> = witness.short_witness
+        .iter()
+        .map(|v| BigUint::from_bytes_le(&v))
         .collect();
 
-    for a in witness.short_witness.iter() {
-        let aval = BigUint::from_bytes_le(&a.value);
-        let bval = r1cs_vals.get(&a.id).clone().unwrap();
-        assert_eq!(aval, *bval);
-    }
+    assert!(zki_vals.iter().all(|v| ir_vals.contains(v)));
+    assert!(ir_vals.iter().all(|v| zki_vals.contains(v)));
 
     Ok(())
 }
@@ -610,8 +649,16 @@ fn test_same_values_after_conversion() -> crate::Result<()> {
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constraints();
 
-    let (instance, relation) = crate::producers::from_r1cs::to_ir(&zki_header, &zki_r1cs);
-    let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
+    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    converter.ingest_witness(&zki_witness)?;
+    converter.ingest_constraints(&zki_r1cs)?;
+
+    let sink = converter.finish();
+    let source: Source = sink.into();
+    let messages = source.read_all_messages()?;
+    let instance = messages.instances[0].clone();
+    let relation = messages.relations[0].clone();
+    let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
     let (zki_header2, _, zki_witness2) = to_r1cs(&instance, &relation, &witness);
@@ -635,8 +682,16 @@ fn test_with_validate() -> crate::Result<()> {
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constraints();
 
-    let (instance, relation) = crate::producers::from_r1cs::to_ir(&zki_header, &zki_r1cs);
-    let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
+    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    converter.ingest_witness(&zki_witness)?;
+    converter.ingest_constraints(&zki_r1cs)?;
+
+    let sink = converter.finish();
+    let source: Source = sink.into();
+    let messages = source.read_all_messages()?;
+    let instance = messages.instances[0].clone();
+    let relation = messages.relations[0].clone();
+    let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
     let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness);
@@ -693,8 +748,16 @@ fn test_with_simulator() -> crate::Result<()> {
     let zki_witness = zki_example_witness_inputs(3, 4);
     let zki_r1cs = zki_example_constraints();
 
-    let (instance, relation) = crate::producers::from_r1cs::to_ir(&zki_header, &zki_r1cs);
-    let witness = crate::producers::from_r1cs::to_witness(&zki_header, &zki_witness);
+    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    converter.ingest_witness(&zki_witness)?;
+    converter.ingest_constraints(&zki_r1cs)?;
+
+    let sink = converter.finish();
+    let source: Source = sink.into();
+    let messages = source.read_all_messages()?;
+    let instance = messages.instances[0].clone();
+    let relation = messages.relations[0].clone();
+    let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
     let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness);
