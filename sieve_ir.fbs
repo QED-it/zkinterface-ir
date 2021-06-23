@@ -41,6 +41,10 @@ struct Wire {
     id          :uint64;
 }
 
+struct WireDelta {
+    delta       :uint64;
+}
+
 // Field element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
@@ -132,40 +136,39 @@ table Function {
 
 table GateCall {
     // Invokes a previously defined Function gate
-    output_wires      :[Wire];
-    inner             : AbstractGateCall;
-}
-
-/// The two Abstract types cannot exist by themselves in a circuit,
-/// they MUST be included in another gate (For / Switch / Call / ...)
-table AbstractGateCall {
-    // Invokes a previously defined Function gate
     name              :string;
+    output_wires      :[Wire];
     input_wires       :[Wire];
 }
 
-table AbstractAnonCall {
-    // Declares and invokes a Function gate
-    input_wires     :[Wire];
-    instance_count  :uint64;
-    witness_count   :uint64;
-    subcircuit      :[Gate];
-}
-
-union Invocation {
-    AbstractGateCall,
-    AbstractAnonCall,
-}
-
-table Directive {
-    gate      :Invocation;
+table Block {
+    block   :[Gate];
 }
 
 table GateSwitch {
     condition         :Wire;
     output_wires      :[Wire];
+    input_wires       :[Wire];
+    instance_count  :uint64;
+    witness_count   :uint64;
     cases             :[Value];
-    branches          :[Directive];
+    branches          :[Block];
+}
+
+struct Mapping {
+    base        :Wire;
+    stride      :WireDelta;
+    size        :uint64;
+}
+
+table GateFor {
+    start_val       :uint64;
+    end_val         :uint64;
+    instance_count  :uint64;
+    witness_count   :uint64;
+    output_map      :[Mapping];
+    input_map       :[Mapping];
+    block           :Block;
 }
 
 union GateSet {
@@ -185,6 +188,7 @@ union GateSet {
    Function,
    GateCall,
    GateSwitch,
+   GateFor,
 }
 
 table Gate {
