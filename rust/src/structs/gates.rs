@@ -9,7 +9,7 @@ use super::value::{try_from_values_vector, build_values_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
-use crate::structs::functions::{Directive, from_gate_call, build_gate_call};
+use crate::structs::functions::Block;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum Gate {
@@ -44,10 +44,12 @@ pub enum Gate {
     /// Function Gate for generic custom gates
     /// Function(name, output_count, input_count, instance_count, witness_count, directives).
     Function(String, usize, usize, usize, usize, Vec<Gate>),
-    /// GateCall(output_wires, AbstractGateCall)
-    Call(Vec<WireId>, Directive),
-    /// GateSwitch(condition, output_wires, cases, subcircuits)
-    Switch(WireId, Vec<WireId>, Vec<Value>, Vec<Directive>),
+    /// GateCall(name, output_wires, input_wires)
+    Call(String, Vec<WireId>, Vec<WireId>),
+    /// GateSwitch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches)
+    Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Block>),
+    /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
+    For(u64, u64, usize, usize, Vec<(WireId, u64, u64)>, Vec<(WireId, u64, u64)>, Vec<Gate>),
 }
 
 use Gate::*;
@@ -180,9 +182,11 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
 
             gs::GateCall => {
                 let gate = gen_gate.gate_as_gate_call().unwrap();
+
                 Call(
+                    gate.name().ok_or("Missing function name.")?.into(),
                     from_ids_vector(gate.output_wires().ok_or("Missing outputs")?),
-                    from_gate_call(gate.inner().ok_or("Missing body of the function")?)?,
+                    from_ids_vector(gate.input_wires().ok_or("Missing inputs")?),
                 )
             }
 
@@ -195,10 +199,15 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 Switch(
                     from_id(gate.condition().ok_or("Missing condition wire.")?),
                     from_ids_vector(gate.output_wires().ok_or("Missing output wires")?),
+                    from_ids_vector(gate.input_wires().ok_or("Missing input wires")?),
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
                     cases,
-                    Directive::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
+                    Block::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
                 )
             }
+
+            gs::GateFor => unimplemented!(),
         })
     }
 }
@@ -469,17 +478,17 @@ impl Gate {
                 )
             }
 
-            Call(output_wires, inner) => {
+            Call(name, output_wires, input_wires) => {
+                let g_name = builder.create_string(name);
                 let g_outputs = build_wires_vector(builder, output_wires);
-                let g_inner = match inner {
-                    Directive::AbstractCall(name, input_wires) => build_gate_call(builder, name, input_wires),
-                    _ => panic!("The inner directive of a Call() gate should be a AbstractCall only."),
-                };
+                let g_inputs = build_wires_vector(builder, input_wires);
+
                 let g_gate = g::GateCall::create(
                     builder,
                     &g::GateCallArgs {
+                        name: Some(g_name),
                         output_wires: Some(g_outputs),
-                        inner: Some(g_inner),
+                        input_wires: Some(g_inputs),
                     },
                 );
 
@@ -492,17 +501,21 @@ impl Gate {
                 )
             }
 
-            Switch(condition, outputs_list, cases, subcircuits) => {
+            Switch(condition, outputs_list, inputs_list, instance_count, witness_count, cases, subcircuits) => {
 
                 let output_wires = build_wires_vector(builder, outputs_list);
+                let input_wires = build_wires_vector(builder, inputs_list);
                 let cases = build_values_vector(builder, cases);
-                let branches = Directive::build_vector(builder, subcircuits);
+                let branches = Block::build_vector(builder, subcircuits);
 
                 let gate = g::GateSwitch::create(
                     builder,
                     &g::GateSwitchArgs {
                         condition: Some(&g::Wire::new(*condition)),
                         output_wires: Some(output_wires),
+                        input_wires: Some(input_wires),
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
                         cases: Some(cases),
                         branches: Some(branches),
                     },
@@ -517,7 +530,7 @@ impl Gate {
                 )
             }
 
-
+            For(_, _, _, _, _, _, _) => unimplemented!(),
         }
     }
 
@@ -563,8 +576,9 @@ impl Gate {
             Free(_, _) => None,
 
             Function(_, _, _, _, _, _) => None,
-            Call(_, _) => unimplemented!("Call gate"),
-            Switch(_, _, _, _) =>  unimplemented!("Switch gate"),
+            Call(_, _, _) => unimplemented!("Call gate"),
+            Switch(_, _, _, _, _, _, _) =>  unimplemented!("Switch gate"),
+            For(_, _, _, _, _, _, _) => unimplemented!("For loop"),
         }
     }
 }
