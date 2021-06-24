@@ -16,7 +16,7 @@ impl<'a> TryFrom<g::Block<'a>> for Block {
 
     fn try_from(g_block: g::Block) -> Result<Block> {
         let ret = Block(
-            Gate::try_from_vector(g_block.block()?)?
+            Gate::try_from_vector(g_block.block().ok_or("Missing subcircuit in block")?)?
         );
         Ok(ret)
     }

@@ -48,7 +48,7 @@ struct WireDelta {
 // Field element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
-   value       :[ubyte];
+   value        :[ubyte];
 }
 
 
@@ -149,8 +149,8 @@ table GateSwitch {
     condition         :Wire;
     output_wires      :[Wire];
     input_wires       :[Wire];
-    instance_count  :uint64;
-    witness_count   :uint64;
+    instance_count    :uint64;
+    witness_count     :uint64;
     cases             :[Value];
     branches          :[Block];
 }
