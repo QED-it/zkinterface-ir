@@ -188,13 +188,13 @@ impl Evaluator {
                 }
             }
 
-            Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
+            Function(name, _, _, _, _, subcircuit) => {
                 self.known_functions.insert(name.clone(), subcircuit.clone());
             }
 
             Call(name, output_wires, input_wires) => {
-                let subcircuit= self.known_functions.get(name).ok_or("unknown function")?;
-                self.ingest_subcircuit(subcircuit, output_wires, input_wires)?;
+                let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
+                self.ingest_subcircuit(&subcircuit, output_wires, input_wires)?;
             }
 
             Switch(condition, output_wires, input_wires, _, _, cases, branches) => {

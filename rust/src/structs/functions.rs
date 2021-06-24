@@ -99,6 +99,8 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
 
         // This one should never happen
         Gate::Function(..) => panic!("Function should not be defined within bodies."),
+
+        Gate::For(..) => unimplemented!(),
     }
 }
 

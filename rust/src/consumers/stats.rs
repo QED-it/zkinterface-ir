@@ -6,8 +6,6 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
-use crate::structs::functions::Directive;
-use std::cmp::max;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -144,32 +142,26 @@ impl Stats {
                 self.functions.insert(name.clone(), func_stats);
             }
 
-            Call(_, dir) => {
+            Call(name, _, _) => {
                 self.functions_called += 1;
-                self.ingest_directive(dir);
+                if let Some(func_stats) = self.functions.get(name).cloned() {
+                    self.ingest_call_stats(&func_stats);
+                } else {
+                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                }
             }
 
-            Switch(_, _, _, branches) => {
+            Switch(_, _, _, _, _, _, branches) => {
                 self.switches += 1;
                 self.branches += branches.len();
-                let (mut max_inst, mut max_wit) = (0usize, 0usize);
-                for dir in branches {
-                    let (inst, wit) = self.get_inst_wit_nbr(dir).unwrap();
-                    max_inst = max(max_inst, inst);
-                    max_wit = max(max_wit, wit);
+                for block in branches {
+                    for gate in &block.0 {
+                        self.ingest_gate(gate);
+                    }
                 }
-
-                for dir in branches {
-                    let (inst, wit) = self.get_inst_wit_nbr(dir).unwrap();
-                    self.ingest_directive(dir);
-                    self.instance_variables -= inst;
-                    self.witness_variables -= wit;
-                }
-
-                self.instance_variables += max_inst;
-                self.witness_variables += max_wit;
-
             }
+
+            For(_, _, _, _, _, _, _) => unimplemented!(),
         }
     }
 
@@ -197,34 +189,6 @@ impl Stats {
     fn ingest_header(&mut self, header: &Header) {
         self.field_characteristic = header.field_characteristic.clone();
         self.field_degree = header.field_degree;
-    }
-
-    fn get_inst_wit_nbr(&self, directive: &Directive) -> Result<(usize, usize)> {
-        match directive {
-            Directive::AbstractCall(name, _) => {
-                let stats = self.functions.get(name).ok_or("unknown function")?;
-                Ok((stats.instance_variables, stats.witness_variables))
-            }
-            Directive::AbstractAnonCall(_, instance_count, witness_count, _) => Ok((*instance_count, *witness_count))
-        }
-    }
-
-    fn ingest_directive(&mut self, dir: &Directive) {
-        use Directive::*;
-        match dir {
-            AbstractCall(name, _) => {
-                if let Some(func_stats) = self.functions.get(name).cloned() {
-                    self.ingest_call_stats(&func_stats);
-                } else {
-                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
-                }
-            }
-            AbstractAnonCall(_, _, _, subcircuit) => {
-                for gate in subcircuit {
-                    self.ingest_gate(gate);
-                }
-            },
-        }
     }
 }
 

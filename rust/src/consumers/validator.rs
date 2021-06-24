@@ -294,26 +294,26 @@ impl Validator {
                 // - consume witness.
 
                 let (output_count, input_count, instance_count, witness_count, subcircuit)
-                    = if let Some(function_signature) = self.known_functions.get(name) {
+                    = if let Some(function_signature) = self.known_functions.get(name).cloned() {
                     function_signature
                 } else {
                     self.violate(format!("Unknown Function gate {}", name));
                     return;
                 };
 
-                if *output_count != output_wires.len() {
+                if output_count != output_wires.len() {
                     self.violate("AbstractCall: number of output wires mismatch.");
                 }
 
-                if *input_count != input_wires.len() {
+                if input_count != input_wires.len() {
                     self.violate("AbstractCall: number of input wires mismatch.");
                 }
 
-                self.ingest_subcircuit(subcircuit, output_wires, input_wires, *instance_count, *witness_count);
+                self.ingest_subcircuit(&subcircuit, output_wires, input_wires, instance_count, witness_count);
 
                 // Now, consume instances and witnesses from self.
-                self.consume_instance(*instance_count);
-                self.consume_witness(*witness_count);
+                self.consume_instance(instance_count);
+                self.consume_witness(witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
                 output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
@@ -358,6 +358,8 @@ impl Validator {
                 // set the output wires as defined, since we checked they were in each branch.
                 output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
+
+            For(_, _, _, _, _, _, _) => unimplemented!(),
         }
     }
 
