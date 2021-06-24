@@ -38,8 +38,8 @@ pub struct Stats {
     pub instance_messages: usize,
     pub witness_messages: usize,
     pub relation_messages: usize,
-    // Function definitions
-    pub functions: HashMap<String, Stats>,
+    // Function definitions => stats / instance_count / witness_count
+    pub functions: HashMap<String, (Stats, usize, usize)>,
 }
 
 impl Stats {
@@ -133,32 +133,32 @@ impl Stats {
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
 
-            Function(name, _, _, _, _, implementation) => {
+            Function(name, _, _, instance_count, witness_count, implementation) => {
                 self.functions_defined += 1;
-                let mut func_stats = Stats::default();
-                for gate in implementation {
-                    func_stats.ingest_gate(gate);
-                }
-                self.functions.insert(name.clone(), func_stats);
+                let func_stats = self.ingest_subcircuit(implementation);
+                self.functions.insert(name.clone(), (func_stats, *instance_count, *witness_count));
             }
 
             Call(name, _, _) => {
                 self.functions_called += 1;
-                if let Some(func_stats) = self.functions.get(name).cloned() {
-                    self.ingest_call_stats(&func_stats);
+                if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                    self.ingest_call_stats(&stats_ins_wit.0);
+                    self.instance_variables += stats_ins_wit.1;
+                    self.witness_variables  += stats_ins_wit.2;
                 } else {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
             }
 
-            Switch(_, _, _, _, _, _, branches) => {
+            Switch(_, _, _, instance_count, witness_count, _, branches) => {
                 self.switches += 1;
                 self.branches += branches.len();
                 for block in branches {
-                    for gate in &block.0 {
-                        self.ingest_gate(gate);
-                    }
+                    self.ingest_call_stats(&self.ingest_subcircuit(&block.0));
                 }
+
+                self.instance_variables += instance_count;
+                self.witness_variables  += witness_count;
             }
 
             For(_, _, _, _, _, _, _) => unimplemented!(),
@@ -166,9 +166,6 @@ impl Stats {
     }
 
     fn ingest_call_stats(&mut self, other: &Stats) {
-        // Inputs.
-        self.instance_variables += other.instance_variables;
-        self.witness_variables += other.witness_variables;
         // Gates.
         self.constants_gates += other.constants_gates;
         self.assert_zero_gates += other.assert_zero_gates;
@@ -184,11 +181,21 @@ impl Stats {
 
         self.switches += other.switches;
         self.branches += other.branches;
+        self.functions_called += other.functions_called;
     }
 
     fn ingest_header(&mut self, header: &Header) {
         self.field_characteristic = header.field_characteristic.clone();
         self.field_degree = header.field_degree;
+    }
+
+    fn ingest_subcircuit(&self, subcircuit: &[Gate]) -> Stats {
+        let mut local_stats = Stats::default();
+        local_stats.functions = self.functions.clone();
+        for gate in subcircuit {
+            local_stats.ingest_gate(gate);
+        }
+        local_stats
     }
 }
 
@@ -214,7 +221,7 @@ fn test_stats() -> crate::Result<()> {
         assert_zero_gates: 1,
         copy_gates: 0,
         add_gates: 3,
-        mul_gates: 6,
+        mul_gates: 5,
         add_constant_gates: 0,
         mul_constant_gates: 0,
         and_gates: 0,
@@ -232,10 +239,10 @@ fn test_stats() -> crate::Result<()> {
     };
     expected_stats.functions.insert(
         "example/mul".to_string(),
-        Stats {
+        (Stats {
             mul_gates: 1,
             ..Stats::default()
-        },
+        }, 0, 0),
     );
 
     assert_eq!(expected_stats, stats);

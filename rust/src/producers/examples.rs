@@ -86,7 +86,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                         vec![
                         Instance(0),
                         Call("example/mul".to_string(), vec![1], vec![5, 0]),
-                        Mul(2, 5, 5),
+                        Witness(2),
                         Mul(3, 1, 2),
                         Add(4, 2, 3),
                         ]

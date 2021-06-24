@@ -274,7 +274,7 @@ fn test_simulator() -> Result<()> {
 #[test]
 fn test_switch() -> Result<()> {
     use Gate::*;
-    use Directive::*;
+    use crate::structs::functions::Block;
     use crate::producers::examples::*;
 
     let instance = example_instance();
@@ -286,12 +286,11 @@ fn test_switch() -> Result<()> {
                 Witness(1),
                 Switch(1,                     // condition
                     vec![0, 2, 4, 5, 6],      // output wires
+                    vec![1],                  // input wires
+                    1, 1,                     // instance_count, witness_count
                     vec![vec![3], vec![5]],   // cases
                     vec![                     // branches
-                        AbstractAnonCall(     // case 3
-                            vec![1],
-                            1,
-                            1,
+                        Block (               // case 3
                             vec![
                                 Instance(0),
                                 Witness(1),
@@ -300,14 +299,11 @@ fn test_switch() -> Result<()> {
                                 Add(4, 2, 3),
                             ],
                         ),
-                        AbstractAnonCall(     // case 5
-                            vec![1],
-                            1,
-                            0,
+                        Block (               // case 5
                             vec![
                                 Instance(0),
+                                Witness(2),
                                 Mul(1, 5, 0),
-                                Mul(2, 5, 5),
                                 Mul(3, 1, 2),
                                 Add(4, 2, 3),
                             ],
