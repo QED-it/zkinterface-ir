@@ -2496,7 +2496,7 @@ impl<'a> GateFor<'a> {
       builder.add_instance_count(args.instance_count);
       builder.add_end_val(args.end_val);
       builder.add_start_val(args.start_val);
-      if let Some(x) = args.block { builder.add_block(x); }
+      if let Some(x) = args.body { builder.add_body(x); }
       if let Some(x) = args.input_map { builder.add_input_map(x); }
       if let Some(x) = args.output_map { builder.add_output_map(x); }
       builder.finish()
@@ -2508,7 +2508,7 @@ impl<'a> GateFor<'a> {
     pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
     pub const VT_OUTPUT_MAP: flatbuffers::VOffsetT = 12;
     pub const VT_INPUT_MAP: flatbuffers::VOffsetT = 14;
-    pub const VT_BLOCK: flatbuffers::VOffsetT = 16;
+    pub const VT_BODY: flatbuffers::VOffsetT = 16;
 
   #[inline]
   pub fn start_val(&self) -> u64 {
@@ -2535,8 +2535,8 @@ impl<'a> GateFor<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Mapping>>>(GateFor::VT_INPUT_MAP, None).map(|v| v.safe_slice() )
   }
   #[inline]
-  pub fn block(&self) -> Option<Block<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(GateFor::VT_BLOCK, None)
+  pub fn body(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(GateFor::VT_BODY, None)
   }
 }
 
@@ -2547,7 +2547,7 @@ pub struct GateForArgs<'a> {
     pub witness_count: u64,
     pub output_map: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Mapping>>>,
     pub input_map: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Mapping>>>,
-    pub block: Option<flatbuffers::WIPOffset<Block<'a >>>,
+    pub body: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
 }
 impl<'a> Default for GateForArgs<'a> {
     #[inline]
@@ -2559,7 +2559,7 @@ impl<'a> Default for GateForArgs<'a> {
             witness_count: 0,
             output_map: None,
             input_map: None,
-            block: None,
+            body: None,
         }
     }
 }
@@ -2593,8 +2593,8 @@ impl<'a: 'b, 'b> GateForBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_INPUT_MAP, input_map);
   }
   #[inline]
-  pub fn add_block(&mut self, block: flatbuffers::WIPOffset<Block<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(GateFor::VT_BLOCK, block);
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_BODY, body);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateForBuilder<'a, 'b> {

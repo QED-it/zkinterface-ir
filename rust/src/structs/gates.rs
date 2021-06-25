@@ -6,6 +6,7 @@ use std::error::Error;
 
 use super::wire::{build_wires_vector, from_id, from_ids_vector};
 use super::value::{try_from_values_vector, build_values_vector};
+use crate::structs::functions::{try_from_block_vector, build_block_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
@@ -48,12 +49,11 @@ pub enum Gate {
     /// GateSwitch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches)
     Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Vec<Gate>>),
     /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
-    For(u64, u64, usize, usize, Vec<(WireId, u64, u64)>, Vec<(WireId, u64, u64)>, Vec<Gate>),
+    ///   Mapping = [base, stride, size]
+    For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
 }
 
 use Gate::*;
-use crate::structs::functions::{try_from_block_vector, build_block_vector};
-
 
 impl<'a> TryFrom<g::Gate<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -207,7 +207,24 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 )
             }
 
-            gs::GateFor => unimplemented!(),
+            gs::GateFor => {
+                let gate = gen_gate.gate_as_gate_for().unwrap();
+                let output_mappings = gate.output_map().ok_or("missing output mappings")?;
+                let input_mappings = gate.input_map().ok_or("missing input mappings")?;
+
+                let output_map = output_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta() , mapping.size_() as usize)).collect();
+                let input_map = input_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta(), mapping.size_() as usize)).collect();
+
+                For(
+                    gate.start_val(),
+                    gate.end_val(),
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    output_map,
+                    input_map,
+                    Gate::try_from_vector(gate.body().ok_or("Missing body of for loop")?)?,
+                )
+            },
         })
     }
 }
@@ -530,7 +547,45 @@ impl Gate {
                 )
             }
 
-            For(_, _, _, _, _, _, _) => unimplemented!(),
+            For(start_val, end_val, instance_count, witness_count, output_mappings, input_mappings, body) => {
+
+                let output_maps_tmp: Vec<_> = output_mappings.iter().map(|mapping| g::Mapping::new (
+                    &g::Wire::new(mapping.0),
+                    &g::WireDelta::new(mapping.1),
+                    mapping.2 as u64,
+                )).collect();
+                let g_output_map = builder.create_vector(&output_maps_tmp);
+
+                let input_maps_tmp: Vec<_> = input_mappings.iter().map(|mapping| g::Mapping::new (
+                    &g::Wire::new(mapping.0),
+                    &g::WireDelta::new(mapping.1),
+                    mapping.2 as u64,
+                )).collect();
+                let g_input_map = builder.create_vector(&input_maps_tmp);
+
+                let g_body = Gate::build_vector(builder, body);
+
+                let gate = g::GateFor::create(
+                    builder,
+                    &g::GateForArgs {
+                        start_val: *start_val,
+                        end_val: *end_val,
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
+                        output_map: Some(g_output_map),
+                        input_map: Some(g_input_map),
+                        body: Some(g_body),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateFor,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
         }
     }
 

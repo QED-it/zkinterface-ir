@@ -168,7 +168,7 @@ table GateFor {
     witness_count   :uint64;
     output_map      :[Mapping];
     input_map       :[Mapping];
-    block           :Block;
+    body            :[Gate];
 }
 
 union GateSet {
