@@ -348,7 +348,7 @@ impl Validator {
                 // 'Execute' each branch of the switch independently, and perform checks
                 for branch in branches {
                     // check the current branch
-                    self.ingest_subcircuit(&branch.0, output_wires, input_wires, *instance_count, *witness_count);
+                    self.ingest_subcircuit(branch, output_wires, input_wires, *instance_count, *witness_count);
                 }
 
 

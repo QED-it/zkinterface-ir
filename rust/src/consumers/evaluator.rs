@@ -205,7 +205,7 @@ impl Evaluator {
                     if self.get(*condition).ok() == Some(&Repr::from_bytes_le(case)) {
                         selected = true;
 
-                        self.ingest_subcircuit(&branch.0, output_wires, input_wires)?;
+                        self.ingest_subcircuit(branch, output_wires, input_wires)?;
                     }
                 }
 
@@ -274,7 +274,6 @@ fn test_simulator() -> Result<()> {
 #[test]
 fn test_switch() -> Result<()> {
     use Gate::*;
-    use crate::structs::functions::Block;
     use crate::producers::examples::*;
 
     let instance = example_instance();
@@ -290,24 +289,20 @@ fn test_switch() -> Result<()> {
                     1, 1,                     // instance_count, witness_count
                     vec![vec![3], vec![5]],   // cases
                     vec![                     // branches
-                        Block (               // case 3
-                            vec![
-                                Instance(0),
-                                Witness(1),
-                                Mul(2, 5, 5),
-                                Mul(3, 1, 1),
-                                Add(4, 2, 3),
-                            ],
-                        ),
-                        Block (               // case 5
-                            vec![
-                                Instance(0),
-                                Witness(2),
-                                Mul(1, 5, 0),
-                                Mul(3, 1, 2),
-                                Add(4, 2, 3),
-                            ],
-                        ),
+                        vec![                 // case 3
+                            Instance(0),
+                            Witness(1),
+                            Mul(2, 5, 5),
+                            Mul(3, 1, 1),
+                            Add(4, 2, 3),
+                        ],
+                        vec![                 // case 5
+                            Instance(0),
+                            Witness(2),
+                            Mul(1, 5, 0),
+                            Mul(3, 1, 2),
+                            Add(4, 2, 3),
+                        ],
                     ],
                 ),
                 Constant(3, encode_negative_one(&example_header())), // -1

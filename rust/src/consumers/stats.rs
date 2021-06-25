@@ -154,7 +154,7 @@ impl Stats {
                 self.switches += 1;
                 self.branches += branches.len();
                 for block in branches {
-                    self.ingest_call_stats(&self.ingest_subcircuit(&block.0));
+                    self.ingest_call_stats(&self.ingest_subcircuit(block));
                 }
 
                 self.instance_variables += instance_count;

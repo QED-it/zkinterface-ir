@@ -2,7 +2,6 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::{Header, Instance, Relation, Witness};
-use crate::structs::functions::Block;
 
 pub fn example_header() -> Header {
     example_header_in_field(literal32(EXAMPLE_MODULUS))
@@ -72,25 +71,21 @@ pub fn example_relation_h(header: &Header) -> Relation {
                 vec![vec![3], vec![5]], // cases
                 vec![
                     // branches
-                    Block(
-                        vec![
-                            Instance(0),  // In Global Namespace: Instance(0)
-                            Witness(1),   // In Global Namespace: Witness(2)
-                            Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
-                            Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
-                            Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                        ]
-                    ),
+                    vec![
+                        Instance(0),  // In Global Namespace: Instance(0)
+                        Witness(1),   // In Global Namespace: Witness(2)
+                        Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
+                        Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
+                        Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    ],
                     // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                    Block(
-                        vec![
+                    vec![
                         Instance(0),
                         Call("example/mul".to_string(), vec![1], vec![5, 0]),
                         Witness(2),
                         Mul(3, 1, 2),
                         Add(4, 2, 3),
-                        ]
-                    ),
+                    ],
                 ],
             ),
             Constant(3, encode_negative_one(&example_header())), // -1

@@ -1,64 +1,57 @@
-use std::convert::TryFrom;
-use std::error::Error;
-use serde::{Deserialize, Serialize};
-
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::{WireId, Gate};
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
-pub struct Block(pub Vec<Gate>);
-
 /// Convert from Flatbuffers references to owned structure.
-impl<'a> TryFrom<g::Block<'a>> for Block {
-    type Error = Box<dyn Error>;
-
-    fn try_from(g_block: g::Block) -> Result<Block> {
-        let ret = Block(
-            Gate::try_from_vector(g_block.block().ok_or("Missing subcircuit in block")?)?
-        );
-        Ok(ret)
-    }
+pub fn try_from_block(g_block: g::Block) -> Result<Vec<Gate>> {
+    let ret = Gate::try_from_vector(g_block.block().ok_or("Missing subcircuit in block")?)?;
+    Ok(ret)
 }
 
-impl Block {
-    /// Serialize this structure into a Flatbuffer message
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Block<'bldr>> {
-        let impl_gates = Gate::build_vector(builder, &self.0);
-        g::Block::create(
-            builder,
-            &g::BlockArgs {
-                block: Some(impl_gates),
-            }
-        )
-    }
-
-
-    /// Convert from Flatbuffers vector of directives into owned structure.
-    pub fn try_from_vector<'a>(
-        g_vector: Vector<'a, ForwardsUOffset<g::Block<'a>>>,
-    ) -> Result<Vec<Block>> {
-        let mut directives = vec![];
-        for i in 0..g_vector.len() {
-            let g_a = g_vector.get(i);
-            directives.push(Block::try_from(g_a)?);
+/// Serialize this structure into a Flatbuffer message
+pub fn build_block<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    block: &'args [Gate],
+    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+) -> WIPOffset<g::Block<'bldr>> {
+    let impl_gates = Gate::build_vector(builder, block);
+    g::Block::create(
+        builder,
+        &g::BlockArgs {
+            block: Some(impl_gates),
         }
-        Ok(directives)
-    }
+    )
+}
 
-    /// Add a vector of this structure into a Flatbuffers message builder.
-    pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-        directives: &'args [Block],
-    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Block<'bldr>>>> {
-        let g_directives: Vec<_> = directives.iter().map(|directive| directive.build(builder)).collect();
-        let g_vector = builder.create_vector(&g_directives);
-        g_vector
+/// Convert from Flatbuffers vector of directives into owned structure.
+pub fn try_from_block_vector<'a>(
+    g_vector: Vector<'a, ForwardsUOffset<g::Block<'a>>>,
+) -> Result<Vec<Vec<Gate>>> {
+    let mut directives = vec![];
+    for i in 0..g_vector.len() {
+        let g_a = g_vector.get(i);
+        directives.push(try_from_block(g_a)?);
     }
+    Ok(directives)
+}
+
+/// Add a vector of this structure into a Flatbuffers message builder.
+pub fn build_block_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+    directives: &'args [Vec<Gate>],
+) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Block<'bldr>>>> {
+    let g_directives: Vec<_> = directives.iter()
+        .map(|directive| {
+            let impl_gates = Gate::build_vector(builder, directive);
+            g::Block::create(
+                builder,
+                &g::BlockArgs {
+                    block: Some(impl_gates),
+                }
+            )}
+        ).collect();
+    let g_vector = builder.create_vector(&g_directives);
+    g_vector
 }
 
 pub fn translate_gates<'s>(subcircuit: &'s[Gate], output_input_wires: &'s[WireId]) -> impl Iterator<Item = Gate> + 's {
@@ -94,7 +87,7 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
                 *instance_count,
                 *witness_count,
                 cases.clone(),
-                branches.iter().map(|branch| translate_block(branch, output_input_wires)).collect(),
+                branches.iter().map(|branch| translate_gates(branch, output_input_wires).collect()).collect(),
             ),
 
         // This one should never happen
@@ -106,10 +99,4 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
 
 fn translate_vector_wires(wires: &[WireId], output_input_wires: &[WireId]) -> Vec<WireId> {
     wires.iter().map(|id| output_input_wires[*id as usize]).collect()
-}
-
-fn translate_block(block: &Block, output_input_wires: &[WireId]) -> Block {
-    Block(
-        translate_gates(&block.0, output_input_wires).collect()
-    )
 }

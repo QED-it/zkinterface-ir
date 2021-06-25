@@ -9,7 +9,6 @@ use super::value::{try_from_values_vector, build_values_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
-use crate::structs::functions::Block;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum Gate {
@@ -47,12 +46,13 @@ pub enum Gate {
     /// GateCall(name, output_wires, input_wires)
     Call(String, Vec<WireId>, Vec<WireId>),
     /// GateSwitch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches)
-    Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Block>),
+    Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Vec<Gate>>),
     /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
     For(u64, u64, usize, usize, Vec<(WireId, u64, u64)>, Vec<(WireId, u64, u64)>, Vec<Gate>),
 }
 
 use Gate::*;
+use crate::structs::functions::{try_from_block_vector, build_block_vector};
 
 
 impl<'a> TryFrom<g::Gate<'a>> for Gate {
@@ -203,7 +203,7 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     gate.instance_count() as usize,
                     gate.witness_count() as usize,
                     cases,
-                    Block::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
+                    try_from_block_vector(gate.branches().ok_or("Missing branches")?)?,
                 )
             }
 
@@ -506,7 +506,7 @@ impl Gate {
                 let output_wires = build_wires_vector(builder, outputs_list);
                 let input_wires = build_wires_vector(builder, inputs_list);
                 let cases = build_values_vector(builder, cases);
-                let branches = Block::build_vector(builder, subcircuits);
+                let branches = build_block_vector(builder, subcircuits);
 
                 let gate = g::GateSwitch::create(
                     builder,
