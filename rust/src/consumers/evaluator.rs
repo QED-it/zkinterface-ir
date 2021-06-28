@@ -216,7 +216,32 @@ impl Evaluator {
                 }
             }
 
-            For(_, _, _, _, _, _, _) => unimplemented!(),
+            For(
+                start_val,
+                end_val,
+                _, _,
+                output_mapping,
+                input_mapping,
+                body
+            ) => {
+                for i in *start_val..=*end_val {
+                    let mut output_wires:Vec<u64> = vec![];
+                    for output_map in output_mapping.iter() {
+                        for j in 0..output_map.2 {
+                            // j iterates over the size of the input chunk
+                            output_wires.append(&mut vec![output_map.0 + output_map.1 * i + j as u64]);
+                        }
+                    }
+                    let mut input_wires:Vec<u64>  = vec![];
+                    for input_map in input_mapping.iter() {
+                        for j in 0..input_map.2 {
+                            // j iterates over the size of the input chunk
+                            input_wires.append(&mut vec![input_map.0 + input_map.1 * i + j as u64]);
+                        }
+                    }
+                    self.ingest_subcircuit(body, &output_wires, &input_wires)?;
+                }
+            },
         }
         Ok(())
     }

@@ -161,7 +161,17 @@ impl Stats {
                 self.witness_variables  += witness_count;
             }
 
-            For(_, _, _, _, _, _, _) => unimplemented!(),
+            For(
+                _, _,
+                instance_count,
+                witness_count,
+                _, _,
+                body
+            ) => {
+                self.ingest_call_stats(&self.ingest_subcircuit(body));
+                self.instance_variables += instance_count;
+                self.witness_variables += witness_count;
+            },
         }
     }
 

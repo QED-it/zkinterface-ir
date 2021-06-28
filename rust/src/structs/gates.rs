@@ -518,7 +518,15 @@ impl Gate {
                 )
             }
 
-            Switch(condition, outputs_list, inputs_list, instance_count, witness_count, cases, subcircuits) => {
+            Switch(
+                condition,
+                outputs_list,
+                inputs_list,
+                instance_count,
+                witness_count,
+                cases,
+                subcircuits
+            ) => {
 
                 let output_wires = build_wires_vector(builder, outputs_list);
                 let input_wires = build_wires_vector(builder, inputs_list);
@@ -547,7 +555,15 @@ impl Gate {
                 )
             }
 
-            For(start_val, end_val, instance_count, witness_count, output_mappings, input_mappings, body) => {
+            For(
+                start_val,
+                end_val,
+                instance_count,
+                witness_count,
+                output_mappings,
+                input_mappings,
+                body
+            ) => {
 
                 let output_maps_tmp: Vec<_> = output_mappings.iter().map(|mapping| g::Mapping::new (
                     &g::Wire::new(mapping.0),
