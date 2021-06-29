@@ -23,7 +23,7 @@ pub mod gates;
 pub mod value;
 
 pub mod wire;
-pub mod functions;
+pub mod subcircuit;
 
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
