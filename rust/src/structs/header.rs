@@ -10,7 +10,6 @@ use crate::sieve_ir_generated::sieve_ir as g;
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Header {
     pub version: String,
-    pub profile: String,
     pub field_characteristic: Value,
     pub field_degree: u32,
 }
@@ -27,8 +26,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            version: "0.1.0".to_string(),
-            profile: "circ_arithmetic_simple".to_string(),
+            version: "1.0.0".to_string(),
             field_characteristic: vec![],
             field_degree: 1,
         }
@@ -43,7 +41,6 @@ impl<'a> TryFrom<Option<g::Header<'a>>> for Header {
         let g_header = g_header.ok_or("Missing header")?;
         Ok(Header {
             version: g_header.version().ok_or("Missing version")?.to_string(),
-            profile: g_header.profile().ok_or("Missing profile")?.to_string(),
             field_characteristic: try_from_value(
                 g_header
                     .field_characteristic()
@@ -61,14 +58,12 @@ impl Header {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Header<'bldr>> {
         let version = Some(builder.create_string(&self.version));
-        let profile = Some(builder.create_string(&self.profile));
         let field_characteristic = Some(build_value(builder, &self.field_characteristic));
 
         g::Header::create(
             builder,
             &g::HeaderArgs {
                 version,
-                profile,
                 field_characteristic,
                 field_degree: self.field_degree,
             },

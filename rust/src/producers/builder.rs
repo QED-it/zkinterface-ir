@@ -6,6 +6,7 @@ use crate::producers::sink::MemorySink;
 use crate::structs::value::Value;
 use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 use std::cell::{RefCell, Cell};
+use crate::structs::relation::{ARITH, FUNCTION, FOR, SWITCH};
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
@@ -31,6 +32,10 @@ struct MessageBuilder<S: Sink> {
 
 impl<S: Sink> MessageBuilder<S> {
     fn new(sink: S, header: Header) -> Self {
+        MessageBuilder::new_with_functionalities(sink, header, ARITH, FUNCTION|FOR|SWITCH)
+    }
+
+    fn new_with_functionalities(sink: S, header: Header, gateset: u16, features: u16) -> Self {
         Self {
             sink,
             instance: Instance {
@@ -43,6 +48,8 @@ impl<S: Sink> MessageBuilder<S> {
             },
             relation: Relation {
                 header: header.clone(),
+                gate_mask: gateset,
+                feat_mask: features,
                 gates: vec![],
             },
             max_len: 100 * 1000,

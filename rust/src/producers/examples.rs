@@ -2,6 +2,7 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::{Header, Instance, Relation, Witness};
+use crate::structs::relation::{ADD, MUL, FUNCTION, SWITCH};
 
 pub fn example_header() -> Header {
     example_header_in_field(literal32(EXAMPLE_MODULUS))
@@ -59,6 +60,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
 
     Relation {
         header: header.clone(),
+        gate_mask: ADD|MUL,
+        feat_mask: FUNCTION|SWITCH,
         gates: vec![
             Function("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation id1*id2 = id0
             Witness(1),

@@ -206,8 +206,7 @@ fn test_r1cs_to_gates() -> Result<()> {
 fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
 
-    assert_eq!(header.profile, "circ_arithmetic_simple");
-    assert_eq!(header.version, "0.1.0");
+    assert_eq!(header.version, "1.0.0");
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
     assert_eq!(fc.to_u32().unwrap(), 101);
     assert_eq!(header.field_degree, 1);
