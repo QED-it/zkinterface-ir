@@ -6,7 +6,7 @@ use std::error::Error;
 
 use super::wire::{build_wires_vector, from_id, from_ids_vector};
 use super::value::{try_from_values_vector, build_values_vector};
-use crate::structs::functions::{try_from_block_vector, build_block_vector};
+use crate::structs::subcircuit::{try_from_block_vector, build_block_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};

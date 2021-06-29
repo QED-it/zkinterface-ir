@@ -6,6 +6,7 @@ use std::collections::{HashSet, HashMap};
 
 use regex::Regex;
 use std::cmp::Ordering;
+use crate::structs::subcircuit::expand_wire_mappings;
 
 type Var = u64;
 type Field = BigUint;
@@ -359,11 +360,43 @@ impl Validator {
                 output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
 
-            For(_, _, _, _, _, _, _) => unimplemented!(),
+            For(
+                start_val,
+                end_val,
+                instance_count,
+                witness_count,
+                output_mapping,
+                input_mapping,
+                body
+            ) => {
+                for i in *start_val..=*end_val {
+                    let output_wires= expand_wire_mappings(output_mapping, i);
+                    let input_wires= expand_wire_mappings(input_mapping, i);
+                    self.ingest_subcircuit(
+                        body,
+                        &output_wires,
+                        &input_wires,
+                        *instance_count,
+                        *witness_count);
+                    // Now, consume instances and witnesses from self.
+                    self.consume_instance(*instance_count);
+                    self.consume_witness(*witness_count);
+                    output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                }
+            }
         }
     }
 
-    /// Read the Directive and check its syntactic and semantic validity, returns (input_nbr, instance_nbr, witness_nbr)
+    /// This function will check the semantic validity of all the gates in the subcircuit,
+    /// applying a translation to each relative to the current workspace.
+    /// It will ensure that all input variable are currently well defined before entering this
+    /// subcircuit, and will check that the subcircuit actually correctly set the given number of
+    /// output wires, and that instance and witness variables declared are actually consumed.
+    /// To do so, it creates a local validator, and appends the violations found by it to the
+    /// current validator object.
+    /// NOTE: it will @b not consume instance / witness from the current validator, and will @b not
+    /// set output variables of the current validator as set.
+    /// If required, this should be done in the caller function.
     fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], instance_count: usize, witness_count: usize) {
         let mut current_validator = self.clone();
         current_validator.instance_queue_len = instance_count;
