@@ -79,31 +79,48 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
         Gate::Call(name, outs,ins) =>
             Gate::Call(name.clone(), translate_vector_wires(outs, output_input_wires), translate_vector_wires(ins, output_input_wires)),
 
-        Gate::Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) => {
-            let new_output_wires = translate_vector_wires(output_wires, output_input_wires);
-            let new_input_wires = translate_vector_wires(input_wires, output_input_wires);
-            let new_output_input_wires = [&new_output_wires[..], &new_input_wires[..]].concat();
-
+        Gate::Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) =>
             Gate::Switch(
                 output_input_wires[*condition as usize],
-                new_output_wires,
-                new_input_wires,
+                translate_vector_wires(output_wires, output_input_wires),
+                translate_vector_wires(input_wires, output_input_wires),
                 *instance_count,
                 *witness_count,
                 cases.clone(),
-                branches.iter().map(|branch| translate_gates(branch, &new_output_input_wires).collect()).collect(),
-            )
-        }
+                branches.clone(),
+            ),
 
         // This one should never happen
         Gate::Function(..) => panic!("Function should not be defined within bodies."),
 
-        Gate::For(..) => unimplemented!(),
+        Gate::For(
+            start_val,
+            end_val,
+            instance_count,
+            witness_count,
+            output_mapping,
+            input_mapping,
+            body
+        ) => {
+            Gate::For(
+                *start_val,
+                *end_val,
+                *instance_count,
+                *witness_count,
+                output_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
+                input_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
+                body.clone(),
+            )
+        }
     }
 }
 
 fn translate_vector_wires(wires: &[WireId], output_input_wires: &[WireId]) -> Vec<WireId> {
-    wires.iter().map(|id| output_input_wires[*id as usize]).collect()
+    wires.iter().map(|id| translate_wire(*id, output_input_wires)).collect()
+}
+
+fn translate_wire(wire: WireId, output_input_wires: &[WireId]) -> WireId {
+    output_input_wires[wire as usize]
 }
 
 pub fn expand_wire_mappings(mappings: &[(WireId, u64, usize)], current_index: u64) -> Vec<WireId> {
@@ -153,42 +170,42 @@ fn test_translate_gate() -> Result<()> {
         AssertZero(8),                                       // difference == 0
     ];
 
-
+    let output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
     let expected = vec![
-        Witness(1),
+        Witness(43),
         Switch(
-            1,                      // condition
-            vec![0, 2, 4, 5, 6],    // output wires
-            vec![1],
+            43,                      // condition
+            vec![42, 44, 46, 47, 48],    // output wires
+            vec![43],
             1,
             1,
             vec![vec![3], vec![5]], // cases
             vec![
                 // branches
                 vec![
-                    Instance(0),
-                    Witness(2),
-                    Call("example/mul".to_string(), vec![4], vec![1, 1]),
-                    Call("example/mul".to_string(), vec![5], vec![2, 2]),
-                    Add(6, 4, 5),
+                    Instance(0),  // In Global Namespace: Instance(0)
+                    Witness(1),   // In Global Namespace: Witness(2)
+                    Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
+                    Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
+                    Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
                 ],
+                // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
                 vec![
                     Instance(0),
-                    Call("example/mul".to_string(), vec![2], vec![1, 0]),
-                    Witness(4),
-                    Mul(5, 2, 4),
-                    Add(6, 4, 5),
+                    Call("example/mul".to_string(), vec![1], vec![5, 0]),
+                    Witness(2),
+                    Mul(3, 1, 2),
+                    Add(4, 2, 3),
                 ],
             ],
         ),
-        Constant(3, encode_negative_one(&example_header())), // -1
-        Call("example/mul".to_string(), vec![7], vec![3, 0]), // - instance_0
-        Add(8, 6, 7),                                        // sum - instance_0
-        Free(0, Some(7)),                                    // Free all previous wires
-        AssertZero(8),                                       // difference == 0
+        Constant(45, encode_negative_one(&example_header())), // -1
+        Call("example/mul".to_string(), vec![49], vec![45, 42]), // - instance_0
+        Add(50, 48, 49),                                        // sum - instance_0
+        Free(42, Some(49)),                                    // Free all previous wires
+        AssertZero(50),                                       // difference == 0
     ];
 
-    let output_input_wires = (0..9).into_iter().collect::<Vec<u64>>();
     let translated: Vec<Gate> = translate_gates(&gates, &output_input_wires).collect();
     assert_eq!(translated, expected);
 
