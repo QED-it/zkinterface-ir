@@ -3,7 +3,7 @@ use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
-use crate::structs::functions::translate_gates;
+use crate::structs::subcircuit::{translate_gates, expand_wire_mappings};
 
 type Wire = u64;
 type Repr = BigUint;
@@ -225,20 +225,8 @@ impl Evaluator {
                 body
             ) => {
                 for i in *start_val..=*end_val {
-                    let mut output_wires:Vec<u64> = vec![];
-                    for output_map in output_mapping.iter() {
-                        for j in 0..output_map.2 {
-                            // j iterates over the size of the input chunk
-                            output_wires.append(&mut vec![output_map.0 + output_map.1 * i + j as u64]);
-                        }
-                    }
-                    let mut input_wires:Vec<u64>  = vec![];
-                    for input_map in input_mapping.iter() {
-                        for j in 0..input_map.2 {
-                            // j iterates over the size of the input chunk
-                            input_wires.append(&mut vec![input_map.0 + input_map.1 * i + j as u64]);
-                        }
-                    }
+                    let output_wires= expand_wire_mappings(output_mapping, i);
+                    let input_wires= expand_wire_mappings(input_mapping, i);
                     self.ingest_subcircuit(body, &output_wires, &input_wires)?;
                 }
             },
@@ -267,6 +255,9 @@ impl Evaluator {
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 
+    /// This function will evaluate all the gates in the subcircuit, applying a translation to each
+    /// relative to the current workspace.
+    /// It will also consume instance and witnesses whenever required.
     fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[Wire], input_wires: &[Wire]) -> Result<()> {
         let output_input_wires = [output_wires, input_wires].concat();
 
