@@ -1,6 +1,8 @@
 extern crate serde;
 extern crate serde_json;
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
@@ -25,10 +27,19 @@ pub struct Stats {
     pub xor_gates: usize,
     pub not_gates: usize,
     pub variables_freed: usize,
+
+    pub functions_defined: usize,
+    pub functions_called: usize,
+
+    pub switches: usize,
+    pub branches: usize,
+
     // The number of messages into which the statement was split.
     pub instance_messages: usize,
     pub witness_messages: usize,
     pub relation_messages: usize,
+    // Function definitions => stats / instance_count / witness_count
+    pub functions: HashMap<String, (Stats, usize, usize)>,
 }
 
 impl Stats {
@@ -121,12 +132,80 @@ impl Stats {
                 let last_one = last.unwrap_or(*first);
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
+
+            Function(name, _, _, instance_count, witness_count, implementation) => {
+                self.functions_defined += 1;
+                let func_stats = self.ingest_subcircuit(implementation);
+                self.functions.insert(name.clone(), (func_stats, *instance_count, *witness_count));
+            }
+
+            Call(name, _, _) => {
+                self.functions_called += 1;
+                if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                    self.ingest_call_stats(&stats_ins_wit.0);
+                    self.instance_variables += stats_ins_wit.1;
+                    self.witness_variables  += stats_ins_wit.2;
+                } else {
+                    eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                }
+            }
+
+            Switch(_, _, _, instance_count, witness_count, _, branches) => {
+                self.switches += 1;
+                self.branches += branches.len();
+                for block in branches {
+                    self.ingest_call_stats(&self.ingest_subcircuit(block));
+                }
+
+                self.instance_variables += instance_count;
+                self.witness_variables  += witness_count;
+            }
+
+            For(
+                _, _,
+                instance_count,
+                witness_count,
+                _, _,
+                body
+            ) => {
+                self.ingest_call_stats(&self.ingest_subcircuit(body));
+                self.instance_variables += instance_count;
+                self.witness_variables += witness_count;
+            },
         }
+    }
+
+    fn ingest_call_stats(&mut self, other: &Stats) {
+        // Gates.
+        self.constants_gates += other.constants_gates;
+        self.assert_zero_gates += other.assert_zero_gates;
+        self.copy_gates += other.copy_gates;
+        self.add_gates += other.add_gates;
+        self.mul_gates += other.mul_gates;
+        self.add_constant_gates += other.add_constant_gates;
+        self.mul_constant_gates += other.mul_constant_gates;
+        self.and_gates += other.and_gates;
+        self.xor_gates += other.xor_gates;
+        self.not_gates += other.not_gates;
+        self.variables_freed += other.variables_freed;
+
+        self.switches += other.switches;
+        self.branches += other.branches;
+        self.functions_called += other.functions_called;
     }
 
     fn ingest_header(&mut self, header: &Header) {
         self.field_characteristic = header.field_characteristic.clone();
         self.field_degree = header.field_degree;
+    }
+
+    fn ingest_subcircuit(&self, subcircuit: &[Gate]) -> Stats {
+        let mut local_stats = Stats::default();
+        local_stats.functions = self.functions.clone();
+        for gate in subcircuit {
+            local_stats.ingest_gate(gate);
+        }
+        local_stats
     }
 }
 
@@ -143,7 +222,7 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_witness(&witness);
     stats.ingest_relation(&relation);
 
-    let expected_stats = Stats {
+    let mut expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
         instance_variables: 1,
@@ -151,18 +230,31 @@ fn test_stats() -> crate::Result<()> {
         constants_gates: 1,
         assert_zero_gates: 1,
         copy_gates: 0,
-        add_gates: 2,
-        mul_gates: 3,
+        add_gates: 3,
+        mul_gates: 5,
         add_constant_gates: 0,
         mul_constant_gates: 0,
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
         variables_freed: 8,
+        functions_defined: 1,
+        functions_called: 4,
+        switches: 1,
+        branches: 2,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,
+        functions: HashMap::new(),
     };
+    expected_stats.functions.insert(
+        "example/mul".to_string(),
+        (Stats {
+            mul_gates: 1,
+            ..Stats::default()
+        }, 0, 0),
+    );
+
     assert_eq!(expected_stats, stats);
 
     Ok(())

@@ -1,11 +1,12 @@
-use crate::{Gate, Header, Instance, Message, Relation, Witness};
+use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId};
 
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 
 use regex::Regex;
 use std::cmp::Ordering;
+use crate::structs::subcircuit::expand_wire_mappings;
 
 type Var = u64;
 type Field = BigUint;
@@ -55,7 +56,9 @@ pub struct Validator {
 
     field_characteristic: Field,
     field_degree: usize,
-    field_bytelen: usize, // length in bytes of a base field element
+
+    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+    known_functions: HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>,
 
     violations: Vec<String>,
 }
@@ -80,7 +83,7 @@ impl Validator {
         self.ensure_all_instance_values_consumed();
         self.ensure_all_witness_values_consumed();
         if self.live_wires.len() != 0 {
-            println!("{}", format!("WARNING: these variables were not freed: {:?}.", self.live_wires.into_iter().nth(10)));
+            println!("WARNING: few variables were not freed.");
         }
         self.violations
     }
@@ -117,7 +120,6 @@ impl Validator {
             if self.field_characteristic.cmp(&One::one()) != Ordering::Greater {
                 self.violate("The field_characteristic should be > 1");
             }
-            self.field_bytelen = header.field_characteristic.len();
             // TODO: check if prime, or in a list of pre-defined primes.
 
             self.field_degree = header.field_degree as usize;
@@ -259,23 +261,13 @@ impl Validator {
             Instance(out) => {
                 self.declare(*out);
                 // Consume value.
-                if self.instance_queue_len > 0 {
-                    self.instance_queue_len -= 1;
-                } else {
-                    self.violate(format!("No value available for the Instance wire {}", out));
-                }
+                self.consume_instance(1);
             }
 
             Witness(out) => {
                 self.declare(*out);
                 // Consume value.
-                if self.as_prover {
-                    if self.witness_queue_len > 0 {
-                        self.witness_queue_len -= 1;
-                    } else {
-                        self.violate(format!("No value available for the Witness wire {}", out));
-                    }
-                }
+                self.consume_witness(1);
             }
 
             Free(first, last) => {
@@ -285,6 +277,158 @@ impl Validator {
                     self.remove(wire_id);
                 }
             }
+
+            Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
+                // Just record the signature.
+                // The validation will be done when the function will be called.
+                if self.known_functions.contains_key(name) {
+                    self.violate(format!("A function with the name '{}' already exists", name));
+                } else {
+                    self.known_functions.insert(name.clone(), (*output_count, *input_count, *instance_count, *witness_count, subcircuit.clone()));
+                }
+            }
+
+            Call(name, output_wires, input_wires) => {
+                // - Check exists
+                // - Outputs and inputs match function signature
+                // - define outputs, check inputs
+                // - consume witness.
+
+                let (output_count, input_count, instance_count, witness_count, subcircuit)
+                    = if let Some(function_signature) = self.known_functions.get(name).cloned() {
+                    function_signature
+                } else {
+                    self.violate(format!("Unknown Function gate {}", name));
+                    return;
+                };
+
+                if output_count != output_wires.len() {
+                    self.violate("AbstractCall: number of output wires mismatch.");
+                }
+
+                if input_count != input_wires.len() {
+                    self.violate("AbstractCall: number of input wires mismatch.");
+                }
+
+                self.ingest_subcircuit(&subcircuit, output_wires, input_wires, instance_count, witness_count);
+
+                // Now, consume instances and witnesses from self.
+                self.consume_instance(instance_count);
+                self.consume_witness(witness_count);
+                // set the output wires as defined, since we checked they were in each branch.
+                output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+            }
+
+            Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) => {
+                self.ensure_defined_and_set(*condition);
+
+                // Ensure that the number of cases value match the number of subcircuits.
+                if cases.len() != branches.len() {
+                    self.violate("Gate::Switch: The number of cases value does not match the number of branches.");
+                }
+
+                // If there is no branch, just return.
+                // If the list of output wires is not empty, then it's an issue.
+                // TODO: check if this is semantic failure.
+                if cases.len() == 0 {
+                    return;
+                }
+
+                // Ensure each value of cases are in the proper field.
+                let mut cases_set = HashSet::new();
+                for case in cases {
+                    self.ensure_value_in_field(case, || format!("Gate::Switch case value: {}", Field::from_bytes_le(case)));
+                    cases_set.insert(Field::from_bytes_le(case));
+                }
+
+                // ensure that there is no duplicate in cases.
+                if cases_set.len() != cases.len() {
+                    self.violate("Gate::Switch: The cases values contain duplicates.");
+                }
+
+                // 'Execute' each branch of the switch independently, and perform checks
+                for branch in branches {
+                    // check the current branch
+                    self.ingest_subcircuit(branch, output_wires, input_wires, *instance_count, *witness_count);
+                }
+
+
+                // Now, consume instances and witnesses from self.
+                self.consume_instance(*instance_count);
+                self.consume_witness(*witness_count);
+                // set the output wires as defined, since we checked they were in each branch.
+                output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+            }
+
+            For(
+                start_val,
+                end_val,
+                instance_count,
+                witness_count,
+                output_mapping,
+                input_mapping,
+                body
+            ) => {
+                for i in *start_val..=*end_val {
+                    let output_wires= expand_wire_mappings(output_mapping, i);
+                    let input_wires= expand_wire_mappings(input_mapping, i);
+                    self.ingest_subcircuit(
+                        body,
+                        &output_wires,
+                        &input_wires,
+                        *instance_count,
+                        *witness_count);
+                    // Now, consume instances and witnesses from self.
+                    self.consume_instance(*instance_count);
+                    self.consume_witness(*witness_count);
+                    output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                }
+            }
+        }
+    }
+
+    /// This function will check the semantic validity of all the gates in the subcircuit,
+    /// applying a translation to each relative to the current workspace.
+    /// It will ensure that all input variable are currently well defined before entering this
+    /// subcircuit, and will check that the subcircuit actually correctly set the given number of
+    /// output wires, and that instance and witness variables declared are actually consumed.
+    /// To do so, it creates a local validator, and appends the violations found by it to the
+    /// current validator object.
+    /// NOTE: it will @b not consume instance / witness from the current validator, and will @b not
+    /// set output variables of the current validator as set.
+    /// If required, this should be done in the caller function.
+    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], instance_count: usize, witness_count: usize) {
+        let mut current_validator = self.clone();
+        current_validator.instance_queue_len = instance_count;
+        current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
+        current_validator.live_wires = Default::default();
+        current_validator.violations = vec![];
+
+        input_wires.iter().for_each(|id| self.ensure_defined_and_set(*id));
+
+        // input wires should be already defined, and they are numbered from
+        // output_wire, so we will artificially define them in the inner
+        // validator.
+        let output_count = output_wires.len();
+        let input_count = input_wires.len();
+
+        for wire in output_count..(output_count+input_count) {
+            current_validator.live_wires.insert(wire as u64);
+        }
+
+        for x in subcircuit.iter() {
+            current_validator.ingest_gate(x);
+        }
+
+        // ensure that all output wires are set.
+        (0..output_count).for_each(|id| current_validator.ensure_defined_and_set(id as u64));
+
+        self.violations.append(&mut current_validator.violations);
+        if current_validator.instance_queue_len != 0 {
+            self.violate("The subcircuit has not consumed all the instance variables it should have.")
+        }
+        if current_validator.witness_queue_len != 0 {
+            self.violate("The subcircuit has not consumed all the witness variables it should have.")
         }
     }
 
@@ -299,6 +443,24 @@ impl Validator {
     fn remove(&mut self, id: Var) {
         if !self.live_wires.remove(&id) {
             self.violate(format!("The variable {} is being freed, but was not defined previously, or has been already freed", id));
+        }
+    }
+
+    fn consume_instance(&mut self, how_many :usize) {
+        if self.instance_queue_len >= how_many {
+            self.instance_queue_len -= how_many;
+        } else {
+            self.violate("Not enough Instance value to consume.");
+        }
+    }
+
+    fn consume_witness(&mut self, how_many :usize) {
+        if self.as_prover {
+            if self.witness_queue_len >= how_many {
+                self.witness_queue_len -= how_many;
+            } else {
+                self.violate("Not enough Witness value to consume.");
+            }
         }
     }
 
@@ -318,13 +480,17 @@ impl Validator {
         }
     }
 
-    fn ensure_undefined_and_set(&mut self, id: Var) {
+    fn ensure_undefined(&mut self, id: Var) {
         if self.is_defined(id) {
             self.violate(format!(
                 "The wire {} has already been initialized before. This violates the SSA property.",
                 id
             ));
         }
+    }
+
+    fn ensure_undefined_and_set(&mut self, id: Var) {
+        self.ensure_undefined(id);
         // define it.
         self.declare(id);
     }
@@ -431,7 +597,7 @@ fn test_validator_violations() -> crate::Result<()> {
     assert_eq!(violations, vec![
         "The instance value [101, 0, 0, 0] cannot be represented in the field specified in Header (101 >= 101).",
         "The field_characteristic field is not consistent across headers.",
-        "No value available for the Witness wire 2",
+        "Not enough Witness value to consume.",
     ]);
 
     Ok(())

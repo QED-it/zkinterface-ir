@@ -3,6 +3,7 @@ use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
+use crate::structs::subcircuit::{translate_gates, expand_wire_mappings};
 
 type Wire = u64;
 type Repr = BigUint;
@@ -13,6 +14,9 @@ pub struct Evaluator {
     modulus: Repr,
     instance_queue: VecDeque<Repr>,
     witness_queue: VecDeque<Repr>,
+
+    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+    known_functions: HashMap<String, Vec<Gate>>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -183,6 +187,49 @@ impl Evaluator {
                     self.remove(current)?;
                 }
             }
+
+            Function(name, _, _, _, _, subcircuit) => {
+                self.known_functions.insert(name.clone(), subcircuit.clone());
+            }
+
+            Call(name, output_wires, input_wires) => {
+                let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
+                self.ingest_subcircuit(&subcircuit, output_wires, input_wires)?;
+            }
+
+            Switch(condition, output_wires, input_wires, _, _, cases, branches) => {
+
+                let mut selected  :bool = false;
+
+                for (case, branch) in cases.iter().zip(branches.iter()) {
+                    if self.get(*condition).ok() == Some(&Repr::from_bytes_le(case)) {
+                        selected = true;
+
+                        self.ingest_subcircuit(branch, output_wires, input_wires)?;
+                    }
+                }
+
+                if !selected {
+                    return Err(
+                        format!("wire_{} value does not match any of the cases", *condition).into(),
+                    );
+                }
+            }
+
+            For(
+                start_val,
+                end_val,
+                _, _,
+                output_mapping,
+                input_mapping,
+                body
+            ) => {
+                for i in *start_val..=*end_val {
+                    let output_wires= expand_wire_mappings(output_mapping, i);
+                    let input_wires= expand_wire_mappings(input_mapping, i);
+                    self.ingest_subcircuit(body, &output_wires, &input_wires)?;
+                }
+            },
         }
         Ok(())
     }
@@ -207,6 +254,19 @@ impl Evaluator {
             .remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
+
+    /// This function will evaluate all the gates in the subcircuit, applying a translation to each
+    /// relative to the current workspace.
+    /// It will also consume instance and witnesses whenever required.
+    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[Wire], input_wires: &[Wire]) -> Result<()> {
+        let output_input_wires = [output_wires, input_wires].concat();
+
+        for gate in translate_gates(subcircuit, &output_input_wires) {
+            self.ingest_gate(&gate)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[test]
@@ -221,6 +281,61 @@ fn test_simulator() -> Result<()> {
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;
+
+    assert_eq!(simulator.get_violations().len(), 0);
+
+    Ok(())
+}
+
+#[test]
+fn test_switch() -> Result<()> {
+    use Gate::*;
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation =
+        Relation {
+            header: example_header(),
+            gates: vec![
+                Witness(1),
+                Switch(1,                     // condition
+                    vec![0, 2, 4, 5, 6],      // output wires
+                    vec![1],                  // input wires
+                    1, 1,                     // instance_count, witness_count
+                    vec![vec![3], vec![5]],   // cases
+                    vec![                     // branches
+                        vec![                 // case 3
+                            Instance(0),
+                            Witness(1),
+                            Mul(2, 5, 5),
+                            Mul(3, 1, 1),
+                            Add(4, 2, 3),
+                        ],
+                        vec![                 // case 5
+                            Instance(0),
+                            Witness(2),
+                            Mul(1, 5, 0),
+                            Mul(3, 1, 2),
+                            Add(4, 2, 3),
+                        ],
+                    ],
+                ),
+                Constant(3, encode_negative_one(&example_header())), // -1
+                Mul(7, 3, 0),                                              // - instance_0
+                Add(8, 6, 7),                                              // sum - instance_0
+                Free(0, Some(7)),                                          // Free all previous wires
+                AssertZero(8),                                             // difference == 0
+            ],
+        };
+
+
+    let mut simulator = Evaluator::default();
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
+    simulator.ingest_relation(&relation)?;
+
+    assert_eq!(simulator.get_violations().len(), 0);
 
     Ok(())
 }

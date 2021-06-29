@@ -1,13 +1,13 @@
-use std::error::Error;
-use std::convert::TryFrom;
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
-use std::io::Write;
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use std::error::Error;
+use std::io::Write;
 
-use crate::sieve_ir_generated::sieve_ir as g;
-use super::header::Header;
 use super::gates::Gate;
+use super::header::Header;
+use crate::sieve_ir_generated::sieve_ir as g;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
@@ -20,18 +20,12 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_relation: g::Relation) -> Result<Relation> {
-        let mut relation = Relation {
-            header: Header::try_from(g_relation.header())?,
-            gates: vec![],
-        };
-
         let g_gates = g_relation.gates().ok_or("Missing gates")?;
-        for i in 0..g_gates.len() {
-            let gen_gate = g_gates.get(i);
-            relation.gates.push(Gate::try_from(gen_gate)?);
-        }
 
-        Ok(relation)
+        Ok(Relation {
+            header: Header::try_from(g_relation.header())?,
+            gates: Gate::try_from_vector(g_gates)?,
+        })
     }
 }
 
@@ -42,7 +36,8 @@ impl<'a> TryFrom<&'a [u8]> for Relation {
         Relation::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_relation()
-                .ok_or("Not a Relation message.")?)
+                .ok_or("Not a Relation message.")?,
+        )
     }
 }
 
@@ -51,23 +46,25 @@ impl Relation {
     pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         &'args self,
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Root<'bldr>>
-    {
+    ) -> WIPOffset<g::Root<'bldr>> {
         let header = Some(self.header.build(builder));
-        let gates: Vec<_> = self.gates.iter().map(|gate|
-            gate.build(builder)
-        ).collect();
-        let gates = builder.create_vector(&gates);
+        let gates = Gate::build_vector(builder, &self.gates);
 
-        let relation = g::Relation::create(builder, &g::RelationArgs {
-            header,
-            gates: Some(gates),
-        });
+        let relation = g::Relation::create(
+            builder,
+            &g::RelationArgs {
+                header,
+                gates: Some(gates),
+            },
+        );
 
-        g::Root::create(builder, &g::RootArgs {
-            message_type: g::Message::Relation,
-            message: Some(relation.as_union_value()),
-        })
+        g::Root::create(
+            builder,
+            &g::RootArgs {
+                message_type: g::Message::Relation,
+                message: Some(relation.as_union_value()),
+            },
+        )
     }
 
     /// Writes this Relation as a Flatbuffers message into the provided buffer.

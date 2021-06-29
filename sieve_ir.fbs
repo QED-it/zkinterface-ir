@@ -41,10 +41,14 @@ struct Wire {
     id          :uint64;
 }
 
+struct WireDelta {
+    delta       :uint64;
+}
+
 // Field element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
-   value       :[ubyte];
+   value        :[ubyte];
 }
 
 
@@ -120,6 +124,53 @@ table GateFree {
    last        :Wire;
 }
 
+table Function {
+    // Declare a Function gate as a custom computation
+    name            :string;
+    output_count    :uint64;
+    input_count     :uint64;
+    instance_count  :uint64;
+    witness_count   :uint64;
+    subcircuit      :[Gate];
+}
+
+table GateCall {
+    // Invokes a previously defined Function gate
+    name              :string;
+    output_wires      :[Wire];
+    input_wires       :[Wire];
+}
+
+table Block {
+    block   :[Gate];
+}
+
+table GateSwitch {
+    condition         :Wire;
+    output_wires      :[Wire];
+    input_wires       :[Wire];
+    instance_count    :uint64;
+    witness_count     :uint64;
+    cases             :[Value];
+    branches          :[Block];
+}
+
+struct Mapping {
+    base        :Wire;
+    stride      :WireDelta;
+    size        :uint64;
+}
+
+table GateFor {
+    start_val       :uint64;
+    end_val         :uint64;
+    instance_count  :uint64;
+    witness_count   :uint64;
+    output_map      :[Mapping];
+    input_map       :[Mapping];
+    body            :[Gate];
+}
+
 union GateSet {
    GateConstant,
    GateAssertZero,
@@ -134,7 +185,12 @@ union GateSet {
    GateInstance,
    GateWitness,
    GateFree,
+   Function,
+   GateCall,
+   GateSwitch,
+   GateFor,
 }
+
 table Gate {
     gate      :GateSet;
 }

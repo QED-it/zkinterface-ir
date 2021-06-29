@@ -249,9 +249,14 @@ fn test_r1cs_stats() -> Result<()> {
         xor_gates: 0,
         not_gates: 0,
         variables_freed: 0,
+        functions_defined: 0,
+        functions_called: 0,
+        switches: 0,
+        branches: 0,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,
+        functions: Default::default()
     };
 
     assert_eq!(expected_stats, stats);

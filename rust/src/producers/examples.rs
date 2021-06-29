@@ -60,17 +60,39 @@ pub fn example_relation_h(header: &Header) -> Relation {
     Relation {
         header: header.clone(),
         gates: vec![
-            Instance(0),
+            Function("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)]), // mul gate with ref implementation id1*id2 = id0
             Witness(1),
-            Witness(2),
-            Constant(3, encode_negative_one(header)), // -1
-            Mul(4, 1, 1),                             // witness_1 squared
-            Mul(5, 2, 2),                             // witness_2 squared
-            Add(6, 4, 5),                             // sum of squares
-            Mul(7, 0, 3),                             // negative instance_0
-            Add(8, 6, 7),                             // sum - instance_0
-            Free(0, Some(7)),                         // Free all previous wires
-            AssertZero(8),                            // difference == 0
+            Switch(
+                1,                      // condition
+                vec![0, 2, 4, 5, 6],    // output wires
+                vec![1],
+                1,
+                1,
+                vec![vec![3], vec![5]], // cases
+                vec![
+                    // branches
+                    vec![
+                        Instance(0),  // In Global Namespace: Instance(0)
+                        Witness(1),   // In Global Namespace: Witness(2)
+                        Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
+                        Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
+                        Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    ],
+                    // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
+                    vec![
+                        Instance(0),
+                        Call("example/mul".to_string(), vec![1], vec![5, 0]),
+                        Witness(2),
+                        Mul(3, 1, 2),
+                        Add(4, 2, 3),
+                    ],
+                ],
+            ),
+            Constant(3, encode_negative_one(&example_header())), // -1
+            Call("example/mul".to_string(), vec![7], vec![3, 0]), // - instance_0
+            Add(8, 6, 7),                                        // sum - instance_0
+            Free(0, Some(7)),                                    // Free all previous wires
+            AssertZero(8),                                       // difference == 0
         ],
     }
 }
@@ -97,7 +119,7 @@ pub fn read_literal<T: EndianScalar>(encoded: &[u8]) -> T {
     }
 }
 
-fn encode_negative_one(header: &Header) -> Vec<u8> {
+pub fn encode_negative_one(header: &Header) -> Vec<u8> {
     let mut neg_one = header.field_characteristic.clone();
     assert!(neg_one.len() > 0 && neg_one[0] > 0, "Invalid field order");
     neg_one[0] -= 1;
