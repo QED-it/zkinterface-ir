@@ -396,6 +396,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        modular_reduce: false,
     })?;
 
     cli(&Options {
@@ -403,6 +404,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        modular_reduce: false,
     })?;
 
     Ok(())

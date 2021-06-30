@@ -222,6 +222,8 @@ impl GateConverter {
             Gate::Instance(_) => panic!("Instance gate should have been removed!"),
             Gate::Witness(_) => panic!("Witness gate should have been removed!"),
             Free(_, _) => panic!("Free should have been removed!"),
+
+            _ => panic!("Not yet supported: {:?}", gate),
         };
         self.constraints.push(BilinearConstraint {
             linear_combination_a: make_combination(a.0, a.1),
@@ -337,6 +339,8 @@ impl GateConverter {
                 self.all_gates.push(gate);
             }
 
+            _ => panic!("Not yet supported: {:?}", rewritten_gate),
+
         }
     }
 
@@ -390,7 +394,7 @@ impl GateConverter {
         all_assignments.extend(witness_assignments.clone());
 
         // AssertZero adds no wires, so don't check it - this allows unwrap of output wire ID
-        let mut all_gates: Vec<Gate> = self
+        let all_gates: Vec<Gate> = self
             .all_gates
             .iter()
             .filter(|g| match g {
@@ -399,17 +403,8 @@ impl GateConverter {
             })
             .map(|g| g.clone())
             .collect();
-        all_gates.sort_by(|a, b| {
-            a.get_output_wire_id()
-                .unwrap()
-                .cmp(&b.get_output_wire_id().unwrap())
-        });
 
         for gate in all_gates {
-            if all_assignments.contains_key(&gate.get_output_wire_id().unwrap()) {
-                // don't compute if a value already exists in the map
-                continue;
-            }
 
             match gate {
                 Copy(out, x) => {
@@ -480,6 +475,8 @@ impl GateConverter {
                 Instance(_) => panic!("Instance should have been removed before relations!"),
                 Witness(_) => panic!("Witness should have been removed before relations!"),
                 Free(_,_) => panic!("Free should have been removed during wire deconfliction!"),
+
+                _ => panic!("Not yet supported: {:?}", gate),
 
             }
         }
@@ -624,6 +621,8 @@ pub fn deconflict_gate_wires(
             Free(first, last) => {
                 map.free_ids(first, last);
             },
+
+            _ => panic!("Not yet supported: {:?}", gate),
         }
     }
 
