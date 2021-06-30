@@ -22,5 +22,8 @@ pub mod gates;
 /// Value holds a value assigned to a wire.
 pub mod value;
 
+pub mod wire;
+pub mod subcircuit;
+
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;

@@ -1,9 +1,12 @@
 use crate::Result;
-use flatbuffers::{FlatBufferBuilder, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
+use super::wire::{build_wires_vector, from_id, from_ids_vector};
+use super::value::{try_from_values_vector, build_values_vector};
+use crate::structs::subcircuit::{try_from_block_vector, build_block_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
@@ -38,6 +41,16 @@ pub enum Gate {
     /// If the option is not given, then only the first wire is freed, otherwise all wires between
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
+    /// Function Gate for generic custom gates
+    /// Function(name, output_count, input_count, instance_count, witness_count, directives).
+    Function(String, usize, usize, usize, usize, Vec<Gate>),
+    /// GateCall(name, output_wires, input_wires)
+    Call(String, Vec<WireId>, Vec<WireId>),
+    /// GateSwitch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches)
+    Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Vec<Gate>>),
+    /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
+    ///   Mapping = [base, stride, size]
+    For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
 }
 
 use Gate::*;
@@ -150,6 +163,68 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     gate.last().map(|id| id.id()),
                 )
             }
+
+            gs::Function => {
+                let gate = gen_gate.gate_as_function().unwrap();
+                let g_directives = gate
+                    .subcircuit()
+                    .ok_or("Missing reference implementation")?;
+                let directives = Gate::try_from_vector(g_directives)?;
+                Function(
+                    gate.name().ok_or("Missing name")?.to_string(),
+                    gate.output_count() as usize,
+                    gate.input_count() as usize,
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    directives,
+                )
+            }
+
+            gs::GateCall => {
+                let gate = gen_gate.gate_as_gate_call().unwrap();
+
+                Call(
+                    gate.name().ok_or("Missing function name.")?.into(),
+                    from_ids_vector(gate.output_wires().ok_or("Missing outputs")?),
+                    from_ids_vector(gate.input_wires().ok_or("Missing inputs")?),
+                )
+            }
+
+            gs::GateSwitch => {
+                let gate = gen_gate.gate_as_gate_switch().unwrap();
+
+                let cases = try_from_values_vector(gate.cases()
+                    .ok_or("Missing cases values")?)?;
+
+                Switch(
+                    from_id(gate.condition().ok_or("Missing condition wire.")?),
+                    from_ids_vector(gate.output_wires().ok_or("Missing output wires")?),
+                    from_ids_vector(gate.input_wires().ok_or("Missing input wires")?),
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    cases,
+                    try_from_block_vector(gate.branches().ok_or("Missing branches")?)?,
+                )
+            }
+
+            gs::GateFor => {
+                let gate = gen_gate.gate_as_gate_for().unwrap();
+                let output_mappings = gate.output_map().ok_or("missing output mappings")?;
+                let input_mappings = gate.input_map().ok_or("missing input mappings")?;
+
+                let output_map = output_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta() , mapping.size_() as usize)).collect();
+                let input_map = input_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta(), mapping.size_() as usize)).collect();
+
+                For(
+                    gate.start_val(),
+                    gate.end_val(),
+                    gate.instance_count() as usize,
+                    gate.witness_count() as usize,
+                    output_map,
+                    input_map,
+                    Gate::try_from_vector(gate.body().ok_or("Missing body of for loop")?)?,
+                )
+            },
         })
     }
 }
@@ -388,23 +463,173 @@ impl Gate {
                     },
                 )
             }
+
+            Function(
+                name,
+                output_count,
+                input_count,
+                instance_count,
+                witness_count,
+                subcircuit,
+            ) => {
+                let g_name = builder.create_string(name);
+                let impl_gates = Gate::build_vector(builder, &subcircuit);
+                let g_gate = g::Function::create(
+                    builder,
+                    &g::FunctionArgs {
+                        name: Some(g_name),
+                        output_count: *output_count as u64,
+                        input_count: *input_count as u64,
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
+                        subcircuit: Some(impl_gates)
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::Function,
+                        gate: Some(g_gate.as_union_value()),
+                    },
+                )
+            }
+
+            Call(name, output_wires, input_wires) => {
+                let g_name = builder.create_string(name);
+                let g_outputs = build_wires_vector(builder, output_wires);
+                let g_inputs = build_wires_vector(builder, input_wires);
+
+                let g_gate = g::GateCall::create(
+                    builder,
+                    &g::GateCallArgs {
+                        name: Some(g_name),
+                        output_wires: Some(g_outputs),
+                        input_wires: Some(g_inputs),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateCall,
+                        gate: Some(g_gate.as_union_value()),
+                    },
+                )
+            }
+
+            Switch(
+                condition,
+                outputs_list,
+                inputs_list,
+                instance_count,
+                witness_count,
+                cases,
+                subcircuits
+            ) => {
+
+                let output_wires = build_wires_vector(builder, outputs_list);
+                let input_wires = build_wires_vector(builder, inputs_list);
+                let cases = build_values_vector(builder, cases);
+                let branches = build_block_vector(builder, subcircuits);
+
+                let gate = g::GateSwitch::create(
+                    builder,
+                    &g::GateSwitchArgs {
+                        condition: Some(&g::Wire::new(*condition)),
+                        output_wires: Some(output_wires),
+                        input_wires: Some(input_wires),
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
+                        cases: Some(cases),
+                        branches: Some(branches),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateSwitch,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
+            For(
+                start_val,
+                end_val,
+                instance_count,
+                witness_count,
+                output_mappings,
+                input_mappings,
+                body
+            ) => {
+
+                let output_maps_tmp: Vec<_> = output_mappings.iter().map(|mapping| g::Mapping::new (
+                    &g::Wire::new(mapping.0),
+                    &g::WireDelta::new(mapping.1),
+                    mapping.2 as u64,
+                )).collect();
+                let g_output_map = builder.create_vector(&output_maps_tmp);
+
+                let input_maps_tmp: Vec<_> = input_mappings.iter().map(|mapping| g::Mapping::new (
+                    &g::Wire::new(mapping.0),
+                    &g::WireDelta::new(mapping.1),
+                    mapping.2 as u64,
+                )).collect();
+                let g_input_map = builder.create_vector(&input_maps_tmp);
+
+                let g_body = Gate::build_vector(builder, body);
+
+                let gate = g::GateFor::create(
+                    builder,
+                    &g::GateForArgs {
+                        start_val: *start_val,
+                        end_val: *end_val,
+                        instance_count: *instance_count as u64,
+                        witness_count: *witness_count as u64,
+                        output_map: Some(g_output_map),
+                        input_map: Some(g_input_map),
+                        body: Some(g_body),
+                    },
+                );
+
+                g::Gate::create(
+                    builder,
+                    &g::GateArgs {
+                        gate_type: gs::GateFor,
+                        gate: Some(gate.as_union_value()),
+                    },
+                )
+            }
         }
+    }
+
+    /// Convert from a Flatbuffers vector of gates to owned structures.
+    pub fn try_from_vector<'a>(
+        g_vector: Vector<'a, ForwardsUOffset<g::Gate<'a>>>,
+    ) -> Result<Vec<Gate>> {
+        let mut gates = vec![];
+        for i in 0..g_vector.len() {
+            let g_a = g_vector.get(i);
+            gates.push(Gate::try_from(g_a)?);
+        }
+        Ok(gates)
+    }
+
+    /// Add a vector of this structure into a Flatbuffers message builder.
+    pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+        gates: &'args [Gate],
+    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Gate<'bldr>>>> {
+        let g_gates: Vec<_> = gates.iter().map(|gate| gate.build(builder)).collect();
+        let g_vector = builder.create_vector(&g_gates);
+        g_vector
     }
 
     /// Returns the output wire id if exists.
     /// if not, returns None
-    ///
-    /// # Examples
-    ///
-    /// a simple example
-    /// ```
-    ///
-    ///  use zki_sieve::Gate::*;
-    ///  let g = Add(0,1,2);
-    ///  let wire_id = g.get_output_wire_id();
-    ///
-    /// ```
-    pub fn get_output_wire_id(&self) -> Option<WireId> {
+    fn _get_output_wire_id(&self) -> Option<WireId> {
         match *self {
             Constant(w, _) => Some(w),
             Copy(w, _) => Some(w),
@@ -420,6 +645,11 @@ impl Gate {
 
             AssertZero(_) => None,
             Free(_, _) => None,
+
+            Function(_, _, _, _, _, _) => None,
+            Call(_, _, _) => unimplemented!("Call gate"),
+            Switch(_, _, _, _, _, _, _) =>  unimplemented!("Switch gate"),
+            For(_, _, _, _, _, _, _) => unimplemented!("For loop"),
         }
     }
 }
