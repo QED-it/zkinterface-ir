@@ -29,7 +29,6 @@ Print a statement in different forms:
     zki_sieve to-text workspace
     zki_sieve to-json workspace
     zki_sieve to-yaml workspace
-    zki_sieve to-r1cs workspace
 
 Validate and evaluate a proving system:
     zki_sieve valid-eval-metrics workspace
@@ -55,8 +54,6 @@ pub struct Options {
     ///
     /// to-yaml       Convert to YAML.
     ///
-    /// to-r1cs       Convert to zkInterface R1CS format.
-    ///
     /// validate      Validate the format and semantics of a statement, as seen by a verifier.
     ///
     /// evaluate      Evaluate a circuit as prover to check that the statement is true, i.e. the witness satisfies the circuit.
@@ -66,6 +63,8 @@ pub struct Options {
     /// valid-eval-metrics    Combined validate, evaluate, and metrics.
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
+    ///
+    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
     ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
@@ -88,6 +87,10 @@ pub struct Options {
     /// `example --incorect` will generate an incorrect witness useful for negative tests.
     #[structopt(long)]
     pub incorrect: bool,
+
+    /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
+    #[structopt(long)]
+    pub modular_reduce: bool,
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -96,12 +99,12 @@ pub fn cli(options: &Options) -> Result<()> {
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "to-yaml" => main_yaml(&load_messages(options)?),
-        "to-r1cs" => main_to_r1cs(options),
         "validate" => main_validate(&stream_messages(options)?),
         "evaluate" => main_evaluate(&stream_messages(options)?),
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
+        "ir-to-zkif" => main_ir_to_r1cs(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -314,7 +317,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
 
 // Convert to R1CS zkinterface format.
 // Expects one instance, witness, and relation only.
-fn main_to_r1cs(opts: &Options) -> Result<()> {
+fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     use crate::producers::to_r1cs::to_r1cs;
 
     let mut source = Source::from_directory(&std::env::current_dir()?)?;
@@ -329,7 +332,7 @@ fn main_to_r1cs(opts: &Options) -> Result<()> {
     let relation = &messages.relations[0];
     let witness = &messages.witnesses[0];
 
-    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, relation, witness);
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, relation, witness, opts.modular_reduce);
 
     zki_header.write_into(&mut stdout())?;
     zki_r1cs.write_into(&mut stdout())?;

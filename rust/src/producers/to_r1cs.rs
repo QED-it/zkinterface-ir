@@ -85,24 +85,20 @@ pub fn pad_to_max(vals: &[&Value]) -> Vec<u8> {
 pub struct GateConverter {
     pub constraints: Vec<BilinearConstraint>,
     pub field_characteristic: Value,
-    pub new_modulus: Option<Vec<u8>>,
 
-    // map of original Instance() wire ID to its value
+    // map of Instance() wire ID to its value
     pub instance_values: BTreeMap<WireId, Value>,
 
-    // map of original Witness() wire ID to its value
+    // map of Witness() wire ID to its value
     pub witness_values: BTreeMap<WireId, Value>,
 
-    // map of original Constant() wire ID to its value
+    // map of Constant() wire ID to its value
     pub constant_values: BTreeMap<WireId, Value>,
 
-    // map of original wire ID to new wire ID
-    pub shifted_wire_ids: BTreeMap<WireId, WireId>,
+    // true if we need to perform modular reduction manually because of ignored field size
+    perform_modular_reduction: bool,
 
-    // map of new output wire ID to modular-unreduced output wire ID, if different
-    pub mod_unreduced_outputs: BTreeMap<WireId, WireId>,
-
-    // map of new output wire ID to modular correction factor variable ID, such that:
+    // map of output wire ID to modular correction factor variable ID, such that:
     // (output % field size) + (correction * field size) = output
     // to perform division with remainder and bind a variable to (output % field size)
     pub mod_correction_wire: BTreeMap<WireId, WireId>,
@@ -129,38 +125,6 @@ impl GateConverter {
         return new_id
     }
 
-    // create a new wire id for the R1CS instance to replace the old wire ID
-    pub fn to_new_id(&mut self, id: &WireId) -> WireId {
-        match self.shifted_wire_ids.entry(*id) {
-            Entry::Occupied(o) => *o.get(),
-
-            Entry::Vacant(v) => {
-                // can't use append_wire() because double mutable borrow
-                let new_id = self.free_variable_id;
-                self.free_variable_id += 1;
-                v.insert(new_id.clone());
-                new_id
-            }
-        }
-    }
-
-    // Adds a modular reduction constraint after the new output wire.
-    // Intended for after a multiplication gate, but works in other cases.
-    // The gate passed should be rewritten with new wire IDs.
-    pub fn add_mod_correction_constraint(&mut self, out: &WireId, unreduced: &WireId, correction: &WireId) {
-        let a = (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic]));
-        let b = (vec![0], vec![1]);
-        let c = (vec![*unreduced], vec![1]);
-
-        self.constraints.push(BilinearConstraint {
-            linear_combination_a: make_combination(a.0, a.1),
-            linear_combination_b: make_combination(b.0, b.1),
-            linear_combination_c: make_combination(c.0, c.1),
-        });
-
-    }
-
-
     pub fn gate_to_simple_constraint(&mut self, gate: &Gate) {
         let (a, b, c) = match gate {
             // Note: Constant gate seems to be eclipsed by AddConstant and MulConstant
@@ -173,39 +137,75 @@ impl GateConverter {
             ),
 
             Add(out, x, y) => {
-                let correction = self.mod_correction_wire.get(out).unwrap();
-                (
-                    (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
-                    (vec![0], vec![1]),
-                    (vec![*x, *y], vec![1, 1]),
-                )
+                match self.perform_modular_reduction {
+                    true => {
+                    let correction = self.mod_correction_wire.get(out).unwrap();
+                        (
+                            (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
+                            (vec![0], vec![1]),
+                            (vec![*x, *y], vec![1, 1]),
+                    )},
+                    
+                    false => {(
+                        (vec![*out], vec![1]),
+                        (vec![0], vec![1]),
+                        (vec![*x, *y], vec![1, 1]),
+                    )},
+                }
             }
 
             Mul(out, x, y) => {
-                let unreduced = self.mod_unreduced_outputs.get(out).unwrap();
-                (
-                    (vec![*x], vec![1]),
-                    (vec![*y], vec![1]),
-                    (vec![*unreduced], vec![1]),
-                )
+                match self.perform_modular_reduction {
+                    true => {
+                        let correction = self.mod_correction_wire.get(out).unwrap();
+                        (
+                            (vec![*x], vec![1]),
+                            (vec![*y], vec![1]),
+                            (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
+                    )},
+                    
+                    false => {(
+                        (vec![*x], vec![1]),
+                        (vec![*y], vec![1]),
+                        (vec![*out], vec![1]),
+                    )},
+                }
             },
 
             AddConstant(out, x, value) => {
-                let correction = self.mod_correction_wire.get(out).unwrap();
-                (
-                    (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
-                    (vec![0], vec![1]),
-                    (vec![*x, 0], pad_to_max(&[&vec![1], value])),
-                )
+                match self.perform_modular_reduction {
+                    true => {
+                    let correction = self.mod_correction_wire.get(out).unwrap();
+                    (
+                        (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
+                        (vec![0], vec![1]),
+                        (vec![*x, 0], pad_to_max(&[&vec![1], value])),
+                    )},
+                    
+                    false => {(
+                        (vec![*out], vec![1]),
+                        (vec![0], vec![1]),
+                        (vec![*x, 0], pad_to_max(&[&vec![1], value])),
+                    )},
+                }
             }
 
             MulConstant(out, x, value) => {
-                let unreduced = self.mod_unreduced_outputs.get(out).unwrap();
-                (
-                    (vec![*x], vec![1]),
-                    (vec![0], value.to_vec()),
-                    (vec![*unreduced], vec![1]),
-                )
+                match self.perform_modular_reduction {
+                    true => {
+                        let correction = self.mod_correction_wire.get(out).unwrap();
+                        (
+                            (vec![*x], vec![1]),
+                            (vec![0], value.to_vec()),
+                            (vec![*out, *correction], pad_to_max(&[&vec![1], &self.field_characteristic])),
+                    )},
+                    
+                    false => {(
+                        (vec![*x], vec![1]),
+                        (vec![0], value.to_vec()),
+                        (vec![*out], vec![1]),
+                    )},
+                }
             }
 
             And(_,_,_) => panic!("And should have been rewritten!"),
@@ -232,7 +232,7 @@ impl GateConverter {
 
 
     pub fn add_gate(&mut self, gate: &Gate) {
-        // First, rewrite And/Xor/Not as Mul/Add/AddConstant, because they're the same and require field of 0/1
+        // First, rewrite And/Xor/Not as Mul/Add/AddConstant, because they're the same when requiring field of 0/1
         let rewritten_gate = match gate {
             And(out, x, y) => Mul(*out, *x, *y),
             Xor(out, x, y) => Add(*out, *x, *y),
@@ -255,105 +255,71 @@ impl GateConverter {
             // In those cases, instead create an AddConstant or MulConstant gate.
             // Also, we record constant add/mul gates to populate the witness.
             Add(out, x, y) => {
-                if let Some(val) = self.constant_values.get(&x) {
-                    let val = val.to_vec();
-                    let y = self.to_new_id(y);
+                if self.perform_modular_reduction {
                     let correction_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    let cg = AddConstant(out, y, val);
+                    self.mod_correction_wire.insert(*out, correction_wire);
+                }
+                if let Some(val) = self.constant_values.get(x) {
+                    let val = val.to_vec();
+                    let cg = AddConstant(*out, *y, val);
                     self.gate_to_simple_constraint(&cg);
                     self.all_gates.push(cg);
-                } else if let Some(val) = self.constant_values.get(&y) {
+                } else if let Some(val) = self.constant_values.get(y) {
                     let val = val.to_vec();
-                    let x = self.to_new_id(x);
-                    let correction_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    let cg = AddConstant(out, x, val);
+                    let cg = AddConstant(*out, *x, val);
                     self.gate_to_simple_constraint(&cg);
                     self.all_gates.push(cg);
                 } else {
-                    let x = self.to_new_id(x);
-                    let y = self.to_new_id(y);
-                    let correction_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    let gate = Add(out, x, y);
-                    self.gate_to_simple_constraint(&gate);
-                    self.all_gates.push(gate);
+                    self.gate_to_simple_constraint(&rewritten_gate);
+                    self.all_gates.push(rewritten_gate);
                 }
             }
 
             Mul(out, x, y) => {
-                if let Some(val) = self.constant_values.get(&x) {
-                    let val = val.to_vec();
-                    let y = self.to_new_id(y);
+                if self.perform_modular_reduction {
                     let correction_wire = self.append_wire();
-                    let unreduced_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    self.mod_unreduced_outputs.insert(out, unreduced_wire);
-                    let cg = MulConstant(out, y, val);
+                    self.mod_correction_wire.insert(*out, correction_wire);
+                }
+                if let Some(val) = self.constant_values.get(x) {
+                    let val = val.to_vec();
+                    let cg = MulConstant(*out, *y, val);
                     self.gate_to_simple_constraint(&cg);
-                    self.add_mod_correction_constraint(&out, &unreduced_wire, &correction_wire);
                     self.all_gates.push(cg);
-                } else if let Some(val) = self.constant_values.get(&y) {
+                } else if let Some(val) = self.constant_values.get(y) {
                     let val = val.to_vec();
-                    let x = self.to_new_id(x);
-                    let correction_wire = self.append_wire();
-                    let unreduced_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    self.mod_unreduced_outputs.insert(out, unreduced_wire);
-                    let cg = MulConstant(out, x, val);
+                    let cg = MulConstant(*out, *x, val);
                     self.gate_to_simple_constraint(&cg);
-                    self.add_mod_correction_constraint(&out, &unreduced_wire, &correction_wire);
                     self.all_gates.push(cg);
                 } else {
-                    let x = self.to_new_id(x);
-                    let y = self.to_new_id(y);
-                    let correction_wire = self.append_wire();
-                    let unreduced_wire = self.append_wire();
-                    let out = self.to_new_id(out);
-                    self.mod_correction_wire.insert(out, correction_wire);
-                    self.mod_unreduced_outputs.insert(out, unreduced_wire);
-                    let gate = Mul(out, x, y);
-                    self.gate_to_simple_constraint(&gate);
-                    self.add_mod_correction_constraint(&out, &unreduced_wire, &correction_wire);
-                    self.gate_to_simple_constraint(&gate);
-                    self.all_gates.push(gate);
+                    self.gate_to_simple_constraint(&rewritten_gate);
+                    self.all_gates.push(rewritten_gate);
                 }
             }
 
             Copy(out, x) => {
-                let x = self.to_new_id(x);
-                let out = self.to_new_id(out);
-                let gate = Copy(out, x);
+                let gate = Copy(*out, *x);
                 self.gate_to_simple_constraint(&gate);
                 self.all_gates.push(gate);
             }
 
             AddConstant(out, x, value) => {
-                let x = self.to_new_id(x);
-                let correction_wire = self.append_wire();
-                let out = self.to_new_id(out);
-                self.mod_correction_wire.insert(out, correction_wire);
-                let gate = AddConstant(out, x, value.to_vec());
+                if self.perform_modular_reduction {
+                    let correction_wire = self.append_wire();
+                    self.mod_correction_wire.insert(*out, correction_wire);
+                }
+                let gate = AddConstant(*out, *x, value.to_vec());
                 self.gate_to_simple_constraint(&gate);
                 self.all_gates.push(gate);
             }
 
             MulConstant(out, x, value) => {
-                let x = self.to_new_id(x);
-                let correction_wire = self.append_wire();
-                let unreduced_wire = self.append_wire();
-                let out = self.to_new_id(out);
-                self.mod_correction_wire.insert(out, correction_wire);
-                self.mod_unreduced_outputs.insert(out, unreduced_wire);
-                let gate = MulConstant(out, x, value.to_vec());
+                if self.perform_modular_reduction {
+                    let correction_wire = self.append_wire();
+                    self.mod_correction_wire.insert(*out, correction_wire);
+                }
+
+                let gate = MulConstant(*out, *x, value.to_vec());
                 self.gate_to_simple_constraint(&gate);
-                self.add_mod_correction_constraint(&out, &unreduced_wire, &correction_wire);
                 self.all_gates.push(gate);
             }
 
@@ -361,18 +327,16 @@ impl GateConverter {
             Xor(_,_,_) => panic!("Xor should have been rewritten!"),
             Not(_,_) => panic!("Not should have been rewritten!"),
 
-            // Instance and Witness are ignored here because they are read in before relations, and don't need more
-            Instance(_) => {},
-            Witness(_) => {},
+            Instance(_) => panic!("Instance should have been removed before relations!"),
+            Witness(_) => panic!("Witness should have been removed before relations!"),
+            Free(_,_) => panic!("Free should have been removed during wire deconfliction!"),
 
             AssertZero(x) => {
-                let x = self.to_new_id(x);
-                let gate = AssertZero(x);
+                let gate = AssertZero(*x);
                 self.gate_to_simple_constraint(&gate);
                 self.all_gates.push(gate);
             }
 
-            Free(_,_) => panic!("Free is not yet supported!"),
         }
     }
 
@@ -383,15 +347,7 @@ impl GateConverter {
     ) -> (zkiCircuitHeader, zkiConstraintSystem) {
         let fm = self.extract_field_maximum(&header);
 
-        let assignments: BTreeMap<WireId, Value> = self.instance_values
-            .clone()
-            .into_iter()
-            .map(|(k, v)| (
-                self.to_new_id(&
-                    k),
-                v
-            ))
-            .collect();
+        let assignments: BTreeMap<WireId, Value> = self.instance_values.clone();
 
         for g in gates {
             self.add_gate(g);
@@ -417,7 +373,8 @@ impl GateConverter {
 
     // Conversion works the same for the witness as for the I/O variables,
     // but gates that can be inferred in the IR must have their values computed explicitly for the witness here.
-    // To do this inference, we need all of the gates (with constants removed by to_r1cs) and the field size.
+    // To do this inference, we need all of the gates (with constants/inputs/witness values removed by to_r1cs) 
+    // and the field size.
     pub fn update_witness(
         &self,
         field_characteristic: &BigUint,
@@ -429,18 +386,8 @@ impl GateConverter {
         };
 
         let mut witness_assignments: BTreeMap<WireId, BigUint> = to_map(&self.witness_values);
-        let mut all_assignments_original: BTreeMap<WireId, BigUint> = to_map(&self.instance_values);
-        all_assignments_original.extend(witness_assignments.clone());
-
-        // Rewrite to new wire IDs
-        let mut all_assignments: BTreeMap<WireId, BigUint> = all_assignments_original
-            .into_iter()
-            .map(|(k, v)| (*self.shifted_wire_ids.get(&k).unwrap(), v))
-            .collect();
-        witness_assignments = witness_assignments
-            .into_iter()
-            .map(|(k, v)| (*self.shifted_wire_ids.get(&k).unwrap(), v))
-            .collect();
+        let mut all_assignments: BTreeMap<WireId, BigUint> = to_map(&self.instance_values);
+        all_assignments.extend(witness_assignments.clone());
 
         // AssertZero adds no wires, so don't check it - this allows unwrap of output wire ID
         let mut all_gates: Vec<Gate> = self
@@ -475,9 +422,11 @@ impl GateConverter {
                     let xval = all_assignments.get(&x).unwrap();
                     let yval = all_assignments.get(&y).unwrap();
                     let sum = xval + yval;
-                    let correction = sum.clone() / field_characteristic;
-                    let correction_wire = self.mod_correction_wire.get(&out).unwrap();
-                    witness_assignments.insert(*correction_wire, correction);
+                    if self.perform_modular_reduction {
+                        let correction = sum.clone() / field_characteristic;
+                        let correction_wire = self.mod_correction_wire.get(&out).unwrap();
+                        witness_assignments.insert(*correction_wire, correction);
+                    }
                     let oval = sum % field_characteristic;
                     all_assignments.insert(out, oval.clone());
                     witness_assignments.insert(out, oval);
@@ -486,11 +435,11 @@ impl GateConverter {
                     let xval = all_assignments.get(&x).unwrap();
                     let yval = all_assignments.get(&y).unwrap();
                     let prod = xval * yval;
-                    let correction = prod.clone() / field_characteristic;
-                    let correction_wire = self.mod_correction_wire.get(&out).unwrap();
-                    let unreduced_wire = self.mod_unreduced_outputs.get(&out).unwrap();
-                    witness_assignments.insert(*correction_wire, correction);
-                    witness_assignments.insert(*unreduced_wire, prod.clone());
+                    if self.perform_modular_reduction {
+                        let correction = prod.clone() / field_characteristic;
+                        let correction_wire = self.mod_correction_wire.get(&out).unwrap();
+                        witness_assignments.insert(*correction_wire, correction);
+                    }
                     let oval = prod % field_characteristic;
                     all_assignments.insert(out, oval.clone());
                     witness_assignments.insert(out, oval);
@@ -500,9 +449,11 @@ impl GateConverter {
                     let xval = all_assignments.get(&x).unwrap();
                     let cval = BigUint::from_bytes_le(&value);
                     let sum = xval + cval;
-                    let correction = sum.clone() / field_characteristic;
-                    let correction_wire = self.mod_correction_wire.get(&out).unwrap();
-                    witness_assignments.insert(*correction_wire, correction);
+                    if self.perform_modular_reduction {
+                        let correction = sum.clone() / field_characteristic;
+                        let correction_wire = self.mod_correction_wire.get(&out).unwrap();
+                        witness_assignments.insert(*correction_wire, correction);
+                    }
                     let oval = sum % field_characteristic;
                     all_assignments.insert(out, oval.clone());
                     witness_assignments.insert(out, oval);
@@ -511,11 +462,11 @@ impl GateConverter {
                     let xval = all_assignments.get(&x).unwrap();
                     let cval = BigUint::from_bytes_le(&value);
                     let prod = xval * cval;
-                    let correction = prod.clone() / field_characteristic;
-                    let correction_wire = self.mod_correction_wire.get(&out).unwrap();
-                    let unreduced_wire = self.mod_unreduced_outputs.get(&out).unwrap();
-                    witness_assignments.insert(*correction_wire, correction);
-                    witness_assignments.insert(*unreduced_wire, prod.clone());
+                    if self.perform_modular_reduction {
+                        let correction = prod.clone() / field_characteristic;
+                        let correction_wire = self.mod_correction_wire.get(&out).unwrap();
+                        witness_assignments.insert(*correction_wire, correction);
+                    }
                     let oval = prod % field_characteristic;
                     all_assignments.insert(out, oval.clone());
                     witness_assignments.insert(out, oval);
@@ -526,10 +477,9 @@ impl GateConverter {
                 Not(_,_) => panic!("Not should have been rewritten!"),
                 Constant(_,_) => panic!("all_gates must have filtered out Constant gates!"),
                 AssertZero(_) => panic!("all_gates must have filtered out AssertZero gates!"),
-                Instance(_) => panic!("all_gates must have filtered out Instance gates!"),
-                Witness(_) => panic!("all_gates must have filtered out Witness gates!"),
-
-                Free(_,_) => panic!("Free gates are not yet supported!"),
+                Instance(_) => panic!("Instance should have been removed before relations!"),
+                Witness(_) => panic!("Witness should have been removed before relations!"),
+                Free(_,_) => panic!("Free should have been removed during wire deconfliction!"),
 
             }
         }
@@ -546,46 +496,176 @@ impl GateConverter {
     }
 }
 
+#[derive(Default)]
+struct IdMapper {
+    current_id_map: BTreeMap<WireId, WireId>,
+    free_variable_id: WireId,
+} 
+
+impl IdMapper {
+    pub fn to_new_id(&mut self, id: &WireId) -> WireId  {
+        match self.current_id_map.entry(*id) {
+            Entry::Occupied(o) => *o.get(),
+
+            Entry::Vacant(v) => {
+                let new_id = self.free_variable_id;
+                self.free_variable_id += 1;
+                v.insert(new_id.clone());
+                new_id
+            }
+        }
+    }
+
+    pub fn free_ids(&mut self, first: &WireId, last: &Option<WireId>) {
+        match last {
+            None => {
+                self.current_id_map.remove(first);
+            },
+            Some(last) => {
+                for id in *first ..= *last {
+                    self.current_id_map.remove(&id);
+                }
+            },
+        }
+    }
+}
+
+// Take a vector of gates and rewrite their input/output wires. 
+// The resulting rewritten gates will remove Free() and instead have new wire IDs
+// where the original would reuse freed IDs.
+pub fn deconflict_gate_wires(
+    gates: &Vec<Gate>,
+) -> (Vec<Gate>, WireId) {
+
+    let mut map = IdMapper {
+        // skip id 0 for constant value of 1
+        free_variable_id: 1,
+        ..IdMapper::default()
+    };
+
+    let mut ret: Vec<Gate> = Vec::new();
+    for gate in gates.iter() {
+        // for all but Free(), register new wires into map, apply mapping to IDs, and append the rewritten ID gate
+        match gate {
+            Constant(id, val) => {
+                let new_gate = Constant(map.to_new_id(id), val.clone());
+                ret.push(new_gate);
+            },
+
+            AssertZero(id) => {
+                let new_gate = AssertZero(map.to_new_id(id));
+                ret.push(new_gate);
+            },
+
+            Copy(out, x) => {
+                let new_gate = Copy(map.to_new_id(out), map.to_new_id(x));
+                ret.push(new_gate);
+            },
+
+            Add(out, x, y) => {
+                let new_gate = Add(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    map.to_new_id(y));
+                ret.push(new_gate);
+            },
+
+            Mul(out, x, y) => {
+                let new_gate = Mul(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    map.to_new_id(y));
+                ret.push(new_gate);
+            },
+
+            AddConstant(out, x, constant) => {
+                let new_gate = AddConstant(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    constant.to_vec());
+                ret.push(new_gate);
+            },
+          
+            MulConstant(out, x, constant) => {
+                let new_gate = MulConstant(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    constant.to_vec());
+                ret.push(new_gate);
+            },
+
+            And(out, x, y) => {
+                let new_gate = And(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    map.to_new_id(y));
+                ret.push(new_gate);
+            },
+
+            Xor(out, x, y) => {
+                let new_gate = Xor(map.to_new_id(out), 
+                    map.to_new_id(x), 
+                    map.to_new_id(y));
+                ret.push(new_gate);
+            },
+
+            Not(out, x) => {
+                let new_gate = Not(map.to_new_id(out), map.to_new_id(x));
+                ret.push(new_gate);
+            },
+           
+            Instance(out) => {
+                let new_gate = Instance(map.to_new_id(out));
+                ret.push(new_gate);
+            },
+           
+            Witness(out) => {
+                let new_gate = Witness(map.to_new_id(out));
+                ret.push(new_gate);
+            },
+
+            // if just first -> remove it;
+            // if first, last -> remove range inclusive
+            Free(first, last) => {
+                map.free_ids(first, last);
+            },
+        }
+    }
+
+    (ret, map.free_variable_id)
+}
+
 pub fn to_r1cs(
     instance: &Instance,
     relation: &Relation,
     witness: &Witness,
+    perform_modular_reduction: bool,
 ) -> (zkiCircuitHeader, zkiConstraintSystem, zkiWitness) {
-    let mut gc = GateConverter {
-        free_variable_id: 1, //skip 0 for constant
-        ..GateConverter::default()
-    };
     assert_eq!(instance.header, relation.header);
     assert_eq!(witness.header, relation.header);
 
+    let (gates, free_variable_id) = deconflict_gate_wires(&relation.gates);
+
+    let mut gc = GateConverter {
+        free_variable_id, //new wires for possible mod reduction are added after uniquified ID values
+        perform_modular_reduction,
+        ..GateConverter::default()
+    };
+
     let mut instance_index = 0;
     let mut witness_index = 0;
-    // load instance and witness wire values
-    for g in relation.gates.iter() {
+    // load instance and witness wire values, filtering their gates out of the result
+    let relation_gates: Vec<Gate> = gates.iter().filter(|g| {
         match g {
             Instance(id) => {
                 gc.instance_values.insert(*id, instance.common_inputs[instance_index].clone());
                 instance_index += 1;
+                false
             },
             Witness(id) => {
                 gc.witness_values.insert(*id, witness.short_witness[witness_index].clone());
                 witness_index += 1;
+                false
             },
-            _ => continue,
-        }
-    }
+            _ => true,
+        }}).cloned().collect();
 
-    // reserve wire ID maps for common inputs, then witness inputs, each in a contiguous block
-    let keys_to_add: Vec<WireId> = gc.instance_values
-        .keys()
-        .chain(gc.witness_values.keys())
-        .map(|k| *k)
-        .collect();
-    for k in keys_to_add {
-        gc.to_new_id(&k);
-    }
-
-    let (zki_header, zki_r1cs) = gc.build_header_and_relation(&instance.header, &relation.gates);
+    let (zki_header, zki_r1cs) = gc.build_header_and_relation(&instance.header, &relation_gates);
 
     let zki_witness = gc.update_witness(
         &BigUint::from_bytes_le(&relation.header.field_characteristic),
@@ -631,7 +711,7 @@ fn assert_same_witness_values(witness: &Witness, zki_witness: &zkiWitness) -> cr
         .map(|v| BigUint::from_bytes_le(&v))
         .collect();
 
-    assert!(zki_vals.iter().all(|v| ir_vals.contains(v)));
+    // zkif witness may (likely does) contain more witness values that IR could confirm
     assert!(ir_vals.iter().all(|v| zki_vals.contains(v)));
 
     Ok(())
@@ -661,7 +741,7 @@ fn test_same_values_after_conversion() -> crate::Result<()> {
     let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
-    let (zki_header2, _, zki_witness2) = to_r1cs(&instance, &relation, &witness);
+    let (zki_header2, _, zki_witness2) = to_r1cs(&instance, &relation, &witness, false);
 
     assert_same_io_values(&instance, &zki_header2)?;
 
@@ -694,7 +774,7 @@ fn test_with_validate() -> crate::Result<()> {
     let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
-    let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness);
+    let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness, false);
 
     let mut validator = zkinterface::consumers::validator::Validator::new_as_prover();
     validator.ingest_header(&zki_header2);
@@ -720,7 +800,7 @@ fn test_with_validate_2() -> crate::Result<()> {
     let relation = example_relation();
 
     // now convert back into r1cs
-    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(&instance, &relation, &witness);
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(&instance, &relation, &witness, false);
 
     let mut validator = zkinterface::consumers::validator::Validator::new_as_prover();
     validator.ingest_header(&zki_header);
@@ -760,7 +840,7 @@ fn test_with_simulator() -> crate::Result<()> {
     let witness = messages.witnesses[0].clone();
 
     // now convert back into r1cs
-    let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness);
+    let (zki_header2, zki_r1cs2, zki_witness2) = to_r1cs(&instance, &relation, &witness, false);
 
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();
     simulator.ingest_header(&zki_header2)?;
@@ -780,7 +860,7 @@ fn test_with_simulator_2() -> crate::Result<()> {
     let relation = example_relation();
 
     // now convert back into r1cs
-    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(&instance, &relation, &witness);
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(&instance, &relation, &witness, false);
 
     println!("Header: {:?}", zki_header);
     println!("Witness: {:?}", zki_witness);
