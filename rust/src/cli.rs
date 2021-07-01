@@ -85,6 +85,10 @@ pub struct Options {
     /// `example --incorect` will generate an incorrect witness useful for negative tests.
     #[structopt(long)]
     pub incorrect: bool,
+
+    /// custom example to run
+    #[structopt(short, long, default_value = "pythagorean")]
+    pub customex: String,
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -130,13 +134,30 @@ fn main_example(opts: &Options) -> Result<()> {
     use crate::{FilesSink, Sink};
 
     let header = example_header_in_field(opts.field_order.to_bytes_le());
-    let instance = example_instance_h(&header);
-    let relation = example_relation_h(&header);
-    let witness = if opts.incorrect {
-        example_witness_incorrect_h(&header)
-    } else {
-        example_witness_h(&header)
+    let (instance, relation, witness) = match &opts.customex[..] {
+        "fibonacci" => {
+            let instance = fibonacci_instance(&header);
+            let relation = fibonacci_relation(&header);
+            let witness = if opts.incorrect {
+                fibonacci_witness_incorrect(&header)
+            } else {
+                fibonacci_witness(&header)
+            };
+            (instance, relation, witness)
+        }
+        _ => {
+            let instance = example_instance_h(&header);
+            let relation = example_relation_h(&header);
+            let witness = if opts.incorrect {
+                example_witness_incorrect_h(&header)
+            } else {
+                example_witness_h(&header)
+            };
+            (instance, relation, witness)
+        }
     };
+
+
 
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
@@ -332,6 +353,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        customex: "pythagorean".to_string(),
     })?;
 
     cli(&Options {
@@ -339,6 +361,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        customex: "pythagorean".to_string(),
     })?;
 
     Ok(())
