@@ -13,7 +13,6 @@ union Message {
 
 table Header {
    version              :string;
-
    field_characteristic :Value;
    field_degree         :uint32;
 }
@@ -22,6 +21,7 @@ table Relation {
    header               :Header;
    gateset              :string;
    features             :string;
+   functions            :[Function];
    gates                :[Gate];
 }
 
@@ -42,16 +42,25 @@ struct Wire {
     id          :uint64;
 }
 
-struct WireDelta {
-    delta       :uint64;
-}
-
 // Field element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
-   value        :[ubyte];
+    value        :[ubyte];
 }
 
+struct WireRange {
+    first      :Wire;
+    last       :Wire;
+}
+
+union WireListElement {
+    Wire,
+    WireRange,
+}
+
+table WireList {
+    elements    :[WireListElement];
+}
 
 // ==== Gate types ====
 
@@ -132,18 +141,22 @@ table Function {
     input_count     :uint64;
     instance_count  :uint64;
     witness_count   :uint64;
-    subcircuit      :[Gate];
+    body            :Block;
 }
 
 table GateCall {
     // Invokes a previously defined Function gate
     name              :string;
-    output_wires      :[Wire];
-    input_wires       :[Wire];
+    output_wires      :WireList;
+    input_wires       :WireList;
 }
 
-table Block {
-    block   :[Gate];
+table GateAnonCall {
+    output_wires    :WireList;
+    input_wires     :WireList;
+    instance_count  :uint64;
+    witness_count   :uint64;
+    body            :Block;
 }
 
 table GateSwitch {
@@ -169,7 +182,7 @@ table GateFor {
     witness_count   :uint64;
     output_map      :[Mapping];
     input_map       :[Mapping];
-    body            :[Gate];
+    body            :Block;
 }
 
 union GateSet {
@@ -196,6 +209,9 @@ table Gate {
     gate      :GateSet;
 }
 
+table Block {
+    block   :[Gate];
+}
 
 // ==== Flatbuffers details ====
 
