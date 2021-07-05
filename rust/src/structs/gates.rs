@@ -41,19 +41,17 @@ pub enum Gate {
     /// If the option is not given, then only the first wire is freed, otherwise all wires between
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
-    /// Function Gate for generic custom gates
-    /// Function(name, output_count, input_count, instance_count, witness_count, directives).
-    Function(String, usize, usize, usize, usize, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
-    Call(String, Vec<WireId>, Vec<WireId>),
-    /// GateSwitch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches)
-    Switch(WireId, Vec<WireId>, Vec<WireId>, usize, usize, Vec<Value>, Vec<Vec<Gate>>),
+    Call(String, WireList, WireList),
+    /// GateSwitch(condition, output_wires, cases, branches)
+    Switch(WireId, WireList, Vec<Value>, Vec<CaseInvoke>),
     /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
     ///   Mapping = [base, stride, size]
-    For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
+    // For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
 }
 
 use Gate::*;
+use crate::structs::wire::WireList;
 
 impl<'a> TryFrom<g::Gate<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -163,7 +161,7 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     gate.last().map(|id| id.id()),
                 )
             }
-
+/*  will be reused later...
             gs::Function => {
                 let gate = gen_gate.gate_as_function().unwrap();
                 let g_directives = gate
@@ -179,7 +177,7 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     directives,
                 )
             }
-
+*/
             gs::GateCall => {
                 let gate = gen_gate.gate_as_gate_call().unwrap();
 
@@ -207,7 +205,9 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                 )
             }
 
-            gs::GateFor => {
+            gs::GateFor => {*
+                unimplemented!()
+                /*
                 let gate = gen_gate.gate_as_gate_for().unwrap();
                 let output_mappings = gate.output_map().ok_or("missing output mappings")?;
                 let input_mappings = gate.input_map().ok_or("missing input mappings")?;
@@ -224,6 +224,7 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     input_map,
                     Gate::try_from_vector(gate.body().ok_or("Missing body of for loop")?)?,
                 )
+                 */
             },
         })
     }
@@ -463,7 +464,7 @@ impl Gate {
                     },
                 )
             }
-
+/* will be reused later
             Function(
                 name,
                 output_count,
@@ -494,7 +495,7 @@ impl Gate {
                     },
                 )
             }
-
+*/
             Call(name, output_wires, input_wires) => {
                 let g_name = builder.create_string(name);
                 let g_outputs = build_wires_vector(builder, output_wires);
@@ -554,7 +555,7 @@ impl Gate {
                     },
                 )
             }
-
+/*
             For(
                 start_val,
                 end_val,
@@ -602,6 +603,7 @@ impl Gate {
                     },
                 )
             }
+            */
         }
     }
 

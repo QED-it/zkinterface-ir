@@ -87,6 +87,335 @@ pub struct MessageUnionTableOffset {}
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum WireListElementU {
+  NONE = 0,
+  Wire = 1,
+  WireRange = 2,
+
+}
+
+pub const ENUM_MIN_WIRE_LIST_ELEMENT_U: u8 = 0;
+pub const ENUM_MAX_WIRE_LIST_ELEMENT_U: u8 = 2;
+
+impl<'a> flatbuffers::Follow<'a> for WireListElementU {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for WireListElementU {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const WireListElementU;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const WireListElementU;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for WireListElementU {
+    type Output = WireListElementU;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<WireListElementU>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_WIRE_LIST_ELEMENT_U:[WireListElementU; 3] = [
+  WireListElementU::NONE,
+  WireListElementU::Wire,
+  WireListElementU::WireRange
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_WIRE_LIST_ELEMENT_U:[&'static str; 3] = [
+    "NONE",
+    "Wire",
+    "WireRange"
+];
+
+pub fn enum_name_wire_list_element_u(e: WireListElementU) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_WIRE_LIST_ELEMENT_U[index as usize]
+}
+
+pub struct WireListElementUUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum CaseInvokeU {
+  NONE = 0,
+  AbstractGateCall = 1,
+  AbstractAnonCall = 2,
+
+}
+
+pub const ENUM_MIN_CASE_INVOKE_U: u8 = 0;
+pub const ENUM_MAX_CASE_INVOKE_U: u8 = 2;
+
+impl<'a> flatbuffers::Follow<'a> for CaseInvokeU {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for CaseInvokeU {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const CaseInvokeU;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const CaseInvokeU;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for CaseInvokeU {
+    type Output = CaseInvokeU;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<CaseInvokeU>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_CASE_INVOKE_U:[CaseInvokeU; 3] = [
+  CaseInvokeU::NONE,
+  CaseInvokeU::AbstractGateCall,
+  CaseInvokeU::AbstractAnonCall
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_CASE_INVOKE_U:[&'static str; 3] = [
+    "NONE",
+    "AbstractGateCall",
+    "AbstractAnonCall"
+];
+
+pub fn enum_name_case_invoke_u(e: CaseInvokeU) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_CASE_INVOKE_U[index as usize]
+}
+
+pub struct CaseInvokeUUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum IterExpr {
+  NONE = 0,
+  IterExprConst = 1,
+  IterExprName = 2,
+  IterExprAdd = 3,
+  IterExprSub = 4,
+  IterExprMul = 5,
+
+}
+
+pub const ENUM_MIN_ITER_EXPR: u8 = 0;
+pub const ENUM_MAX_ITER_EXPR: u8 = 5;
+
+impl<'a> flatbuffers::Follow<'a> for IterExpr {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for IterExpr {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const IterExpr;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const IterExpr;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for IterExpr {
+    type Output = IterExpr;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<IterExpr>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_ITER_EXPR:[IterExpr; 6] = [
+  IterExpr::NONE,
+  IterExpr::IterExprConst,
+  IterExpr::IterExprName,
+  IterExpr::IterExprAdd,
+  IterExpr::IterExprSub,
+  IterExpr::IterExprMul
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_ITER_EXPR:[&'static str; 6] = [
+    "NONE",
+    "IterExprConst",
+    "IterExprName",
+    "IterExprAdd",
+    "IterExprSub",
+    "IterExprMul"
+];
+
+pub fn enum_name_iter_expr(e: IterExpr) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_ITER_EXPR[index as usize]
+}
+
+pub struct IterExprUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum IterExprWireListElementU {
+  NONE = 0,
+  IterExprWireNumber = 1,
+  IterExprWireRange = 2,
+
+}
+
+pub const ENUM_MIN_ITER_EXPR_WIRE_LIST_ELEMENT_U: u8 = 0;
+pub const ENUM_MAX_ITER_EXPR_WIRE_LIST_ELEMENT_U: u8 = 2;
+
+impl<'a> flatbuffers::Follow<'a> for IterExprWireListElementU {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for IterExprWireListElementU {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const IterExprWireListElementU;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const IterExprWireListElementU;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for IterExprWireListElementU {
+    type Output = IterExprWireListElementU;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<IterExprWireListElementU>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_ITER_EXPR_WIRE_LIST_ELEMENT_U:[IterExprWireListElementU; 3] = [
+  IterExprWireListElementU::NONE,
+  IterExprWireListElementU::IterExprWireNumber,
+  IterExprWireListElementU::IterExprWireRange
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_ITER_EXPR_WIRE_LIST_ELEMENT_U:[&'static str; 3] = [
+    "NONE",
+    "IterExprWireNumber",
+    "IterExprWireRange"
+];
+
+pub fn enum_name_iter_expr_wire_list_element_u(e: IterExprWireListElementU) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_ITER_EXPR_WIRE_LIST_ELEMENT_U[index as usize]
+}
+
+pub struct IterExprWireListElementUUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum ForLoopBody {
+  NONE = 0,
+  IterExprFunctionInvoke = 1,
+  IterExprAnonFunction = 2,
+
+}
+
+pub const ENUM_MIN_FOR_LOOP_BODY: u8 = 0;
+pub const ENUM_MAX_FOR_LOOP_BODY: u8 = 2;
+
+impl<'a> flatbuffers::Follow<'a> for ForLoopBody {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for ForLoopBody {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const ForLoopBody;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const ForLoopBody;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for ForLoopBody {
+    type Output = ForLoopBody;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<ForLoopBody>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_FOR_LOOP_BODY:[ForLoopBody; 3] = [
+  ForLoopBody::NONE,
+  ForLoopBody::IterExprFunctionInvoke,
+  ForLoopBody::IterExprAnonFunction
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_FOR_LOOP_BODY:[&'static str; 3] = [
+    "NONE",
+    "IterExprFunctionInvoke",
+    "IterExprAnonFunction"
+];
+
+pub fn enum_name_for_loop_body(e: ForLoopBody) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_FOR_LOOP_BODY[index as usize]
+}
+
+pub struct ForLoopBodyUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum GateSet {
   NONE = 0,
   GateConstant = 1,
@@ -102,8 +431,8 @@ pub enum GateSet {
   GateInstance = 11,
   GateWitness = 12,
   GateFree = 13,
-  Function = 14,
-  GateCall = 15,
+  GateCall = 14,
+  GateAnonCall = 15,
   GateSwitch = 16,
   GateFor = 17,
 
@@ -159,8 +488,8 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 18] = [
   GateSet::GateInstance,
   GateSet::GateWitness,
   GateSet::GateFree,
-  GateSet::Function,
   GateSet::GateCall,
+  GateSet::GateAnonCall,
   GateSet::GateSwitch,
   GateSet::GateFor
 ];
@@ -181,8 +510,8 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 18] = [
     "GateInstance",
     "GateWitness",
     "GateFree",
-    "Function",
     "GateCall",
+    "GateAnonCall",
     "GateSwitch",
     "GateFor"
 ];
@@ -193,184 +522,6 @@ pub fn enum_name_gate_set(e: GateSet) -> &'static str {
 }
 
 pub struct GateSetUnionTableOffset {}
-// struct Wire, aligned to 8
-#[repr(C, align(8))]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Wire {
-  id_: u64,
-} // pub struct Wire
-impl flatbuffers::SafeSliceAccess for Wire {}
-impl<'a> flatbuffers::Follow<'a> for Wire {
-  type Inner = &'a Wire;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    <&'a Wire>::follow(buf, loc)
-  }
-}
-impl<'a> flatbuffers::Follow<'a> for &'a Wire {
-  type Inner = &'a Wire;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    flatbuffers::follow_cast_ref::<Wire>(buf, loc)
-  }
-}
-impl<'b> flatbuffers::Push for Wire {
-    type Output = Wire;
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(self as *const Wire as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-impl<'b> flatbuffers::Push for &'b Wire {
-    type Output = Wire;
-
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(*self as *const Wire as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-
-
-impl Wire {
-  pub fn new<'a>(_id: u64) -> Self {
-    Wire {
-      id_: _id.to_little_endian(),
-
-    }
-  }
-  pub fn id<'a>(&'a self) -> u64 {
-    self.id_.from_little_endian()
-  }
-}
-
-// struct WireDelta, aligned to 8
-#[repr(C, align(8))]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct WireDelta {
-  delta_: u64,
-} // pub struct WireDelta
-impl flatbuffers::SafeSliceAccess for WireDelta {}
-impl<'a> flatbuffers::Follow<'a> for WireDelta {
-  type Inner = &'a WireDelta;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    <&'a WireDelta>::follow(buf, loc)
-  }
-}
-impl<'a> flatbuffers::Follow<'a> for &'a WireDelta {
-  type Inner = &'a WireDelta;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    flatbuffers::follow_cast_ref::<WireDelta>(buf, loc)
-  }
-}
-impl<'b> flatbuffers::Push for WireDelta {
-    type Output = WireDelta;
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(self as *const WireDelta as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-impl<'b> flatbuffers::Push for &'b WireDelta {
-    type Output = WireDelta;
-
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(*self as *const WireDelta as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-
-
-impl WireDelta {
-  pub fn new<'a>(_delta: u64) -> Self {
-    WireDelta {
-      delta_: _delta.to_little_endian(),
-
-    }
-  }
-  pub fn delta<'a>(&'a self) -> u64 {
-    self.delta_.from_little_endian()
-  }
-}
-
-// struct Mapping, aligned to 8
-#[repr(C, align(8))]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Mapping {
-  base_: Wire,
-  stride_: WireDelta,
-  size__: u64,
-} // pub struct Mapping
-impl flatbuffers::SafeSliceAccess for Mapping {}
-impl<'a> flatbuffers::Follow<'a> for Mapping {
-  type Inner = &'a Mapping;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    <&'a Mapping>::follow(buf, loc)
-  }
-}
-impl<'a> flatbuffers::Follow<'a> for &'a Mapping {
-  type Inner = &'a Mapping;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    flatbuffers::follow_cast_ref::<Mapping>(buf, loc)
-  }
-}
-impl<'b> flatbuffers::Push for Mapping {
-    type Output = Mapping;
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(self as *const Mapping as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-impl<'b> flatbuffers::Push for &'b Mapping {
-    type Output = Mapping;
-
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(*self as *const Mapping as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-
-
-impl Mapping {
-  pub fn new<'a>(_base: &'a Wire, _stride: &'a WireDelta, _size_: u64) -> Self {
-    Mapping {
-      base_: *_base,
-      stride_: *_stride,
-      size__: _size_.to_little_endian(),
-
-    }
-  }
-  pub fn base<'a>(&'a self) -> &'a Wire {
-    &self.base_
-  }
-  pub fn stride<'a>(&'a self) -> &'a WireDelta {
-    &self.stride_
-  }
-  pub fn size_<'a>(&'a self) -> u64 {
-    self.size__.from_little_endian()
-  }
-}
-
 pub enum HeaderOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -501,6 +652,7 @@ impl<'a> Relation<'a> {
         args: &'args RelationArgs<'args>) -> flatbuffers::WIPOffset<Relation<'bldr>> {
       let mut builder = RelationBuilder::new(_fbb);
       if let Some(x) = args.gates { builder.add_gates(x); }
+      if let Some(x) = args.functions { builder.add_functions(x); }
       if let Some(x) = args.features { builder.add_features(x); }
       if let Some(x) = args.gateset { builder.add_gateset(x); }
       if let Some(x) = args.header { builder.add_header(x); }
@@ -510,7 +662,8 @@ impl<'a> Relation<'a> {
     pub const VT_HEADER: flatbuffers::VOffsetT = 4;
     pub const VT_GATESET: flatbuffers::VOffsetT = 6;
     pub const VT_FEATURES: flatbuffers::VOffsetT = 8;
-    pub const VT_GATES: flatbuffers::VOffsetT = 10;
+    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 10;
+    pub const VT_GATES: flatbuffers::VOffsetT = 12;
 
   #[inline]
   pub fn header(&self) -> Option<Header<'a>> {
@@ -525,6 +678,10 @@ impl<'a> Relation<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_FEATURES, None)
   }
   #[inline]
+  pub fn functions(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Function<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Function<'a>>>>>(Relation::VT_FUNCTIONS, None)
+  }
+  #[inline]
   pub fn gates(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Relation::VT_GATES, None)
   }
@@ -534,6 +691,7 @@ pub struct RelationArgs<'a> {
     pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
     pub gateset: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub features: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub functions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Function<'a >>>>>,
     pub gates: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
 }
 impl<'a> Default for RelationArgs<'a> {
@@ -543,6 +701,7 @@ impl<'a> Default for RelationArgs<'a> {
             header: None,
             gateset: None,
             features: None,
+            functions: None,
             gates: None,
         }
     }
@@ -563,6 +722,10 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
   #[inline]
   pub fn add_features(&mut self, features: flatbuffers::WIPOffset<&'b  str>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_FEATURES, features);
+  }
+  #[inline]
+  pub fn add_functions(&mut self, functions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Function<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_FUNCTIONS, functions);
   }
   #[inline]
   pub fn add_gates(&mut self, gates: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
@@ -759,6 +922,82 @@ impl<'a: 'b, 'b> WitnessBuilder<'a, 'b> {
   }
 }
 
+pub enum WireOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Wire<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Wire<'a> {
+    type Inner = Wire<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Wire<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Wire {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args WireArgs) -> flatbuffers::WIPOffset<Wire<'bldr>> {
+      let mut builder = WireBuilder::new(_fbb);
+      builder.add_id(args.id);
+      builder.finish()
+    }
+
+    pub const VT_ID: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn id(&self) -> u64 {
+    self._tab.get::<u64>(Wire::VT_ID, Some(0)).unwrap()
+  }
+}
+
+pub struct WireArgs {
+    pub id: u64,
+}
+impl<'a> Default for WireArgs {
+    #[inline]
+    fn default() -> Self {
+        WireArgs {
+            id: 0,
+        }
+    }
+}
+pub struct WireBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> WireBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_id(&mut self, id: u64) {
+    self.fbb_.push_slot::<u64>(Wire::VT_ID, id, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> WireBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    WireBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Wire<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum ValueOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -835,6 +1074,278 @@ impl<'a: 'b, 'b> ValueBuilder<'a, 'b> {
   }
 }
 
+pub enum WireRangeOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct WireRange<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for WireRange<'a> {
+    type Inner = WireRange<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> WireRange<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        WireRange {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args WireRangeArgs<'args>) -> flatbuffers::WIPOffset<WireRange<'bldr>> {
+      let mut builder = WireRangeBuilder::new(_fbb);
+      if let Some(x) = args.last { builder.add_last(x); }
+      if let Some(x) = args.first { builder.add_first(x); }
+      builder.finish()
+    }
+
+    pub const VT_FIRST: flatbuffers::VOffsetT = 4;
+    pub const VT_LAST: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn first(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(WireRange::VT_FIRST, None)
+  }
+  #[inline]
+  pub fn last(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(WireRange::VT_LAST, None)
+  }
+}
+
+pub struct WireRangeArgs<'a> {
+    pub first: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub last: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+}
+impl<'a> Default for WireRangeArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        WireRangeArgs {
+            first: None,
+            last: None,
+        }
+    }
+}
+pub struct WireRangeBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> WireRangeBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_first(&mut self, first: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(WireRange::VT_FIRST, first);
+  }
+  #[inline]
+  pub fn add_last(&mut self, last: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(WireRange::VT_LAST, last);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> WireRangeBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    WireRangeBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<WireRange<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum WireListElementOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct WireListElement<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for WireListElement<'a> {
+    type Inner = WireListElement<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> WireListElement<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        WireListElement {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args WireListElementArgs) -> flatbuffers::WIPOffset<WireListElement<'bldr>> {
+      let mut builder = WireListElementBuilder::new(_fbb);
+      if let Some(x) = args.element { builder.add_element(x); }
+      builder.add_element_type(args.element_type);
+      builder.finish()
+    }
+
+    pub const VT_ELEMENT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_ELEMENT: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn element_type(&self) -> WireListElementU {
+    self._tab.get::<WireListElementU>(WireListElement::VT_ELEMENT_TYPE, Some(WireListElementU::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn element(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(WireListElement::VT_ELEMENT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn element_as_wire(&self) -> Option<Wire<'a>> {
+    if self.element_type() == WireListElementU::Wire {
+      self.element().map(|u| Wire::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn element_as_wire_range(&self) -> Option<WireRange<'a>> {
+    if self.element_type() == WireListElementU::WireRange {
+      self.element().map(|u| WireRange::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct WireListElementArgs {
+    pub element_type: WireListElementU,
+    pub element: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for WireListElementArgs {
+    #[inline]
+    fn default() -> Self {
+        WireListElementArgs {
+            element_type: WireListElementU::NONE,
+            element: None,
+        }
+    }
+}
+pub struct WireListElementBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> WireListElementBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_element_type(&mut self, element_type: WireListElementU) {
+    self.fbb_.push_slot::<WireListElementU>(WireListElement::VT_ELEMENT_TYPE, element_type, WireListElementU::NONE);
+  }
+  #[inline]
+  pub fn add_element(&mut self, element: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(WireListElement::VT_ELEMENT, element);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> WireListElementBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    WireListElementBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<WireListElement<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum WireListOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct WireList<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for WireList<'a> {
+    type Inner = WireList<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> WireList<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        WireList {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args WireListArgs<'args>) -> flatbuffers::WIPOffset<WireList<'bldr>> {
+      let mut builder = WireListBuilder::new(_fbb);
+      if let Some(x) = args.elements { builder.add_elements(x); }
+      builder.finish()
+    }
+
+    pub const VT_ELEMENTS: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn elements(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<WireListElement<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<WireListElement<'a>>>>>(WireList::VT_ELEMENTS, None)
+  }
+}
+
+pub struct WireListArgs<'a> {
+    pub elements: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<WireListElement<'a >>>>>,
+}
+impl<'a> Default for WireListArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        WireListArgs {
+            elements: None,
+        }
+    }
+}
+pub struct WireListBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> WireListBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_elements(&mut self, elements: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<WireListElement<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(WireList::VT_ELEMENTS, elements);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> WireListBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    WireListBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<WireList<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum GateConstantOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -873,8 +1384,8 @@ impl<'a> GateConstant<'a> {
     pub const VT_CONSTANT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateConstant::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateConstant::VT_OUTPUT, None)
   }
   #[inline]
   pub fn constant(&self) -> Option<&'a [u8]> {
@@ -883,7 +1394,7 @@ impl<'a> GateConstant<'a> {
 }
 
 pub struct GateConstantArgs<'a> {
-    pub output: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
     pub constant: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
 }
 impl<'a> Default for GateConstantArgs<'a> {
@@ -901,8 +1412,8 @@ pub struct GateConstantBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateConstantBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateConstant::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateConstant::VT_OUTPUT, output);
   }
   #[inline]
   pub fn add_constant(&mut self, constant: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
@@ -959,13 +1470,13 @@ impl<'a> GateAssertZero<'a> {
     pub const VT_INPUT: flatbuffers::VOffsetT = 4;
 
   #[inline]
-  pub fn input(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAssertZero::VT_INPUT, None)
+  pub fn input(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAssertZero::VT_INPUT, None)
   }
 }
 
 pub struct GateAssertZeroArgs<'a> {
-    pub input: Option<&'a  Wire>,
+    pub input: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateAssertZeroArgs<'a> {
     #[inline]
@@ -981,8 +1492,8 @@ pub struct GateAssertZeroBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateAssertZeroBuilder<'a, 'b> {
   #[inline]
-  pub fn add_input(&mut self, input: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAssertZero::VT_INPUT, input);
+  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAssertZero::VT_INPUT, input);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAssertZeroBuilder<'a, 'b> {
@@ -1037,18 +1548,18 @@ impl<'a> GateCopy<'a> {
     pub const VT_INPUT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateCopy::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateCopy::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn input(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateCopy::VT_INPUT, None)
+  pub fn input(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateCopy::VT_INPUT, None)
   }
 }
 
 pub struct GateCopyArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub input: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub input: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateCopyArgs<'a> {
     #[inline]
@@ -1065,12 +1576,12 @@ pub struct GateCopyBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateCopyBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateCopy::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateCopy::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_input(&mut self, input: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateCopy::VT_INPUT, input);
+  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateCopy::VT_INPUT, input);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateCopyBuilder<'a, 'b> {
@@ -1127,23 +1638,23 @@ impl<'a> GateAdd<'a> {
     pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAdd::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAdd::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAdd::VT_LEFT, None)
+  pub fn left(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAdd::VT_LEFT, None)
   }
   #[inline]
-  pub fn right(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAdd::VT_RIGHT, None)
+  pub fn right(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAdd::VT_RIGHT, None)
   }
 }
 
 pub struct GateAddArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub left: Option<&'a  Wire>,
-    pub right: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub left: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateAddArgs<'a> {
     #[inline]
@@ -1161,16 +1672,16 @@ pub struct GateAddBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateAddBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAdd::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAdd::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_left(&mut self, left: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAdd::VT_LEFT, left);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAdd::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_right(&mut self, right: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAdd::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAdd::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAddBuilder<'a, 'b> {
@@ -1227,23 +1738,23 @@ impl<'a> GateMul<'a> {
     pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateMul::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateMul::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateMul::VT_LEFT, None)
+  pub fn left(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateMul::VT_LEFT, None)
   }
   #[inline]
-  pub fn right(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateMul::VT_RIGHT, None)
+  pub fn right(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateMul::VT_RIGHT, None)
   }
 }
 
 pub struct GateMulArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub left: Option<&'a  Wire>,
-    pub right: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub left: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateMulArgs<'a> {
     #[inline]
@@ -1261,16 +1772,16 @@ pub struct GateMulBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateMulBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateMul::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateMul::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_left(&mut self, left: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateMul::VT_LEFT, left);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateMul::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_right(&mut self, right: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateMul::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateMul::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateMulBuilder<'a, 'b> {
@@ -1327,12 +1838,12 @@ impl<'a> GateAddConstant<'a> {
     pub const VT_CONSTANT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAddConstant::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAddConstant::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn input(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAddConstant::VT_INPUT, None)
+  pub fn input(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAddConstant::VT_INPUT, None)
   }
   #[inline]
   pub fn constant(&self) -> Option<&'a [u8]> {
@@ -1341,8 +1852,8 @@ impl<'a> GateAddConstant<'a> {
 }
 
 pub struct GateAddConstantArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub input: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub input: Option<flatbuffers::WIPOffset<Wire<'a >>>,
     pub constant: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
 }
 impl<'a> Default for GateAddConstantArgs<'a> {
@@ -1361,12 +1872,12 @@ pub struct GateAddConstantBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateAddConstantBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAddConstant::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAddConstant::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_input(&mut self, input: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAddConstant::VT_INPUT, input);
+  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAddConstant::VT_INPUT, input);
   }
   #[inline]
   pub fn add_constant(&mut self, constant: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
@@ -1427,12 +1938,12 @@ impl<'a> GateMulConstant<'a> {
     pub const VT_CONSTANT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateMulConstant::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateMulConstant::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn input(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateMulConstant::VT_INPUT, None)
+  pub fn input(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateMulConstant::VT_INPUT, None)
   }
   #[inline]
   pub fn constant(&self) -> Option<&'a [u8]> {
@@ -1441,8 +1952,8 @@ impl<'a> GateMulConstant<'a> {
 }
 
 pub struct GateMulConstantArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub input: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub input: Option<flatbuffers::WIPOffset<Wire<'a >>>,
     pub constant: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a ,  u8>>>,
 }
 impl<'a> Default for GateMulConstantArgs<'a> {
@@ -1461,12 +1972,12 @@ pub struct GateMulConstantBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateMulConstantBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateMulConstant::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateMulConstant::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_input(&mut self, input: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateMulConstant::VT_INPUT, input);
+  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateMulConstant::VT_INPUT, input);
   }
   #[inline]
   pub fn add_constant(&mut self, constant: flatbuffers::WIPOffset<flatbuffers::Vector<'b , u8>>) {
@@ -1527,23 +2038,23 @@ impl<'a> GateAnd<'a> {
     pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAnd::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAnd::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAnd::VT_LEFT, None)
+  pub fn left(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAnd::VT_LEFT, None)
   }
   #[inline]
-  pub fn right(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateAnd::VT_RIGHT, None)
+  pub fn right(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateAnd::VT_RIGHT, None)
   }
 }
 
 pub struct GateAndArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub left: Option<&'a  Wire>,
-    pub right: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub left: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateAndArgs<'a> {
     #[inline]
@@ -1561,16 +2072,16 @@ pub struct GateAndBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateAndBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAnd::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAnd::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_left(&mut self, left: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAnd::VT_LEFT, left);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAnd::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_right(&mut self, right: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateAnd::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateAnd::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAndBuilder<'a, 'b> {
@@ -1627,23 +2138,23 @@ impl<'a> GateXor<'a> {
     pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateXor::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateXor::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateXor::VT_LEFT, None)
+  pub fn left(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateXor::VT_LEFT, None)
   }
   #[inline]
-  pub fn right(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateXor::VT_RIGHT, None)
+  pub fn right(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateXor::VT_RIGHT, None)
   }
 }
 
 pub struct GateXorArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub left: Option<&'a  Wire>,
-    pub right: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub left: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateXorArgs<'a> {
     #[inline]
@@ -1661,16 +2172,16 @@ pub struct GateXorBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateXorBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateXor::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateXor::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_left(&mut self, left: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateXor::VT_LEFT, left);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateXor::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_right(&mut self, right: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateXor::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateXor::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateXorBuilder<'a, 'b> {
@@ -1725,18 +2236,18 @@ impl<'a> GateNot<'a> {
     pub const VT_INPUT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateNot::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateNot::VT_OUTPUT, None)
   }
   #[inline]
-  pub fn input(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateNot::VT_INPUT, None)
+  pub fn input(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateNot::VT_INPUT, None)
   }
 }
 
 pub struct GateNotArgs<'a> {
-    pub output: Option<&'a  Wire>,
-    pub input: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub input: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateNotArgs<'a> {
     #[inline]
@@ -1753,12 +2264,12 @@ pub struct GateNotBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateNotBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateNot::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateNot::VT_OUTPUT, output);
   }
   #[inline]
-  pub fn add_input(&mut self, input: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateNot::VT_INPUT, input);
+  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateNot::VT_INPUT, input);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateNotBuilder<'a, 'b> {
@@ -1811,13 +2322,13 @@ impl<'a> GateInstance<'a> {
     pub const VT_OUTPUT: flatbuffers::VOffsetT = 4;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateInstance::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateInstance::VT_OUTPUT, None)
   }
 }
 
 pub struct GateInstanceArgs<'a> {
-    pub output: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateInstanceArgs<'a> {
     #[inline]
@@ -1833,8 +2344,8 @@ pub struct GateInstanceBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateInstanceBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateInstance::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateInstance::VT_OUTPUT, output);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateInstanceBuilder<'a, 'b> {
@@ -1887,13 +2398,13 @@ impl<'a> GateWitness<'a> {
     pub const VT_OUTPUT: flatbuffers::VOffsetT = 4;
 
   #[inline]
-  pub fn output(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateWitness::VT_OUTPUT, None)
+  pub fn output(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateWitness::VT_OUTPUT, None)
   }
 }
 
 pub struct GateWitnessArgs<'a> {
-    pub output: Option<&'a  Wire>,
+    pub output: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateWitnessArgs<'a> {
     #[inline]
@@ -1909,8 +2420,8 @@ pub struct GateWitnessBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateWitnessBuilder<'a, 'b> {
   #[inline]
-  pub fn add_output(&mut self, output: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateWitness::VT_OUTPUT, output);
+  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateWitness::VT_OUTPUT, output);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateWitnessBuilder<'a, 'b> {
@@ -1965,18 +2476,18 @@ impl<'a> GateFree<'a> {
     pub const VT_LAST: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn first(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateFree::VT_FIRST, None)
+  pub fn first(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateFree::VT_FIRST, None)
   }
   #[inline]
-  pub fn last(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateFree::VT_LAST, None)
+  pub fn last(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateFree::VT_LAST, None)
   }
 }
 
 pub struct GateFreeArgs<'a> {
-    pub first: Option<&'a  Wire>,
-    pub last: Option<&'a  Wire>,
+    pub first: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub last: Option<flatbuffers::WIPOffset<Wire<'a >>>,
 }
 impl<'a> Default for GateFreeArgs<'a> {
     #[inline]
@@ -1993,12 +2504,12 @@ pub struct GateFreeBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateFreeBuilder<'a, 'b> {
   #[inline]
-  pub fn add_first(&mut self, first: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateFree::VT_FIRST, first);
+  pub fn add_first(&mut self, first: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateFree::VT_FIRST, first);
   }
   #[inline]
-  pub fn add_last(&mut self, last: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateFree::VT_LAST, last);
+  pub fn add_last(&mut self, last: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateFree::VT_LAST, last);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateFreeBuilder<'a, 'b> {
@@ -2048,7 +2559,7 @@ impl<'a> Function<'a> {
       builder.add_instance_count(args.instance_count);
       builder.add_input_count(args.input_count);
       builder.add_output_count(args.output_count);
-      if let Some(x) = args.subcircuit { builder.add_subcircuit(x); }
+      if let Some(x) = args.body { builder.add_body(x); }
       if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
@@ -2058,7 +2569,7 @@ impl<'a> Function<'a> {
     pub const VT_INPUT_COUNT: flatbuffers::VOffsetT = 8;
     pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 10;
     pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 12;
-    pub const VT_SUBCIRCUIT: flatbuffers::VOffsetT = 14;
+    pub const VT_BODY: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
@@ -2081,8 +2592,8 @@ impl<'a> Function<'a> {
     self._tab.get::<u64>(Function::VT_WITNESS_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn subcircuit(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Function::VT_SUBCIRCUIT, None)
+  pub fn body(&self) -> Option<Block<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(Function::VT_BODY, None)
   }
 }
 
@@ -2092,7 +2603,7 @@ pub struct FunctionArgs<'a> {
     pub input_count: u64,
     pub instance_count: u64,
     pub witness_count: u64,
-    pub subcircuit: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+    pub body: Option<flatbuffers::WIPOffset<Block<'a >>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
     #[inline]
@@ -2103,7 +2614,7 @@ impl<'a> Default for FunctionArgs<'a> {
             input_count: 0,
             instance_count: 0,
             witness_count: 0,
-            subcircuit: None,
+            body: None,
         }
     }
 }
@@ -2133,8 +2644,8 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(Function::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
-  pub fn add_subcircuit(&mut self, subcircuit: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_SUBCIRCUIT, subcircuit);
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<Block<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(Function::VT_BODY, body);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> FunctionBuilder<'a, 'b> {
@@ -2180,42 +2691,34 @@ impl<'a> GateCall<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args GateCallArgs<'args>) -> flatbuffers::WIPOffset<GateCall<'bldr>> {
       let mut builder = GateCallBuilder::new(_fbb);
-      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
+      if let Some(x) = args.inner { builder.add_inner(x); }
       if let Some(x) = args.output_wires { builder.add_output_wires(x); }
-      if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
 
-    pub const VT_NAME: flatbuffers::VOffsetT = 4;
-    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 6;
-    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 8;
+    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 4;
+    pub const VT_INNER: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn name(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(GateCall::VT_NAME, None)
+  pub fn output_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateCall::VT_OUTPUT_WIRES, None)
   }
   #[inline]
-  pub fn output_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateCall::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
-  }
-  #[inline]
-  pub fn input_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateCall::VT_INPUT_WIRES, None).map(|v| v.safe_slice() )
+  pub fn inner(&self) -> Option<AbstractGateCall<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<AbstractGateCall<'a>>>(GateCall::VT_INNER, None)
   }
 }
 
 pub struct GateCallArgs<'a> {
-    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub output_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
-    pub input_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
+    pub output_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+    pub inner: Option<flatbuffers::WIPOffset<AbstractGateCall<'a >>>,
 }
 impl<'a> Default for GateCallArgs<'a> {
     #[inline]
     fn default() -> Self {
         GateCallArgs {
-            name: None,
             output_wires: None,
-            input_wires: None,
+            inner: None,
         }
     }
 }
@@ -2225,16 +2728,12 @@ pub struct GateCallBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   #[inline]
-  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_NAME, name);
+  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateCall::VT_OUTPUT_WIRES, output_wires);
   }
   #[inline]
-  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_OUTPUT_WIRES, output_wires);
-  }
-  #[inline]
-  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_INPUT_WIRES, input_wires);
+  pub fn add_inner(&mut self, inner: flatbuffers::WIPOffset<AbstractGateCall<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<AbstractGateCall>>(GateCall::VT_INNER, inner);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateCallBuilder<'a, 'b> {
@@ -2251,15 +2750,17 @@ impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   }
 }
 
-pub enum BlockOffset {}
+pub enum AbstractGateCallOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct Block<'a> {
+/// The two Abstract types cannot exist by themselves in a circuit,
+/// they MUST be included in another gate (For / Switch / Call / ...)
+pub struct AbstractGateCall<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for Block<'a> {
-    type Inner = Block<'a>;
+impl<'a> flatbuffers::Follow<'a> for AbstractGateCall<'a> {
+    type Inner = AbstractGateCall<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2268,60 +2769,380 @@ impl<'a> flatbuffers::Follow<'a> for Block<'a> {
     }
 }
 
-impl<'a> Block<'a> {
+impl<'a> AbstractGateCall<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Block {
+        AbstractGateCall {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
-      let mut builder = BlockBuilder::new(_fbb);
-      if let Some(x) = args.block { builder.add_block(x); }
+        args: &'args AbstractGateCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractGateCall<'bldr>> {
+      let mut builder = AbstractGateCallBuilder::new(_fbb);
+      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
+      if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
 
-    pub const VT_BLOCK: flatbuffers::VOffsetT = 4;
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn block(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Block::VT_BLOCK, None)
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(AbstractGateCall::VT_NAME, None)
+  }
+  #[inline]
+  pub fn input_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractGateCall::VT_INPUT_WIRES, None)
   }
 }
 
-pub struct BlockArgs<'a> {
-    pub block: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+pub struct AbstractGateCallArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
 }
-impl<'a> Default for BlockArgs<'a> {
+impl<'a> Default for AbstractGateCallArgs<'a> {
     #[inline]
     fn default() -> Self {
-        BlockArgs {
-            block: None,
+        AbstractGateCallArgs {
+            name: None,
+            input_wires: None,
         }
     }
 }
-pub struct BlockBuilder<'a: 'b, 'b> {
+pub struct AbstractGateCallBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
+impl<'a: 'b, 'b> AbstractGateCallBuilder<'a, 'b> {
   #[inline]
-  pub fn add_block(&mut self, block: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_BLOCK, block);
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractGateCall::VT_NAME, name);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
+  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractGateCall::VT_INPUT_WIRES, input_wires);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractGateCallBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    BlockBuilder {
+    AbstractGateCallBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractGateCall<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum GateAnonCallOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct GateAnonCall<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for GateAnonCall<'a> {
+    type Inner = GateAnonCall<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> GateAnonCall<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        GateAnonCall {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GateAnonCallArgs<'args>) -> flatbuffers::WIPOffset<GateAnonCall<'bldr>> {
+      let mut builder = GateAnonCallBuilder::new(_fbb);
+      if let Some(x) = args.inner { builder.add_inner(x); }
+      if let Some(x) = args.output_wires { builder.add_output_wires(x); }
+      builder.finish()
+    }
+
+    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 4;
+    pub const VT_INNER: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn output_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateAnonCall::VT_OUTPUT_WIRES, None)
+  }
+  #[inline]
+  pub fn inner(&self) -> Option<AbstractAnonCall<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<AbstractAnonCall<'a>>>(GateAnonCall::VT_INNER, None)
+  }
+}
+
+pub struct GateAnonCallArgs<'a> {
+    pub output_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+    pub inner: Option<flatbuffers::WIPOffset<AbstractAnonCall<'a >>>,
+}
+impl<'a> Default for GateAnonCallArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GateAnonCallArgs {
+            output_wires: None,
+            inner: None,
+        }
+    }
+}
+pub struct GateAnonCallBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GateAnonCallBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateAnonCall::VT_OUTPUT_WIRES, output_wires);
+  }
+  #[inline]
+  pub fn add_inner(&mut self, inner: flatbuffers::WIPOffset<AbstractAnonCall<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<AbstractAnonCall>>(GateAnonCall::VT_INNER, inner);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAnonCallBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GateAnonCallBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateAnonCall<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum AbstractAnonCallOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct AbstractAnonCall<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for AbstractAnonCall<'a> {
+    type Inner = AbstractAnonCall<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> AbstractAnonCall<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        AbstractAnonCall {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args AbstractAnonCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractAnonCall<'bldr>> {
+      let mut builder = AbstractAnonCallBuilder::new(_fbb);
+      builder.add_witness_count(args.witness_count);
+      builder.add_instance_count(args.instance_count);
+      if let Some(x) = args.subcircuit { builder.add_subcircuit(x); }
+      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
+      builder.finish()
+    }
+
+    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 4;
+    pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 6;
+    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 8;
+    pub const VT_SUBCIRCUIT: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn input_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractAnonCall::VT_INPUT_WIRES, None)
+  }
+  #[inline]
+  pub fn instance_count(&self) -> u64 {
+    self._tab.get::<u64>(AbstractAnonCall::VT_INSTANCE_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn witness_count(&self) -> u64 {
+    self._tab.get::<u64>(AbstractAnonCall::VT_WITNESS_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn subcircuit(&self) -> Option<Block<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(AbstractAnonCall::VT_SUBCIRCUIT, None)
+  }
+}
+
+pub struct AbstractAnonCallArgs<'a> {
+    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+    pub instance_count: u64,
+    pub witness_count: u64,
+    pub subcircuit: Option<flatbuffers::WIPOffset<Block<'a >>>,
+}
+impl<'a> Default for AbstractAnonCallArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        AbstractAnonCallArgs {
+            input_wires: None,
+            instance_count: 0,
+            witness_count: 0,
+            subcircuit: None,
+        }
+    }
+}
+pub struct AbstractAnonCallBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> AbstractAnonCallBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractAnonCall::VT_INPUT_WIRES, input_wires);
+  }
+  #[inline]
+  pub fn add_instance_count(&mut self, instance_count: u64) {
+    self.fbb_.push_slot::<u64>(AbstractAnonCall::VT_INSTANCE_COUNT, instance_count, 0);
+  }
+  #[inline]
+  pub fn add_witness_count(&mut self, witness_count: u64) {
+    self.fbb_.push_slot::<u64>(AbstractAnonCall::VT_WITNESS_COUNT, witness_count, 0);
+  }
+  #[inline]
+  pub fn add_subcircuit(&mut self, subcircuit: flatbuffers::WIPOffset<Block<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(AbstractAnonCall::VT_SUBCIRCUIT, subcircuit);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractAnonCallBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    AbstractAnonCallBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractAnonCall<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum CaseInvokeOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct CaseInvoke<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for CaseInvoke<'a> {
+    type Inner = CaseInvoke<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> CaseInvoke<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        CaseInvoke {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args CaseInvokeArgs) -> flatbuffers::WIPOffset<CaseInvoke<'bldr>> {
+      let mut builder = CaseInvokeBuilder::new(_fbb);
+      if let Some(x) = args.invocation { builder.add_invocation(x); }
+      builder.add_invocation_type(args.invocation_type);
+      builder.finish()
+    }
+
+    pub const VT_INVOCATION_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_INVOCATION: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn invocation_type(&self) -> CaseInvokeU {
+    self._tab.get::<CaseInvokeU>(CaseInvoke::VT_INVOCATION_TYPE, Some(CaseInvokeU::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn invocation(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(CaseInvoke::VT_INVOCATION, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn invocation_as_abstract_gate_call(&self) -> Option<AbstractGateCall<'a>> {
+    if self.invocation_type() == CaseInvokeU::AbstractGateCall {
+      self.invocation().map(|u| AbstractGateCall::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn invocation_as_abstract_anon_call(&self) -> Option<AbstractAnonCall<'a>> {
+    if self.invocation_type() == CaseInvokeU::AbstractAnonCall {
+      self.invocation().map(|u| AbstractAnonCall::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct CaseInvokeArgs {
+    pub invocation_type: CaseInvokeU,
+    pub invocation: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for CaseInvokeArgs {
+    #[inline]
+    fn default() -> Self {
+        CaseInvokeArgs {
+            invocation_type: CaseInvokeU::NONE,
+            invocation: None,
+        }
+    }
+}
+pub struct CaseInvokeBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> CaseInvokeBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_invocation_type(&mut self, invocation_type: CaseInvokeU) {
+    self.fbb_.push_slot::<CaseInvokeU>(CaseInvoke::VT_INVOCATION_TYPE, invocation_type, CaseInvokeU::NONE);
+  }
+  #[inline]
+  pub fn add_invocation(&mut self, invocation: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(CaseInvoke::VT_INVOCATION, invocation);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CaseInvokeBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    CaseInvokeBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<CaseInvoke<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -2356,11 +3177,8 @@ impl<'a> GateSwitch<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args GateSwitchArgs<'args>) -> flatbuffers::WIPOffset<GateSwitch<'bldr>> {
       let mut builder = GateSwitchBuilder::new(_fbb);
-      builder.add_witness_count(args.witness_count);
-      builder.add_instance_count(args.instance_count);
       if let Some(x) = args.branches { builder.add_branches(x); }
       if let Some(x) = args.cases { builder.add_cases(x); }
-      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
       if let Some(x) = args.output_wires { builder.add_output_wires(x); }
       if let Some(x) = args.condition { builder.add_condition(x); }
       builder.finish()
@@ -2368,50 +3186,32 @@ impl<'a> GateSwitch<'a> {
 
     pub const VT_CONDITION: flatbuffers::VOffsetT = 4;
     pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 6;
-    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 8;
-    pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 10;
-    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 12;
-    pub const VT_CASES: flatbuffers::VOffsetT = 14;
-    pub const VT_BRANCHES: flatbuffers::VOffsetT = 16;
+    pub const VT_CASES: flatbuffers::VOffsetT = 8;
+    pub const VT_BRANCHES: flatbuffers::VOffsetT = 10;
 
   #[inline]
-  pub fn condition(&self) -> Option<&'a Wire> {
-    self._tab.get::<Wire>(GateSwitch::VT_CONDITION, None)
+  pub fn condition(&self) -> Option<Wire<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Wire<'a>>>(GateSwitch::VT_CONDITION, None)
   }
   #[inline]
-  pub fn output_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateSwitch::VT_OUTPUT_WIRES, None).map(|v| v.safe_slice() )
-  }
-  #[inline]
-  pub fn input_wires(&self) -> Option<&'a [Wire]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Wire>>>(GateSwitch::VT_INPUT_WIRES, None).map(|v| v.safe_slice() )
-  }
-  #[inline]
-  pub fn instance_count(&self) -> u64 {
-    self._tab.get::<u64>(GateSwitch::VT_INSTANCE_COUNT, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn witness_count(&self) -> u64 {
-    self._tab.get::<u64>(GateSwitch::VT_WITNESS_COUNT, Some(0)).unwrap()
+  pub fn output_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateSwitch::VT_OUTPUT_WIRES, None)
   }
   #[inline]
   pub fn cases(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(GateSwitch::VT_CASES, None)
   }
   #[inline]
-  pub fn branches(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Block<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Block<'a>>>>>(GateSwitch::VT_BRANCHES, None)
+  pub fn branches(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<CaseInvoke<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<CaseInvoke<'a>>>>>(GateSwitch::VT_BRANCHES, None)
   }
 }
 
 pub struct GateSwitchArgs<'a> {
-    pub condition: Option<&'a  Wire>,
-    pub output_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
-    pub input_wires: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Wire>>>,
-    pub instance_count: u64,
-    pub witness_count: u64,
+    pub condition: Option<flatbuffers::WIPOffset<Wire<'a >>>,
+    pub output_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
     pub cases: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
-    pub branches: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Block<'a >>>>>,
+    pub branches: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<CaseInvoke<'a >>>>>,
 }
 impl<'a> Default for GateSwitchArgs<'a> {
     #[inline]
@@ -2419,9 +3219,6 @@ impl<'a> Default for GateSwitchArgs<'a> {
         GateSwitchArgs {
             condition: None,
             output_wires: None,
-            input_wires: None,
-            instance_count: 0,
-            witness_count: 0,
             cases: None,
             branches: None,
         }
@@ -2433,31 +3230,19 @@ pub struct GateSwitchBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateSwitchBuilder<'a, 'b> {
   #[inline]
-  pub fn add_condition(&mut self, condition: &'b  Wire) {
-    self.fbb_.push_slot_always::<&Wire>(GateSwitch::VT_CONDITION, condition);
+  pub fn add_condition(&mut self, condition: flatbuffers::WIPOffset<Wire<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Wire>>(GateSwitch::VT_CONDITION, condition);
   }
   #[inline]
-  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_OUTPUT_WIRES, output_wires);
-  }
-  #[inline]
-  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Wire>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_INPUT_WIRES, input_wires);
-  }
-  #[inline]
-  pub fn add_instance_count(&mut self, instance_count: u64) {
-    self.fbb_.push_slot::<u64>(GateSwitch::VT_INSTANCE_COUNT, instance_count, 0);
-  }
-  #[inline]
-  pub fn add_witness_count(&mut self, witness_count: u64) {
-    self.fbb_.push_slot::<u64>(GateSwitch::VT_WITNESS_COUNT, witness_count, 0);
+  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateSwitch::VT_OUTPUT_WIRES, output_wires);
   }
   #[inline]
   pub fn add_cases(&mut self, cases: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_CASES, cases);
   }
   #[inline]
-  pub fn add_branches(&mut self, branches: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Block<'b >>>>) {
+  pub fn add_branches(&mut self, branches: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<CaseInvoke<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateSwitch::VT_BRANCHES, branches);
   }
   #[inline]
@@ -2470,6 +3255,1428 @@ impl<'a: 'b, 'b> GateSwitchBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<GateSwitch<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprWireNumberOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprWireNumber<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprWireNumber<'a> {
+    type Inner = IterExprWireNumber<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprWireNumber<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprWireNumber {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprWireNumberArgs) -> flatbuffers::WIPOffset<IterExprWireNumber<'bldr>> {
+      let mut builder = IterExprWireNumberBuilder::new(_fbb);
+      if let Some(x) = args.value { builder.add_value(x); }
+      builder.add_value_type(args.value_type);
+      builder.finish()
+    }
+
+    pub const VT_VALUE_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_VALUE: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn value_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprWireNumber::VT_VALUE_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn value(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprWireNumber::VT_VALUE, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.value_type() == IterExpr::IterExprConst {
+      self.value().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.value_type() == IterExpr::IterExprName {
+      self.value().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.value_type() == IterExpr::IterExprAdd {
+      self.value().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.value_type() == IterExpr::IterExprSub {
+      self.value().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.value_type() == IterExpr::IterExprMul {
+      self.value().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprWireNumberArgs {
+    pub value_type: IterExpr,
+    pub value: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for IterExprWireNumberArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprWireNumberArgs {
+            value_type: IterExpr::NONE,
+            value: None,
+        }
+    }
+}
+pub struct IterExprWireNumberBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprWireNumberBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_value_type(&mut self, value_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprWireNumber::VT_VALUE_TYPE, value_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_value(&mut self, value: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprWireNumber::VT_VALUE, value);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprWireNumberBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprWireNumberBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprWireNumber<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprConstOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprConst<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprConst<'a> {
+    type Inner = IterExprConst<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprConst<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprConst {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprConstArgs) -> flatbuffers::WIPOffset<IterExprConst<'bldr>> {
+      let mut builder = IterExprConstBuilder::new(_fbb);
+      builder.add_value(args.value);
+      builder.finish()
+    }
+
+    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn value(&self) -> u64 {
+    self._tab.get::<u64>(IterExprConst::VT_VALUE, Some(0)).unwrap()
+  }
+}
+
+pub struct IterExprConstArgs {
+    pub value: u64,
+}
+impl<'a> Default for IterExprConstArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprConstArgs {
+            value: 0,
+        }
+    }
+}
+pub struct IterExprConstBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprConstBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_value(&mut self, value: u64) {
+    self.fbb_.push_slot::<u64>(IterExprConst::VT_VALUE, value, 0);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprConstBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprConstBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprConst<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprNameOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprName<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprName<'a> {
+    type Inner = IterExprName<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprName<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprName {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprNameArgs<'args>) -> flatbuffers::WIPOffset<IterExprName<'bldr>> {
+      let mut builder = IterExprNameBuilder::new(_fbb);
+      if let Some(x) = args.name { builder.add_name(x); }
+      builder.finish()
+    }
+
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(IterExprName::VT_NAME, None)
+  }
+}
+
+pub struct IterExprNameArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
+}
+impl<'a> Default for IterExprNameArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprNameArgs {
+            name: None,
+        }
+    }
+}
+pub struct IterExprNameBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprNameBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprName::VT_NAME, name);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprNameBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprNameBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprName<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprAddOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprAdd<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprAdd<'a> {
+    type Inner = IterExprAdd<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprAdd<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprAdd {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprAddArgs) -> flatbuffers::WIPOffset<IterExprAdd<'bldr>> {
+      let mut builder = IterExprAddBuilder::new(_fbb);
+      if let Some(x) = args.right { builder.add_right(x); }
+      if let Some(x) = args.left { builder.add_left(x); }
+      builder.add_right_type(args.right_type);
+      builder.add_left_type(args.left_type);
+      builder.finish()
+    }
+
+    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
+    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn left_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprAdd::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprAdd::VT_LEFT, None)
+  }
+  #[inline]
+  pub fn right_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprAdd::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprAdd::VT_RIGHT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.left_type() == IterExpr::IterExprConst {
+      self.left().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.left_type() == IterExpr::IterExprName {
+      self.left().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.left_type() == IterExpr::IterExprAdd {
+      self.left().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.left_type() == IterExpr::IterExprSub {
+      self.left().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.left_type() == IterExpr::IterExprMul {
+      self.left().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.right_type() == IterExpr::IterExprConst {
+      self.right().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.right_type() == IterExpr::IterExprName {
+      self.right().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.right_type() == IterExpr::IterExprAdd {
+      self.right().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.right_type() == IterExpr::IterExprSub {
+      self.right().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.right_type() == IterExpr::IterExprMul {
+      self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprAddArgs {
+    pub left_type: IterExpr,
+    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub right_type: IterExpr,
+    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for IterExprAddArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprAddArgs {
+            left_type: IterExpr::NONE,
+            left: None,
+            right_type: IterExpr::NONE,
+            right: None,
+        }
+    }
+}
+pub struct IterExprAddBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprAddBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_left_type(&mut self, left_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprAdd::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprAdd::VT_LEFT, left);
+  }
+  #[inline]
+  pub fn add_right_type(&mut self, right_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprAdd::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprAdd::VT_RIGHT, right);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprAddBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprAddBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprAdd<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprSubOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprSub<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprSub<'a> {
+    type Inner = IterExprSub<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprSub<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprSub {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprSubArgs) -> flatbuffers::WIPOffset<IterExprSub<'bldr>> {
+      let mut builder = IterExprSubBuilder::new(_fbb);
+      if let Some(x) = args.right { builder.add_right(x); }
+      if let Some(x) = args.left { builder.add_left(x); }
+      builder.add_right_type(args.right_type);
+      builder.add_left_type(args.left_type);
+      builder.finish()
+    }
+
+    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
+    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn left_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprSub::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprSub::VT_LEFT, None)
+  }
+  #[inline]
+  pub fn right_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprSub::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprSub::VT_RIGHT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.left_type() == IterExpr::IterExprConst {
+      self.left().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.left_type() == IterExpr::IterExprName {
+      self.left().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.left_type() == IterExpr::IterExprAdd {
+      self.left().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.left_type() == IterExpr::IterExprSub {
+      self.left().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.left_type() == IterExpr::IterExprMul {
+      self.left().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.right_type() == IterExpr::IterExprConst {
+      self.right().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.right_type() == IterExpr::IterExprName {
+      self.right().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.right_type() == IterExpr::IterExprAdd {
+      self.right().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.right_type() == IterExpr::IterExprSub {
+      self.right().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.right_type() == IterExpr::IterExprMul {
+      self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprSubArgs {
+    pub left_type: IterExpr,
+    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub right_type: IterExpr,
+    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for IterExprSubArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprSubArgs {
+            left_type: IterExpr::NONE,
+            left: None,
+            right_type: IterExpr::NONE,
+            right: None,
+        }
+    }
+}
+pub struct IterExprSubBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprSubBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_left_type(&mut self, left_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprSub::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprSub::VT_LEFT, left);
+  }
+  #[inline]
+  pub fn add_right_type(&mut self, right_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprSub::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprSub::VT_RIGHT, right);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprSubBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprSubBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprSub<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprMulOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprMul<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprMul<'a> {
+    type Inner = IterExprMul<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprMul<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprMul {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprMulArgs) -> flatbuffers::WIPOffset<IterExprMul<'bldr>> {
+      let mut builder = IterExprMulBuilder::new(_fbb);
+      if let Some(x) = args.right { builder.add_right(x); }
+      if let Some(x) = args.left { builder.add_left(x); }
+      builder.add_right_type(args.right_type);
+      builder.add_left_type(args.left_type);
+      builder.finish()
+    }
+
+    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
+    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+
+  #[inline]
+  pub fn left_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprMul::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprMul::VT_LEFT, None)
+  }
+  #[inline]
+  pub fn right_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprMul::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprMul::VT_RIGHT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.left_type() == IterExpr::IterExprConst {
+      self.left().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.left_type() == IterExpr::IterExprName {
+      self.left().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.left_type() == IterExpr::IterExprAdd {
+      self.left().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.left_type() == IterExpr::IterExprSub {
+      self.left().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.left_type() == IterExpr::IterExprMul {
+      self.left().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.right_type() == IterExpr::IterExprConst {
+      self.right().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.right_type() == IterExpr::IterExprName {
+      self.right().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.right_type() == IterExpr::IterExprAdd {
+      self.right().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.right_type() == IterExpr::IterExprSub {
+      self.right().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.right_type() == IterExpr::IterExprMul {
+      self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprMulArgs {
+    pub left_type: IterExpr,
+    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub right_type: IterExpr,
+    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for IterExprMulArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprMulArgs {
+            left_type: IterExpr::NONE,
+            left: None,
+            right_type: IterExpr::NONE,
+            right: None,
+        }
+    }
+}
+pub struct IterExprMulBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprMulBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_left_type(&mut self, left_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprMul::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprMul::VT_LEFT, left);
+  }
+  #[inline]
+  pub fn add_right_type(&mut self, right_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprMul::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprMul::VT_RIGHT, right);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprMulBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprMulBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprMul<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprWireRangeOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprWireRange<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprWireRange<'a> {
+    type Inner = IterExprWireRange<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprWireRange<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprWireRange {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprWireRangeArgs<'args>) -> flatbuffers::WIPOffset<IterExprWireRange<'bldr>> {
+      let mut builder = IterExprWireRangeBuilder::new(_fbb);
+      if let Some(x) = args.last { builder.add_last(x); }
+      if let Some(x) = args.first { builder.add_first(x); }
+      builder.finish()
+    }
+
+    pub const VT_FIRST: flatbuffers::VOffsetT = 4;
+    pub const VT_LAST: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn first(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprWireRange::VT_FIRST, None)
+  }
+  #[inline]
+  pub fn last(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprWireRange::VT_LAST, None)
+  }
+}
+
+pub struct IterExprWireRangeArgs<'a> {
+    pub first: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
+    pub last: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
+}
+impl<'a> Default for IterExprWireRangeArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprWireRangeArgs {
+            first: None,
+            last: None,
+        }
+    }
+}
+pub struct IterExprWireRangeBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprWireRangeBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_first(&mut self, first: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprWireRange::VT_FIRST, first);
+  }
+  #[inline]
+  pub fn add_last(&mut self, last: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprWireRange::VT_LAST, last);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprWireRangeBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprWireRangeBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprWireRange<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprWireListElementOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprWireListElement<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprWireListElement<'a> {
+    type Inner = IterExprWireListElement<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprWireListElement<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprWireListElement {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprWireListElementArgs) -> flatbuffers::WIPOffset<IterExprWireListElement<'bldr>> {
+      let mut builder = IterExprWireListElementBuilder::new(_fbb);
+      if let Some(x) = args.element { builder.add_element(x); }
+      builder.add_element_type(args.element_type);
+      builder.finish()
+    }
+
+    pub const VT_ELEMENT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_ELEMENT: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn element_type(&self) -> IterExprWireListElementU {
+    self._tab.get::<IterExprWireListElementU>(IterExprWireListElement::VT_ELEMENT_TYPE, Some(IterExprWireListElementU::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn element(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprWireListElement::VT_ELEMENT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn element_as_iter_expr_wire_number(&self) -> Option<IterExprWireNumber<'a>> {
+    if self.element_type() == IterExprWireListElementU::IterExprWireNumber {
+      self.element().map(|u| IterExprWireNumber::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn element_as_iter_expr_wire_range(&self) -> Option<IterExprWireRange<'a>> {
+    if self.element_type() == IterExprWireListElementU::IterExprWireRange {
+      self.element().map(|u| IterExprWireRange::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprWireListElementArgs {
+    pub element_type: IterExprWireListElementU,
+    pub element: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+}
+impl<'a> Default for IterExprWireListElementArgs {
+    #[inline]
+    fn default() -> Self {
+        IterExprWireListElementArgs {
+            element_type: IterExprWireListElementU::NONE,
+            element: None,
+        }
+    }
+}
+pub struct IterExprWireListElementBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprWireListElementBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_element_type(&mut self, element_type: IterExprWireListElementU) {
+    self.fbb_.push_slot::<IterExprWireListElementU>(IterExprWireListElement::VT_ELEMENT_TYPE, element_type, IterExprWireListElementU::NONE);
+  }
+  #[inline]
+  pub fn add_element(&mut self, element: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprWireListElement::VT_ELEMENT, element);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprWireListElementBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprWireListElementBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprWireListElement<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprWireListOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprWireList<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprWireList<'a> {
+    type Inner = IterExprWireList<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprWireList<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprWireList {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprWireListArgs<'args>) -> flatbuffers::WIPOffset<IterExprWireList<'bldr>> {
+      let mut builder = IterExprWireListBuilder::new(_fbb);
+      if let Some(x) = args.elements { builder.add_elements(x); }
+      builder.finish()
+    }
+
+    pub const VT_ELEMENTS: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn elements(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<IterExprWireListElement<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<IterExprWireListElement<'a>>>>>(IterExprWireList::VT_ELEMENTS, None)
+  }
+}
+
+pub struct IterExprWireListArgs<'a> {
+    pub elements: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<IterExprWireListElement<'a >>>>>,
+}
+impl<'a> Default for IterExprWireListArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprWireListArgs {
+            elements: None,
+        }
+    }
+}
+pub struct IterExprWireListBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprWireListBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_elements(&mut self, elements: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<IterExprWireListElement<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprWireList::VT_ELEMENTS, elements);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprWireListBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprWireListBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprWireList<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprFunctionInvokeOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprFunctionInvoke<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprFunctionInvoke<'a> {
+    type Inner = IterExprFunctionInvoke<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprFunctionInvoke<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprFunctionInvoke {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprFunctionInvokeArgs<'args>) -> flatbuffers::WIPOffset<IterExprFunctionInvoke<'bldr>> {
+      let mut builder = IterExprFunctionInvokeBuilder::new(_fbb);
+      if let Some(x) = args.inputs { builder.add_inputs(x); }
+      if let Some(x) = args.outputs { builder.add_outputs(x); }
+      if let Some(x) = args.name { builder.add_name(x); }
+      builder.finish()
+    }
+
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+    pub const VT_OUTPUTS: flatbuffers::VOffsetT = 6;
+    pub const VT_INPUTS: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(IterExprFunctionInvoke::VT_NAME, None)
+  }
+  #[inline]
+  pub fn outputs(&self) -> Option<IterExprWireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireList<'a>>>(IterExprFunctionInvoke::VT_OUTPUTS, None)
+  }
+  #[inline]
+  pub fn inputs(&self) -> Option<IterExprWireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireList<'a>>>(IterExprFunctionInvoke::VT_INPUTS, None)
+  }
+}
+
+pub struct IterExprFunctionInvokeArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub outputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
+    pub inputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
+}
+impl<'a> Default for IterExprFunctionInvokeArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprFunctionInvokeArgs {
+            name: None,
+            outputs: None,
+            inputs: None,
+        }
+    }
+}
+pub struct IterExprFunctionInvokeBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprFunctionInvokeBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprFunctionInvoke::VT_NAME, name);
+  }
+  #[inline]
+  pub fn add_outputs(&mut self, outputs: flatbuffers::WIPOffset<IterExprWireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireList>>(IterExprFunctionInvoke::VT_OUTPUTS, outputs);
+  }
+  #[inline]
+  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<IterExprWireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireList>>(IterExprFunctionInvoke::VT_INPUTS, inputs);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprFunctionInvokeBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprFunctionInvokeBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprFunctionInvoke<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprAnonFunctionOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprAnonFunction<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprAnonFunction<'a> {
+    type Inner = IterExprAnonFunction<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprAnonFunction<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprAnonFunction {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprAnonFunctionArgs<'args>) -> flatbuffers::WIPOffset<IterExprAnonFunction<'bldr>> {
+      let mut builder = IterExprAnonFunctionBuilder::new(_fbb);
+      builder.add_short_witness_count(args.short_witness_count);
+      builder.add_instance_count(args.instance_count);
+      if let Some(x) = args.body { builder.add_body(x); }
+      if let Some(x) = args.inputs { builder.add_inputs(x); }
+      if let Some(x) = args.outputs { builder.add_outputs(x); }
+      builder.finish()
+    }
+
+    pub const VT_OUTPUTS: flatbuffers::VOffsetT = 4;
+    pub const VT_INPUTS: flatbuffers::VOffsetT = 6;
+    pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 8;
+    pub const VT_SHORT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
+    pub const VT_BODY: flatbuffers::VOffsetT = 12;
+
+  #[inline]
+  pub fn outputs(&self) -> Option<IterExprWireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireList<'a>>>(IterExprAnonFunction::VT_OUTPUTS, None)
+  }
+  #[inline]
+  pub fn inputs(&self) -> Option<IterExprWireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireList<'a>>>(IterExprAnonFunction::VT_INPUTS, None)
+  }
+  #[inline]
+  pub fn instance_count(&self) -> u64 {
+    self._tab.get::<u64>(IterExprAnonFunction::VT_INSTANCE_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn short_witness_count(&self) -> u64 {
+    self._tab.get::<u64>(IterExprAnonFunction::VT_SHORT_WITNESS_COUNT, Some(0)).unwrap()
+  }
+  #[inline]
+  pub fn body(&self) -> Option<Block<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(IterExprAnonFunction::VT_BODY, None)
+  }
+}
+
+pub struct IterExprAnonFunctionArgs<'a> {
+    pub outputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
+    pub inputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
+    pub instance_count: u64,
+    pub short_witness_count: u64,
+    pub body: Option<flatbuffers::WIPOffset<Block<'a >>>,
+}
+impl<'a> Default for IterExprAnonFunctionArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprAnonFunctionArgs {
+            outputs: None,
+            inputs: None,
+            instance_count: 0,
+            short_witness_count: 0,
+            body: None,
+        }
+    }
+}
+pub struct IterExprAnonFunctionBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprAnonFunctionBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_outputs(&mut self, outputs: flatbuffers::WIPOffset<IterExprWireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireList>>(IterExprAnonFunction::VT_OUTPUTS, outputs);
+  }
+  #[inline]
+  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<IterExprWireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireList>>(IterExprAnonFunction::VT_INPUTS, inputs);
+  }
+  #[inline]
+  pub fn add_instance_count(&mut self, instance_count: u64) {
+    self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_INSTANCE_COUNT, instance_count, 0);
+  }
+  #[inline]
+  pub fn add_short_witness_count(&mut self, short_witness_count: u64) {
+    self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_SHORT_WITNESS_COUNT, short_witness_count, 0);
+  }
+  #[inline]
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<Block<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(IterExprAnonFunction::VT_BODY, body);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprAnonFunctionBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprAnonFunctionBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprAnonFunction<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -2504,73 +4711,77 @@ impl<'a> GateFor<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args GateForArgs<'args>) -> flatbuffers::WIPOffset<GateFor<'bldr>> {
       let mut builder = GateForBuilder::new(_fbb);
-      builder.add_witness_count(args.witness_count);
-      builder.add_instance_count(args.instance_count);
-      builder.add_end_val(args.end_val);
-      builder.add_start_val(args.start_val);
+      builder.add_last(args.last);
+      builder.add_first(args.first);
       if let Some(x) = args.body { builder.add_body(x); }
-      if let Some(x) = args.input_map { builder.add_input_map(x); }
-      if let Some(x) = args.output_map { builder.add_output_map(x); }
+      if let Some(x) = args.outputs { builder.add_outputs(x); }
+      builder.add_body_type(args.body_type);
       builder.finish()
     }
 
-    pub const VT_START_VAL: flatbuffers::VOffsetT = 4;
-    pub const VT_END_VAL: flatbuffers::VOffsetT = 6;
-    pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 8;
-    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
-    pub const VT_OUTPUT_MAP: flatbuffers::VOffsetT = 12;
-    pub const VT_INPUT_MAP: flatbuffers::VOffsetT = 14;
-    pub const VT_BODY: flatbuffers::VOffsetT = 16;
+    pub const VT_OUTPUTS: flatbuffers::VOffsetT = 4;
+    pub const VT_FIRST: flatbuffers::VOffsetT = 6;
+    pub const VT_LAST: flatbuffers::VOffsetT = 8;
+    pub const VT_BODY_TYPE: flatbuffers::VOffsetT = 10;
+    pub const VT_BODY: flatbuffers::VOffsetT = 12;
 
   #[inline]
-  pub fn start_val(&self) -> u64 {
-    self._tab.get::<u64>(GateFor::VT_START_VAL, Some(0)).unwrap()
+  pub fn outputs(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateFor::VT_OUTPUTS, None)
   }
   #[inline]
-  pub fn end_val(&self) -> u64 {
-    self._tab.get::<u64>(GateFor::VT_END_VAL, Some(0)).unwrap()
+  pub fn first(&self) -> u64 {
+    self._tab.get::<u64>(GateFor::VT_FIRST, Some(0)).unwrap()
   }
   #[inline]
-  pub fn instance_count(&self) -> u64 {
-    self._tab.get::<u64>(GateFor::VT_INSTANCE_COUNT, Some(0)).unwrap()
+  pub fn last(&self) -> u64 {
+    self._tab.get::<u64>(GateFor::VT_LAST, Some(0)).unwrap()
   }
   #[inline]
-  pub fn witness_count(&self) -> u64 {
-    self._tab.get::<u64>(GateFor::VT_WITNESS_COUNT, Some(0)).unwrap()
+  pub fn body_type(&self) -> ForLoopBody {
+    self._tab.get::<ForLoopBody>(GateFor::VT_BODY_TYPE, Some(ForLoopBody::NONE)).unwrap()
   }
   #[inline]
-  pub fn output_map(&self) -> Option<&'a [Mapping]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Mapping>>>(GateFor::VT_OUTPUT_MAP, None).map(|v| v.safe_slice() )
+  pub fn body(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(GateFor::VT_BODY, None)
   }
   #[inline]
-  pub fn input_map(&self) -> Option<&'a [Mapping]> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Mapping>>>(GateFor::VT_INPUT_MAP, None).map(|v| v.safe_slice() )
+  #[allow(non_snake_case)]
+  pub fn body_as_iter_expr_function_invoke(&self) -> Option<IterExprFunctionInvoke<'a>> {
+    if self.body_type() == ForLoopBody::IterExprFunctionInvoke {
+      self.body().map(|u| IterExprFunctionInvoke::init_from_table(u))
+    } else {
+      None
+    }
   }
+
   #[inline]
-  pub fn body(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(GateFor::VT_BODY, None)
+  #[allow(non_snake_case)]
+  pub fn body_as_iter_expr_anon_function(&self) -> Option<IterExprAnonFunction<'a>> {
+    if self.body_type() == ForLoopBody::IterExprAnonFunction {
+      self.body().map(|u| IterExprAnonFunction::init_from_table(u))
+    } else {
+      None
+    }
   }
+
 }
 
 pub struct GateForArgs<'a> {
-    pub start_val: u64,
-    pub end_val: u64,
-    pub instance_count: u64,
-    pub witness_count: u64,
-    pub output_map: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Mapping>>>,
-    pub input_map: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Mapping>>>,
-    pub body: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+    pub outputs: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+    pub first: u64,
+    pub last: u64,
+    pub body_type: ForLoopBody,
+    pub body: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
 }
 impl<'a> Default for GateForArgs<'a> {
     #[inline]
     fn default() -> Self {
         GateForArgs {
-            start_val: 0,
-            end_val: 0,
-            instance_count: 0,
-            witness_count: 0,
-            output_map: None,
-            input_map: None,
+            outputs: None,
+            first: 0,
+            last: 0,
+            body_type: ForLoopBody::NONE,
             body: None,
         }
     }
@@ -2581,31 +4792,23 @@ pub struct GateForBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateForBuilder<'a, 'b> {
   #[inline]
-  pub fn add_start_val(&mut self, start_val: u64) {
-    self.fbb_.push_slot::<u64>(GateFor::VT_START_VAL, start_val, 0);
+  pub fn add_outputs(&mut self, outputs: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateFor::VT_OUTPUTS, outputs);
   }
   #[inline]
-  pub fn add_end_val(&mut self, end_val: u64) {
-    self.fbb_.push_slot::<u64>(GateFor::VT_END_VAL, end_val, 0);
+  pub fn add_first(&mut self, first: u64) {
+    self.fbb_.push_slot::<u64>(GateFor::VT_FIRST, first, 0);
   }
   #[inline]
-  pub fn add_instance_count(&mut self, instance_count: u64) {
-    self.fbb_.push_slot::<u64>(GateFor::VT_INSTANCE_COUNT, instance_count, 0);
+  pub fn add_last(&mut self, last: u64) {
+    self.fbb_.push_slot::<u64>(GateFor::VT_LAST, last, 0);
   }
   #[inline]
-  pub fn add_witness_count(&mut self, witness_count: u64) {
-    self.fbb_.push_slot::<u64>(GateFor::VT_WITNESS_COUNT, witness_count, 0);
+  pub fn add_body_type(&mut self, body_type: ForLoopBody) {
+    self.fbb_.push_slot::<ForLoopBody>(GateFor::VT_BODY_TYPE, body_type, ForLoopBody::NONE);
   }
   #[inline]
-  pub fn add_output_map(&mut self, output_map: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Mapping>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_OUTPUT_MAP, output_map);
-  }
-  #[inline]
-  pub fn add_input_map(&mut self, input_map: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Mapping>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_INPUT_MAP, input_map);
-  }
-  #[inline]
-  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_BODY, body);
   }
   #[inline]
@@ -2800,9 +5003,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_function(&self) -> Option<Function<'a>> {
-    if self.gate_type() == GateSet::Function {
-      self.gate().map(|u| Function::init_from_table(u))
+  pub fn gate_as_gate_call(&self) -> Option<GateCall<'a>> {
+    if self.gate_type() == GateSet::GateCall {
+      self.gate().map(|u| GateCall::init_from_table(u))
     } else {
       None
     }
@@ -2810,9 +5013,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_call(&self) -> Option<GateCall<'a>> {
-    if self.gate_type() == GateSet::GateCall {
-      self.gate().map(|u| GateCall::init_from_table(u))
+  pub fn gate_as_gate_anon_call(&self) -> Option<GateAnonCall<'a>> {
+    if self.gate_type() == GateSet::GateAnonCall {
+      self.gate().map(|u| GateAnonCall::init_from_table(u))
     } else {
       None
     }
@@ -2876,6 +5079,82 @@ impl<'a: 'b, 'b> GateBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Gate<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum BlockOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Block<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Block<'a> {
+    type Inner = Block<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Block<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Block {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
+      let mut builder = BlockBuilder::new(_fbb);
+      if let Some(x) = args.block { builder.add_block(x); }
+      builder.finish()
+    }
+
+    pub const VT_BLOCK: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn block(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Block::VT_BLOCK, None)
+  }
+}
+
+pub struct BlockArgs<'a> {
+    pub block: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+}
+impl<'a> Default for BlockArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        BlockArgs {
+            block: None,
+        }
+    }
+}
+pub struct BlockBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_block(&mut self, block: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_BLOCK, block);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    BlockBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }

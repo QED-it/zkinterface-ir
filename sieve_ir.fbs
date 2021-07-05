@@ -38,7 +38,7 @@ table Witness {
 
 // ==== Helper types ====
 
-struct Wire {
+table Wire {
     id          :uint64;
 }
 
@@ -48,14 +48,18 @@ table Value {
     value        :[ubyte];
 }
 
-struct WireRange {
+table WireRange {
     first      :Wire;
     last       :Wire;
 }
 
-union WireListElement {
+union WireListElementU {
     Wire,
     WireRange,
+}
+
+table WireListElement {
+    element   :WireListElementU;
 }
 
 table WireList {
@@ -151,39 +155,108 @@ table GateCall {
     input_wires       :WireList;
 }
 
+/// The two Abstract types cannot exist by themselves in a circuit,
+/// they MUST be included in another gate (For / Switch / Call / ...)
+table AbstractGateCall {
+    // Invokes a previously defined Function gate
+    name              :string;
+    input_wires       :WireList;
+}
+
 table GateAnonCall {
     output_wires    :WireList;
+    inner           :AbstractAnonCall;
+}
+
+
+table AbstractAnonCall {
     input_wires     :WireList;
     instance_count  :uint64;
     witness_count   :uint64;
-    body            :Block;
+    subcircuit      :Block;
+}
+
+union CaseInvokeU {
+    AbstractGateCall,
+    AbstractAnonCall,
+}
+
+table CaseInvoke {
+    invocation  :CaseInvokeU;
 }
 
 table GateSwitch {
     condition         :Wire;
-    output_wires      :[Wire];
-    input_wires       :[Wire];
-    instance_count    :uint64;
-    witness_count     :uint64;
+    output_wires      :WireList;
     cases             :[Value];
-    branches          :[Block];
+    branches          :[CaseInvoke];
 }
 
-struct Mapping {
-    base        :Wire;
-    stride      :WireDelta;
-    size        :uint64;
+/* ========== For loop related stuff  ========== */
+union IterExpr {
+    IterExprConst,
+    IterExprName,
+    IterExprAdd,
+    IterExprSub,
+    IterExprMul,
+}
+
+table IterExprWireNumber { value :IterExpr;}
+
+// Constant value in an expression
+table IterExprConst { value :uint64; }
+// Named loop-iteration
+table IterExprName { name : string; }
+// Sum of two expressions
+table IterExprAdd { left :IterExpr; right :IterExpr; }
+// Difference of two expressions
+table IterExprSub { left :IterExpr; right :IterExpr; }
+// Product of two expressions
+table IterExprMul { left :IterExpr; right :IterExpr; }
+
+table IterExprWireRange {
+    first :IterExprWireNumber;
+    last  :IterExprWireNumber;
+}
+// Kimee: elements of a IterExprWireList may be either an IterExpr or
+// a iterExprWireRange.
+union IterExprWireListElementU {
+    IterExprWireNumber,
+    IterExprWireRange,
+}
+table IterExprWireListElement { element: IterExprWireListElementU; }
+
+table IterExprWireList {
+    elements :[IterExprWireListElement];
+}
+
+table IterExprFunctionInvoke {
+  name     :string;
+  outputs  :IterExprWireList;
+  inputs   :IterExprWireList;
+}
+
+table IterExprAnonFunction {
+  outputs              :IterExprWireList;
+  inputs               :IterExprWireList;
+  instance_count       :uint64;
+  short_witness_count  :uint64;
+  body                 :Block;
+}
+
+union ForLoopBody {
+  IterExprFunctionInvoke,
+  IterExprAnonFunction
 }
 
 table GateFor {
-    start_val       :uint64;
-    end_val         :uint64;
-    instance_count  :uint64;
-    witness_count   :uint64;
-    output_map      :[Mapping];
-    input_map       :[Mapping];
-    body            :Block;
+  outputs   :WireList;
+  first     :uint64;
+  last      :uint64;
+  body      :ForLoopBody;
 }
+
+/* ========== For loop related stuff  ========== */
 
 union GateSet {
    GateConstant,
@@ -199,8 +272,8 @@ union GateSet {
    GateInstance,
    GateWitness,
    GateFree,
-   Function,
    GateCall,
+   GateAnonCall,
    GateSwitch,
    GateFor,
 }

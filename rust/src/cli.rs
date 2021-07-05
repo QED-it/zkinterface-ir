@@ -135,6 +135,7 @@ fn main_example(opts: &Options) -> Result<()> {
 
     let header = example_header_in_field(opts.field_order.to_bytes_le());
     let (instance, relation, witness) = match &opts.customex[..] {
+        /*
         "fibonacci" => {
             let instance = fibonacci_instance(&header);
             let relation = fibonacci_relation(&header);
@@ -145,6 +146,7 @@ fn main_example(opts: &Options) -> Result<()> {
             };
             (instance, relation, witness)
         }
+         */
         _ => {
             let instance = example_instance_h(&header);
             let relation = example_relation_h(&header);
