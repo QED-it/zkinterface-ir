@@ -402,23 +402,17 @@ impl<'a> Header<'a> {
       let mut builder = HeaderBuilder::new(_fbb);
       builder.add_field_degree(args.field_degree);
       if let Some(x) = args.field_characteristic { builder.add_field_characteristic(x); }
-      if let Some(x) = args.profile { builder.add_profile(x); }
       if let Some(x) = args.version { builder.add_version(x); }
       builder.finish()
     }
 
     pub const VT_VERSION: flatbuffers::VOffsetT = 4;
-    pub const VT_PROFILE: flatbuffers::VOffsetT = 6;
-    pub const VT_FIELD_CHARACTERISTIC: flatbuffers::VOffsetT = 8;
-    pub const VT_FIELD_DEGREE: flatbuffers::VOffsetT = 10;
+    pub const VT_FIELD_CHARACTERISTIC: flatbuffers::VOffsetT = 6;
+    pub const VT_FIELD_DEGREE: flatbuffers::VOffsetT = 8;
 
   #[inline]
   pub fn version(&self) -> Option<&'a str> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Header::VT_VERSION, None)
-  }
-  #[inline]
-  pub fn profile(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Header::VT_PROFILE, None)
   }
   #[inline]
   pub fn field_characteristic(&self) -> Option<Value<'a>> {
@@ -432,7 +426,6 @@ impl<'a> Header<'a> {
 
 pub struct HeaderArgs<'a> {
     pub version: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub profile: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub field_characteristic: Option<flatbuffers::WIPOffset<Value<'a >>>,
     pub field_degree: u32,
 }
@@ -441,7 +434,6 @@ impl<'a> Default for HeaderArgs<'a> {
     fn default() -> Self {
         HeaderArgs {
             version: None,
-            profile: None,
             field_characteristic: None,
             field_degree: 0,
         }
@@ -455,10 +447,6 @@ impl<'a: 'b, 'b> HeaderBuilder<'a, 'b> {
   #[inline]
   pub fn add_version(&mut self, version: flatbuffers::WIPOffset<&'b  str>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Header::VT_VERSION, version);
-  }
-  #[inline]
-  pub fn add_profile(&mut self, profile: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Header::VT_PROFILE, profile);
   }
   #[inline]
   pub fn add_field_characteristic(&mut self, field_characteristic: flatbuffers::WIPOffset<Value<'b >>) {
@@ -513,16 +501,28 @@ impl<'a> Relation<'a> {
         args: &'args RelationArgs<'args>) -> flatbuffers::WIPOffset<Relation<'bldr>> {
       let mut builder = RelationBuilder::new(_fbb);
       if let Some(x) = args.gates { builder.add_gates(x); }
+      if let Some(x) = args.features { builder.add_features(x); }
+      if let Some(x) = args.gateset { builder.add_gateset(x); }
       if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
     pub const VT_HEADER: flatbuffers::VOffsetT = 4;
-    pub const VT_GATES: flatbuffers::VOffsetT = 6;
+    pub const VT_GATESET: flatbuffers::VOffsetT = 6;
+    pub const VT_FEATURES: flatbuffers::VOffsetT = 8;
+    pub const VT_GATES: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub fn header(&self) -> Option<Header<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Relation::VT_HEADER, None)
+  }
+  #[inline]
+  pub fn gateset(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_GATESET, None)
+  }
+  #[inline]
+  pub fn features(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_FEATURES, None)
   }
   #[inline]
   pub fn gates(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
@@ -532,6 +532,8 @@ impl<'a> Relation<'a> {
 
 pub struct RelationArgs<'a> {
     pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
+    pub gateset: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub features: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub gates: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
 }
 impl<'a> Default for RelationArgs<'a> {
@@ -539,6 +541,8 @@ impl<'a> Default for RelationArgs<'a> {
     fn default() -> Self {
         RelationArgs {
             header: None,
+            gateset: None,
+            features: None,
             gates: None,
         }
     }
@@ -551,6 +555,14 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
   #[inline]
   pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Relation::VT_HEADER, header);
+  }
+  #[inline]
+  pub fn add_gateset(&mut self, gateset: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_GATESET, gateset);
+  }
+  #[inline]
+  pub fn add_features(&mut self, features: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_FEATURES, features);
   }
   #[inline]
   pub fn add_gates(&mut self, gates: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
