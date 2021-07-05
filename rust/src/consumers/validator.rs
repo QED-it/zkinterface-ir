@@ -7,6 +7,8 @@ use std::collections::{HashSet, HashMap};
 use regex::Regex;
 use std::cmp::Ordering;
 use crate::structs::subcircuit::expand_wire_mappings;
+use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND};
+use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 
 type Var = u64;
 type Field = BigUint;
@@ -50,9 +52,9 @@ pub struct Validator {
     live_wires: HashSet<Var>,
 
     got_header: bool,
-    header_profile: String,
+    gate_set: u16,
+    features: u16,
     header_version: String,
-    is_arithmetic_circuit: bool,
 
     field_characteristic: Field,
     field_degree: usize,
@@ -106,9 +108,6 @@ impl Validator {
                 self.violate("The field_degree is not consistent across headers.");
             }
 
-            if self.header_profile != header.profile {
-                self.violate("The profile name is not consistent across headers.");
-            }
             if self.header_version != header.version {
                 self.violate("The profile version is not consistent across headers.");
             }
@@ -125,23 +124,6 @@ impl Validator {
             self.field_degree = header.field_degree as usize;
             if self.field_degree != 1 {
                 self.violate("field_degree must be = 1");
-            }
-
-            // check Header profile
-            self.header_profile = header.profile.clone();
-            match &self.header_profile.trim()[..] {
-                "circ_arithmetic_simple" => {
-                    self.is_arithmetic_circuit = true;
-                }
-                "circ_boolean_simple" => {
-                    self.is_arithmetic_circuit = false;
-                    if self.field_characteristic != 2.to_biguint().unwrap() {
-                        self.violate("With profile 'circ_boolean_simple', the field characteristic can only be 2.");
-                    }
-                }
-                _ => {
-                    self.violate("The profile name should match either 'circ_arithmetic_simple' or 'circ_boolean_simple'.");
-                }
             }
 
             // check header version
@@ -181,6 +163,21 @@ impl Validator {
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
+        self.gate_set = relation.gate_mask;
+        if contains_feature(self.gate_set, BOOL)
+            && contains_feature(self.gate_set, ARITH) {
+            self.violate("Cannot mix arithmetic and boolean gates");
+        }
+
+        self.features = relation.feat_mask;
+
+        // check Header profile
+        if contains_feature(self.gate_set, BOOL) {
+            if self.field_characteristic != 2.to_biguint().unwrap() {
+                self.violate("With boolean profile the field characteristic can only be 2.");
+            }
+        }
+
         for gate in &relation.gates {
             self.ingest_gate(gate);
         }
@@ -205,7 +202,7 @@ impl Validator {
             }
 
             Add(out, left, right) => {
-                self.ensure_arithmetic("Add");
+                self.ensure_allowed_gate("@add", ADD);
 
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
@@ -214,7 +211,7 @@ impl Validator {
             }
 
             Mul(out, left, right) => {
-                self.ensure_arithmetic("Mul");
+                self.ensure_allowed_gate("@mul", MUL);
 
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
@@ -223,28 +220,28 @@ impl Validator {
             }
 
             AddConstant(out, inp, constant) => {
-                self.ensure_arithmetic("AddConstant");
+                self.ensure_allowed_gate("@addc", ADDC);
                 self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
             }
 
             MulConstant(out, inp, constant) => {
-                self.ensure_arithmetic("MulConstant");
+                self.ensure_allowed_gate("@mulc", MULC);
                 self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
             }
 
             And(out, left, right) => {
-                self.ensure_boolean("And");
+                self.ensure_allowed_gate("@and", AND);
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
                 self.ensure_undefined_and_set(*out);
             }
 
             Xor(out, left, right) => {
-                self.ensure_boolean("Xor");
+                self.ensure_allowed_gate("@xor", XOR);
 
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
@@ -252,7 +249,7 @@ impl Validator {
             }
 
             Not(out, inp) => {
-                self.ensure_boolean("Not");
+                self.ensure_allowed_gate("@not", NOT);
 
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
@@ -279,6 +276,7 @@ impl Validator {
             }
 
             Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
+                self.ensure_allowed_feature("@function", FUNCTION);
                 // Just record the signature.
                 // The validation will be done when the function will be called.
                 if self.known_functions.contains_key(name) {
@@ -289,6 +287,7 @@ impl Validator {
             }
 
             Call(name, output_wires, input_wires) => {
+                self.ensure_allowed_feature("@call", FUNCTION);
                 // - Check exists
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
@@ -320,6 +319,7 @@ impl Validator {
             }
 
             Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) => {
+                self.ensure_allowed_feature("@switch", SWITCH);
                 self.ensure_defined_and_set(*condition);
 
                 // Ensure that the number of cases value match the number of subcircuits.
@@ -369,6 +369,7 @@ impl Validator {
                 input_mapping,
                 body
             ) => {
+                self.ensure_allowed_feature("@for", FOR);
                 for i in *start_val..=*end_val {
                     let output_wires= expand_wire_mappings(output_mapping, i);
                     let input_wires= expand_wire_mappings(input_mapping, i);
@@ -512,19 +513,19 @@ impl Validator {
         }
     }
 
-    fn ensure_arithmetic(&mut self, gate_name: impl Into<String>) {
-        if !self.is_arithmetic_circuit {
+    fn ensure_allowed_gate(&mut self, gate_name: impl Into<String>, gate_mask: u16) {
+        if !contains_feature(self.gate_set, gate_mask) {
             self.violate(format!(
-                "Arithmetic gate found ({}), while boolean circuit.",
+                "The gate {} is not allowed in this circuit.",
                 &gate_name.into()[..]
             ));
         }
     }
 
-    fn ensure_boolean(&mut self, gate_name: impl Into<String>) {
-        if self.is_arithmetic_circuit {
+    fn ensure_allowed_feature(&mut self, gate_name: impl Into<String>, feature_mask: u16) {
+        if !contains_feature(self.features, feature_mask) {
             self.violate(format!(
-                "Boolean gate found ({}), while arithmetic circuit.",
+                "The feature {} is not allowed in this circuit.",
                 &gate_name.into()[..]
             ));
         }

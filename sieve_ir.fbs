@@ -13,7 +13,6 @@ union Message {
 
 table Header {
    version              :string;
-   profile              :string;
 
    field_characteristic :Value;
    field_degree         :uint32;
@@ -21,6 +20,8 @@ table Header {
 
 table Relation {
    header               :Header;
+   gateset              :string;
+   features             :string;
    gates                :[Gate];
 }
 

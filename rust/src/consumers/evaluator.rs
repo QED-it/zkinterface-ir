@@ -291,12 +291,15 @@ fn test_simulator() -> Result<()> {
 fn test_switch() -> Result<()> {
     use Gate::*;
     use crate::producers::examples::*;
+    use crate::structs::relation::{ARITH, SWITCH};
 
     let instance = example_instance();
     let witness = example_witness();
     let relation =
         Relation {
             header: example_header(),
+            gate_mask: ARITH,
+            feat_mask: SWITCH,
             gates: vec![
                 Witness(1),
                 Switch(1,                     // condition
