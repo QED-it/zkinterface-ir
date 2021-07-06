@@ -218,8 +218,7 @@ table IterExprWireRange {
     first :IterExprWireNumber;
     last  :IterExprWireNumber;
 }
-// Kimee: elements of a IterExprWireList may be either an IterExpr or
-// a iterExprWireRange.
+
 union IterExprWireListElementU {
     IterExprWireNumber,
     IterExprWireRange,
@@ -237,11 +236,11 @@ table IterExprFunctionInvoke {
 }
 
 table IterExprAnonFunction {
-  outputs              :IterExprWireList;
-  inputs               :IterExprWireList;
-  instance_count       :uint64;
-  short_witness_count  :uint64;
-  body                 :Block;
+  outputs          :IterExprWireList;
+  inputs           :IterExprWireList;
+  instance_count   :uint64;
+  witness_count    :uint64;
+  body             :Block;
 }
 
 union ForLoopBody {
@@ -250,10 +249,11 @@ union ForLoopBody {
 }
 
 table GateFor {
-  outputs   :WireList;
-  first     :uint64;
-  last      :uint64;
-  body      :ForLoopBody;
+  outputs     :WireList;
+  iterator    :string;
+  first       :uint64;
+  last        :uint64;
+  body        :ForLoopBody;
 }
 
 /* ========== For loop related stuff  ========== */

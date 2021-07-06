@@ -2691,34 +2691,42 @@ impl<'a> GateCall<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args GateCallArgs<'args>) -> flatbuffers::WIPOffset<GateCall<'bldr>> {
       let mut builder = GateCallBuilder::new(_fbb);
-      if let Some(x) = args.inner { builder.add_inner(x); }
+      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
       if let Some(x) = args.output_wires { builder.add_output_wires(x); }
+      if let Some(x) = args.name { builder.add_name(x); }
       builder.finish()
     }
 
-    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 4;
-    pub const VT_INNER: flatbuffers::VOffsetT = 6;
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 6;
+    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 8;
 
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(GateCall::VT_NAME, None)
+  }
   #[inline]
   pub fn output_wires(&self) -> Option<WireList<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateCall::VT_OUTPUT_WIRES, None)
   }
   #[inline]
-  pub fn inner(&self) -> Option<AbstractGateCall<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<AbstractGateCall<'a>>>(GateCall::VT_INNER, None)
+  pub fn input_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateCall::VT_INPUT_WIRES, None)
   }
 }
 
 pub struct GateCallArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub output_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
-    pub inner: Option<flatbuffers::WIPOffset<AbstractGateCall<'a >>>,
+    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
 }
 impl<'a> Default for GateCallArgs<'a> {
     #[inline]
     fn default() -> Self {
         GateCallArgs {
+            name: None,
             output_wires: None,
-            inner: None,
+            input_wires: None,
         }
     }
 }
@@ -2728,12 +2736,16 @@ pub struct GateCallBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_NAME, name);
+  }
+  #[inline]
   pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<WireList<'b >>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateCall::VT_OUTPUT_WIRES, output_wires);
   }
   #[inline]
-  pub fn add_inner(&mut self, inner: flatbuffers::WIPOffset<AbstractGateCall<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<AbstractGateCall>>(GateCall::VT_INNER, inner);
+  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateCall::VT_INPUT_WIRES, input_wires);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateCallBuilder<'a, 'b> {
@@ -4587,7 +4599,7 @@ impl<'a> IterExprAnonFunction<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args IterExprAnonFunctionArgs<'args>) -> flatbuffers::WIPOffset<IterExprAnonFunction<'bldr>> {
       let mut builder = IterExprAnonFunctionBuilder::new(_fbb);
-      builder.add_short_witness_count(args.short_witness_count);
+      builder.add_witness_count(args.witness_count);
       builder.add_instance_count(args.instance_count);
       if let Some(x) = args.body { builder.add_body(x); }
       if let Some(x) = args.inputs { builder.add_inputs(x); }
@@ -4598,7 +4610,7 @@ impl<'a> IterExprAnonFunction<'a> {
     pub const VT_OUTPUTS: flatbuffers::VOffsetT = 4;
     pub const VT_INPUTS: flatbuffers::VOffsetT = 6;
     pub const VT_INSTANCE_COUNT: flatbuffers::VOffsetT = 8;
-    pub const VT_SHORT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
+    pub const VT_WITNESS_COUNT: flatbuffers::VOffsetT = 10;
     pub const VT_BODY: flatbuffers::VOffsetT = 12;
 
   #[inline]
@@ -4614,8 +4626,8 @@ impl<'a> IterExprAnonFunction<'a> {
     self._tab.get::<u64>(IterExprAnonFunction::VT_INSTANCE_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn short_witness_count(&self) -> u64 {
-    self._tab.get::<u64>(IterExprAnonFunction::VT_SHORT_WITNESS_COUNT, Some(0)).unwrap()
+  pub fn witness_count(&self) -> u64 {
+    self._tab.get::<u64>(IterExprAnonFunction::VT_WITNESS_COUNT, Some(0)).unwrap()
   }
   #[inline]
   pub fn body(&self) -> Option<Block<'a>> {
@@ -4627,7 +4639,7 @@ pub struct IterExprAnonFunctionArgs<'a> {
     pub outputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
     pub inputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
     pub instance_count: u64,
-    pub short_witness_count: u64,
+    pub witness_count: u64,
     pub body: Option<flatbuffers::WIPOffset<Block<'a >>>,
 }
 impl<'a> Default for IterExprAnonFunctionArgs<'a> {
@@ -4637,7 +4649,7 @@ impl<'a> Default for IterExprAnonFunctionArgs<'a> {
             outputs: None,
             inputs: None,
             instance_count: 0,
-            short_witness_count: 0,
+            witness_count: 0,
             body: None,
         }
     }
@@ -4660,8 +4672,8 @@ impl<'a: 'b, 'b> IterExprAnonFunctionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_INSTANCE_COUNT, instance_count, 0);
   }
   #[inline]
-  pub fn add_short_witness_count(&mut self, short_witness_count: u64) {
-    self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_SHORT_WITNESS_COUNT, short_witness_count, 0);
+  pub fn add_witness_count(&mut self, witness_count: u64) {
+    self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
   pub fn add_body(&mut self, body: flatbuffers::WIPOffset<Block<'b >>) {
@@ -4714,20 +4726,26 @@ impl<'a> GateFor<'a> {
       builder.add_last(args.last);
       builder.add_first(args.first);
       if let Some(x) = args.body { builder.add_body(x); }
+      if let Some(x) = args.iterator { builder.add_iterator(x); }
       if let Some(x) = args.outputs { builder.add_outputs(x); }
       builder.add_body_type(args.body_type);
       builder.finish()
     }
 
     pub const VT_OUTPUTS: flatbuffers::VOffsetT = 4;
-    pub const VT_FIRST: flatbuffers::VOffsetT = 6;
-    pub const VT_LAST: flatbuffers::VOffsetT = 8;
-    pub const VT_BODY_TYPE: flatbuffers::VOffsetT = 10;
-    pub const VT_BODY: flatbuffers::VOffsetT = 12;
+    pub const VT_ITERATOR: flatbuffers::VOffsetT = 6;
+    pub const VT_FIRST: flatbuffers::VOffsetT = 8;
+    pub const VT_LAST: flatbuffers::VOffsetT = 10;
+    pub const VT_BODY_TYPE: flatbuffers::VOffsetT = 12;
+    pub const VT_BODY: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub fn outputs(&self) -> Option<WireList<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateFor::VT_OUTPUTS, None)
+  }
+  #[inline]
+  pub fn iterator(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(GateFor::VT_ITERATOR, None)
   }
   #[inline]
   pub fn first(&self) -> u64 {
@@ -4769,6 +4787,7 @@ impl<'a> GateFor<'a> {
 
 pub struct GateForArgs<'a> {
     pub outputs: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+    pub iterator: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub first: u64,
     pub last: u64,
     pub body_type: ForLoopBody,
@@ -4779,6 +4798,7 @@ impl<'a> Default for GateForArgs<'a> {
     fn default() -> Self {
         GateForArgs {
             outputs: None,
+            iterator: None,
             first: 0,
             last: 0,
             body_type: ForLoopBody::NONE,
@@ -4794,6 +4814,10 @@ impl<'a: 'b, 'b> GateForBuilder<'a, 'b> {
   #[inline]
   pub fn add_outputs(&mut self, outputs: flatbuffers::WIPOffset<WireList<'b >>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateFor::VT_OUTPUTS, outputs);
+  }
+  #[inline]
+  pub fn add_iterator(&mut self, iterator: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateFor::VT_ITERATOR, iterator);
   }
   #[inline]
   pub fn add_first(&mut self, first: u64) {
