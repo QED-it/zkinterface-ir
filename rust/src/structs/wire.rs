@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
 use crate::serde::export::TryFrom;
 use std::error::Error;
-use crate::sieve_ir_generated::sieve_ir::WireListElement_u;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum WireListElement {
@@ -86,9 +85,9 @@ impl<'a> TryFrom<g::WireListElement<'a>> for WireListElement {
 
     fn try_from(element: g::WireListElement<'a>) -> Result<Self> {
         Ok(match element.element_type() {
-            WireListElement_u::NONE => return Err("Unknown type in WireListElement".into()),
-            WireListElement_u::Wire => Wire(element.element_as_wire().unwrap().id()),
-            WireListElement_u::WireRange => {
+            g::WireListElementU::NONE => return Err("Unknown type in WireListElement".into()),
+            g::WireListElementU::Wire => Wire(element.element_as_wire().unwrap().id()),
+            g::WireListElementU::WireRange => {
                 let range = element.element_as_wire_range().unwrap();
                 WireRange(
                     range.first().ok_or("Missing first value of range")?.id(),
@@ -111,7 +110,7 @@ impl WireListElement {
                 g::WireListElement::create(
                     builder,
                     &g::WireListElementArgs{
-                        element_type: WireListElement_u::Wire,
+                        element_type: g::WireListElementU::Wire,
                         element: Some(wire.as_union_value())
                 })
             }
@@ -130,7 +129,7 @@ impl WireListElement {
                 g::WireListElement::create(
                     builder,
                     &g::WireListElementArgs{
-                        element_type: WireListElement_u::WireRange,
+                        element_type: g::WireListElementU::WireRange,
                         element: Some(range.as_union_value())
                 })
             }
@@ -155,10 +154,16 @@ impl<'a> TryFrom<g::WireList<'a>> for WireList {
 /// Add a vector of this structure into a Flatbuffers message builder.
 pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    elements: &'args [WireListElement],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::WireListElement<'bldr>>>> {
+    elements: &'args WireList,
+) -> WIPOffset<g::WireList<'bldr>> {
     let g_elements: Vec<_> = elements.iter().map(|element| element.build(builder)).collect();
     let g_vector = builder.create_vector(&g_elements);
-    g_vector
+
+    g::WireList::create(
+        builder,
+        &g::WireListArgs {
+            elements: Some(g_vector)
+        }
+    )
 }
 

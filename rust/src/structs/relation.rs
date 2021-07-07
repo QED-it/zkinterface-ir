@@ -8,6 +8,7 @@ use std::io::Write;
 use super::gates::Gate;
 use super::header::Header;
 use crate::sieve_ir_generated::sieve_ir as g;
+use crate::structs::function::Function;
 
 // Arithmetic Gates
 pub const ADD:   u16 = 0x0001;
@@ -34,6 +35,7 @@ pub struct Relation {
     pub header:    Header,
     pub gate_mask: u16,
     pub feat_mask: u16,
+    pub functions: Vec<Function>,
     pub gates: Vec<Gate>,
 }
 
@@ -43,11 +45,17 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_relation: g::Relation) -> Result<Relation> {
         let g_gates = g_relation.gates().ok_or("Missing gates")?;
+        let functions = if let Some(g_functions) = g_relation.functions() {
+            Function::try_from_vector(g_functions)?
+        } else {
+            vec![]
+        };
 
         Ok(Relation {
             header: Header::try_from(g_relation.header())?,
             gate_mask: parse_gate_set(g_relation.gateset().ok_or("Missing gateset description")?),
             feat_mask: parse_feature_toggle(g_relation.features().ok_or("Missing feature toggles")?),
+            functions,
             gates: Gate::try_from_vector(g_gates)?,
         })
     }
@@ -73,6 +81,7 @@ impl Relation {
     ) -> WIPOffset<g::Root<'bldr>> {
         let header = Some(self.header.build(builder));
         let gates = Gate::build_vector(builder, &self.gates);
+        let functions = Function::build_vector(builder, &self.functions);
 
         let gateset = build_gate_set(self.gate_mask, builder);
         let features = build_feature_toggle(self.feat_mask, builder);
@@ -83,6 +92,7 @@ impl Relation {
                 header,
                 gateset: Some(gateset),
                 features: Some(features),
+                functions: Some(functions),
                 gates: Some(gates),
             },
         );

@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
-use super::wire::{build_wires_vector, from_id, from_ids_vector};
+use super::wire::from_id;
 use super::value::{try_from_values_vector, build_values_vector};
-use crate::structs::subcircuit::{try_from_block_vector, build_block_vector};
+use crate::structs::subcircuit::{try_from_block, build_block};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::{Value, WireId};
@@ -41,17 +41,19 @@ pub enum Gate {
     /// If the option is not given, then only the first wire is freed, otherwise all wires between
     /// the first and the last INCLUSIVE are freed.
     Free(WireId, Option<WireId>),
+    /// AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit)
+    AnonCall(WireList, WireList, usize, usize, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
     Call(String, WireList, WireList),
     /// GateSwitch(condition, output_wires, cases, branches)
     Switch(WireId, WireList, Vec<Value>, Vec<CaseInvoke>),
-    /// GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
-    ///   Mapping = [base, stride, size]
+    // GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
     // For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
 }
 
 use Gate::*;
-use crate::structs::wire::WireList;
+use crate::structs::wire::{WireList, build_wire, build_wire_list};
+use crate::structs::function::CaseInvoke;
 
 impl<'a> TryFrom<g::Gate<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -161,30 +163,28 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     gate.last().map(|id| id.id()),
                 )
             }
-/*  will be reused later...
-            gs::Function => {
-                let gate = gen_gate.gate_as_function().unwrap();
-                let g_directives = gate
-                    .subcircuit()
-                    .ok_or("Missing reference implementation")?;
-                let directives = Gate::try_from_vector(g_directives)?;
-                Function(
-                    gate.name().ok_or("Missing name")?.to_string(),
-                    gate.output_count() as usize,
-                    gate.input_count() as usize,
-                    gate.instance_count() as usize,
-                    gate.witness_count() as usize,
-                    directives,
-                )
-            }
-*/
+
             gs::GateCall => {
                 let gate = gen_gate.gate_as_gate_call().unwrap();
 
                 Call(
                     gate.name().ok_or("Missing function name.")?.into(),
-                    from_ids_vector(gate.output_wires().ok_or("Missing outputs")?),
-                    from_ids_vector(gate.input_wires().ok_or("Missing inputs")?),
+                    WireList::try_from(gate.output_wires().ok_or("Missing outputs")?)?,
+                    WireList::try_from(gate.input_wires().ok_or("Missing inputs")?)?,
+                )
+            }
+
+
+            gs::GateAnonCall => {
+                let gate = gen_gate.gate_as_gate_anon_call().unwrap();
+                let inner = gate.inner().ok_or("Missing inner AbstractAnonCall")?;
+
+                AnonCall(
+                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
+                    WireList::try_from(inner.input_wires().ok_or("Missing input wires")?)?,
+                    inner.instance_count() as usize,
+                    inner.witness_count() as usize,
+                    try_from_block(inner.subcircuit().ok_or("Missing subcircuit")?)?,
                 )
             }
 
@@ -195,17 +195,14 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     .ok_or("Missing cases values")?)?;
 
                 Switch(
-                    from_id(gate.condition().ok_or("Missing condition wire.")?),
-                    from_ids_vector(gate.output_wires().ok_or("Missing output wires")?),
-                    from_ids_vector(gate.input_wires().ok_or("Missing input wires")?),
-                    gate.instance_count() as usize,
-                    gate.witness_count() as usize,
+                    from_id(&gate.condition().ok_or("Missing condition wire.")?),
+                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
                     cases,
-                    try_from_block_vector(gate.branches().ok_or("Missing branches")?)?,
+                    CaseInvoke::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
                 )
             }
 
-            gs::GateFor => {*
+            gs::GateFor => {
                 unimplemented!()
                 /*
                 let gate = gen_gate.gate_as_gate_for().unwrap();
@@ -225,7 +222,7 @@ impl<'a> TryFrom<g::Gate<'a>> for Gate {
                     Gate::try_from_vector(gate.body().ok_or("Missing body of for loop")?)?,
                 )
                  */
-            },
+            }
         })
     }
 }
@@ -239,10 +236,12 @@ impl Gate {
         match self {
             Constant(output, constant) => {
                 let constant = builder.create_vector(constant);
+                let g_output = build_wire(builder, *output);
+
                 let gate = g::GateConstant::create(
                     builder,
                     &g::GateConstantArgs {
-                        output: Some(&g::Wire::new(*output)),
+                        output: Some(g_output),
                         constant: Some(constant),
                     },
                 );
@@ -256,10 +255,11 @@ impl Gate {
             }
 
             AssertZero(input) => {
+                let g_input = build_wire(builder, *input);
                 let gate = g::GateAssertZero::create(
                     builder,
                     &g::GateAssertZeroArgs {
-                        input: Some(&g::Wire::new(*input)),
+                        input: Some(g_input),
                     },
                 );
                 g::Gate::create(
@@ -272,11 +272,13 @@ impl Gate {
             }
 
             Copy(output, input) => {
+                let g_input = build_wire(builder, *input);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateCopy::create(
                     builder,
                     &g::GateCopyArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        input: Some(&g::Wire::new(*input)),
+                        output: Some(g_output),
+                        input: Some(g_input),
                     },
                 );
                 g::Gate::create(
@@ -289,12 +291,15 @@ impl Gate {
             }
 
             Add(output, left, right) => {
+                let g_left = build_wire(builder, *left);
+                let g_right = build_wire(builder, *right);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateAdd::create(
                     builder,
                     &g::GateAddArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        left: Some(&g::Wire::new(*left)),
-                        right: Some(&g::Wire::new(*right)),
+                        output: Some(g_output),
+                        left: Some(g_left),
+                        right: Some(g_right),
                     },
                 );
                 g::Gate::create(
@@ -307,12 +312,15 @@ impl Gate {
             }
 
             Mul(output, left, right) => {
+                let g_left = build_wire(builder, *left);
+                let g_right = build_wire(builder, *right);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateMul::create(
                     builder,
                     &g::GateMulArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        left: Some(&g::Wire::new(*left)),
-                        right: Some(&g::Wire::new(*right)),
+                        output: Some(g_output),
+                        left: Some(g_left),
+                        right: Some(g_right),
                     },
                 );
                 g::Gate::create(
@@ -325,12 +333,14 @@ impl Gate {
             }
 
             AddConstant(output, input, constant) => {
+                let g_input = build_wire(builder, *input);
+                let g_output = build_wire(builder, *output);
                 let constant = builder.create_vector(constant);
                 let gate = g::GateAddConstant::create(
                     builder,
                     &g::GateAddConstantArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        input: Some(&g::Wire::new(*input)),
+                        output: Some(g_output),
+                        input: Some(g_input),
                         constant: Some(constant),
                     },
                 );
@@ -344,12 +354,14 @@ impl Gate {
             }
 
             MulConstant(output, input, constant) => {
+                let g_input = build_wire(builder, *input);
+                let g_output = build_wire(builder, *output);
                 let constant = builder.create_vector(constant);
                 let gate = g::GateMulConstant::create(
                     builder,
                     &g::GateMulConstantArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        input: Some(&g::Wire::new(*input)),
+                        output: Some(g_output),
+                        input: Some(g_input),
                         constant: Some(constant),
                     },
                 );
@@ -363,12 +375,15 @@ impl Gate {
             }
 
             And(output, left, right) => {
+                let g_left = build_wire(builder, *left);
+                let g_right = build_wire(builder, *right);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateAnd::create(
                     builder,
                     &g::GateAndArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        left: Some(&g::Wire::new(*left)),
-                        right: Some(&g::Wire::new(*right)),
+                        output: Some(g_output),
+                        left: Some(g_left),
+                        right: Some(g_right),
                     },
                 );
                 g::Gate::create(
@@ -381,12 +396,15 @@ impl Gate {
             }
 
             Xor(output, left, right) => {
+                let g_left = build_wire(builder, *left);
+                let g_right = build_wire(builder, *right);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateXor::create(
                     builder,
                     &g::GateXorArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        left: Some(&g::Wire::new(*left)),
-                        right: Some(&g::Wire::new(*right)),
+                        output: Some(g_output),
+                        left: Some(g_left),
+                        right: Some(g_right),
                     },
                 );
                 g::Gate::create(
@@ -399,11 +417,13 @@ impl Gate {
             }
 
             Not(output, input) => {
+                let g_input = build_wire(builder, *input);
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateNot::create(
                     builder,
                     &g::GateNotArgs {
-                        output: Some(&g::Wire::new(*output)),
-                        input: Some(&g::Wire::new(*input)),
+                        output: Some(g_output),
+                        input: Some(g_input),
                     },
                 );
                 g::Gate::create(
@@ -416,10 +436,11 @@ impl Gate {
             }
 
             Instance(output) => {
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateInstance::create(
                     builder,
                     &g::GateInstanceArgs {
-                        output: Some(&g::Wire::new(*output)),
+                        output: Some(g_output),
                     },
                 );
                 g::Gate::create(
@@ -432,10 +453,11 @@ impl Gate {
             }
 
             Witness(output) => {
+                let g_output = build_wire(builder, *output);
                 let gate = g::GateWitness::create(
                     builder,
                     &g::GateWitnessArgs {
-                        output: Some(&g::Wire::new(*output)),
+                        output: Some(g_output),
                     },
                 );
                 g::Gate::create(
@@ -448,11 +470,13 @@ impl Gate {
             }
 
             Free(first, last) => {
+                let g_first = build_wire(builder, *first);
+                let g_last = last.map(|id| build_wire(builder, id));
                 let gate = g::GateFree::create(
                     builder,
                     &g::GateFreeArgs {
-                        first: Some(&g::Wire::new(*first)),
-                        last: last.map(|id| g::Wire::new(id)).as_ref(),
+                        first: Some(g_first),
+                        last: g_last,
                     },
                 );
 
@@ -464,42 +488,49 @@ impl Gate {
                     },
                 )
             }
-/* will be reused later
-            Function(
-                name,
-                output_count,
-                input_count,
+
+            AnonCall(
+                output_wires,
+                input_wires,
                 instance_count,
                 witness_count,
-                subcircuit,
+                subcircuit
             ) => {
-                let g_name = builder.create_string(name);
-                let impl_gates = Gate::build_vector(builder, &subcircuit);
-                let g_gate = g::Function::create(
+                let g_outputs = build_wire_list(builder, output_wires);
+                let g_inputs = build_wire_list(builder, input_wires);
+                let g_block = build_block(builder, subcircuit);
+
+                let g_inner = g::AbstractAnonCall::create (
                     builder,
-                    &g::FunctionArgs {
-                        name: Some(g_name),
-                        output_count: *output_count as u64,
-                        input_count: *input_count as u64,
+                    &g::AbstractAnonCallArgs {
+                        input_wires: Some(g_inputs),
                         instance_count: *instance_count as u64,
                         witness_count: *witness_count as u64,
-                        subcircuit: Some(impl_gates)
+                        subcircuit: Some(g_block),
+                    }
+                );
+
+                let g_gate = g::GateAnonCall::create(
+                    builder,
+                    &g::GateAnonCallArgs {
+                        output_wires: Some(g_outputs),
+                        inner: Some(g_inner),
                     },
                 );
 
                 g::Gate::create(
                     builder,
                     &g::GateArgs {
-                        gate_type: gs::Function,
+                        gate_type: gs::GateAnonCall,
                         gate: Some(g_gate.as_union_value()),
                     },
                 )
             }
-*/
+
             Call(name, output_wires, input_wires) => {
                 let g_name = builder.create_string(name);
-                let g_outputs = build_wires_vector(builder, output_wires);
-                let g_inputs = build_wires_vector(builder, input_wires);
+                let g_outputs = build_wire_list(builder, output_wires);
+                let g_inputs = build_wire_list(builder, input_wires);
 
                 let g_gate = g::GateCall::create(
                     builder,
@@ -519,31 +550,20 @@ impl Gate {
                 )
             }
 
-            Switch(
-                condition,
-                outputs_list,
-                inputs_list,
-                instance_count,
-                witness_count,
-                cases,
-                subcircuits
-            ) => {
+            Switch(condition, outputs_list, cases, branches) => {
 
-                let output_wires = build_wires_vector(builder, outputs_list);
-                let input_wires = build_wires_vector(builder, inputs_list);
-                let cases = build_values_vector(builder, cases);
-                let branches = build_block_vector(builder, subcircuits);
+                let g_condition = build_wire(builder, *condition);
+                let g_output_wires = build_wire_list(builder, outputs_list);
+                let g_cases = build_values_vector(builder, cases);
+                let g_branches = CaseInvoke::build_vector(builder, branches);
 
                 let gate = g::GateSwitch::create(
                     builder,
                     &g::GateSwitchArgs {
-                        condition: Some(&g::Wire::new(*condition)),
-                        output_wires: Some(output_wires),
-                        input_wires: Some(input_wires),
-                        instance_count: *instance_count as u64,
-                        witness_count: *witness_count as u64,
-                        cases: Some(cases),
-                        branches: Some(branches),
+                        condition: Some(g_condition),
+                        output_wires: Some(g_output_wires),
+                        cases: Some(g_cases),
+                        branches: Some(g_branches),
                     },
                 );
 
@@ -648,10 +668,10 @@ impl Gate {
             AssertZero(_) => None,
             Free(_, _) => None,
 
-            Function(_, _, _, _, _, _) => None,
+            AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
-            Switch(_, _, _, _, _, _, _) =>  unimplemented!("Switch gate"),
-            For(_, _, _, _, _, _, _) => unimplemented!("For loop"),
+            Switch(_, _, _, _) =>  unimplemented!("Switch gate"),
+            // For(_, _, _, _, _, _, _) => unimplemented!("For loop"),
         }
     }
 }
