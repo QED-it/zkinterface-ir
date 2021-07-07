@@ -21,26 +21,29 @@ Header Validation
  - Ensure that the characteristic is strictly greater than 1.
  - Ensure that the field degree is exactly 1.
  - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”).
- - Ensure that the profile name is either circ_arithmetic_simple or circ_boolean_simple.
-     - If circ_boolean_simple, checks that the field characteristic is exactly 2.
  - Ensure header messages are coherent.
-     - Profile names should be identical.
      - Versions should be identical.
      - Field characteristic and field degree should be the same.
+
+Relation Validation
+ - Ensure that the defined gateset is either 'arithmetic' (or a subset) or 'boolean' (or a subset).
+     - If boolean (or subset), checks that the field characteristic is exactly 2.
 
 Inputs Validation (Instances / Witnesses)
  - Ensure that Instance gates are given a value in Instance messages.
  - Ensure that Witness gates are given a value in Witness messages (prover only).
  - Ensure that no unused Instance or Witness values are given.
- - Ensure that the value they are set to is indeed encoding an element lying in the underlying field. For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
+ - Ensure that the value they are set to is indeed encoding an element lying in the underlying field.
+   For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
 
 Gates Validation
  - Ensure that gates used are coherent with the profile.
-   - @not/@and/@xor are not allowed with circ_arithmetic_simple.
-   - @add/@addc/@mul/@mulc are not allowed with circ_boolean_simple.
+   - @not/@and/@xor are not allowed with 'arithmetic'.
+   - @add/@addc/@mul/@mulc are not allowed with 'boolean'.
  - Ensure constants given in @addc/@mulc are actual field elements.
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
+ - Ensure that @function/@for/@switch are indeed allowed if they are encountered in the circuit.
 ";
 
 #[derive(Clone, Default)]
