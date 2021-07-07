@@ -3,7 +3,7 @@ extern crate serde_json;
 
 use num_bigint::BigUint;
 use std::fs::File;
-use std::io::{copy, stdout};
+use std::io::{copy, stdout, stdin, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
 pub use structopt::StructOpt;
@@ -82,13 +82,13 @@ pub struct Options {
     #[structopt(short, long, default_value = "101")]
     pub field_order: BigUint,
 
-    /// `example --incorect` will generate an incorrect witness useful for negative tests.
+    /// `example --incorrect` will generate an incorrect witness useful for negative tests.
     #[structopt(long)]
     pub incorrect: bool,
 
-    /// custom example to run
-    #[structopt(short, long, default_value = "pythagorean")]
-    pub customex: String,
+    ///
+    #[structopt(short, long, default_value = "-")]
+    pub resource: String,
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -96,7 +96,9 @@ pub fn cli(options: &Options) -> Result<()> {
         "example" => main_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
+        "from-json" => from_json(options),
         "to-yaml" => main_yaml(&load_messages(options)?),
+        "from-yaml" => from_yaml(options),
         "validate" => main_validate(&stream_messages(options)?),
         "evaluate" => main_evaluate(&stream_messages(options)?),
         "metrics" => main_metrics(&stream_messages(options)?),
@@ -134,32 +136,13 @@ fn main_example(opts: &Options) -> Result<()> {
     use crate::{FilesSink, Sink};
 
     let header = example_header_in_field(opts.field_order.to_bytes_le());
-    let (instance, relation, witness) = match &opts.customex[..] {
-        /*
-        "fibonacci" => {
-            let instance = fibonacci_instance(&header);
-            let relation = fibonacci_relation(&header);
-            let witness = if opts.incorrect {
-                fibonacci_witness_incorrect(&header)
-            } else {
-                fibonacci_witness(&header)
-            };
-            (instance, relation, witness)
-        }
-         */
-        _ => {
-            let instance = example_instance_h(&header);
-            let relation = example_relation_h(&header);
-            let witness = if opts.incorrect {
-                example_witness_incorrect_h(&header)
-            } else {
-                example_witness_h(&header)
-            };
-            (instance, relation, witness)
-        }
+    let instance = example_instance_h(&header);
+    let relation = example_relation_h(&header);
+    let witness = if opts.incorrect {
+        example_witness_incorrect_h(&header)
+    } else {
+        example_witness_h(&header)
     };
-
-
 
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
@@ -208,9 +191,53 @@ fn main_json(messages: &Messages) -> Result<()> {
     Ok(())
 }
 
+fn from_json(options: &Options) -> Result<()> {
+    let messages: Messages = match &options.resource [..] {
+        "-" => serde_json::from_reader(stdin())?,
+        _ => {
+            let file = File::open(&options.resource)?;
+            let reader = BufReader::new(file);
+            serde_json::from_reader(reader)?
+        },
+    };
+    let mut file = File::create("from_json.sieve")?;
+    for instance in messages.instances {
+        instance.write_into(&mut file)?;
+    }
+    for witness in messages.witnesses {
+        witness.write_into(&mut file)?;
+    }
+    for relation in messages.relations {
+        relation.write_into(&mut file)?;
+    }
+    Ok(())
+}
+
 fn main_yaml(messages: &Messages) -> Result<()> {
     serde_yaml::to_writer(stdout(), messages)?;
     println!();
+    Ok(())
+}
+
+fn from_yaml(options: &Options) -> Result<()> {
+    let messages: Messages = match &options.resource [..] {
+        "-" => serde_yaml::from_reader(stdin())?,
+        _ => {
+            let file = File::open(&options.resource)?;
+            let reader = BufReader::new(file);
+            serde_yaml::from_reader(reader)?
+        },
+    };
+    let mut file = File::create("from_yaml.sieve")?;
+    for instance in messages.instances {
+        instance.write_into(&mut file)?;
+    }
+    for witness in messages.witnesses {
+        witness.write_into(&mut file)?;
+    }
+    for relation in messages.relations {
+        relation.write_into(&mut file)?;
+    }
     Ok(())
 }
 
@@ -355,7 +382,6 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        customex: "pythagorean".to_string(),
     })?;
 
     cli(&Options {
@@ -363,7 +389,6 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        customex: "pythagorean".to_string(),
     })?;
 
     Ok(())
