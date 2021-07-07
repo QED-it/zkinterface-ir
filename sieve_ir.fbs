@@ -1,6 +1,7 @@
 // This is a FlatBuffers schema.
 // See https://google.github.io/flatbuffers/
 
+// TODO add references everywhere !!
 namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
@@ -16,7 +17,7 @@ table Header {
    field_characteristic :Value;
    field_degree         :uint32;
 }
-
+// TODO: add references to the spec for gateset/features
 table Relation {
    header               :Header;
    gateset              :string;
@@ -47,7 +48,7 @@ table Wire {
 table Value {
     value        :[ubyte];
 }
-
+// first/last are inclusive
 table WireRange {
     first      :Wire;
     last       :Wire;
@@ -157,6 +158,9 @@ table GateCall {
 
 /// The two Abstract types cannot exist by themselves in a circuit,
 /// they MUST be included in another gate (For / Switch / Call / ...)
+/// because they don't specify output wires, which should be specified in the
+/// encompassing structure itself.
+// TODO use ImpliedOutput... instead
 table AbstractGateCall {
     // Invokes a previously defined Function gate
     name              :string;
@@ -248,6 +252,7 @@ union ForLoopBody {
   IterExprAnonFunction
 }
 
+// TODO: explain the scoping rules for indices.
 table GateFor {
   outputs     :WireList;
   iterator    :string;

@@ -167,3 +167,14 @@ pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     )
 }
 
+/// Expand a WireList into a vector of individual WireId.
+// TODO implement it using iterator exclusively
+pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
+    wirelist.iter().flat_map(|wire|
+    match wire {
+        WireListElement::Wire(val) => vec![*val],
+        WireListElement::WireRange(first, last) =>
+            (*first..=*last).into_iter()
+                .map(|val| val).collect()
+    }).collect()
+}

@@ -1,4 +1,4 @@
-use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId};
+use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId, Result};
 
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
@@ -6,11 +6,11 @@ use std::collections::{HashSet, HashMap};
 
 use regex::Regex;
 use std::cmp::Ordering;
-use crate::structs::subcircuit::expand_wire_mappings;
 use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND};
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
+use crate::structs::wire::expand_wirelist;
+use crate::structs::function::CaseInvoke;
 
-type Var = u64;
 type Field = BigUint;
 
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
@@ -49,12 +49,14 @@ pub struct Validator {
 
     instance_queue_len: usize,
     witness_queue_len: usize,
-    live_wires: HashSet<Var>,
+    live_wires: HashSet<WireId>,
 
     got_header: bool,
     gate_set: u16,
     features: u16,
     header_version: String,
+
+    free_local_wire :WireId,
 
     field_characteristic: Field,
     field_degree: usize,
@@ -67,11 +69,15 @@ pub struct Validator {
 
 impl Validator {
     pub fn new_as_verifier() -> Validator {
-        Validator::default()
+        Validator {
+            free_local_wire: 1u64<<32,
+            ..Self::default()
+        }
     }
 
     pub fn new_as_prover() -> Validator {
         Validator {
+            free_local_wire: 1u64<<32,
             as_prover: true,
             ..Self::default()
         }
@@ -168,15 +174,29 @@ impl Validator {
             && contains_feature(self.gate_set, ARITH) {
             self.violate("Cannot mix arithmetic and boolean gates");
         }
-
-        self.features = relation.feat_mask;
-
         // check Header profile
         if contains_feature(self.gate_set, BOOL) {
             if self.field_characteristic != 2.to_biguint().unwrap() {
                 self.violate("With boolean profile the field characteristic can only be 2.");
             }
         }
+
+        self.features = relation.feat_mask;
+
+        for f in relation.functions {
+            self.ensure_allowed_feature("@function", FUNCTION);
+
+            let (name, output_count, input_count, instance_count, witness_count, subcircuit) =
+                (f.name, f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+            // Just record the signature.
+            // The validation will be done when the function will be called.
+            if self.known_functions.contains_key(&name) {
+                self.violate(format!("A function with the name '{}' already exists", name));
+            } else {
+                self.known_functions.insert(name.clone(), (output_count, input_count, instance_count, witness_count, subcircuit));
+            }
+        }
+
 
         for gate in &relation.gates {
             self.ingest_gate(gate);
@@ -275,15 +295,23 @@ impl Validator {
                 }
             }
 
-            Function(name, output_count, input_count, instance_count, witness_count, subcircuit) => {
-                self.ensure_allowed_feature("@function", FUNCTION);
-                // Just record the signature.
-                // The validation will be done when the function will be called.
-                if self.known_functions.contains_key(name) {
-                    self.violate(format!("A function with the name '{}' already exists", name));
-                } else {
-                    self.known_functions.insert(name.clone(), (*output_count, *input_count, *instance_count, *witness_count, subcircuit.clone()));
-                }
+            AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
+                let expanded_outputs = expand_wirelist(output_wires);
+                let expanded_inputs = expand_wirelist(input_wires);
+
+                // ingest it and validate it.
+                self.ingest_subcircuit(subcircuit,
+                                       &expanded_outputs,
+                                       &expanded_inputs,
+                                       *instance_count,
+                                       *witness_count);
+
+                // Now, consume instances and witnesses from self.
+                self.consume_instance(*instance_count);
+                self.consume_witness(*witness_count);
+                // set the output wires as defined, since we checked they were in each branch.
+                expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+
             }
 
             Call(name, output_wires, input_wires) => {
@@ -292,33 +320,20 @@ impl Validator {
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
                 // - consume witness.
+                let expanded_outputs = expand_wirelist(output_wires);
+                let expanded_inputs = expand_wirelist(input_wires);
 
-                let (output_count, input_count, instance_count, witness_count, subcircuit)
-                    = if let Some(function_signature) = self.known_functions.get(name).cloned() {
-                    function_signature
-                } else {
-                    self.violate(format!("Unknown Function gate {}", name));
-                    return;
-                };
-
-                if output_count != output_wires.len() {
-                    self.violate("AbstractCall: number of output wires mismatch.");
-                }
-
-                if input_count != input_wires.len() {
-                    self.violate("AbstractCall: number of input wires mismatch.");
-                }
-
-                self.ingest_subcircuit(&subcircuit, output_wires, input_wires, instance_count, witness_count);
+                let (instance_count, witness_count)
+                    = self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
 
                 // Now, consume instances and witnesses from self.
                 self.consume_instance(instance_count);
                 self.consume_witness(witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
-                output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
 
-            Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) => {
+            Switch(condition, output_wires, cases, branches) => {
                 self.ensure_allowed_feature("@switch", SWITCH);
                 self.ensure_defined_and_set(*condition);
 
@@ -346,20 +361,38 @@ impl Validator {
                     self.violate("Gate::Switch: The cases values contain duplicates.");
                 }
 
-                // 'Execute' each branch of the switch independently, and perform checks
+                let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
+
+                let expanded_outputs = expand_wirelist(output_wires);
+                // 'Validate' each branch of the switch independently, and perform checks
                 for branch in branches {
-                    // check the current branch
-                    self.ingest_subcircuit(branch, output_wires, input_wires, *instance_count, *witness_count);
+                    let (instance_count, witness_count) = match branch {
+                        CaseInvoke::AbstractGateCall(name, inputs) => {
+                            let expanded_inputs = expand_wirelist(inputs);
+                            self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0))
+                        }
+                        CaseInvoke::AbstractAnonCall(inputs, instance_count, witness_count, subcircuit) => {
+                            let expanded_inputs = expand_wirelist(inputs);
+                            self.ingest_subcircuit(subcircuit,
+                                                   &expanded_outputs,
+                                                   &expanded_inputs,
+                                                   *instance_count,
+                                                   *witness_count);
+                            (*instance_count, *witness_count)
+                        }
+                    };
+
+                    max_instance_count = std::cmp::max(max_instance_count, instance_count);
+                    max_witness_count  = std::cmp::max(max_witness_count,  witness_count);
                 }
 
-
                 // Now, consume instances and witnesses from self.
-                self.consume_instance(*instance_count);
-                self.consume_witness(*witness_count);
+                self.consume_instance(max_instance_count);
+                self.consume_witness(max_witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
-                output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
-
+/*
             For(
                 start_val,
                 end_val,
@@ -385,11 +418,43 @@ impl Validator {
                     output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
                 }
             }
+ */
+
         }
     }
 
-    /// This function will check the semantic validity of all the gates in the subcircuit,
-    /// applying a translation to each relative to the current workspace.
+    /// Ingest an equivalent of the AbstractGateCall, along with the expanded outputs list.
+    /// It will not set the output_wires as defined in the current validator, as well as it will not
+    /// consume instances and witnesses of the current validator. It's up to the caller
+    /// to do so whenever necessary.
+    /// It returns the tuple (instance_count, witness_count)
+    fn ingest_call (&mut self, name: &str, output_wires: &[WireId], input_wires: &[WireId]) -> Result<(usize, usize)> {
+        let (output_count, input_count, instance_count, witness_count, subcircuit)
+            = if let Some(function_signature) = self.known_functions.get(name).cloned() {
+            function_signature
+        } else {
+            self.violate(format!("Unknown Function gate {}", name));
+            return Err("This function does not exist.".into());
+        };
+
+        if output_count != output_wires.len() {
+            self.violate("AbstractCall: number of output wires mismatch.");
+        }
+
+        if input_count != input_wires.len() {
+            self.violate("AbstractCall: number of input wires mismatch.");
+        }
+
+        self.ingest_subcircuit(&subcircuit,
+                               output_wires,
+                               input_wires,
+                               instance_count,
+                               witness_count);
+
+        Ok((instance_count, witness_count))
+    }
+
+    /// This function will check the semantic validity of all the gates in the subcircuit.
     /// It will ensure that all input variable are currently well defined before entering this
     /// subcircuit, and will check that the subcircuit actually correctly set the given number of
     /// output wires, and that instance and witness variables declared are actually consumed.
@@ -398,7 +463,14 @@ impl Validator {
     /// NOTE: it will @b not consume instance / witness from the current validator, and will @b not
     /// set output variables of the current validator as set.
     /// If required, this should be done in the caller function.
-    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], instance_count: usize, witness_count: usize) {
+    fn ingest_subcircuit(
+        &mut self,
+        subcircuit: &[Gate],
+        output_wires: &[WireId],
+        input_wires: &[WireId],
+        instance_count: usize,
+        witness_count: usize
+    ) {
         let mut current_validator = self.clone();
         current_validator.instance_queue_len = instance_count;
         current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
@@ -433,15 +505,15 @@ impl Validator {
         }
     }
 
-    fn is_defined(&self, id: Var) -> bool {
+    fn is_defined(&self, id: WireId) -> bool {
         self.live_wires.contains(&id)
     }
 
-    fn declare(&mut self, id: Var) {
+    fn declare(&mut self, id: WireId) {
         self.live_wires.insert(id);
     }
 
-    fn remove(&mut self, id: Var) {
+    fn remove(&mut self, id: WireId) {
         if !self.live_wires.remove(&id) {
             self.violate(format!("The variable {} is being freed, but was not defined previously, or has been already freed", id));
         }
@@ -465,7 +537,7 @@ impl Validator {
         }
     }
 
-    fn ensure_defined_and_set(&mut self, id: Var) {
+    fn ensure_defined_and_set(&mut self, id: WireId) {
         if !self.is_defined(id) {
             if self.as_prover {
                 // in this case, this is a violation, since all variables must have been defined
@@ -481,7 +553,7 @@ impl Validator {
         }
     }
 
-    fn ensure_undefined(&mut self, id: Var) {
+    fn ensure_undefined(&mut self, id: WireId) {
         if self.is_defined(id) {
             self.violate(format!(
                 "The wire {} has already been initialized before. This violates the SSA property.",
@@ -490,7 +562,7 @@ impl Validator {
         }
     }
 
-    fn ensure_undefined_and_set(&mut self, id: Var) {
+    fn ensure_undefined_and_set(&mut self, id: WireId) {
         self.ensure_undefined(id);
         // define it.
         self.declare(id);

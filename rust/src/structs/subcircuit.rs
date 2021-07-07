@@ -2,7 +2,7 @@ use crate::Result;
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::{WireId, Gate};
-use crate::structs::wire::{WireList, WireListElement};
+use crate::structs::wire::{WireList, WireListElement, expand_wirelist};
 use crate::structs::function::CaseInvoke;
 
 /// Convert from Flatbuffers references to owned structure.
@@ -106,6 +106,15 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wir
         Gate::Witness(out) => Gate::Witness(translate!(*out)),
         Gate::Free(from, end) => Gate::Free(translate!(*from), end.map(|id| translate!(id))),
 
+        Gate::AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) =>
+            Gate::AnonCall(
+                translate_wirelist(output_wires, output_input_wires, free_temporary_wire),
+                translate_wirelist(input_wires, output_input_wires, free_temporary_wire),
+                *instance_count, *witness_count,
+                subcircuit.clone()
+            ),
+
+
         Gate::Call(name, outs,ins) =>
             Gate::Call(
                 name.clone(),
@@ -157,29 +166,16 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wir
         }
 
  */
+
     }
 }
 
 fn translate_wirelist(wires: &WireList, output_input_wires: &[WireId], free_temporary_wire: &mut WireId) -> WireList {
-    wires
+    expand_wirelist(wires)
         .iter()
-        .flat_map(move |id|
-            translate_wirelistelement(id, output_input_wires, free_temporary_wire)
+        .map(|id|
+            WireListElement::Wire(translate_or_temp!(output_input_wires, *id, *free_temporary_wire))
         ).collect()
-}
-
-// TODO implement it using iterator exclusively
-fn translate_wirelistelement<'w>(
-    wire: &'w WireListElement,
-    output_input_wires: &'w [WireId],
-    free_temporary_wire: &mut WireId
-) -> Vec<WireListElement>  {
-    match wire {
-        WireListElement::Wire(val) => vec![WireListElement::Wire(translate_or_temp!(output_input_wires, *val, *free_temporary_wire))],
-        WireListElement::WireRange(first, last) =>
-            (*first..*last).into_iter()
-                .map(|val| WireListElement::Wire(translate_or_temp!(output_input_wires, val, *free_temporary_wire))).collect()
-    }
 }
 
 #[test]

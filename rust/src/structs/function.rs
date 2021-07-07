@@ -138,12 +138,12 @@ pub fn build_gate_call<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Function {
-    name           :String,
-    output_count   :usize,
-    input_count    :usize,
-    instance_count :usize,
-    witness_count  :usize,
-    body           :Vec<Gate>,
+    pub name           :String,
+    pub output_count   :usize,
+    pub input_count    :usize,
+    pub instance_count :usize,
+    pub witness_count  :usize,
+    pub body           :Vec<Gate>,
 }
 
 impl<'a> TryFrom<g::Function<'a>> for Function {
