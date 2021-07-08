@@ -50,6 +50,7 @@ impl<S: Sink> MessageBuilder<S> {
                 header: header.clone(),
                 gate_mask: gateset,
                 feat_mask: features,
+                functions: vec![],
                 gates: vec![],
             },
             max_len: 100 * 1000,

@@ -3,7 +3,6 @@ use crate::sieve_ir_generated::sieve_ir as g;
 use crate::WireId;
 use serde::{Deserialize, Serialize};
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
-use crate::serde::export::TryFrom;
 use std::error::Error;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -13,6 +12,7 @@ pub enum WireListElement {
 }
 use WireListElement::*;
 use crate::flatbuffers::ForwardsUOffset;
+use std::convert::TryFrom;
 
 pub type WireList = Vec<WireListElement>;
 

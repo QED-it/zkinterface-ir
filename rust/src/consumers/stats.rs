@@ -72,9 +72,9 @@ impl Stats {
         self.ingest_header(&relation.header);
         self.relation_messages += 1;
 
-        for f in relation.functions {
-            let (name, output_count, input_count, instance_count, witness_count, subcircuit) =
-                (f.name, f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+        for f in relation.functions.iter() {
+            let (name, _, _, instance_count, witness_count, subcircuit) =
+                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
             // Just record the signature.
             self.functions_defined += 1;
             let func_stats = self.ingest_subcircuit(&subcircuit);
@@ -155,7 +155,7 @@ impl Stats {
                 }
             }
 
-            AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
+            AnonCall(_, _, instance_count, witness_count, subcircuit) => {
                 self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
                 self.instance_variables += instance_count;
                 self.witness_variables  += witness_count;

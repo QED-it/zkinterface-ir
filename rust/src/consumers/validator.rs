@@ -46,7 +46,7 @@ Gates Validation
  - Ensure that @function/@for/@switch are indeed allowed if they are encountered in the circuit.
 ";
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Validator {
     as_prover: bool,
 
@@ -70,19 +70,37 @@ pub struct Validator {
     violations: Vec<String>,
 }
 
-impl Validator {
-    pub fn new_as_verifier() -> Validator {
-        Validator {
+impl Default for Validator {
+    fn default() -> Self {
+        Self {
+            as_prover: Default::default(),
+            instance_queue_len: Default::default(),
+            witness_queue_len: Default::default(),
+            live_wires: Default::default(),
+            got_header: Default::default(),
+            gate_set: Default::default(),
+            features: Default::default(),
+            header_version: Default::default(),
+            // The only field set a specific value.
             free_local_wire: 1u64<<32,
-            ..Self::default()
+            field_characteristic: Default::default(),
+            field_degree: Default::default(),
+            known_functions: Default::default(),
+            violations: Default::default(),
         }
+    }
+}
+
+impl Validator {
+
+    pub fn new_as_verifier() -> Validator {
+        Validator::default()
     }
 
     pub fn new_as_prover() -> Validator {
         Validator {
-            free_local_wire: 1u64<<32,
-            as_prover: true,
-            ..Self::default()
+            as_prover : true,
+            ..Default::default()
         }
     }
 
@@ -186,11 +204,11 @@ impl Validator {
 
         self.features = relation.feat_mask;
 
-        for f in relation.functions {
+        for f in relation.functions.iter() {
             self.ensure_allowed_feature("@function", FUNCTION);
 
             let (name, output_count, input_count, instance_count, witness_count, subcircuit) =
-                (f.name, f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
             // Just record the signature.
             // The validation will be done when the function will be called.
             if self.known_functions.contains_key(&name) {
