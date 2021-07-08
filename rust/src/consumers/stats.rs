@@ -179,7 +179,7 @@ impl Stats {
                             }
                         }
                         CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, subcircuit) => {
-                            self.ingest_subcircuit(subcircuit);
+                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
                             (*instance_count, *witness_count)
                         }
                     };

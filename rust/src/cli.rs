@@ -382,6 +382,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        resource: "-".to_string()
     })?;
 
     cli(&Options {
@@ -389,6 +390,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
+        resource: "-".to_string()
     })?;
 
     Ok(())

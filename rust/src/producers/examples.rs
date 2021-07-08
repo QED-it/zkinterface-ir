@@ -209,18 +209,4 @@ fn test_examples() {
     assert_eq!(messages.relations, vec![example_relation()]);
     assert_eq!(messages.instances, vec![example_instance()]);
     assert_eq!(messages.witnesses, vec![example_witness()]);
-
-
-    let mut common_buf = Vec::<u8>::new();
-    fibonacci_instance(&example_header()).write_into(&mut common_buf).unwrap();
-    fibonacci_relation(&example_header()).write_into(&mut common_buf).unwrap();
-
-    let mut prover_buf = Vec::<u8>::new();
-    fibonacci_witness(&example_header()).write_into(&mut prover_buf).unwrap();
-
-    let source = Source::from_buffers(vec![common_buf, prover_buf]);
-    let messages = source.read_all_messages().unwrap();
-    assert_eq!(messages.relations, vec![fibonacci_relation(&example_header())]);
-    assert_eq!(messages.instances, vec![fibonacci_instance(&example_header())]);
-    assert_eq!(messages.witnesses, vec![fibonacci_witness(&example_header())]);
 }

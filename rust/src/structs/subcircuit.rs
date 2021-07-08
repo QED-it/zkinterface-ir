@@ -182,92 +182,99 @@ fn translate_wirelist(wires: &WireList, output_input_wires: &[WireId], free_temp
 fn test_translate_gate() -> Result<()> {
     use crate::Gate::*;
     use crate::producers::examples::{encode_negative_one, example_header};
+    use crate::structs::wire::WireListElement::*;
+    use crate::structs::function::CaseInvoke::*;
 
     let gates = vec![
-        Witness(1),
-        Switch(
-            1,                      // condition
-            vec![0, 2, 4, 5, 6],    // output wires
-            vec![1],
-            1,
-            1,
-            vec![vec![3], vec![5]], // cases
-            vec![
-                // branches
+            Witness(1),
+            Switch(
+                1,                      // condition
+                vec![Wire(0), Wire(2), WireRange(4, 6)],    // output wires
+                vec![vec![3], vec![5]], // cases
                 vec![
-                    Instance(0),  // In Global Namespace: Instance(0)
-                    Witness(1),   // In Global Namespace: Witness(2)
-                    Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
-                    Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
-                    Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    // branches
+                    AbstractAnonCall (
+                        // WireList, usize, usize, Vec<Gate>)
+                        vec![Wire(1)],
+                        1, 1,
+                        vec![
+                            Instance(0),  // In Global Namespace: Instance(0)
+                            Witness(1),   // In Global Namespace: Witness(2)
+                            Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(5), Wire(5)]), // In Global Namespace: Mul(4, 1, 1)
+                            Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
+                            Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                        ]
+
+                    ),
+                    // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
+                    AbstractAnonCall (
+                        // WireList, usize, usize, Vec<Gate>)
+                        vec![Wire(1)],
+                        1, 1,
+                        vec![
+                            Instance(0),
+                            Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(5), Wire(0)]),
+                            Witness(2),
+                            Mul(3, 1, 2),
+                            Add(4, 2, 3),
+                        ],
+                    )
                 ],
-                // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                vec![
-                    Instance(0),
-                    Call("example/mul".to_string(), vec![1], vec![5, 0]),
-                    Witness(2),
-                    Mul(3, 1, 2),
-                    Add(4, 2, 3),
-                ],
-            ],
-        ),
-        Constant(3, encode_negative_one(&example_header())), // -1
-        Call("example/mul".to_string(), vec![7], vec![3, 0]), // - instance_0
-        Add(8, 6, 7),                                        // sum - instance_0
-        Free(0, Some(7)),                                    // Free all previous wires
-        AssertZero(8),                                       // difference == 0
-    ];
+            ),
+            Constant(3, encode_negative_one(&example_header())), // -1
+            Call("example/mul".to_string(), vec![Wire(7)], vec![Wire(3), Wire(0)]), // - instance_0
+            Add(8, 6, 7),                                        // sum - instance_0
+            Free(0, Some(7)),                                    // Free all previous wires
+            AssertZero(8),                                       // difference == 0
+        ];
 
     let output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
     let expected = vec![
         Witness(43),
         Switch(
             43,                      // condition
-            vec![42, 44, 46, 47, 48],    // output wires
-            vec![43],
-            1,
-            1,
+            vec![Wire(42), Wire(44), Wire(46), Wire(47), Wire(48)],    // output wires
             vec![vec![3], vec![5]], // cases
             vec![
                 // branches
-                vec![
-                    Instance(0),  // In Global Namespace: Instance(0)
-                    Witness(1),   // In Global Namespace: Witness(2)
-                    Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
-                    Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
-                    Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                ],
+                AbstractAnonCall (
+                    // WireList, usize, usize, Vec<Gate>)
+                    vec![Wire(43)],
+                    1, 1,
+                    vec![
+                        Instance(0),  // In Global Namespace: Instance(0)
+                        Witness(1),   // In Global Namespace: Witness(2)
+                        Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(5), Wire(5)]), // In Global Namespace: Mul(4, 1, 1)
+                        Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
+                        Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    ]
+
+                ),
                 // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                vec![
-                    Instance(0),
-                    Call("example/mul".to_string(), vec![1], vec![5, 0]),
-                    Witness(2),
-                    Mul(3, 1, 2),
-                    Add(4, 2, 3),
-                ],
+                AbstractAnonCall (
+                    // WireList, usize, usize, Vec<Gate>)
+                    vec![Wire(43)],
+                    1, 1,
+                    vec![
+                        Instance(0),
+                        Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(5), Wire(0)]),
+                        Witness(2),
+                        Mul(3, 1, 2),
+                        Add(4, 2, 3),
+                    ],
+                )
             ],
         ),
         Constant(45, encode_negative_one(&example_header())), // -1
-        Call("example/mul".to_string(), vec![49], vec![45, 42]), // - instance_0
+        Call("example/mul".to_string(), vec![Wire(49)], vec![Wire(45), Wire(42)]), // - instance_0
         Add(50, 48, 49),                                        // sum - instance_0
         Free(42, Some(49)),                                    // Free all previous wires
         AssertZero(50),                                       // difference == 0
     ];
 
-    let translated: Vec<Gate> = translate_gates(&gates, &output_input_wires).collect();
+    let mut free_wire = 1u64<<32;
+    let translated: Vec<Gate> = translate_gates(&gates, &output_input_wires, &mut free_wire).collect();
     assert_eq!(translated, expected);
-
-    Ok(())
-}
-
-#[test]
-fn test_wire_mapping_expansion() -> Result<()> {
-    let wire_mappings: Vec<(u64, u64, usize)> = vec![(5, 0, 1), (10, 100, 2), (60, 100, 3)];
-    let expanded = expand_wire_mappings(&wire_mappings, 1);
-
-    let expected: Vec<u64> = vec![5, 110, 111, 160, 161, 162];
-
-    assert_eq!(expanded, expected);
 
     Ok(())
 }
