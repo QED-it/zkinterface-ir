@@ -2,6 +2,14 @@ use crate::{WireId, Gate};
 use crate::structs::wire::{WireList, WireListElement, expand_wirelist};
 use crate::structs::function::CaseInvoke;
 
+
+/// This functions will act on each gate of an iterable list of Gate, and will translate each of
+/// from the inner workspace into the outer one using the output/input vector of wires given as
+/// parameters. It will return an iterator.
+/// If a wireId in the inner workspace is bigger than the size of the output/input vector, then
+/// it's considered as a temporary wire. Temporary wires are stored starting at 2^63. It will
+/// "allocate" as many temporary wires as needed by incrementing 'free_temporary_wire' as many
+/// times.
 pub fn translate_gates<'s>(
     subcircuit: &'s[Gate],
     output_input_wires: &'s[WireId],
@@ -31,6 +39,9 @@ macro_rules! translate_or_temp {
         };
     }
 
+/// This function translate a single Gate from the inner workspace into the outer workspace
+/// using the output/input vector. If temporary wires are needed, it will pick one new one, and will
+/// increase the 'free_temporary_wire' reference.
 fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wire: &mut WireId) -> Gate {
     macro_rules! translate {
         ($wire_name:expr) => {
@@ -116,6 +127,9 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wir
     }
 }
 
+/// This helper function will translate a (not necessarily expanded) WireList from the inner workspace
+/// to the outer one using the output/input vector of wires.
+/// It will return an expanded WireList of each individual translated wire.
 fn translate_wirelist(wires: &WireList, output_input_wires: &[WireId], free_temporary_wire: &mut WireId) -> WireList {
     expand_wirelist(wires)
         .iter()
@@ -138,7 +152,7 @@ fn test_translate_gate() -> Result<()> {
             Witness(1),
             Switch(
                 1,                      // condition
-                vec![Wire(0), Wire(2), WireRange(4, 6)],    // output wires
+                vec![Wire(0), Wire(2), WireRange(4, 6)],    // output wires, with both individual+range
                 vec![vec![3], vec![5]], // cases
                 vec![
                     // branches

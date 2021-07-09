@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
 use std::error::Error;
 
+/// A WireListElement is either a single wire, or a range.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum WireListElement {
     Wire(WireId),
@@ -14,6 +15,7 @@ use WireListElement::*;
 use crate::flatbuffers::ForwardsUOffset;
 use std::convert::TryFrom;
 
+/// A WireList is simply a vector of WireListElement
 pub type WireList = Vec<WireListElement>;
 
 // =========================================
@@ -115,17 +117,7 @@ impl WireListElement {
                 })
             }
             WireRange(first, last) => {
-                let wire_first = build_wire(builder, *first);
-                let wire_last = build_wire(builder, *last);
-
-                let range = g::WireRange::create(
-                    builder,
-                    &g::WireRangeArgs{
-                        first: Some(wire_first),
-                        last: Some(wire_last),
-                    }
-                );
-
+                let range = build_range(builder, *first, *last);
                 g::WireListElement::create(
                     builder,
                     &g::WireListElementArgs{
@@ -171,10 +163,11 @@ pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 // TODO implement it using iterator exclusively
 pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
     wirelist.iter().flat_map(|wire|
-    match wire {
-        WireListElement::Wire(val) => vec![*val],
-        WireListElement::WireRange(first, last) =>
-            (*first..=*last).into_iter()
-                .map(|val| val).collect()
-    }).collect()
+        match wire {
+            WireListElement::Wire(val) => vec![*val],
+            WireListElement::WireRange(first, last) =>
+                (*first..=*last).into_iter()
+                    .map(|val| val).collect()
+        }
+    ).collect()
 }

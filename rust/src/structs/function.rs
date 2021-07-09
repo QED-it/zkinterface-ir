@@ -8,6 +8,8 @@ use crate::sieve_ir_generated::sieve_ir as g;
 use crate::{Result, Gate};
 use crate::structs::wire::{WireList, build_wire_list};
 
+// This is the 'invocation' equivalent in the spec.
+// Ref. SIEVE-IR spec (3.7)
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum CaseInvoke {
     /// AbstractGateCall(name, input_wires)
@@ -18,7 +20,8 @@ pub enum CaseInvoke {
 
 use CaseInvoke::*;
 
-/// Convert from Flatbuffers references to owned structure.
+/// Import a FBS binary representation of an Invocation into a owned structure
+/// It's mainly used in switches.
 impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
     type Error = Box<dyn Error>;
 
@@ -45,6 +48,8 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
     }
 }
 
+/// Dedicated helper function that imports a FBS AbstractGateCall into a
+/// CaseInvoke internal structure.
 pub fn from_gate_call(gate_call: g::AbstractGateCall) -> Result<CaseInvoke> {
     Ok(AbstractGateCall(
         gate_call.name().ok_or("Missing function name.")?.into(),
@@ -53,7 +58,7 @@ pub fn from_gate_call(gate_call: g::AbstractGateCall) -> Result<CaseInvoke> {
 }
 
 impl CaseInvoke {
-    /// Serialize this structure into a Flatbuffer message
+    /// Serialize this CaseInvoke into a Flatbuffer message
     pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         &'args self,
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
@@ -94,7 +99,7 @@ impl CaseInvoke {
     }
 
 
-    /// Convert from Flatbuffers vector of directives into owned structure.
+    /// Convert from Flatbuffers vector of CaseInvoke into a Rust vector of CaseInvoke.
     pub fn try_from_vector<'a>(
         g_vector: Vector<'a, ForwardsUOffset<g::CaseInvoke<'a>>>,
     ) -> Result<Vec<CaseInvoke>> {
@@ -106,7 +111,7 @@ impl CaseInvoke {
         Ok(directives)
     }
 
-    /// Add a vector of this structure into a Flatbuffers message builder.
+    /// Build a vector of this structure into a Flatbuffers message builder.
     pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
         directives: &'args [CaseInvoke],
@@ -118,7 +123,8 @@ impl CaseInvoke {
 }
 
 
-/// Add a vector of this structure into a Flatbuffers message builder.
+/// Dedicated helper function that exports a CaseInvoke internal structure into a
+/// FBS AbstractGateCall message.
 pub fn build_gate_call<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     name: &str,
@@ -135,6 +141,7 @@ pub fn build_gate_call<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     )
 }
 
+/// This structure handles the declaration of a function.
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Function {
     pub name           :String,
@@ -145,6 +152,7 @@ pub struct Function {
     pub body           :Vec<Gate>,
 }
 
+/// This function imports a FBS binary Function declaration into a Rust equivalent.
 impl<'a> TryFrom<g::Function<'a>> for Function {
     type Error = Box<dyn Error>;
 
@@ -166,6 +174,7 @@ impl<'a> TryFrom<g::Function<'a>> for Function {
 
 impl Function {
 
+    /// Default constructor
     pub fn new(
         name           :String,
         output_count   :usize,
@@ -205,6 +214,7 @@ impl Function {
         )
     }
 
+    /// Import a vector of binary Functions into a Rust vector of Function declarations.
     pub fn try_from_vector<'a>(
         g_vector: Vector<'a, ForwardsUOffset<g::Function<'a>>>
     ) -> Result<Vec<Function>> {
@@ -216,6 +226,7 @@ impl Function {
         Ok(functions)
     }
 
+    /// Build a vector a Rust Functions into the associated FBS structure.
     pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
         functions: &'args [Function],

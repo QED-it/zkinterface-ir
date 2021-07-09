@@ -10,25 +10,26 @@ use super::header::Header;
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::structs::function::Function;
 
-// Arithmetic Gates
+// Masks to handle Arithmetic Gates internally
 pub const ADD:   u16 = 0x0001;
 pub const ADDC:  u16 = 0x0002;
 pub const MUL:   u16 = 0x0004;
 pub const MULC:  u16 = 0x0008;
 pub const ARITH: u16 = ADD | ADDC | MUL | MULC;
 
-// Boolean Gates
+// Masks to handle Boolean Gates internally
 pub const XOR:  u16 = 0x0100;
 pub const AND:  u16 = 0x0200;
 pub const NOT:  u16 = 0x0400;
 pub const BOOL: u16 = XOR | AND | NOT;
 
 
-// Toggle features
-pub const FUNCTION: u16 = 0x1000;
-pub const FOR:      u16 = 0x2000;
-pub const SWITCH:   u16 = 0x4000;
-pub const SIMPLE:   u16 = 0x8000;
+// Masks to handle Toggle features internally
+pub const FUNCTION:              u16 = 0x1000;
+pub const FOR:                   u16 = 0x2000;
+pub const SWITCH:                u16 = 0x4000;
+pub const FOR_FUNCTION_SWITCH:   u16 = FOR|FUNCTION|SWITCH;
+pub const SIMPLE:                u16 = 0x0000;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
@@ -53,8 +54,8 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
         Ok(Relation {
             header: Header::try_from(g_relation.header())?,
-            gate_mask: parse_gate_set(g_relation.gateset().ok_or("Missing gateset description")?),
-            feat_mask: parse_feature_toggle(g_relation.features().ok_or("Missing feature toggles")?),
+            gate_mask: parse_gate_set(g_relation.gateset().ok_or("Missing gateset description")?)?,
+            feat_mask: parse_feature_toggle(g_relation.features().ok_or("Missing feature toggles")?)?,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
         })
@@ -128,29 +129,33 @@ impl Relation {
     }
 }
 
-
-fn parse_gate_set(gateset: impl Into<String>) -> u16 {
+/// This helper function will parse the string stored in a FBS Relation::gateset field
+/// and will translate it into a internal mask handling the same information.
+fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
 
     let mut ret: u16 = 0x0000;
     for substr in gateset.into().split(',') {
-        match substr.trim() {
-            "arithmetic" => return ARITH,
+        match &substr.replace(" ", "")[..] {
+            "arithmetic" => return Ok(ARITH),
             "@add"       => ret |= ADD,
             "@addc"      => ret |= ADDC,
             "@mul"       => ret |= MUL,
             "@mulc"      => ret |= MULC,
 
-            "boolean"    => return BOOL,
+            "boolean"    => return Ok(BOOL),
             "@xor"       => ret |= XOR,
             "@not"       => ret |= NOT,
             "@and"       => ret |= AND,
 
-            _ => {/* DO NOTHING */}
+            ""           => {/* DO NOTHING */}
+
+            _ => return Err(format!("Unable to parse the following gateset: {}", gateset.into()).into()),
         }
     }
-    ret
+    Ok(ret)
 }
 
+/// This functions exports a Relation::gateset string into a FBS binary message.
 fn build_gate_set<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     gateset: u16,
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
@@ -158,6 +163,8 @@ fn build_gate_set<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder.create_string(&create_gateset_string(gateset))
 }
 
+/// This helper function will translate the gateset mask into an IR-compliant string by
+/// concatenating associated strings to activated gatesets.
 fn create_gateset_string(gateset: u16) -> String {
     let mut gateset_val = gateset;
     let mut ret = String::new();
@@ -202,20 +209,24 @@ fn create_gateset_string(gateset: u16) -> String {
     ret
 }
 
-fn parse_feature_toggle(features: impl Into<String>) -> u16 {
+/// This helper function will parse the string stored in a FBS Relation::feature field
+/// and will translate it into a internal mask handling the same information.
+fn parse_feature_toggle(features: impl Into<String>) -> Result<u16> {
 
     let mut ret: u16 = 0x0000;
     for substr in features.into().split(',') {
-        match substr {
+        match &substr.replace(" ", "")[..] {
             "@function" => ret |= FUNCTION,
             "@for"      => ret |= FOR,
             "@switch"   => ret |= SWITCH,
-            _ => {/* DO NOTHING */}
+            "simple"    => return Ok(SIMPLE),
+            ""          => {/* DO NOTHING */}
+            _ => return Err(format!("Unable to parse following feature toggles {}", substr).into()),
         }
     }
-    ret
+    Ok(ret)
 }
-
+/// This functions exports a Relation::features string into a FBS binary message.
 fn build_feature_toggle<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     features: u16,
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
@@ -223,12 +234,16 @@ fn build_feature_toggle<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder.create_string(&create_feature_string(features))
 }
 
+/// This helper function will translate the features mask into an IR-compliant string by
+/// concatenating associated strings to activated features.
 fn create_feature_string(features: u16) -> String {
-    let mut features_val = features;
+    if (features & FOR_FUNCTION_SWITCH) == 0 {
+        return "simple".into();
+    }
+    let mut features_val = features & FOR_FUNCTION_SWITCH;
     let mut ret = String::new();
     while features_val != 0 {
         match features_val {
-            _ if contains_feature(features_val, SIMPLE)   => return "simple".into(),
             _ if contains_feature(features_val, FOR)      => {
                 ret += "@for,";
                 features_val ^= FOR;
@@ -248,6 +263,8 @@ fn create_feature_string(features: u16) -> String {
     ret
 }
 
+/// Helper function to determine whether a given 'feature' is included in the given 'feature_set'.
+/// It's done by checking that "(feature_set & feature) == feature".
 pub fn contains_feature(feature_set: u16, feature: u16) -> bool {
     (feature_set & feature) == feature
 }
@@ -255,22 +272,28 @@ pub fn contains_feature(feature_set: u16, feature: u16) -> bool {
 #[test]
 fn test_parse_gate_set() -> Result<()> {
 
-    assert_eq!(parse_gate_set("arithmetic"), ARITH);
-    assert_eq!(parse_gate_set("boolean"), BOOL);
-    assert_eq!(parse_gate_set("arithmetic,@add"), ARITH | ADD);
-    assert_eq!(parse_gate_set("@add,@addc,"), ADD|ADDC);
-    assert_eq!(parse_gate_set("@add , @mulc , @mul "), ADD|MULC|MUL);
-    assert_eq!(parse_gate_set("@add,@add,@mul"), ADD|MUL);
-    assert_eq!(parse_gate_set("@add,@addc,@mulc,@mul"), ARITH);
+    assert_eq!(parse_gate_set("arithmetic").unwrap(), ARITH);
+    assert_eq!(parse_gate_set("boolean").unwrap(), BOOL);
+    assert_eq!(parse_gate_set("arithmetic,@add").unwrap(), ARITH | ADD);
+    assert_eq!(parse_gate_set("@add,@addc,").unwrap(), ADD|ADDC);
+    assert_eq!(parse_gate_set("@add , @mulc , @mul ").unwrap(), ADD|MULC|MUL);
+    assert_eq!(parse_gate_set("@add,@add,@mul").unwrap(), ADD|MUL);
+    assert_eq!(parse_gate_set("@add,@addc,@mulc,@mul").unwrap(), ARITH);
     
-    assert_eq!(parse_gate_set("boolean"), BOOL);
-    assert_eq!(parse_gate_set("boolean,@xor"), BOOL|XOR);
-    assert_eq!(parse_gate_set("@xor,@and,@not"), XOR|AND|NOT);
-    assert_eq!(parse_gate_set(" @xor ,@and , @not"), XOR|AND|NOT);
-    assert_eq!(parse_gate_set("@xor,@and,@not"), BOOL);
+    assert_eq!(parse_gate_set("boolean").unwrap(), BOOL);
+    assert_eq!(parse_gate_set("boolean,@xor").unwrap(), BOOL|XOR);
+    assert_eq!(parse_gate_set("@xor,@and,@not").unwrap(), XOR|AND|NOT);
+    assert_eq!(parse_gate_set(" @xor ,@and , @not").unwrap(), XOR|AND|NOT);
+    assert_eq!(parse_gate_set("@xor,@and,@not").unwrap(), BOOL);
     
-    assert_eq!(parse_gate_set("boolean,arithmetic"), BOOL);
-    assert_eq!(parse_gate_set("arithmetic,boolean"), ARITH);
+    assert_eq!(parse_gate_set("boolean,arithmetic").unwrap(), BOOL);
+    assert_eq!(parse_gate_set("arithmetic,boolean").unwrap(), ARITH);
+
+    assert!(parse_gate_set("test").is_err());
+    assert!(parse_gate_set("@addc,@test").is_err());
+    assert!(parse_gate_set("add").is_err());
+    assert!(parse_gate_set("@and,test").is_err());
+    assert!(parse_gate_set("and").is_err());
 
     Ok(())
 }
@@ -292,3 +315,5 @@ fn test_create_gateset_string() -> Result<()> {
 
     Ok(())
 }
+
+// TODO write tests regarding feature toggles parsing / export.

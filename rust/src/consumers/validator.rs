@@ -10,6 +10,7 @@ use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND}
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::CaseInvoke;
+use crate::consumers::TEMPORARY_WIRES_START;
 
 type Field = BigUint;
 
@@ -82,7 +83,7 @@ impl Default for Validator {
             features: Default::default(),
             header_version: Default::default(),
             // The only field set a specific value.
-            free_local_wire: 1u64<<32,
+            free_local_wire: TEMPORARY_WIRES_START,
             field_characteristic: Default::default(),
             field_degree: Default::default(),
             known_functions: Default::default(),
@@ -365,8 +366,10 @@ impl Validator {
 
                 // If there is no branch, just return.
                 // If the list of output wires is not empty, then it's an issue.
-                // TODO: check if this is semantic failure.
                 if cases.len() == 0 {
+                    if output_wires.len() != 0 {
+                        self.violate("Switch: no case given while non-empty list of output wires.");
+                    }
                     return;
                 }
 

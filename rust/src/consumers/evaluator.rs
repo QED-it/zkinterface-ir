@@ -6,6 +6,7 @@ use std::ops::{BitAnd, BitXor};
 use crate::structs::subcircuit::translate_gates;
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::CaseInvoke;
+use crate::consumers::TEMPORARY_WIRES_START;
 
 type Repr = BigUint;
 
@@ -38,7 +39,7 @@ impl Default for Evaluator {
             known_functions: Default::default(),
 
             // use to allocate temporary wires if required.
-            free_local_wire : 1u64<<32,
+            free_local_wire : TEMPORARY_WIRES_START,
 
             verified_at_least_one_gate: Default::default(),
             found_error: Default::default(),
