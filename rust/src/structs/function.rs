@@ -7,7 +7,6 @@ use crate::sieve_ir_generated::sieve_ir as g;
 
 use crate::{Result, Gate};
 use crate::structs::wire::{WireList, build_wire_list};
-use crate::structs::subcircuit::{try_from_block, build_block};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum CaseInvoke {
@@ -34,7 +33,7 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
                 let g_subcircuit = gate_anon_call
                     .subcircuit()
                     .ok_or("Missing implementation")?;
-                let subcircuit = try_from_block(g_subcircuit)?;
+                let subcircuit = Gate::try_from_vector(g_subcircuit)?;
                 AbstractAnonCall(
                     WireList::try_from(gate_anon_call.input_wires().ok_or("Missing inputs")?)?,
                     gate_anon_call.instance_count() as usize,
@@ -72,7 +71,7 @@ impl CaseInvoke {
             }
             AbstractAnonCall(input_wires, instance_count, witness_count, subcircuit) => {
                 let g_inputs = build_wire_list(builder, input_wires);
-                let impl_gates = build_block(builder, subcircuit);
+                let impl_gates = Gate::build_vector(builder, subcircuit);
                 let g_directive = g::AbstractAnonCall::create(
                     builder,
                     &g::AbstractAnonCallArgs {
@@ -150,7 +149,7 @@ impl<'a> TryFrom<g::Function<'a>> for Function {
     type Error = Box<dyn Error>;
 
     fn try_from(g_function: g::Function) -> Result<Function> {
-        let g_block = g_function
+        let g_directives = g_function
             .body()
             .ok_or("Missing reference implementation")?;
 
@@ -160,7 +159,7 @@ impl<'a> TryFrom<g::Function<'a>> for Function {
             input_count: g_function.input_count() as usize,
             instance_count: g_function.instance_count() as usize,
             witness_count: g_function.witness_count() as usize,
-            body: try_from_block(g_block)?,
+            body: Gate::try_from_vector(g_directives)?,
         })
     }
 }
@@ -191,7 +190,7 @@ impl Function {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Function<'bldr>> {
         let g_name = builder.create_string(&self.name);
-        let g_body = build_block(builder, &self.body);
+        let g_body = Gate::build_vector(builder, &self.body);
 
         g::Function::create(
             builder,

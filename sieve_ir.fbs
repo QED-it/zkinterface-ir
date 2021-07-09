@@ -5,32 +5,43 @@
 namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
-
+// Ref. SIEVE-IR spec (1.)
 union Message {
    Relation,
    Instance,
    Witness,
 }
 
+// The 'version' field should match the following regexp "^\d+.\d+.\d+$"
+// The 'field_characteristic' should be prime, and stored little-endian byte-oriented vector
+// The 'field_degree' should be '1'. No other value is actually supported.
+// Ref. SIEVE-IR spec (3.1)
 table Header {
    version              :string;
    field_characteristic :Value;
    field_degree         :uint32;
 }
-// TODO: add references to the spec for gateset/features
+
+// The 'gateset' field should be a string, either 'arithmetic' (resp. 'boolean') to allow all
+//    arithmetic (resp. boolean) gates. Or a concatenated string, comma-separated, of the individual gates
+//    @add/@addc/@mul/@mulc (resp. @and/@xor/@and)
+// The 'features' field should be a concatenated string, comma-separated, of the following features
+//    @function/@for/@switch. If none of this features is required for the following Relation, then it should be
+//    the string 'simple'
+// Ref. SIEVE-IR spec (3.3)
 table Relation {
    header               :Header;
    gateset              :string;
    features             :string;
    functions            :[Function];
-   gates                :[Gate];
+   directives           :[Directive];
 }
-
+// Ref. SIEVE-IR spec (3.2)
 table Instance {
    header               :Header;
    common_inputs        :[Value];
 }
-
+// Ref. SIEVE-IR spec (3.2)
 table Witness {
    header               :Header;
    short_witness        :[Value];
@@ -49,6 +60,7 @@ table Value {
     value        :[ubyte];
 }
 // first/last are inclusive
+// Ref. SIEVE-IR spec (3.4)
 table WireRange {
     first      :Wire;
     last       :Wire;
@@ -58,7 +70,8 @@ union WireListElementU {
     Wire,
     WireRange,
 }
-
+// This additional table is a workaround to the flatc compiler limitation for Rust, since it does not support the
+// definition of 'vector of unions' as required for the 'WireList' type.
 table WireListElement {
     element   :WireListElementU;
 }
@@ -139,6 +152,13 @@ table GateFree {
    last        :Wire;
 }
 
+// Function declaration. The 'name' field is string matching the following pattern
+//   [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
+//   (
+//       [`.' | `::']
+//       [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
+//   )*
+// Ref. SIEVE-IR spec (3.5)
 table Function {
     // Declare a Function gate as a custom computation
     name            :string;
@@ -146,49 +166,48 @@ table Function {
     input_count     :uint64;
     instance_count  :uint64;
     witness_count   :uint64;
-    body            :Block;
+    body            :[Directive];
 }
-
+// Invokes a previously defined Function gate
+// Ref. SIEVE-IR spec (3.5)
 table GateCall {
-    // Invokes a previously defined Function gate
     name              :string;
     output_wires      :WireList;
     input_wires       :WireList;
+}
+// Defines a anonymous basic-block consisting of a list of gates.
+table GateAnonCall {
+    output_wires    :WireList;
+    inner           :AbstractAnonCall;
 }
 
 /// The two Abstract types cannot exist by themselves in a circuit,
 /// they MUST be included in another gate (For / Switch / Call / ...)
 /// because they don't specify output wires, which should be specified in the
 /// encompassing structure itself.
-// TODO use ImpliedOutput... instead
 table AbstractGateCall {
     // Invokes a previously defined Function gate
     name              :string;
     input_wires       :WireList;
 }
-
-table GateAnonCall {
-    output_wires    :WireList;
-    inner           :AbstractAnonCall;
-}
-
-
 table AbstractAnonCall {
     input_wires     :WireList;
     instance_count  :uint64;
     witness_count   :uint64;
-    subcircuit      :Block;
+    subcircuit      :[Directive];
 }
 
+// This is the 'invocation' equivalent
+// Ref. SIEVE-IR spec (3.7)
 union CaseInvokeU {
     AbstractGateCall,
     AbstractAnonCall,
 }
-
+// Workaround to flatc limitation in Rust which disallows 'vector of unions'
 table CaseInvoke {
     invocation  :CaseInvokeU;
 }
-
+// Ref. SIEVE-IR spec (3.7)
 table GateSwitch {
     condition         :Wire;
     output_wires      :WireList;
@@ -197,12 +216,14 @@ table GateSwitch {
 }
 
 /* ========== For loop related stuff  ========== */
+// Ref. SIEVE-IR spec (3.6)
 union IterExpr {
     IterExprConst,
     IterExprName,
     IterExprAdd,
     IterExprSub,
     IterExprMul,
+    IterExprDiv,
 }
 
 table IterExprWireNumber { value :IterExpr;}
@@ -217,6 +238,8 @@ table IterExprAdd { left :IterExpr; right :IterExpr; }
 table IterExprSub { left :IterExpr; right :IterExpr; }
 // Product of two expressions
 table IterExprMul { left :IterExpr; right :IterExpr; }
+// Division by a constant
+table IterExprDiv { left :IterExpr; right :IterExprConst; }
 
 table IterExprWireRange {
     first :IterExprWireNumber;
@@ -244,7 +267,7 @@ table IterExprAnonFunction {
   inputs           :IterExprWireList;
   instance_count   :uint64;
   witness_count    :uint64;
-  body             :Block;
+  body             :[Directive];
 }
 
 union ForLoopBody {
@@ -252,7 +275,14 @@ union ForLoopBody {
   IterExprAnonFunction
 }
 
-// TODO: explain the scoping rules for indices.
+// Currently, the spec says that an iterator is identified by a string. Scoping of iterators is not explicitly detailed.
+//  Issue: if a For loop uses “i” as index, and in its body, calls a function using a For loop with index “i” too,
+//         things may go wrong, as during evaluation, the inner value may replace the outer one and lead to wrong
+//         computation
+//  Solution: Currently, For loop body is either an AnonCall, or a named Call. AnonCall can be viewed as a block,
+//         where variables are inherited from outer scope, while Call can be viewed as an independent execution.
+//         Therefore, the already defined indices will propagate to inner loops in case of AnonCall, but not in case
+//         of a Call.
 table GateFor {
   outputs     :WireList;
   iterator    :string;
@@ -263,7 +293,7 @@ table GateFor {
 
 /* ========== For loop related stuff  ========== */
 
-union GateSet {
+union DirectiveSet {
    GateConstant,
    GateAssertZero,
    GateCopy,
@@ -283,12 +313,8 @@ union GateSet {
    GateFor,
 }
 
-table Gate {
-    gate      :GateSet;
-}
-
-table Block {
-    block   :[Gate];
+table Directive {
+    directive      :DirectiveSet;
 }
 
 // ==== Flatbuffers details ====

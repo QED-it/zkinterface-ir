@@ -222,11 +222,12 @@ pub enum IterExpr {
   IterExprAdd = 3,
   IterExprSub = 4,
   IterExprMul = 5,
+  IterExprDiv = 6,
 
 }
 
 pub const ENUM_MIN_ITER_EXPR: u8 = 0;
-pub const ENUM_MAX_ITER_EXPR: u8 = 5;
+pub const ENUM_MAX_ITER_EXPR: u8 = 6;
 
 impl<'a> flatbuffers::Follow<'a> for IterExpr {
   type Inner = Self;
@@ -260,23 +261,25 @@ impl flatbuffers::Push for IterExpr {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_ITER_EXPR:[IterExpr; 6] = [
+pub const ENUM_VALUES_ITER_EXPR:[IterExpr; 7] = [
   IterExpr::NONE,
   IterExpr::IterExprConst,
   IterExpr::IterExprName,
   IterExpr::IterExprAdd,
   IterExpr::IterExprSub,
-  IterExpr::IterExprMul
+  IterExpr::IterExprMul,
+  IterExpr::IterExprDiv
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_ITER_EXPR:[&'static str; 6] = [
+pub const ENUM_NAMES_ITER_EXPR:[&'static str; 7] = [
     "NONE",
     "IterExprConst",
     "IterExprName",
     "IterExprAdd",
     "IterExprSub",
-    "IterExprMul"
+    "IterExprMul",
+    "IterExprDiv"
 ];
 
 pub fn enum_name_iter_expr(e: IterExpr) -> &'static str {
@@ -416,7 +419,7 @@ pub struct ForLoopBodyUnionTableOffset {}
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub enum GateSet {
+pub enum DirectiveSet {
   NONE = 0,
   GateConstant = 1,
   GateAssertZero = 2,
@@ -438,10 +441,10 @@ pub enum GateSet {
 
 }
 
-pub const ENUM_MIN_GATE_SET: u8 = 0;
-pub const ENUM_MAX_GATE_SET: u8 = 17;
+pub const ENUM_MIN_DIRECTIVE_SET: u8 = 0;
+pub const ENUM_MAX_DIRECTIVE_SET: u8 = 17;
 
-impl<'a> flatbuffers::Follow<'a> for GateSet {
+impl<'a> flatbuffers::Follow<'a> for DirectiveSet {
   type Inner = Self;
   #[inline]
   fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
@@ -449,53 +452,53 @@ impl<'a> flatbuffers::Follow<'a> for GateSet {
   }
 }
 
-impl flatbuffers::EndianScalar for GateSet {
+impl flatbuffers::EndianScalar for DirectiveSet {
   #[inline]
   fn to_little_endian(self) -> Self {
     let n = u8::to_le(self as u8);
-    let p = &n as *const u8 as *const GateSet;
+    let p = &n as *const u8 as *const DirectiveSet;
     unsafe { *p }
   }
   #[inline]
   fn from_little_endian(self) -> Self {
     let n = u8::from_le(self as u8);
-    let p = &n as *const u8 as *const GateSet;
+    let p = &n as *const u8 as *const DirectiveSet;
     unsafe { *p }
   }
 }
 
-impl flatbuffers::Push for GateSet {
-    type Output = GateSet;
+impl flatbuffers::Push for DirectiveSet {
+    type Output = DirectiveSet;
     #[inline]
     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        flatbuffers::emplace_scalar::<GateSet>(dst, *self);
+        flatbuffers::emplace_scalar::<DirectiveSet>(dst, *self);
     }
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_GATE_SET:[GateSet; 18] = [
-  GateSet::NONE,
-  GateSet::GateConstant,
-  GateSet::GateAssertZero,
-  GateSet::GateCopy,
-  GateSet::GateAdd,
-  GateSet::GateMul,
-  GateSet::GateAddConstant,
-  GateSet::GateMulConstant,
-  GateSet::GateAnd,
-  GateSet::GateXor,
-  GateSet::GateNot,
-  GateSet::GateInstance,
-  GateSet::GateWitness,
-  GateSet::GateFree,
-  GateSet::GateCall,
-  GateSet::GateAnonCall,
-  GateSet::GateSwitch,
-  GateSet::GateFor
+pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 18] = [
+  DirectiveSet::NONE,
+  DirectiveSet::GateConstant,
+  DirectiveSet::GateAssertZero,
+  DirectiveSet::GateCopy,
+  DirectiveSet::GateAdd,
+  DirectiveSet::GateMul,
+  DirectiveSet::GateAddConstant,
+  DirectiveSet::GateMulConstant,
+  DirectiveSet::GateAnd,
+  DirectiveSet::GateXor,
+  DirectiveSet::GateNot,
+  DirectiveSet::GateInstance,
+  DirectiveSet::GateWitness,
+  DirectiveSet::GateFree,
+  DirectiveSet::GateCall,
+  DirectiveSet::GateAnonCall,
+  DirectiveSet::GateSwitch,
+  DirectiveSet::GateFor
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_GATE_SET:[&'static str; 18] = [
+pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 18] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -516,12 +519,12 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 18] = [
     "GateFor"
 ];
 
-pub fn enum_name_gate_set(e: GateSet) -> &'static str {
+pub fn enum_name_directive_set(e: DirectiveSet) -> &'static str {
   let index = e as u8;
-  ENUM_NAMES_GATE_SET[index as usize]
+  ENUM_NAMES_DIRECTIVE_SET[index as usize]
 }
 
-pub struct GateSetUnionTableOffset {}
+pub struct DirectiveSetUnionTableOffset {}
 pub enum HeaderOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -651,7 +654,7 @@ impl<'a> Relation<'a> {
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
         args: &'args RelationArgs<'args>) -> flatbuffers::WIPOffset<Relation<'bldr>> {
       let mut builder = RelationBuilder::new(_fbb);
-      if let Some(x) = args.gates { builder.add_gates(x); }
+      if let Some(x) = args.directives { builder.add_directives(x); }
       if let Some(x) = args.functions { builder.add_functions(x); }
       if let Some(x) = args.features { builder.add_features(x); }
       if let Some(x) = args.gateset { builder.add_gateset(x); }
@@ -663,7 +666,7 @@ impl<'a> Relation<'a> {
     pub const VT_GATESET: flatbuffers::VOffsetT = 6;
     pub const VT_FEATURES: flatbuffers::VOffsetT = 8;
     pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 10;
-    pub const VT_GATES: flatbuffers::VOffsetT = 12;
+    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 12;
 
   #[inline]
   pub fn header(&self) -> Option<Header<'a>> {
@@ -682,8 +685,8 @@ impl<'a> Relation<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Function<'a>>>>>(Relation::VT_FUNCTIONS, None)
   }
   #[inline]
-  pub fn gates(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Relation::VT_GATES, None)
+  pub fn directives(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(Relation::VT_DIRECTIVES, None)
   }
 }
 
@@ -692,7 +695,7 @@ pub struct RelationArgs<'a> {
     pub gateset: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub features: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub functions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Function<'a >>>>>,
-    pub gates: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
+    pub directives: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
 impl<'a> Default for RelationArgs<'a> {
     #[inline]
@@ -702,7 +705,7 @@ impl<'a> Default for RelationArgs<'a> {
             gateset: None,
             features: None,
             functions: None,
-            gates: None,
+            directives: None,
         }
     }
 }
@@ -728,8 +731,8 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_FUNCTIONS, functions);
   }
   #[inline]
-  pub fn add_gates(&mut self, gates: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_GATES, gates);
+  pub fn add_directives(&mut self, directives: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_DIRECTIVES, directives);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> RelationBuilder<'a, 'b> {
@@ -2592,8 +2595,8 @@ impl<'a> Function<'a> {
     self._tab.get::<u64>(Function::VT_WITNESS_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn body(&self) -> Option<Block<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(Function::VT_BODY, None)
+  pub fn body(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(Function::VT_BODY, None)
   }
 }
 
@@ -2603,7 +2606,7 @@ pub struct FunctionArgs<'a> {
     pub input_count: u64,
     pub instance_count: u64,
     pub witness_count: u64,
-    pub body: Option<flatbuffers::WIPOffset<Block<'a >>>,
+    pub body: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
     #[inline]
@@ -2644,8 +2647,8 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(Function::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
-  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<Block<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(Function::VT_BODY, body);
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_BODY, body);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> FunctionBuilder<'a, 'b> {
@@ -2762,96 +2765,6 @@ impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   }
 }
 
-pub enum AbstractGateCallOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-/// The two Abstract types cannot exist by themselves in a circuit,
-/// they MUST be included in another gate (For / Switch / Call / ...)
-pub struct AbstractGateCall<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for AbstractGateCall<'a> {
-    type Inner = AbstractGateCall<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> AbstractGateCall<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        AbstractGateCall {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args AbstractGateCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractGateCall<'bldr>> {
-      let mut builder = AbstractGateCallBuilder::new(_fbb);
-      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
-      if let Some(x) = args.name { builder.add_name(x); }
-      builder.finish()
-    }
-
-    pub const VT_NAME: flatbuffers::VOffsetT = 4;
-    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 6;
-
-  #[inline]
-  pub fn name(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(AbstractGateCall::VT_NAME, None)
-  }
-  #[inline]
-  pub fn input_wires(&self) -> Option<WireList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractGateCall::VT_INPUT_WIRES, None)
-  }
-}
-
-pub struct AbstractGateCallArgs<'a> {
-    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
-}
-impl<'a> Default for AbstractGateCallArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        AbstractGateCallArgs {
-            name: None,
-            input_wires: None,
-        }
-    }
-}
-pub struct AbstractGateCallBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> AbstractGateCallBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractGateCall::VT_NAME, name);
-  }
-  #[inline]
-  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractGateCall::VT_INPUT_WIRES, input_wires);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractGateCallBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    AbstractGateCallBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractGateCall<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
 pub enum GateAnonCallOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -2940,6 +2853,98 @@ impl<'a: 'b, 'b> GateAnonCallBuilder<'a, 'b> {
   }
 }
 
+pub enum AbstractGateCallOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+/// The two Abstract types cannot exist by themselves in a circuit,
+/// they MUST be included in another gate (For / Switch / Call / ...)
+/// because they don't specify output wires, which should be specified in the
+/// encompassing structure itself.
+pub struct AbstractGateCall<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for AbstractGateCall<'a> {
+    type Inner = AbstractGateCall<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> AbstractGateCall<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        AbstractGateCall {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args AbstractGateCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractGateCall<'bldr>> {
+      let mut builder = AbstractGateCallBuilder::new(_fbb);
+      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
+      if let Some(x) = args.name { builder.add_name(x); }
+      builder.finish()
+    }
+
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 6;
+
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(AbstractGateCall::VT_NAME, None)
+  }
+  #[inline]
+  pub fn input_wires(&self) -> Option<WireList<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractGateCall::VT_INPUT_WIRES, None)
+  }
+}
+
+pub struct AbstractGateCallArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
+}
+impl<'a> Default for AbstractGateCallArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        AbstractGateCallArgs {
+            name: None,
+            input_wires: None,
+        }
+    }
+}
+pub struct AbstractGateCallBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> AbstractGateCallBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractGateCall::VT_NAME, name);
+  }
+  #[inline]
+  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractGateCall::VT_INPUT_WIRES, input_wires);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractGateCallBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    AbstractGateCallBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractGateCall<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum AbstractAnonCallOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -2994,8 +2999,8 @@ impl<'a> AbstractAnonCall<'a> {
     self._tab.get::<u64>(AbstractAnonCall::VT_WITNESS_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn subcircuit(&self) -> Option<Block<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(AbstractAnonCall::VT_SUBCIRCUIT, None)
+  pub fn subcircuit(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(AbstractAnonCall::VT_SUBCIRCUIT, None)
   }
 }
 
@@ -3003,7 +3008,7 @@ pub struct AbstractAnonCallArgs<'a> {
     pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
     pub instance_count: u64,
     pub witness_count: u64,
-    pub subcircuit: Option<flatbuffers::WIPOffset<Block<'a >>>,
+    pub subcircuit: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
 impl<'a> Default for AbstractAnonCallArgs<'a> {
     #[inline]
@@ -3034,8 +3039,8 @@ impl<'a: 'b, 'b> AbstractAnonCallBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(AbstractAnonCall::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
-  pub fn add_subcircuit(&mut self, subcircuit: flatbuffers::WIPOffset<Block<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(AbstractAnonCall::VT_SUBCIRCUIT, subcircuit);
+  pub fn add_subcircuit(&mut self, subcircuit: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractAnonCall::VT_SUBCIRCUIT, subcircuit);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractAnonCallBuilder<'a, 'b> {
@@ -3367,6 +3372,16 @@ impl<'a> IterExprWireNumber<'a> {
     }
   }
 
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn value_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.value_type() == IterExpr::IterExprDiv {
+      self.value().map(|u| IterExprDiv::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
 }
 
 pub struct IterExprWireNumberArgs {
@@ -3671,6 +3686,16 @@ impl<'a> IterExprAdd<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.left_type() == IterExpr::IterExprDiv {
+      self.left().map(|u| IterExprDiv::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
   pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
     if self.right_type() == IterExpr::IterExprConst {
       self.right().map(|u| IterExprConst::init_from_table(u))
@@ -3714,6 +3739,16 @@ impl<'a> IterExprAdd<'a> {
   pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
     if self.right_type() == IterExpr::IterExprMul {
       self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.right_type() == IterExpr::IterExprDiv {
+      self.right().map(|u| IterExprDiv::init_from_table(u))
     } else {
       None
     }
@@ -3883,6 +3918,16 @@ impl<'a> IterExprSub<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.left_type() == IterExpr::IterExprDiv {
+      self.left().map(|u| IterExprDiv::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
   pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
     if self.right_type() == IterExpr::IterExprConst {
       self.right().map(|u| IterExprConst::init_from_table(u))
@@ -3926,6 +3971,16 @@ impl<'a> IterExprSub<'a> {
   pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
     if self.right_type() == IterExpr::IterExprMul {
       self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.right_type() == IterExpr::IterExprDiv {
+      self.right().map(|u| IterExprDiv::init_from_table(u))
     } else {
       None
     }
@@ -4095,6 +4150,16 @@ impl<'a> IterExprMul<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.left_type() == IterExpr::IterExprDiv {
+      self.left().map(|u| IterExprDiv::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
   pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
     if self.right_type() == IterExpr::IterExprConst {
       self.right().map(|u| IterExprConst::init_from_table(u))
@@ -4138,6 +4203,16 @@ impl<'a> IterExprMul<'a> {
   pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
     if self.right_type() == IterExpr::IterExprMul {
       self.right().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.right_type() == IterExpr::IterExprDiv {
+      self.right().map(|u| IterExprDiv::init_from_table(u))
     } else {
       None
     }
@@ -4193,6 +4268,166 @@ impl<'a: 'b, 'b> IterExprMulBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<IterExprMul<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum IterExprDivOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct IterExprDiv<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for IterExprDiv<'a> {
+    type Inner = IterExprDiv<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> IterExprDiv<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        IterExprDiv {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args IterExprDivArgs<'args>) -> flatbuffers::WIPOffset<IterExprDiv<'bldr>> {
+      let mut builder = IterExprDivBuilder::new(_fbb);
+      if let Some(x) = args.right { builder.add_right(x); }
+      if let Some(x) = args.left { builder.add_left(x); }
+      builder.add_left_type(args.left_type);
+      builder.finish()
+    }
+
+    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn left_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprDiv::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  }
+  #[inline]
+  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprDiv::VT_LEFT, None)
+  }
+  #[inline]
+  pub fn right(&self) -> Option<IterExprConst<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprConst<'a>>>(IterExprDiv::VT_RIGHT, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.left_type() == IterExpr::IterExprConst {
+      self.left().map(|u| IterExprConst::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.left_type() == IterExpr::IterExprName {
+      self.left().map(|u| IterExprName::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.left_type() == IterExpr::IterExprAdd {
+      self.left().map(|u| IterExprAdd::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.left_type() == IterExpr::IterExprSub {
+      self.left().map(|u| IterExprSub::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.left_type() == IterExpr::IterExprMul {
+      self.left().map(|u| IterExprMul::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
+    if self.left_type() == IterExpr::IterExprDiv {
+      self.left().map(|u| IterExprDiv::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+}
+
+pub struct IterExprDivArgs<'a> {
+    pub left_type: IterExpr,
+    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub right: Option<flatbuffers::WIPOffset<IterExprConst<'a >>>,
+}
+impl<'a> Default for IterExprDivArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        IterExprDivArgs {
+            left_type: IterExpr::NONE,
+            left: None,
+            right: None,
+        }
+    }
+}
+pub struct IterExprDivBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> IterExprDivBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_left_type(&mut self, left_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprDiv::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  }
+  #[inline]
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprDiv::VT_LEFT, left);
+  }
+  #[inline]
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<IterExprConst<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprConst>>(IterExprDiv::VT_RIGHT, right);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprDivBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    IterExprDivBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprDiv<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -4630,8 +4865,8 @@ impl<'a> IterExprAnonFunction<'a> {
     self._tab.get::<u64>(IterExprAnonFunction::VT_WITNESS_COUNT, Some(0)).unwrap()
   }
   #[inline]
-  pub fn body(&self) -> Option<Block<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<Block<'a>>>(IterExprAnonFunction::VT_BODY, None)
+  pub fn body(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(IterExprAnonFunction::VT_BODY, None)
   }
 }
 
@@ -4640,7 +4875,7 @@ pub struct IterExprAnonFunctionArgs<'a> {
     pub inputs: Option<flatbuffers::WIPOffset<IterExprWireList<'a >>>,
     pub instance_count: u64,
     pub witness_count: u64,
-    pub body: Option<flatbuffers::WIPOffset<Block<'a >>>,
+    pub body: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
 impl<'a> Default for IterExprAnonFunctionArgs<'a> {
     #[inline]
@@ -4676,8 +4911,8 @@ impl<'a: 'b, 'b> IterExprAnonFunctionBuilder<'a, 'b> {
     self.fbb_.push_slot::<u64>(IterExprAnonFunction::VT_WITNESS_COUNT, witness_count, 0);
   }
   #[inline]
-  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<Block<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Block>>(IterExprAnonFunction::VT_BODY, body);
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprAnonFunction::VT_BODY, body);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprAnonFunctionBuilder<'a, 'b> {
@@ -4850,15 +5085,15 @@ impl<'a: 'b, 'b> GateForBuilder<'a, 'b> {
   }
 }
 
-pub enum GateOffset {}
+pub enum DirectiveOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct Gate<'a> {
+pub struct Directive<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for Gate<'a> {
-    type Inner = Gate<'a>;
+impl<'a> flatbuffers::Follow<'a> for Directive<'a> {
+    type Inner = Directive<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -4867,39 +5102,39 @@ impl<'a> flatbuffers::Follow<'a> for Gate<'a> {
     }
 }
 
-impl<'a> Gate<'a> {
+impl<'a> Directive<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Gate {
+        Directive {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateArgs) -> flatbuffers::WIPOffset<Gate<'bldr>> {
-      let mut builder = GateBuilder::new(_fbb);
-      if let Some(x) = args.gate { builder.add_gate(x); }
-      builder.add_gate_type(args.gate_type);
+        args: &'args DirectiveArgs) -> flatbuffers::WIPOffset<Directive<'bldr>> {
+      let mut builder = DirectiveBuilder::new(_fbb);
+      if let Some(x) = args.directive { builder.add_directive(x); }
+      builder.add_directive_type(args.directive_type);
       builder.finish()
     }
 
-    pub const VT_GATE_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_GATE: flatbuffers::VOffsetT = 6;
+    pub const VT_DIRECTIVE_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_DIRECTIVE: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn gate_type(&self) -> GateSet {
-    self._tab.get::<GateSet>(Gate::VT_GATE_TYPE, Some(GateSet::NONE)).unwrap()
+  pub fn directive_type(&self) -> DirectiveSet {
+    self._tab.get::<DirectiveSet>(Directive::VT_DIRECTIVE_TYPE, Some(DirectiveSet::NONE)).unwrap()
   }
   #[inline]
-  pub fn gate(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(Gate::VT_GATE, None)
+  pub fn directive(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(Directive::VT_DIRECTIVE, None)
   }
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_constant(&self) -> Option<GateConstant<'a>> {
-    if self.gate_type() == GateSet::GateConstant {
-      self.gate().map(|u| GateConstant::init_from_table(u))
+  pub fn directive_as_gate_constant(&self) -> Option<GateConstant<'a>> {
+    if self.directive_type() == DirectiveSet::GateConstant {
+      self.directive().map(|u| GateConstant::init_from_table(u))
     } else {
       None
     }
@@ -4907,9 +5142,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_assert_zero(&self) -> Option<GateAssertZero<'a>> {
-    if self.gate_type() == GateSet::GateAssertZero {
-      self.gate().map(|u| GateAssertZero::init_from_table(u))
+  pub fn directive_as_gate_assert_zero(&self) -> Option<GateAssertZero<'a>> {
+    if self.directive_type() == DirectiveSet::GateAssertZero {
+      self.directive().map(|u| GateAssertZero::init_from_table(u))
     } else {
       None
     }
@@ -4917,9 +5152,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_copy(&self) -> Option<GateCopy<'a>> {
-    if self.gate_type() == GateSet::GateCopy {
-      self.gate().map(|u| GateCopy::init_from_table(u))
+  pub fn directive_as_gate_copy(&self) -> Option<GateCopy<'a>> {
+    if self.directive_type() == DirectiveSet::GateCopy {
+      self.directive().map(|u| GateCopy::init_from_table(u))
     } else {
       None
     }
@@ -4927,9 +5162,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_add(&self) -> Option<GateAdd<'a>> {
-    if self.gate_type() == GateSet::GateAdd {
-      self.gate().map(|u| GateAdd::init_from_table(u))
+  pub fn directive_as_gate_add(&self) -> Option<GateAdd<'a>> {
+    if self.directive_type() == DirectiveSet::GateAdd {
+      self.directive().map(|u| GateAdd::init_from_table(u))
     } else {
       None
     }
@@ -4937,9 +5172,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_mul(&self) -> Option<GateMul<'a>> {
-    if self.gate_type() == GateSet::GateMul {
-      self.gate().map(|u| GateMul::init_from_table(u))
+  pub fn directive_as_gate_mul(&self) -> Option<GateMul<'a>> {
+    if self.directive_type() == DirectiveSet::GateMul {
+      self.directive().map(|u| GateMul::init_from_table(u))
     } else {
       None
     }
@@ -4947,9 +5182,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_add_constant(&self) -> Option<GateAddConstant<'a>> {
-    if self.gate_type() == GateSet::GateAddConstant {
-      self.gate().map(|u| GateAddConstant::init_from_table(u))
+  pub fn directive_as_gate_add_constant(&self) -> Option<GateAddConstant<'a>> {
+    if self.directive_type() == DirectiveSet::GateAddConstant {
+      self.directive().map(|u| GateAddConstant::init_from_table(u))
     } else {
       None
     }
@@ -4957,9 +5192,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_mul_constant(&self) -> Option<GateMulConstant<'a>> {
-    if self.gate_type() == GateSet::GateMulConstant {
-      self.gate().map(|u| GateMulConstant::init_from_table(u))
+  pub fn directive_as_gate_mul_constant(&self) -> Option<GateMulConstant<'a>> {
+    if self.directive_type() == DirectiveSet::GateMulConstant {
+      self.directive().map(|u| GateMulConstant::init_from_table(u))
     } else {
       None
     }
@@ -4967,9 +5202,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_and(&self) -> Option<GateAnd<'a>> {
-    if self.gate_type() == GateSet::GateAnd {
-      self.gate().map(|u| GateAnd::init_from_table(u))
+  pub fn directive_as_gate_and(&self) -> Option<GateAnd<'a>> {
+    if self.directive_type() == DirectiveSet::GateAnd {
+      self.directive().map(|u| GateAnd::init_from_table(u))
     } else {
       None
     }
@@ -4977,9 +5212,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_xor(&self) -> Option<GateXor<'a>> {
-    if self.gate_type() == GateSet::GateXor {
-      self.gate().map(|u| GateXor::init_from_table(u))
+  pub fn directive_as_gate_xor(&self) -> Option<GateXor<'a>> {
+    if self.directive_type() == DirectiveSet::GateXor {
+      self.directive().map(|u| GateXor::init_from_table(u))
     } else {
       None
     }
@@ -4987,9 +5222,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_not(&self) -> Option<GateNot<'a>> {
-    if self.gate_type() == GateSet::GateNot {
-      self.gate().map(|u| GateNot::init_from_table(u))
+  pub fn directive_as_gate_not(&self) -> Option<GateNot<'a>> {
+    if self.directive_type() == DirectiveSet::GateNot {
+      self.directive().map(|u| GateNot::init_from_table(u))
     } else {
       None
     }
@@ -4997,9 +5232,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_instance(&self) -> Option<GateInstance<'a>> {
-    if self.gate_type() == GateSet::GateInstance {
-      self.gate().map(|u| GateInstance::init_from_table(u))
+  pub fn directive_as_gate_instance(&self) -> Option<GateInstance<'a>> {
+    if self.directive_type() == DirectiveSet::GateInstance {
+      self.directive().map(|u| GateInstance::init_from_table(u))
     } else {
       None
     }
@@ -5007,9 +5242,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_witness(&self) -> Option<GateWitness<'a>> {
-    if self.gate_type() == GateSet::GateWitness {
-      self.gate().map(|u| GateWitness::init_from_table(u))
+  pub fn directive_as_gate_witness(&self) -> Option<GateWitness<'a>> {
+    if self.directive_type() == DirectiveSet::GateWitness {
+      self.directive().map(|u| GateWitness::init_from_table(u))
     } else {
       None
     }
@@ -5017,9 +5252,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_free(&self) -> Option<GateFree<'a>> {
-    if self.gate_type() == GateSet::GateFree {
-      self.gate().map(|u| GateFree::init_from_table(u))
+  pub fn directive_as_gate_free(&self) -> Option<GateFree<'a>> {
+    if self.directive_type() == DirectiveSet::GateFree {
+      self.directive().map(|u| GateFree::init_from_table(u))
     } else {
       None
     }
@@ -5027,9 +5262,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_call(&self) -> Option<GateCall<'a>> {
-    if self.gate_type() == GateSet::GateCall {
-      self.gate().map(|u| GateCall::init_from_table(u))
+  pub fn directive_as_gate_call(&self) -> Option<GateCall<'a>> {
+    if self.directive_type() == DirectiveSet::GateCall {
+      self.directive().map(|u| GateCall::init_from_table(u))
     } else {
       None
     }
@@ -5037,9 +5272,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_anon_call(&self) -> Option<GateAnonCall<'a>> {
-    if self.gate_type() == GateSet::GateAnonCall {
-      self.gate().map(|u| GateAnonCall::init_from_table(u))
+  pub fn directive_as_gate_anon_call(&self) -> Option<GateAnonCall<'a>> {
+    if self.directive_type() == DirectiveSet::GateAnonCall {
+      self.directive().map(|u| GateAnonCall::init_from_table(u))
     } else {
       None
     }
@@ -5047,9 +5282,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_switch(&self) -> Option<GateSwitch<'a>> {
-    if self.gate_type() == GateSet::GateSwitch {
-      self.gate().map(|u| GateSwitch::init_from_table(u))
+  pub fn directive_as_gate_switch(&self) -> Option<GateSwitch<'a>> {
+    if self.directive_type() == DirectiveSet::GateSwitch {
+      self.directive().map(|u| GateSwitch::init_from_table(u))
     } else {
       None
     }
@@ -5057,9 +5292,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_for(&self) -> Option<GateFor<'a>> {
-    if self.gate_type() == GateSet::GateFor {
-      self.gate().map(|u| GateFor::init_from_table(u))
+  pub fn directive_as_gate_for(&self) -> Option<GateFor<'a>> {
+    if self.directive_type() == DirectiveSet::GateFor {
+      self.directive().map(|u| GateFor::init_from_table(u))
     } else {
       None
     }
@@ -5067,118 +5302,42 @@ impl<'a> Gate<'a> {
 
 }
 
-pub struct GateArgs {
-    pub gate_type: GateSet,
-    pub gate: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct DirectiveArgs {
+    pub directive_type: DirectiveSet,
+    pub directive: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
 }
-impl<'a> Default for GateArgs {
+impl<'a> Default for DirectiveArgs {
     #[inline]
     fn default() -> Self {
-        GateArgs {
-            gate_type: GateSet::NONE,
-            gate: None,
+        DirectiveArgs {
+            directive_type: DirectiveSet::NONE,
+            directive: None,
         }
     }
 }
-pub struct GateBuilder<'a: 'b, 'b> {
+pub struct DirectiveBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> GateBuilder<'a, 'b> {
+impl<'a: 'b, 'b> DirectiveBuilder<'a, 'b> {
   #[inline]
-  pub fn add_gate_type(&mut self, gate_type: GateSet) {
-    self.fbb_.push_slot::<GateSet>(Gate::VT_GATE_TYPE, gate_type, GateSet::NONE);
+  pub fn add_directive_type(&mut self, directive_type: DirectiveSet) {
+    self.fbb_.push_slot::<DirectiveSet>(Directive::VT_DIRECTIVE_TYPE, directive_type, DirectiveSet::NONE);
   }
   #[inline]
-  pub fn add_gate(&mut self, gate: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Gate::VT_GATE, gate);
+  pub fn add_directive(&mut self, directive: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Directive::VT_DIRECTIVE, directive);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> DirectiveBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    GateBuilder {
+    DirectiveBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Gate<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum BlockOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Block<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Block<'a> {
-    type Inner = Block<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Block<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Block {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args BlockArgs<'args>) -> flatbuffers::WIPOffset<Block<'bldr>> {
-      let mut builder = BlockBuilder::new(_fbb);
-      if let Some(x) = args.block { builder.add_block(x); }
-      builder.finish()
-    }
-
-    pub const VT_BLOCK: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn block(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Gate<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Gate<'a>>>>>(Block::VT_BLOCK, None)
-  }
-}
-
-pub struct BlockArgs<'a> {
-    pub block: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Gate<'a >>>>>,
-}
-impl<'a> Default for BlockArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        BlockArgs {
-            block: None,
-        }
-    }
-}
-pub struct BlockBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> BlockBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_block(&mut self, block: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Gate<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Block::VT_BLOCK, block);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> BlockBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    BlockBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Block<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<Directive<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }

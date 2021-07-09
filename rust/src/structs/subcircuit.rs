@@ -1,60 +1,6 @@
-use crate::Result;
-use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
-use crate::sieve_ir_generated::sieve_ir as g;
 use crate::{WireId, Gate};
 use crate::structs::wire::{WireList, WireListElement, expand_wirelist};
 use crate::structs::function::CaseInvoke;
-
-/// Convert from Flatbuffers references to owned structure.
-pub fn try_from_block(g_block: g::Block) -> Result<Vec<Gate>> {
-    let ret = Gate::try_from_vector(g_block.block().ok_or("Missing subcircuit in block")?)?;
-    Ok(ret)
-}
-
-/// Serialize this structure into a Flatbuffer message
-pub fn build_block<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    block: &'args [Gate],
-) -> WIPOffset<g::Block<'bldr>> {
-    let impl_gates = Gate::build_vector(builder, block);
-    g::Block::create(
-        builder,
-        &g::BlockArgs {
-            block: Some(impl_gates),
-        }
-    )
-}
-
-/// Convert from Flatbuffers vector of directives into owned structure.
-pub fn try_from_block_vector<'a>(
-    g_vector: Vector<'a, ForwardsUOffset<g::Block<'a>>>,
-) -> Result<Vec<Vec<Gate>>> {
-    let mut directives = vec![];
-    for i in 0..g_vector.len() {
-        let g_a = g_vector.get(i);
-        directives.push(try_from_block(g_a)?);
-    }
-    Ok(directives)
-}
-
-/// Add a vector of this structure into a Flatbuffers message builder.
-pub fn build_block_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    directives: &'args [Vec<Gate>],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Block<'bldr>>>> {
-    let g_directives: Vec<_> = directives.iter()
-        .map(|directive| {
-            let impl_gates = Gate::build_vector(builder, directive);
-            g::Block::create(
-                builder,
-                &g::BlockArgs {
-                    block: Some(impl_gates),
-                }
-            )}
-        ).collect();
-    let g_vector = builder.create_vector(&g_directives);
-    g_vector
-}
 
 pub fn translate_gates<'s>(
     subcircuit: &'s[Gate],
@@ -177,6 +123,9 @@ fn translate_wirelist(wires: &WireList, output_input_wires: &[WireId], free_temp
             WireListElement::Wire(translate_or_temp!(output_input_wires, *id, *free_temporary_wire))
         ).collect()
 }
+
+#[cfg(test)]
+use crate::Result;
 
 #[test]
 fn test_translate_gate() -> Result<()> {

@@ -44,7 +44,7 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_relation: g::Relation) -> Result<Relation> {
-        let g_gates = g_relation.gates().ok_or("Missing gates")?;
+        let g_gates = g_relation.directives().ok_or("Missing directives")?;
         let functions = if let Some(g_functions) = g_relation.functions() {
             Function::try_from_vector(g_functions)?
         } else {
@@ -80,7 +80,7 @@ impl Relation {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<g::Root<'bldr>> {
         let header = Some(self.header.build(builder));
-        let gates = Gate::build_vector(builder, &self.gates);
+        let directives = Gate::build_vector(builder, &self.gates);
         let functions = Function::build_vector(builder, &self.functions);
 
         let gateset = build_gate_set(self.gate_mask, builder);
@@ -93,7 +93,7 @@ impl Relation {
                 gateset: Some(gateset),
                 features: Some(features),
                 functions: Some(functions),
-                gates: Some(gates),
+                directives: Some(directives),
             },
         );
 
