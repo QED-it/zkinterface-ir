@@ -237,7 +237,7 @@ table IterExprSub { left :IterExpr; right :IterExpr; }
 // Product of two expressions
 table IterExprMul { left :IterExpr; right :IterExpr; }
 // Division of an expression by a constant
-table IterExprDivConst { numer :IterExpr; denom :IterExprConst; }
+table IterExprDivConst { numer :IterExpr; denom :uint64; }
 
 table IterExprWireRange {
     first :IterExprWireNumber;

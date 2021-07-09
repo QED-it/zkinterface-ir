@@ -4300,9 +4300,9 @@ impl<'a> IterExprDivConst<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprDivConstArgs<'args>) -> flatbuffers::WIPOffset<IterExprDivConst<'bldr>> {
+        args: &'args IterExprDivConstArgs) -> flatbuffers::WIPOffset<IterExprDivConst<'bldr>> {
       let mut builder = IterExprDivConstBuilder::new(_fbb);
-      if let Some(x) = args.denom { builder.add_denom(x); }
+      builder.add_denom(args.denom);
       if let Some(x) = args.numer { builder.add_numer(x); }
       builder.add_numer_type(args.numer_type);
       builder.finish()
@@ -4321,8 +4321,8 @@ impl<'a> IterExprDivConst<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprDivConst::VT_NUMER, None)
   }
   #[inline]
-  pub fn denom(&self) -> Option<IterExprConst<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprConst<'a>>>(IterExprDivConst::VT_DENOM, None)
+  pub fn denom(&self) -> u64 {
+    self._tab.get::<u64>(IterExprDivConst::VT_DENOM, Some(0)).unwrap()
   }
   #[inline]
   #[allow(non_snake_case)]
@@ -4386,18 +4386,18 @@ impl<'a> IterExprDivConst<'a> {
 
 }
 
-pub struct IterExprDivConstArgs<'a> {
+pub struct IterExprDivConstArgs {
     pub numer_type: IterExpr,
     pub numer: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    pub denom: Option<flatbuffers::WIPOffset<IterExprConst<'a >>>,
+    pub denom: u64,
 }
-impl<'a> Default for IterExprDivConstArgs<'a> {
+impl<'a> Default for IterExprDivConstArgs {
     #[inline]
     fn default() -> Self {
         IterExprDivConstArgs {
             numer_type: IterExpr::NONE,
             numer: None,
-            denom: None,
+            denom: 0,
         }
     }
 }
@@ -4415,8 +4415,8 @@ impl<'a: 'b, 'b> IterExprDivConstBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprDivConst::VT_NUMER, numer);
   }
   #[inline]
-  pub fn add_denom(&mut self, denom: flatbuffers::WIPOffset<IterExprConst<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprConst>>(IterExprDivConst::VT_DENOM, denom);
+  pub fn add_denom(&mut self, denom: u64) {
+    self.fbb_.push_slot::<u64>(IterExprDivConst::VT_DENOM, denom, 0);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprDivConstBuilder<'a, 'b> {
