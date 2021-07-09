@@ -222,7 +222,7 @@ pub enum IterExpr {
   IterExprAdd = 3,
   IterExprSub = 4,
   IterExprMul = 5,
-  IterExprDiv = 6,
+  IterExprDivConst = 6,
 
 }
 
@@ -268,7 +268,7 @@ pub const ENUM_VALUES_ITER_EXPR:[IterExpr; 7] = [
   IterExpr::IterExprAdd,
   IterExpr::IterExprSub,
   IterExpr::IterExprMul,
-  IterExpr::IterExprDiv
+  IterExpr::IterExprDivConst
 ];
 
 #[allow(non_camel_case_types)]
@@ -279,7 +279,7 @@ pub const ENUM_NAMES_ITER_EXPR:[&'static str; 7] = [
     "IterExprAdd",
     "IterExprSub",
     "IterExprMul",
-    "IterExprDiv"
+    "IterExprDivConst"
 ];
 
 pub fn enum_name_iter_expr(e: IterExpr) -> &'static str {
@@ -3374,9 +3374,9 @@ impl<'a> IterExprWireNumber<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn value_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.value_type() == IterExpr::IterExprDiv {
-      self.value().map(|u| IterExprDiv::init_from_table(u))
+  pub fn value_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.value_type() == IterExpr::IterExprDivConst {
+      self.value().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -3686,9 +3686,9 @@ impl<'a> IterExprAdd<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.left_type() == IterExpr::IterExprDiv {
-      self.left().map(|u| IterExprDiv::init_from_table(u))
+  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.left_type() == IterExpr::IterExprDivConst {
+      self.left().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -3746,9 +3746,9 @@ impl<'a> IterExprAdd<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.right_type() == IterExpr::IterExprDiv {
-      self.right().map(|u| IterExprDiv::init_from_table(u))
+  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.right_type() == IterExpr::IterExprDivConst {
+      self.right().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -3918,9 +3918,9 @@ impl<'a> IterExprSub<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.left_type() == IterExpr::IterExprDiv {
-      self.left().map(|u| IterExprDiv::init_from_table(u))
+  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.left_type() == IterExpr::IterExprDivConst {
+      self.left().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -3978,9 +3978,9 @@ impl<'a> IterExprSub<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.right_type() == IterExpr::IterExprDiv {
-      self.right().map(|u| IterExprDiv::init_from_table(u))
+  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.right_type() == IterExpr::IterExprDivConst {
+      self.right().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -4150,9 +4150,9 @@ impl<'a> IterExprMul<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.left_type() == IterExpr::IterExprDiv {
-      self.left().map(|u| IterExprDiv::init_from_table(u))
+  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.left_type() == IterExpr::IterExprDivConst {
+      self.left().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -4210,9 +4210,9 @@ impl<'a> IterExprMul<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.right_type() == IterExpr::IterExprDiv {
-      self.right().map(|u| IterExprDiv::init_from_table(u))
+  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.right_type() == IterExpr::IterExprDivConst {
+      self.right().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -4273,15 +4273,15 @@ impl<'a: 'b, 'b> IterExprMulBuilder<'a, 'b> {
   }
 }
 
-pub enum IterExprDivOffset {}
+pub enum IterExprDivConstOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct IterExprDiv<'a> {
+pub struct IterExprDivConst<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for IterExprDiv<'a> {
-    type Inner = IterExprDiv<'a>;
+impl<'a> flatbuffers::Follow<'a> for IterExprDivConst<'a> {
+    type Inner = IterExprDivConst<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -4290,45 +4290,45 @@ impl<'a> flatbuffers::Follow<'a> for IterExprDiv<'a> {
     }
 }
 
-impl<'a> IterExprDiv<'a> {
+impl<'a> IterExprDivConst<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        IterExprDiv {
+        IterExprDivConst {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprDivArgs<'args>) -> flatbuffers::WIPOffset<IterExprDiv<'bldr>> {
-      let mut builder = IterExprDivBuilder::new(_fbb);
-      if let Some(x) = args.right { builder.add_right(x); }
-      if let Some(x) = args.left { builder.add_left(x); }
-      builder.add_left_type(args.left_type);
+        args: &'args IterExprDivConstArgs<'args>) -> flatbuffers::WIPOffset<IterExprDivConst<'bldr>> {
+      let mut builder = IterExprDivConstBuilder::new(_fbb);
+      if let Some(x) = args.denom { builder.add_denom(x); }
+      if let Some(x) = args.numer { builder.add_numer(x); }
+      builder.add_numer_type(args.numer_type);
       builder.finish()
     }
 
-    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 8;
+    pub const VT_NUMER_TYPE: flatbuffers::VOffsetT = 4;
+    pub const VT_NUMER: flatbuffers::VOffsetT = 6;
+    pub const VT_DENOM: flatbuffers::VOffsetT = 8;
 
   #[inline]
-  pub fn left_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprDiv::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  pub fn numer_type(&self) -> IterExpr {
+    self._tab.get::<IterExpr>(IterExprDivConst::VT_NUMER_TYPE, Some(IterExpr::NONE)).unwrap()
   }
   #[inline]
-  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprDiv::VT_LEFT, None)
+  pub fn numer(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprDivConst::VT_NUMER, None)
   }
   #[inline]
-  pub fn right(&self) -> Option<IterExprConst<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprConst<'a>>>(IterExprDiv::VT_RIGHT, None)
+  pub fn denom(&self) -> Option<IterExprConst<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprConst<'a>>>(IterExprDivConst::VT_DENOM, None)
   }
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.left_type() == IterExpr::IterExprConst {
-      self.left().map(|u| IterExprConst::init_from_table(u))
+  pub fn numer_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
+    if self.numer_type() == IterExpr::IterExprConst {
+      self.numer().map(|u| IterExprConst::init_from_table(u))
     } else {
       None
     }
@@ -4336,9 +4336,9 @@ impl<'a> IterExprDiv<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.left_type() == IterExpr::IterExprName {
-      self.left().map(|u| IterExprName::init_from_table(u))
+  pub fn numer_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
+    if self.numer_type() == IterExpr::IterExprName {
+      self.numer().map(|u| IterExprName::init_from_table(u))
     } else {
       None
     }
@@ -4346,9 +4346,9 @@ impl<'a> IterExprDiv<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.left_type() == IterExpr::IterExprAdd {
-      self.left().map(|u| IterExprAdd::init_from_table(u))
+  pub fn numer_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
+    if self.numer_type() == IterExpr::IterExprAdd {
+      self.numer().map(|u| IterExprAdd::init_from_table(u))
     } else {
       None
     }
@@ -4356,9 +4356,9 @@ impl<'a> IterExprDiv<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.left_type() == IterExpr::IterExprSub {
-      self.left().map(|u| IterExprSub::init_from_table(u))
+  pub fn numer_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
+    if self.numer_type() == IterExpr::IterExprSub {
+      self.numer().map(|u| IterExprSub::init_from_table(u))
     } else {
       None
     }
@@ -4366,9 +4366,9 @@ impl<'a> IterExprDiv<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.left_type() == IterExpr::IterExprMul {
-      self.left().map(|u| IterExprMul::init_from_table(u))
+  pub fn numer_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
+    if self.numer_type() == IterExpr::IterExprMul {
+      self.numer().map(|u| IterExprMul::init_from_table(u))
     } else {
       None
     }
@@ -4376,9 +4376,9 @@ impl<'a> IterExprDiv<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div(&self) -> Option<IterExprDiv<'a>> {
-    if self.left_type() == IterExpr::IterExprDiv {
-      self.left().map(|u| IterExprDiv::init_from_table(u))
+  pub fn numer_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
+    if self.numer_type() == IterExpr::IterExprDivConst {
+      self.numer().map(|u| IterExprDivConst::init_from_table(u))
     } else {
       None
     }
@@ -4386,48 +4386,48 @@ impl<'a> IterExprDiv<'a> {
 
 }
 
-pub struct IterExprDivArgs<'a> {
-    pub left_type: IterExpr,
-    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    pub right: Option<flatbuffers::WIPOffset<IterExprConst<'a >>>,
+pub struct IterExprDivConstArgs<'a> {
+    pub numer_type: IterExpr,
+    pub numer: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+    pub denom: Option<flatbuffers::WIPOffset<IterExprConst<'a >>>,
 }
-impl<'a> Default for IterExprDivArgs<'a> {
+impl<'a> Default for IterExprDivConstArgs<'a> {
     #[inline]
     fn default() -> Self {
-        IterExprDivArgs {
-            left_type: IterExpr::NONE,
-            left: None,
-            right: None,
+        IterExprDivConstArgs {
+            numer_type: IterExpr::NONE,
+            numer: None,
+            denom: None,
         }
     }
 }
-pub struct IterExprDivBuilder<'a: 'b, 'b> {
+pub struct IterExprDivConstBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> IterExprDivBuilder<'a, 'b> {
+impl<'a: 'b, 'b> IterExprDivConstBuilder<'a, 'b> {
   #[inline]
-  pub fn add_left_type(&mut self, left_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprDiv::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  pub fn add_numer_type(&mut self, numer_type: IterExpr) {
+    self.fbb_.push_slot::<IterExpr>(IterExprDivConst::VT_NUMER_TYPE, numer_type, IterExpr::NONE);
   }
   #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprDiv::VT_LEFT, left);
+  pub fn add_numer(&mut self, numer: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprDivConst::VT_NUMER, numer);
   }
   #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<IterExprConst<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprConst>>(IterExprDiv::VT_RIGHT, right);
+  pub fn add_denom(&mut self, denom: flatbuffers::WIPOffset<IterExprConst<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprConst>>(IterExprDivConst::VT_DENOM, denom);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprDivBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprDivConstBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    IterExprDivBuilder {
+    IterExprDivConstBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprDiv<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<IterExprDivConst<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }

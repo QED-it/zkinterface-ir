@@ -221,7 +221,7 @@ union IterExpr {
     IterExprAdd,
     IterExprSub,
     IterExprMul,
-    IterExprDiv,
+    IterExprDivConst,
 }
 
 table IterExprWireNumber { value :IterExpr;}
@@ -236,8 +236,8 @@ table IterExprAdd { left :IterExpr; right :IterExpr; }
 table IterExprSub { left :IterExpr; right :IterExpr; }
 // Product of two expressions
 table IterExprMul { left :IterExpr; right :IterExpr; }
-// Division by a constant
-table IterExprDiv { left :IterExpr; right :IterExprConst; }
+// Division of an expression by a constant
+table IterExprDivConst { numer :IterExpr; denom :IterExprConst; }
 
 table IterExprWireRange {
     first :IterExprWireNumber;
