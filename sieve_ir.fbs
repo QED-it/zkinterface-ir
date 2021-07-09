@@ -1,7 +1,5 @@
 // This is a FlatBuffers schema.
 // See https://google.github.io/flatbuffers/
-
-// TODO add references everywhere !!
 namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
