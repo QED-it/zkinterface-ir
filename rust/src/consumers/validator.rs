@@ -33,7 +33,7 @@ Relation Validation
 Inputs Validation (Instances / Witnesses)
  - Ensure that Instance gates are given a value in Instance messages.
  - Ensure that Witness gates are given a value in Witness messages (prover only).
- - Ensure that no unused Instance or Witness values are given.
+ - Ensure that all Instance and Witness are consumed at the end of the circuit
  - Ensure that the value they are set to is indeed encoding an element lying in the underlying field.
    For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
 
