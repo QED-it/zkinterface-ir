@@ -6,10 +6,120 @@ use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
 use crate::sieve_ir_generated::sieve_ir as g;
 
 use crate::{Result, Gate};
-use crate::structs::wire::{WireList, build_wire_list};
+use super::wire::{WireList, build_wire_list};
 
-// This is the 'invocation' equivalent in the spec.
-// Ref. SIEVE-IR spec (3.7)
+
+
+// ******************************
+//
+//   Functions declaration
+//    (used everywhere)
+// ******************************
+
+/// This structure handles the declaration of a function.
+#[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub struct Function {
+    pub name           :String,
+    pub output_count   :usize,
+    pub input_count    :usize,
+    pub instance_count :usize,
+    pub witness_count  :usize,
+    pub body           :Vec<Gate>,
+}
+
+/// This function imports a FBS binary Function declaration into a Rust equivalent.
+impl<'a> TryFrom<g::Function<'a>> for Function {
+    type Error = Box<dyn Error>;
+
+    fn try_from(g_function: g::Function) -> Result<Function> {
+        let g_directives = g_function
+            .body()
+            .ok_or("Missing reference implementation")?;
+
+        Ok(Function {
+            name: g_function.name().ok_or("Missing name") ?.to_string(),
+            output_count: g_function.output_count() as usize,
+            input_count: g_function.input_count() as usize,
+            instance_count: g_function.instance_count() as usize,
+            witness_count: g_function.witness_count() as usize,
+            body: Gate::try_from_vector(g_directives)?,
+        })
+    }
+}
+
+impl Function {
+
+    /// Default constructor
+    pub fn new(
+        name           :String,
+        output_count   :usize,
+        input_count    :usize,
+        instance_count :usize,
+        witness_count  :usize,
+        body           :Vec<Gate>,
+    ) -> Self {
+        Function {
+            name,
+            output_count,
+            input_count,
+            instance_count,
+            witness_count,
+            body,
+        }
+    }
+
+    /// Serialize this structure into a Flatbuffer message
+    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        &'args self,
+        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<g::Function<'bldr>> {
+        let g_name = builder.create_string(&self.name);
+        let g_body = Gate::build_vector(builder, &self.body);
+
+        g::Function::create(
+            builder,
+            &g::FunctionArgs {
+                name: Some(g_name),
+                output_count: self.output_count as u64,
+                input_count: self.input_count as u64,
+                instance_count: self.instance_count as u64,
+                witness_count: self.witness_count as u64,
+                body: Some(g_body),
+            },
+        )
+    }
+
+    /// Import a vector of binary Functions into a Rust vector of Function declarations.
+    pub fn try_from_vector<'a>(
+        g_vector: Vector<'a, ForwardsUOffset<g::Function<'a>>>
+    ) -> Result<Vec<Function>> {
+        let mut functions = vec![];
+        for i in 0..g_vector.len() {
+            let g_a = g_vector.get(i);
+            functions.push(Function::try_from(g_a)?);
+        }
+        Ok(functions)
+    }
+
+    /// Build a vector a Rust Functions into the associated FBS structure.
+    pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
+        functions: &'args [Function],
+    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Function<'bldr>>>> {
+        let g_functions: Vec<_> = functions.iter().map(|gate| gate.build(builder)).collect();
+        let g_vector = builder.create_vector(&g_functions);
+        g_vector
+    }
+}
+
+// ******************************
+//
+//   CaseInvoke (used in switches)
+//
+// ******************************
+
+/// This is the 'invocation' equivalent in the spec.
+/// Ref. SIEVE-IR spec (3.7)
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum CaseInvoke {
     /// AbstractGateCall(name, input_wires)
@@ -141,98 +251,19 @@ pub fn build_gate_call<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     )
 }
 
-/// This structure handles the declaration of a function.
-#[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct Function {
-    pub name           :String,
-    pub output_count   :usize,
-    pub input_count    :usize,
-    pub instance_count :usize,
-    pub witness_count  :usize,
-    pub body           :Vec<Gate>,
-}
+// ******************************
+//
+//   ForLoopBody (used in ..)
+//
+// ******************************
+use crate::structs::iterators::IterExprList;
 
-/// This function imports a FBS binary Function declaration into a Rust equivalent.
-impl<'a> TryFrom<g::Function<'a>> for Function {
-    type Error = Box<dyn Error>;
-
-    fn try_from(g_function: g::Function) -> Result<Function> {
-        let g_directives = g_function
-            .body()
-            .ok_or("Missing reference implementation")?;
-
-        Ok(Function {
-            name: g_function.name().ok_or("Missing name") ?.to_string(),
-            output_count: g_function.output_count() as usize,
-            input_count: g_function.input_count() as usize,
-            instance_count: g_function.instance_count() as usize,
-            witness_count: g_function.witness_count() as usize,
-            body: Gate::try_from_vector(g_directives)?,
-        })
-    }
-}
-
-impl Function {
-
-    /// Default constructor
-    pub fn new(
-        name           :String,
-        output_count   :usize,
-        input_count    :usize,
-        instance_count :usize,
-        witness_count  :usize,
-        body           :Vec<Gate>,
-    ) -> Self {
-        Function {
-            name,
-            output_count,
-            input_count,
-            instance_count,
-            witness_count,
-            body,
-        }
-    }
-
-    /// Serialize this structure into a Flatbuffer message
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Function<'bldr>> {
-        let g_name = builder.create_string(&self.name);
-        let g_body = Gate::build_vector(builder, &self.body);
-
-        g::Function::create(
-            builder,
-            &g::FunctionArgs {
-                name: Some(g_name),
-                output_count: self.output_count as u64,
-                input_count: self.input_count as u64,
-                instance_count: self.instance_count as u64,
-                witness_count: self.witness_count as u64,
-                body: Some(g_body),
-            },
-        )
-    }
-
-    /// Import a vector of binary Functions into a Rust vector of Function declarations.
-    pub fn try_from_vector<'a>(
-        g_vector: Vector<'a, ForwardsUOffset<g::Function<'a>>>
-    ) -> Result<Vec<Function>> {
-        let mut functions = vec![];
-        for i in 0..g_vector.len() {
-            let g_a = g_vector.get(i);
-            functions.push(Function::try_from(g_a)?);
-        }
-        Ok(functions)
-    }
-
-    /// Build a vector a Rust Functions into the associated FBS structure.
-    pub fn build_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-        functions: &'args [Function],
-    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Function<'bldr>>>> {
-        let g_functions: Vec<_> = functions.iter().map(|gate| gate.build(builder)).collect();
-        let g_vector = builder.create_vector(&g_functions);
-        g_vector
-    }
+/// This is the 'invocation' equivalent in the spec.
+/// Ref. SIEVE-IR spec (3.7)
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
+pub enum ForLoopBody {
+    /// IterExprCall(name, output_wires, input_wires)
+    IterExprCall(String, IterExprList, IterExprList),
+    /// IterExprAnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit)
+    IterExprAnonCall(IterExprList, IterExprList, usize, usize, Vec<Gate>),
 }

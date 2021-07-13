@@ -2,8 +2,9 @@ use crate::Result;
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::WireId;
 use serde::{Deserialize, Serialize};
-use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
 use std::error::Error;
+use std::convert::TryFrom;
 
 /// A WireListElement is either a single wire, or a range.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -12,8 +13,6 @@ pub enum WireListElement {
     WireRange(WireId, WireId),
 }
 use WireListElement::*;
-use crate::flatbuffers::ForwardsUOffset;
-use std::convert::TryFrom;
 
 /// A WireList is simply a vector of WireListElement
 pub type WireList = Vec<WireListElement>;
@@ -146,7 +145,7 @@ impl<'a> TryFrom<g::WireList<'a>> for WireList {
 /// Add a vector of this structure into a Flatbuffers message builder.
 pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    elements: &'args WireList,
+    elements: &'args [WireListElement],
 ) -> WIPOffset<g::WireList<'bldr>> {
     let g_elements: Vec<_> = elements.iter().map(|element| element.build(builder)).collect();
     let g_vector = builder.create_vector(&g_elements);

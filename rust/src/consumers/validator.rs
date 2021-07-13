@@ -416,16 +416,11 @@ impl Validator {
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
-/*
-            For(
-                start_val,
-                end_val,
-                instance_count,
-                witness_count,
-                output_mapping,
-                input_mapping,
-                body
+
+            For(..
             ) => {
+                unimplemented!()
+                /*
                 self.ensure_allowed_feature("@for", FOR);
                 for i in *start_val..=*end_val {
                     let output_wires= expand_wire_mappings(output_mapping, i);
@@ -441,9 +436,8 @@ impl Validator {
                     self.consume_witness(*witness_count);
                     output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
                 }
+               */
             }
- */
-
         }
     }
 

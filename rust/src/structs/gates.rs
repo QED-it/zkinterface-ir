@@ -4,11 +4,13 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
-use super::wire::from_id;
-use super::value::{try_from_values_vector, build_values_vector};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
 use crate::{Value, WireId};
+use super::value::{try_from_values_vector, build_values_vector};
+use super::wire::{from_id, WireList, build_wire, build_wire_list};
+use super::function::{CaseInvoke, ForLoopBody};
+use super::iterators::IterExprList;
 
 /// This one correspond to Directive in the FlatBuffers schema
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -47,13 +49,12 @@ pub enum Gate {
     Call(String, WireList, WireList),
     /// GateSwitch(condition, output_wires, cases, branches)
     Switch(WireId, WireList, Vec<Value>, Vec<CaseInvoke>),
-    // GateFor(start_val, end_val, instance_count, witness_count, output_mapping, input_mapping, body)
-    // For(u64, u64, usize, usize, Vec<(WireId, u64, usize)>, Vec<(WireId, u64, usize)>, Vec<Gate>),
+    /// GateFor(iterator_name, start_val, end_val, global_output_list, body)
+    For(String, u64, u64, WireList, ForLoopBody),
 }
 
 use Gate::*;
-use crate::structs::wire::{WireList, build_wire, build_wire_list};
-use crate::structs::function::CaseInvoke;
+use crate::structs::iterators::build_iterexpr_list;
 
 impl<'a> TryFrom<g::Directive<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -203,25 +204,37 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
             }
 
             ds::GateFor => {
-                unimplemented!()
-                /*
                 let gate = gen_gate.directive_as_gate_for().unwrap();
-                let output_mappings = gate.output_map().ok_or("missing output mappings")?;
-                let input_mappings = gate.input_map().ok_or("missing input mappings")?;
-
-                let output_map = output_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta() , mapping.size_() as usize)).collect();
-                let input_map = input_mappings.iter().map(|mapping| (mapping.base().id(), mapping.stride().delta(), mapping.size_() as usize)).collect();
+                let output_list = WireList::try_from(gate.outputs().ok_or("missing output list")?)?;
+                let body: ForLoopBody = match gate.body_type() {
+                    g::ForLoopBody::NONE => return Err("Unknown body type".into()),
+                    g::ForLoopBody::IterExprFunctionInvoke => {
+                        let g_body = gate.body_as_iter_expr_function_invoke().unwrap();
+                        ForLoopBody::IterExprCall(
+                            g_body.name().ok_or("Missing function in function name")?.to_string(),
+                            IterExprList::try_from(g_body.outputs().ok_or("missing output list")?)?,
+                            IterExprList::try_from(g_body.inputs().ok_or("missing input list")?)?,
+                        )
+                    }
+                    g::ForLoopBody::IterExprAnonFunction => {
+                        let g_body = gate.body_as_iter_expr_anon_function().unwrap();
+                        ForLoopBody::IterExprAnonCall(
+                            IterExprList::try_from(g_body.outputs().ok_or("missing output list")?)?,
+                            IterExprList::try_from(g_body.inputs().ok_or("missing input list")?)?,
+                            g_body.instance_count() as usize,
+                            g_body.witness_count() as usize,
+                            Gate::try_from_vector(g_body.body().ok_or("Missing body")?)?,
+                        )
+                    }
+                };
 
                 For(
-                    gate.start_val(),
-                    gate.end_val(),
-                    gate.instance_count() as usize,
-                    gate.witness_count() as usize,
-                    output_map,
-                    input_map,
-                    Gate::try_from_vector(gate.body().ok_or("Missing body of for loop")?)?,
+                    gate.iterator().ok_or("Missing iterator name")?.to_string(),
+                    gate.first(),
+                    gate.last(),
+                    output_list,
+                    body,
                 )
-                 */
             }
         })
     }
@@ -575,45 +588,74 @@ impl Gate {
                     },
                 )
             }
-/*
-            For(
-                start_val,
-                end_val,
-                instance_count,
-                witness_count,
-                output_mappings,
-                input_mappings,
-                body
-            ) => {
 
-                let output_maps_tmp: Vec<_> = output_mappings.iter().map(|mapping| g::Mapping::new (
-                    &g::Wire::new(mapping.0),
-                    &g::WireDelta::new(mapping.1),
-                    mapping.2 as u64,
-                )).collect();
-                let g_output_map = builder.create_vector(&output_maps_tmp);
+            For(iterator_name, start_val, end_val, global_output_list, body) => {
 
-                let input_maps_tmp: Vec<_> = input_mappings.iter().map(|mapping| g::Mapping::new (
-                    &g::Wire::new(mapping.0),
-                    &g::WireDelta::new(mapping.1),
-                    mapping.2 as u64,
-                )).collect();
-                let g_input_map = builder.create_vector(&input_maps_tmp);
+                let g_iterator_name = builder.create_string(iterator_name);
+                let g_global_output_list = build_wire_list(builder, global_output_list);
 
-                let g_body = Gate::build_vector(builder, body);
+                let gate = match body {
+                    ForLoopBody::IterExprCall(name, output_wires, input_wires) => {
+                        let g_name = builder.create_string(name);
+                        let g_output_wires = build_iterexpr_list(builder, output_wires);
+                        let g_input_wires = build_iterexpr_list(builder, input_wires);
 
-                let gate = g::GateFor::create(
-                    builder,
-                    &g::GateForArgs {
-                        start_val: *start_val,
-                        end_val: *end_val,
-                        instance_count: *instance_count as u64,
-                        witness_count: *witness_count as u64,
-                        output_map: Some(g_output_map),
-                        input_map: Some(g_input_map),
-                        body: Some(g_body),
-                    },
-                );
+                        let g_body = g::IterExprFunctionInvoke::create(
+                            builder,
+                            &g::IterExprFunctionInvokeArgs {
+                                name: Some(g_name),
+                                outputs: Some(g_output_wires),
+                                inputs: Some(g_input_wires),
+                            }
+                        );
+
+                        g::GateFor::create(
+                            builder,
+                            &g::GateForArgs {
+                                outputs: Some(g_global_output_list),
+                                iterator: Some(g_iterator_name),
+                                first: *start_val,
+                                last: *end_val,
+                                body_type: g::ForLoopBody::IterExprFunctionInvoke,
+                                body: Some(g_body.as_union_value())
+                            },
+                        )
+                    }
+                    ForLoopBody::IterExprAnonCall(
+                        output_wires,
+                        input_wires,
+                        instance_count,
+                        witness_count,
+                        subcircuit
+                    ) => {
+                        let g_subcircuit = Gate::build_vector(builder, subcircuit);
+                        let g_output_wires = build_iterexpr_list(builder, output_wires);
+                        let g_input_wires = build_iterexpr_list(builder, input_wires);
+
+                        let g_body = g::IterExprAnonFunction::create(
+                            builder,
+                            &g::IterExprAnonFunctionArgs {
+                                outputs: Some(g_output_wires),
+                                inputs: Some(g_input_wires),
+                                instance_count: *instance_count as u64,
+                                witness_count: *witness_count as u64,
+                                body: Some(g_subcircuit),
+                            }
+                        );
+
+                        g::GateFor::create(
+                            builder,
+                            &g::GateForArgs {
+                                outputs: Some(g_global_output_list),
+                                iterator: Some(g_iterator_name),
+                                first: *start_val,
+                                last: *end_val,
+                                body_type: g::ForLoopBody::IterExprAnonFunction,
+                                body: Some(g_body.as_union_value())
+                            },
+                        )
+                    }
+                };
 
                 g::Directive::create(
                     builder,
@@ -623,7 +665,6 @@ impl Gate {
                     },
                 )
             }
-            */
         }
     }
 
@@ -671,7 +712,7 @@ impl Gate {
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
             Switch(_, _, _, _) =>  unimplemented!("Switch gate"),
-            // For(_, _, _, _, _, _, _) => unimplemented!("For loop"),
+            For(_, _, _, _, _) => unimplemented!("For loop"),
         }
     }
 }
