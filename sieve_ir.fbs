@@ -231,13 +231,13 @@ table IterExprConst { value :uint64; }
 // Named loop-iteration
 table IterExprName { name : string; }
 // Sum of two expressions
-table IterExprAdd { left :IterExpr; right :IterExpr; }
+table IterExprAdd { left :IterExprWireNumber; right :IterExprWireNumber; }
 // Difference of two expressions
-table IterExprSub { left :IterExpr; right :IterExpr; }
+table IterExprSub { left :IterExprWireNumber; right :IterExprWireNumber; }
 // Product of two expressions
-table IterExprMul { left :IterExpr; right :IterExpr; }
+table IterExprMul { left :IterExprWireNumber; right :IterExprWireNumber; }
 // Division of an expression by a constant
-table IterExprDivConst { numer :IterExpr; denom :uint64; }
+table IterExprDivConst { numer :IterExprWireNumber; denom :uint64; }
 
 table IterExprWireRange {
     first :IterExprWireNumber;

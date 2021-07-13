@@ -3604,171 +3604,35 @@ impl<'a> IterExprAdd<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprAddArgs) -> flatbuffers::WIPOffset<IterExprAdd<'bldr>> {
+        args: &'args IterExprAddArgs<'args>) -> flatbuffers::WIPOffset<IterExprAdd<'bldr>> {
       let mut builder = IterExprAddBuilder::new(_fbb);
       if let Some(x) = args.right { builder.add_right(x); }
       if let Some(x) = args.left { builder.add_left(x); }
-      builder.add_right_type(args.right_type);
-      builder.add_left_type(args.left_type);
       builder.finish()
     }
 
-    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
-    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 4;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn left_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprAdd::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  pub fn left(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprAdd::VT_LEFT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprAdd::VT_LEFT, None)
+  pub fn right(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprAdd::VT_RIGHT, None)
   }
-  #[inline]
-  pub fn right_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprAdd::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
-  }
-  #[inline]
-  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprAdd::VT_RIGHT, None)
-  }
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.left_type() == IterExpr::IterExprConst {
-      self.left().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.left_type() == IterExpr::IterExprName {
-      self.left().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.left_type() == IterExpr::IterExprAdd {
-      self.left().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.left_type() == IterExpr::IterExprSub {
-      self.left().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.left_type() == IterExpr::IterExprMul {
-      self.left().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.left_type() == IterExpr::IterExprDivConst {
-      self.left().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.right_type() == IterExpr::IterExprConst {
-      self.right().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.right_type() == IterExpr::IterExprName {
-      self.right().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.right_type() == IterExpr::IterExprAdd {
-      self.right().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.right_type() == IterExpr::IterExprSub {
-      self.right().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.right_type() == IterExpr::IterExprMul {
-      self.right().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.right_type() == IterExpr::IterExprDivConst {
-      self.right().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
 }
 
-pub struct IterExprAddArgs {
-    pub left_type: IterExpr,
-    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    pub right_type: IterExpr,
-    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct IterExprAddArgs<'a> {
+    pub left: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
 }
-impl<'a> Default for IterExprAddArgs {
+impl<'a> Default for IterExprAddArgs<'a> {
     #[inline]
     fn default() -> Self {
         IterExprAddArgs {
-            left_type: IterExpr::NONE,
             left: None,
-            right_type: IterExpr::NONE,
             right: None,
         }
     }
@@ -3779,20 +3643,12 @@ pub struct IterExprAddBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> IterExprAddBuilder<'a, 'b> {
   #[inline]
-  pub fn add_left_type(&mut self, left_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprAdd::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprAdd::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprAdd::VT_LEFT, left);
-  }
-  #[inline]
-  pub fn add_right_type(&mut self, right_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprAdd::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
-  }
-  #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprAdd::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprAdd::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprAddBuilder<'a, 'b> {
@@ -3836,171 +3692,35 @@ impl<'a> IterExprSub<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprSubArgs) -> flatbuffers::WIPOffset<IterExprSub<'bldr>> {
+        args: &'args IterExprSubArgs<'args>) -> flatbuffers::WIPOffset<IterExprSub<'bldr>> {
       let mut builder = IterExprSubBuilder::new(_fbb);
       if let Some(x) = args.right { builder.add_right(x); }
       if let Some(x) = args.left { builder.add_left(x); }
-      builder.add_right_type(args.right_type);
-      builder.add_left_type(args.left_type);
       builder.finish()
     }
 
-    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
-    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 4;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn left_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprSub::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  pub fn left(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprSub::VT_LEFT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprSub::VT_LEFT, None)
+  pub fn right(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprSub::VT_RIGHT, None)
   }
-  #[inline]
-  pub fn right_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprSub::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
-  }
-  #[inline]
-  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprSub::VT_RIGHT, None)
-  }
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.left_type() == IterExpr::IterExprConst {
-      self.left().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.left_type() == IterExpr::IterExprName {
-      self.left().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.left_type() == IterExpr::IterExprAdd {
-      self.left().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.left_type() == IterExpr::IterExprSub {
-      self.left().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.left_type() == IterExpr::IterExprMul {
-      self.left().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.left_type() == IterExpr::IterExprDivConst {
-      self.left().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.right_type() == IterExpr::IterExprConst {
-      self.right().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.right_type() == IterExpr::IterExprName {
-      self.right().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.right_type() == IterExpr::IterExprAdd {
-      self.right().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.right_type() == IterExpr::IterExprSub {
-      self.right().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.right_type() == IterExpr::IterExprMul {
-      self.right().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.right_type() == IterExpr::IterExprDivConst {
-      self.right().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
 }
 
-pub struct IterExprSubArgs {
-    pub left_type: IterExpr,
-    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    pub right_type: IterExpr,
-    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct IterExprSubArgs<'a> {
+    pub left: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
 }
-impl<'a> Default for IterExprSubArgs {
+impl<'a> Default for IterExprSubArgs<'a> {
     #[inline]
     fn default() -> Self {
         IterExprSubArgs {
-            left_type: IterExpr::NONE,
             left: None,
-            right_type: IterExpr::NONE,
             right: None,
         }
     }
@@ -4011,20 +3731,12 @@ pub struct IterExprSubBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> IterExprSubBuilder<'a, 'b> {
   #[inline]
-  pub fn add_left_type(&mut self, left_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprSub::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprSub::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprSub::VT_LEFT, left);
-  }
-  #[inline]
-  pub fn add_right_type(&mut self, right_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprSub::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
-  }
-  #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprSub::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprSub::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprSubBuilder<'a, 'b> {
@@ -4068,171 +3780,35 @@ impl<'a> IterExprMul<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprMulArgs) -> flatbuffers::WIPOffset<IterExprMul<'bldr>> {
+        args: &'args IterExprMulArgs<'args>) -> flatbuffers::WIPOffset<IterExprMul<'bldr>> {
       let mut builder = IterExprMulBuilder::new(_fbb);
       if let Some(x) = args.right { builder.add_right(x); }
       if let Some(x) = args.left { builder.add_left(x); }
-      builder.add_right_type(args.right_type);
-      builder.add_left_type(args.left_type);
       builder.finish()
     }
 
-    pub const VT_LEFT_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 6;
-    pub const VT_RIGHT_TYPE: flatbuffers::VOffsetT = 8;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
+    pub const VT_LEFT: flatbuffers::VOffsetT = 4;
+    pub const VT_RIGHT: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn left_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprMul::VT_LEFT_TYPE, Some(IterExpr::NONE)).unwrap()
+  pub fn left(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprMul::VT_LEFT, None)
   }
   #[inline]
-  pub fn left(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprMul::VT_LEFT, None)
+  pub fn right(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprMul::VT_RIGHT, None)
   }
-  #[inline]
-  pub fn right_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprMul::VT_RIGHT_TYPE, Some(IterExpr::NONE)).unwrap()
-  }
-  #[inline]
-  pub fn right(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprMul::VT_RIGHT, None)
-  }
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.left_type() == IterExpr::IterExprConst {
-      self.left().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.left_type() == IterExpr::IterExprName {
-      self.left().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.left_type() == IterExpr::IterExprAdd {
-      self.left().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.left_type() == IterExpr::IterExprSub {
-      self.left().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.left_type() == IterExpr::IterExprMul {
-      self.left().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn left_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.left_type() == IterExpr::IterExprDivConst {
-      self.left().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.right_type() == IterExpr::IterExprConst {
-      self.right().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.right_type() == IterExpr::IterExprName {
-      self.right().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.right_type() == IterExpr::IterExprAdd {
-      self.right().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.right_type() == IterExpr::IterExprSub {
-      self.right().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.right_type() == IterExpr::IterExprMul {
-      self.right().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn right_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.right_type() == IterExpr::IterExprDivConst {
-      self.right().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
 }
 
-pub struct IterExprMulArgs {
-    pub left_type: IterExpr,
-    pub left: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    pub right_type: IterExpr,
-    pub right: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct IterExprMulArgs<'a> {
+    pub left: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
+    pub right: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
 }
-impl<'a> Default for IterExprMulArgs {
+impl<'a> Default for IterExprMulArgs<'a> {
     #[inline]
     fn default() -> Self {
         IterExprMulArgs {
-            left_type: IterExpr::NONE,
             left: None,
-            right_type: IterExpr::NONE,
             right: None,
         }
     }
@@ -4243,20 +3819,12 @@ pub struct IterExprMulBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> IterExprMulBuilder<'a, 'b> {
   #[inline]
-  pub fn add_left_type(&mut self, left_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprMul::VT_LEFT_TYPE, left_type, IterExpr::NONE);
+  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprMul::VT_LEFT, left);
   }
   #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprMul::VT_LEFT, left);
-  }
-  #[inline]
-  pub fn add_right_type(&mut self, right_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprMul::VT_RIGHT_TYPE, right_type, IterExpr::NONE);
-  }
-  #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprMul::VT_RIGHT, right);
+  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprMul::VT_RIGHT, right);
   }
   #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> IterExprMulBuilder<'a, 'b> {
@@ -4300,102 +3868,34 @@ impl<'a> IterExprDivConst<'a> {
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args IterExprDivConstArgs) -> flatbuffers::WIPOffset<IterExprDivConst<'bldr>> {
+        args: &'args IterExprDivConstArgs<'args>) -> flatbuffers::WIPOffset<IterExprDivConst<'bldr>> {
       let mut builder = IterExprDivConstBuilder::new(_fbb);
       builder.add_denom(args.denom);
       if let Some(x) = args.numer { builder.add_numer(x); }
-      builder.add_numer_type(args.numer_type);
       builder.finish()
     }
 
-    pub const VT_NUMER_TYPE: flatbuffers::VOffsetT = 4;
-    pub const VT_NUMER: flatbuffers::VOffsetT = 6;
-    pub const VT_DENOM: flatbuffers::VOffsetT = 8;
+    pub const VT_NUMER: flatbuffers::VOffsetT = 4;
+    pub const VT_DENOM: flatbuffers::VOffsetT = 6;
 
   #[inline]
-  pub fn numer_type(&self) -> IterExpr {
-    self._tab.get::<IterExpr>(IterExprDivConst::VT_NUMER_TYPE, Some(IterExpr::NONE)).unwrap()
-  }
-  #[inline]
-  pub fn numer(&self) -> Option<flatbuffers::Table<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(IterExprDivConst::VT_NUMER, None)
+  pub fn numer(&self) -> Option<IterExprWireNumber<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<IterExprWireNumber<'a>>>(IterExprDivConst::VT_NUMER, None)
   }
   #[inline]
   pub fn denom(&self) -> u64 {
     self._tab.get::<u64>(IterExprDivConst::VT_DENOM, Some(0)).unwrap()
   }
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_const(&self) -> Option<IterExprConst<'a>> {
-    if self.numer_type() == IterExpr::IterExprConst {
-      self.numer().map(|u| IterExprConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_name(&self) -> Option<IterExprName<'a>> {
-    if self.numer_type() == IterExpr::IterExprName {
-      self.numer().map(|u| IterExprName::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_add(&self) -> Option<IterExprAdd<'a>> {
-    if self.numer_type() == IterExpr::IterExprAdd {
-      self.numer().map(|u| IterExprAdd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_sub(&self) -> Option<IterExprSub<'a>> {
-    if self.numer_type() == IterExpr::IterExprSub {
-      self.numer().map(|u| IterExprSub::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_mul(&self) -> Option<IterExprMul<'a>> {
-    if self.numer_type() == IterExpr::IterExprMul {
-      self.numer().map(|u| IterExprMul::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn numer_as_iter_expr_div_const(&self) -> Option<IterExprDivConst<'a>> {
-    if self.numer_type() == IterExpr::IterExprDivConst {
-      self.numer().map(|u| IterExprDivConst::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
 }
 
-pub struct IterExprDivConstArgs {
-    pub numer_type: IterExpr,
-    pub numer: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+pub struct IterExprDivConstArgs<'a> {
+    pub numer: Option<flatbuffers::WIPOffset<IterExprWireNumber<'a >>>,
     pub denom: u64,
 }
-impl<'a> Default for IterExprDivConstArgs {
+impl<'a> Default for IterExprDivConstArgs<'a> {
     #[inline]
     fn default() -> Self {
         IterExprDivConstArgs {
-            numer_type: IterExpr::NONE,
             numer: None,
             denom: 0,
         }
@@ -4407,12 +3907,8 @@ pub struct IterExprDivConstBuilder<'a: 'b, 'b> {
 }
 impl<'a: 'b, 'b> IterExprDivConstBuilder<'a, 'b> {
   #[inline]
-  pub fn add_numer_type(&mut self, numer_type: IterExpr) {
-    self.fbb_.push_slot::<IterExpr>(IterExprDivConst::VT_NUMER_TYPE, numer_type, IterExpr::NONE);
-  }
-  #[inline]
-  pub fn add_numer(&mut self, numer: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(IterExprDivConst::VT_NUMER, numer);
+  pub fn add_numer(&mut self, numer: flatbuffers::WIPOffset<IterExprWireNumber<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<IterExprWireNumber>>(IterExprDivConst::VT_NUMER, numer);
   }
   #[inline]
   pub fn add_denom(&mut self, denom: u64) {
