@@ -5,8 +5,9 @@ use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
 use crate::structs::subcircuit::translate_gates;
 use crate::structs::wire::expand_wirelist;
-use crate::structs::function::CaseInvoke;
+use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::consumers::TEMPORARY_WIRES_START;
+use crate::structs::iterators::evaluate_iterexpr_list;
 
 type Repr = BigUint;
 
@@ -19,6 +20,7 @@ pub struct Evaluator {
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: HashMap<String, Vec<Gate>>,
+    known_iterators: HashMap<String, u64>,
 
     // use to allocate temporary wires if required.
     free_local_wire :WireId,
@@ -37,6 +39,7 @@ impl Default for Evaluator {
 
             // name => (output_count, input_count, instance_count, witness_count, subcircuit)
             known_functions: Default::default(),
+            known_iterators: Default::default(),
 
             // use to allocate temporary wires if required.
             free_local_wire : TEMPORARY_WIRES_START,
@@ -253,22 +256,37 @@ impl Evaluator {
                     );
                 }
             }
-/*
+
             For(
+                iterator_name,
                 start_val,
                 end_val,
-                _, _,
-                output_mapping,
-                input_mapping,
+                _,
                 body
             ) => {
                 for i in *start_val..=*end_val {
-                    let output_wires= expand_wire_mappings(output_mapping, i);
-                    let input_wires= expand_wire_mappings(input_mapping, i);
-                    self.ingest_subcircuit(body, &output_wires, &input_wires)?;
+                    self.known_iterators.insert(iterator_name.clone(), i);
+
+                    match body {
+                        ForLoopBody::IterExprCall(name, outputs, inputs) => {
+                            let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
+                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            self.ingest_subcircuit(&subcircuit, &expanded_outputs, &expanded_inputs)?;
+                        }
+                        ForLoopBody::IterExprAnonCall(
+                            output_wires,
+                            input_wires,
+                            _, _,
+                            subcircuit
+                        ) => {
+                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
+                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs)?;
+                        }
+                    };
                 }
             },
- */
         }
         Ok(())
     }

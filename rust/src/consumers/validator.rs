@@ -9,8 +9,9 @@ use std::cmp::Ordering;
 use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND};
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 use crate::structs::wire::expand_wirelist;
-use crate::structs::function::CaseInvoke;
+use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::consumers::TEMPORARY_WIRES_START;
+use crate::structs::iterators::evaluate_iterexpr_list;
 
 type Field = BigUint;
 
@@ -67,6 +68,7 @@ pub struct Validator {
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>,
+    known_iterators: HashMap<String, u64>,
 
     violations: Vec<String>,
 }
@@ -87,6 +89,7 @@ impl Default for Validator {
             field_characteristic: Default::default(),
             field_degree: Default::default(),
             known_functions: Default::default(),
+            known_iterators: Default::default(),
             violations: Default::default(),
         }
     }
@@ -188,6 +191,7 @@ impl Validator {
         self.witness_queue_len += witness.short_witness.len();
     }
 
+    // TODO check that once a first gate has been ingested, no new functions should be defined then.
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
@@ -326,7 +330,8 @@ impl Validator {
                                        &expanded_outputs,
                                        &expanded_inputs,
                                        *instance_count,
-                                       *witness_count);
+                                       *witness_count,
+                                       true,);
 
                 // Now, consume instances and witnesses from self.
                 self.consume_instance(*instance_count);
@@ -401,7 +406,8 @@ impl Validator {
                                                    &expanded_outputs,
                                                    &expanded_inputs,
                                                    *instance_count,
-                                                   *witness_count);
+                                                   *witness_count,
+                                                   true);
                             (*instance_count, *witness_count)
                         }
                     };
@@ -417,26 +423,44 @@ impl Validator {
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
 
-            For(..
+            For(
+                iterator_name,
+                start_val,
+                end_val,
+                global_output_list,
+                body
             ) => {
-                unimplemented!()
-                /*
                 self.ensure_allowed_feature("@for", FOR);
+
                 for i in *start_val..=*end_val {
-                    let output_wires= expand_wire_mappings(output_mapping, i);
-                    let input_wires= expand_wire_mappings(input_mapping, i);
-                    self.ingest_subcircuit(
-                        body,
-                        &output_wires,
-                        &input_wires,
-                        *instance_count,
-                        *witness_count);
+                    self.known_iterators.insert(iterator_name.clone(), i);
+
+                    let (instance_count, witness_count) = match body {
+                        ForLoopBody::IterExprCall(name, outputs, inputs) => {
+                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0))
+                        }
+                        ForLoopBody::IterExprAnonCall(
+                            output_wires,
+                            input_wires,
+                            instance_count,
+                            witness_count,
+                            subcircuit
+                        ) => {
+                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
+                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, *instance_count, *witness_count, true);
+                            (*instance_count, *witness_count)
+                        }
+                    };
                     // Now, consume instances and witnesses from self.
-                    self.consume_instance(*instance_count);
-                    self.consume_witness(*witness_count);
-                    output_wires.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                    self.consume_instance(instance_count);
+                    self.consume_witness(witness_count);
                 }
-               */
+
+                let expanded_global_outputs = expand_wirelist(global_output_list);
+                expanded_global_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
             }
         }
     }
@@ -467,7 +491,8 @@ impl Validator {
                                output_wires,
                                input_wires,
                                instance_count,
-                               witness_count);
+                               witness_count,
+                               false);
 
         Ok((instance_count, witness_count))
     }
@@ -487,13 +512,18 @@ impl Validator {
         output_wires: &[WireId],
         input_wires: &[WireId],
         instance_count: usize,
-        witness_count: usize
+        witness_count: usize,
+        share_iterators: bool,
     ) {
         let mut current_validator = self.clone();
         current_validator.instance_queue_len = instance_count;
         current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
         current_validator.live_wires = Default::default();
         current_validator.violations = vec![];
+
+        if !share_iterators {
+            current_validator.known_iterators = Default::default();
+        }
 
         input_wires.iter().for_each(|id| self.ensure_defined_and_set(*id));
 

@@ -320,23 +320,48 @@ pub fn build_iterexpr_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 
 /// This function evaluates an iterator expression, replacing the iterator strings by their value
 /// given in the 'known_iterators' parameter.
-pub fn evaluate_iterexpr(iter_expr: IterExprWireNumber, known_iterators: &HashMap<String, WireId>) -> Result<WireId> {
+pub fn evaluate_iterexpr(iter_expr: &IterExprWireNumber, known_iterators: &HashMap<String, WireId>) -> Result<WireId> {
     Ok(match iter_expr {
-        IterExprConst(val) => val,
+        IterExprConst(val) => *val,
         IterExprName(name) => {
-            *(known_iterators.get(&name).ok_or(format!("Unknown iterator name {}", &name))?)
+            *(known_iterators.get(name).ok_or(format!("Unknown iterator name {}", &name))?)
         },
         IterExprAdd(left, right) => {
-            evaluate_iterexpr(*left, known_iterators)? + evaluate_iterexpr(*right, known_iterators)?
+            evaluate_iterexpr(&left, known_iterators)? + evaluate_iterexpr(&right, known_iterators)?
         }
         IterExprSub(left, right) => {
-            evaluate_iterexpr(*left, known_iterators)? - evaluate_iterexpr(*right, known_iterators)?
+            evaluate_iterexpr(&left, known_iterators)? - evaluate_iterexpr(&right, known_iterators)?
         }
         IterExprMul(left, right) => {
-            evaluate_iterexpr(*left, known_iterators)? * evaluate_iterexpr(*right, known_iterators)?
+            evaluate_iterexpr(&left, known_iterators)? * evaluate_iterexpr(&right, known_iterators)?
         }
         IterExprDivConst(numer, denom) => {
-            evaluate_iterexpr(*numer, known_iterators)? / denom
+            evaluate_iterexpr(&numer, known_iterators)? / denom
         }
     })
+}
+
+/// This function evaluates an iterator expression, replacing the iterator strings by their value
+/// given in the 'known_iterators' parameter.
+pub fn evaluate_iterexpr_listelement(iter_expr_element: &IterExprListElement, known_iterators: &HashMap<String, WireId>) -> Result<Vec<WireId>> {
+    let ret = match iter_expr_element {
+                Single(val) => vec![evaluate_iterexpr(val, known_iterators)?],
+                Range(first, last) => {
+                    (evaluate_iterexpr(first, known_iterators)?..=evaluate_iterexpr(last, known_iterators)?)
+                        .into_iter()
+                        .collect()
+                }
+            };
+
+    Ok(ret)
+}
+
+/// This function evaluates an iterator expression, replacing the iterator strings by their value
+/// given in the 'known_iterators' parameter.
+pub fn evaluate_iterexpr_list(iter_expr_list: &IterExprList, known_iterators: &HashMap<String, WireId>) -> Vec<WireId> {
+    iter_expr_list
+        .iter()
+        .flat_map(|element|
+            evaluate_iterexpr_listelement(element, known_iterators).unwrap_or(vec![]))
+        .collect()
 }

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
-use crate::structs::function::CaseInvoke;
+use crate::structs::function::{CaseInvoke, ForLoopBody};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -191,19 +191,39 @@ impl Stats {
                 self.instance_variables += max_instance_count;
                 self.witness_variables  += max_witness_count;
             }
-/*
+
             For(
-                _, _,
-                instance_count,
-                witness_count,
-                _, _,
+                _,
+                start_val,
+                end_val,
+                _,
                 body
             ) => {
-                self.ingest_call_stats(&self.ingest_subcircuit(body));
-                self.instance_variables += instance_count;
-                self.witness_variables += witness_count;
+                let (instance_count_per_it, witness_count_per_it) = match body {
+                    ForLoopBody::IterExprCall(name, _, _) => {
+                        self.functions_called += 1;
+                        if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                            self.ingest_call_stats(&stats_ins_wit.0);
+                            (stats_ins_wit.1, stats_ins_wit.2)
+                        } else {
+                            eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                            (0usize, 0usize)
+                        }
+                    }
+                    ForLoopBody::IterExprAnonCall(_, _,
+                                                  instance_count,
+                                                  witness_count,
+                                                  subcircuit
+                    ) => {
+                        self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                        (*instance_count, *witness_count)
+                    }
+                };
+
+                let steps = std::cmp::max(end_val-start_val+1, 0) as usize;
+                self.instance_variables += instance_count_per_it * steps;
+                self.witness_variables += witness_count_per_it * steps;
             },
-            */
         }
     }
 

@@ -101,29 +101,21 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wir
             )
         }
 
-/*
         Gate::For(
+            iterator_name,
             start_val,
             end_val,
-            instance_count,
-            witness_count,
-            output_mapping,
-            input_mapping,
+            global_output_list,
             body
         ) => {
             Gate::For(
+                iterator_name.clone(),
                 *start_val,
                 *end_val,
-                *instance_count,
-                *witness_count,
-                output_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
-                input_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
+                translate_wirelist(global_output_list, output_input_wires, free_temporary_wire),
                 body.clone(),
             )
         }
-
- */
-
     }
 }
 
