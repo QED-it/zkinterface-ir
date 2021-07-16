@@ -432,14 +432,25 @@ impl Validator {
             ) => {
                 self.ensure_allowed_feature("@for", FOR);
 
+                if self.known_iterators.contains_key(iterator_name) {
+                    self.violate("Iterator already used in this context.");
+                    return;
+                }
+
                 for i in *start_val..=*end_val {
                     self.known_iterators.insert(iterator_name.clone(), i);
 
-                    let (instance_count, witness_count) = match body {
+                    match body {
                         ForLoopBody::IterExprCall(name, outputs, inputs) => {
                             let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
-                            self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0))
+                            let (instance_count, witness_count) =
+                                self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
+
+                            // Now, consume instances and witnesses from self, and set the output wires
+                            expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                            self.consume_instance(instance_count);
+                            self.consume_witness(witness_count);
                         }
                         ForLoopBody::IterExprAnonCall(
                             output_wires,
@@ -451,16 +462,18 @@ impl Validator {
                             let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
                             self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, *instance_count, *witness_count, true);
-                            (*instance_count, *witness_count)
+
+                            // Now, consume instances and witnesses from self, and set the output wires
+                            expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                            self.consume_instance(*instance_count);
+                            self.consume_witness(*witness_count);
                         }
-                    };
-                    // Now, consume instances and witnesses from self.
-                    self.consume_instance(instance_count);
-                    self.consume_witness(witness_count);
+                    }
                 }
 
+                // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);
-                expanded_global_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+                expanded_global_outputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
             }
         }
     }
@@ -571,6 +584,7 @@ impl Validator {
         if self.instance_queue_len >= how_many {
             self.instance_queue_len -= how_many;
         } else {
+            self.instance_queue_len = 0;
             self.violate("Not enough Instance value to consume.");
         }
     }
@@ -580,6 +594,7 @@ impl Validator {
             if self.witness_queue_len >= how_many {
                 self.witness_queue_len -= how_many;
             } else {
+                self.witness_queue_len = 0;
                 self.violate("Not enough Witness value to consume.");
             }
         }

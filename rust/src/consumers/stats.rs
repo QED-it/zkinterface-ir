@@ -199,30 +199,29 @@ impl Stats {
                 _,
                 body
             ) => {
-                let (instance_count_per_it, witness_count_per_it) = match body {
-                    ForLoopBody::IterExprCall(name, _, _) => {
-                        self.functions_called += 1;
-                        if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
-                            self.ingest_call_stats(&stats_ins_wit.0);
-                            (stats_ins_wit.1, stats_ins_wit.2)
-                        } else {
-                            eprintln!("WARNING Stats: function not defined \"{}\"", name);
-                            (0usize, 0usize)
+                for _ in *start_val..=*end_val {
+                    match body {
+                        ForLoopBody::IterExprCall(name, _, _) => {
+                            self.functions_called += 1;
+                            if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                                self.ingest_call_stats(&stats_ins_wit.0);
+                                self.instance_variables += stats_ins_wit.1;
+                                self.witness_variables += stats_ins_wit.2;
+                            } else {
+                                eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                            }
+                        }
+                        ForLoopBody::IterExprAnonCall(_, _,
+                                                      instance_count,
+                                                      witness_count,
+                                                      subcircuit
+                        ) => {
+                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                            self.instance_variables += *instance_count;
+                            self.witness_variables += *witness_count;
                         }
                     }
-                    ForLoopBody::IterExprAnonCall(_, _,
-                                                  instance_count,
-                                                  witness_count,
-                                                  subcircuit
-                    ) => {
-                        self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
-                        (*instance_count, *witness_count)
-                    }
-                };
-
-                let steps = std::cmp::max(end_val-start_val+1, 0) as usize;
-                self.instance_variables += instance_count_per_it * steps;
-                self.witness_variables += witness_count_per_it * steps;
+                }
             },
         }
     }
@@ -277,19 +276,19 @@ fn test_stats() -> crate::Result<()> {
     let mut expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
-        instance_variables: 1,
-        witness_variables: 2,
+        instance_variables: 3,
+        witness_variables: 3,
         constants_gates: 1,
-        assert_zero_gates: 1,
+        assert_zero_gates: 2,
         copy_gates: 0,
-        add_gates: 3,
+        add_gates: 25,
         mul_gates: 5,
         add_constant_gates: 0,
-        mul_constant_gates: 0,
+        mul_constant_gates: 1,
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
-        variables_freed: 8,
+        variables_freed: 35,
         functions_defined: 1,
         functions_called: 4,
         switches: 1,

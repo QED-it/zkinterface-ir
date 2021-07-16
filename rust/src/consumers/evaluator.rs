@@ -225,13 +225,13 @@ impl Evaluator {
                 let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
                 let expanded_output = expand_wirelist(output_wires);
                 let expanded_input = expand_wirelist(input_wires);
-                self.ingest_subcircuit(&subcircuit, &expanded_output, &expanded_input)?;
+                self.ingest_subcircuit(&subcircuit, &expanded_output, &expanded_input, false)?;
             }
 
             AnonCall(output_wires, input_wires, _, _, subcircuit) => {
                 let expanded_output = expand_wirelist(output_wires);
                 let expanded_input = expand_wirelist(input_wires);
-                self.ingest_subcircuit(subcircuit, &expanded_output, &expanded_input)?;
+                self.ingest_subcircuit(subcircuit, &expanded_output, &expanded_input, true)?;
             }
 
             Switch(condition, output_wires, cases, branches) => {
@@ -272,7 +272,7 @@ impl Evaluator {
                             let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
                             let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
-                            self.ingest_subcircuit(&subcircuit, &expanded_outputs, &expanded_inputs)?;
+                            self.ingest_subcircuit(&subcircuit, &expanded_outputs, &expanded_inputs, false)?;
                         }
                         ForLoopBody::IterExprAnonCall(
                             output_wires,
@@ -282,7 +282,7 @@ impl Evaluator {
                         ) => {
                             let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
-                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs)?;
+                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, true)?;
                         }
                     };
                 }
@@ -315,14 +315,24 @@ impl Evaluator {
     /// This function will evaluate all the gates in the subcircuit, applying a translation to each
     /// relative to the current workspace.
     /// It will also consume instance and witnesses whenever required.
-    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId]) -> Result<()> {
+    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], share_iterators: bool) -> Result<()> {
         let output_input_wires = [output_wires, input_wires].concat();
+
+        let iterators_backup = self.known_iterators.clone();
+        if !share_iterators {
+            self.known_iterators.clear()
+        }
+
 
         let mut free_local_wire = self.free_local_wire;
         for gate in translate_gates(subcircuit, &output_input_wires, &mut free_local_wire) {
             self.ingest_gate(&gate)?;
         }
         self.free_local_wire = free_local_wire;
+
+        if !share_iterators {
+            self.known_iterators = iterators_backup.clone();
+        }
 
         Ok(())
     }

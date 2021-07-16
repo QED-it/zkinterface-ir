@@ -2,7 +2,8 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::{Header, Instance, Relation, Witness};
-use crate::structs::relation::{ADD, MUL, FUNCTION, SWITCH};
+use crate::structs::relation::{ADD, MUL, FUNCTION, SWITCH, FOR, MULC};
+use crate::structs::function::ForLoopBody;
 
 pub fn example_header() -> Header {
     example_header_in_field(literal32(EXAMPLE_MODULUS))
@@ -35,14 +36,14 @@ pub fn example_header_in_field(field_order: Vec<u8>) -> Header {
 pub fn example_instance_h(header: &Header) -> Instance {
     Instance {
         header: header.clone(),
-        common_inputs: vec![literal32(25)],
+        common_inputs: vec![literal32(25), literal32(0), literal32(1)],
     }
 }
 
 pub fn example_witness_h(header: &Header) -> Witness {
     Witness {
         header: header.clone(),
-        short_witness: vec![literal32(3), literal32(4)],
+        short_witness: vec![literal32(3), literal32(4), literal32(36)],
     }
 }
 
@@ -52,6 +53,7 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
         short_witness: vec![
             literal32(3),
             literal32(4 + 1), // incorrect.
+            literal32(40) // incorrect
         ],
     }
 }
@@ -59,13 +61,14 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
 pub fn example_relation_h(header: &Header) -> Relation {
     use crate::Gate::*;
     use crate::structs::function::Function;
-    use crate::structs::wire::WireListElement::*;
+    use crate::structs::wire::{WireListElement::*};
+    use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
     use crate::structs::function::CaseInvoke::*;
 
     Relation {
         header: header.clone(),
-        gate_mask: ADD|MUL,
-        feat_mask: FUNCTION|SWITCH,
+        gate_mask: ADD|MUL| MULC,
+        feat_mask: FUNCTION|SWITCH|FOR,
         functions: vec![
             Function::new("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)])
         ],
@@ -73,20 +76,23 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Witness(1),
             Switch(
                 1,                      // condition
-                vec![Wire(0), Wire(2), WireRange(4, 6)],    // output wires
+                vec![Wire(0), Wire(2), WireRange(4, 6), WireRange(9, 11)],    // output wires
                 vec![vec![3], vec![5]], // cases
                 vec![
                     // branches
                     AbstractAnonCall (
                         // WireList, usize, usize, Vec<Gate>)
                         vec![Wire(1)],
-                        1, 1,
+                        3, 2,
                         vec![
                             Instance(0),  // In Global Namespace: Instance(0)
                             Witness(1),   // In Global Namespace: Witness(2)
-                            Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(5), Wire(5)]), // In Global Namespace: Mul(4, 1, 1)
+                            Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(8), Wire(8)]), // In Global Namespace: Mul(4, 1, 1)
                             Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
                             Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                            Witness(5),
+                            Instance(6),
+                            Instance(7),
                         ]
 
                     ),
@@ -94,13 +100,16 @@ pub fn example_relation_h(header: &Header) -> Relation {
                     AbstractAnonCall (
                         // WireList, usize, usize, Vec<Gate>)
                         vec![Wire(1)],
-                        1, 1,
+                        3, 2,
                         vec![
                             Instance(0),
-                            Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(5), Wire(0)]),
+                            Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(8), Wire(0)]),
                             Witness(2),
                             Mul(3, 1, 2),
                             Add(4, 2, 3),
+                            Instance(5),
+                            Instance(6),
+                            Witness(7),
                         ],
                     )
                 ],
@@ -110,6 +119,22 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Add(8, 6, 7),                                        // sum - instance_0
             Free(0, Some(7)),                                    // Free all previous wires
             AssertZero(8),                                       // difference == 0
+
+            For("i".into(), 0, 20, vec![WireRange(12, 32)],
+                ForLoopBody::IterExprAnonCall(
+                        vec![Single(IterExprAdd(Box::new(IterExprName("i".into())), Box::new(IterExprConst(12))))], // i + 12
+                        vec![
+                            Single(IterExprAdd(Box::new(IterExprName("i".into())), Box::new(IterExprConst(10)))),
+                            Single(IterExprAdd(Box::new(IterExprName("i".into())), Box::new(IterExprConst(11)))),
+                        ],
+                        0, 0,
+                        vec![Add(0, 1, 2)],
+                )
+            ),
+            MulConstant(33, 32, encode_negative_one(&example_header())), // multiply by -1
+            Add(34, 9, 33),
+            AssertZero(34),
+            Free(8, Some(34)),
         ],
     }
 }
