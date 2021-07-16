@@ -316,7 +316,7 @@ impl Evaluator {
     /// relative to the current workspace.
     /// It will also consume instance and witnesses whenever required.
     fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], share_iterators: bool) -> Result<()> {
-        let output_input_wires = [output_wires, input_wires].concat();
+        let mut output_input_wires = [output_wires, input_wires].concat();
 
         let iterators_backup = self.known_iterators.clone();
         if !share_iterators {
@@ -325,7 +325,7 @@ impl Evaluator {
 
 
         let mut free_local_wire = self.free_local_wire;
-        for gate in translate_gates(subcircuit, &output_input_wires, &mut free_local_wire) {
+        for gate in translate_gates(subcircuit, &mut output_input_wires, &mut free_local_wire) {
             self.ingest_gate(&gate)?;
         }
         self.free_local_wire = free_local_wire;

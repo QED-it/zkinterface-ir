@@ -12,37 +12,29 @@ use crate::structs::function::CaseInvoke;
 /// times.
 pub fn translate_gates<'s>(
     subcircuit: &'s[Gate],
-    output_input_wires: &'s[WireId],
+    output_input_wires: &'s mut Vec<WireId>,
     free_temporary_wire: &'s mut WireId
 ) -> impl Iterator<Item = Gate> + 's {
     subcircuit
         .iter()
         .map(move |gate| translate_gate(gate, output_input_wires, free_temporary_wire))
 }
-
-/* TODO: when given an index out of the size of $translation_vector, we should expand
-   this translation_vector upto the given index, and fill the added positions with
-   free wires.
-*/
+/// This macro returns the translated value of a wire into the outer namespace.
+///  If the given wire id is out of bound, then it's considered as a temporary wire.
 macro_rules! translate_or_temp {
-        ($translation_vector:ident, $wire_name:expr, $free_temp_wire:expr) => {
-            $translation_vector
-                .get($wire_name as usize)
-                .map_or_else(
-                    || {
-                        let temp = $free_temp_wire;
-                        $free_temp_wire += 1;
-                        temp
-                    },
-                    |a| *a
-                )
-        };
+        ($translation_vector:ident, $wire_name:expr, $free_temp_wire:expr) => {{
+            while $translation_vector.len() <= $wire_name as usize {
+                $translation_vector.push($free_temp_wire);
+                $free_temp_wire += 1;
+            }
+            $translation_vector[$wire_name as usize]
+        }};
     }
 
 /// This function translate a single Gate from the inner workspace into the outer workspace
 /// using the output/input vector. If temporary wires are needed, it will pick one new one, and will
 /// increase the 'free_temporary_wire' reference.
-fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wire: &mut WireId) -> Gate {
+fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &mut WireId) -> Gate {
     macro_rules! translate {
         ($wire_name:expr) => {
             translate_or_temp!(output_input_wires, $wire_name, *free_temporary_wire)
@@ -122,7 +114,7 @@ fn translate_gate(gate: &Gate, output_input_wires: &[WireId], free_temporary_wir
 /// This helper function will translate a (not necessarily expanded) WireList from the inner workspace
 /// to the outer one using the output/input vector of wires.
 /// It will return an expanded WireList of each individual translated wire.
-fn translate_wirelist(wires: &WireList, output_input_wires: &[WireId], free_temporary_wire: &mut WireId) -> WireList {
+fn translate_wirelist(wires: &WireList, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &mut WireId) -> WireList {
     expand_wirelist(wires)
         .iter()
         .map(|id|
@@ -183,7 +175,7 @@ fn test_translate_gate() -> Result<()> {
             AssertZero(8),                                       // difference == 0
         ];
 
-    let output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
+    let mut output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
     let expected = vec![
         Witness(43),
         Switch(
@@ -228,7 +220,7 @@ fn test_translate_gate() -> Result<()> {
     ];
 
     let mut free_wire = 1u64<<32;
-    let translated: Vec<Gate> = translate_gates(&gates, &output_input_wires, &mut free_wire).collect();
+    let translated: Vec<Gate> = translate_gates(&gates, &mut output_input_wires, &mut free_wire).collect();
     assert_eq!(translated, expected);
 
     Ok(())

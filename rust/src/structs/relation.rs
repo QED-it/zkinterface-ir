@@ -316,4 +316,38 @@ fn test_create_gateset_string() -> Result<()> {
     Ok(())
 }
 
-// TODO write tests regarding feature toggles parsing / export.
+#[test]
+fn test_parse_feature_toggles() -> Result<()> {
+    assert_eq!(parse_feature_toggle("@for,@switch,@function").unwrap(), FOR|SWITCH|FUNCTION);
+    assert_eq!(parse_feature_toggle("@for,@switch,").unwrap(), FOR|SWITCH);
+    assert_eq!(parse_feature_toggle("@for,@function").unwrap(), FOR|FUNCTION);
+    assert_eq!(parse_feature_toggle("@switch,@function").unwrap(), SWITCH|FUNCTION);
+    assert_eq!(parse_feature_toggle("simple").unwrap(), SIMPLE);
+
+    assert_eq!(parse_feature_toggle("simple,@switch,@function").unwrap(), SIMPLE);
+    assert_eq!(parse_feature_toggle("@for,simple,@function").unwrap(), SIMPLE);
+
+    assert_eq!(parse_feature_toggle("@for , @switch ,@function").unwrap(), FOR|SWITCH|FUNCTION);
+    assert_eq!(parse_feature_toggle("@for, @switch , @function ").unwrap(), FOR|SWITCH|FUNCTION);
+
+    assert!(parse_feature_toggle("for").is_err());
+    assert!(parse_feature_toggle("@for, test").is_err());
+
+    Ok(())
+}
+
+#[test]
+fn test_create_feature_toggles() -> Result<()> {
+    assert_eq!(create_feature_string(FOR|SWITCH|FUNCTION), "@for,@switch,@function,");
+    assert_eq!(create_feature_string(FOR|FUNCTION), "@for,@function,");
+    assert_eq!(create_feature_string(FOR|SWITCH), "@for,@switch,");
+    assert_eq!(create_feature_string(SWITCH|FUNCTION), "@switch,@function,");
+    assert_eq!(create_feature_string(FOR), "@for,");
+    assert_eq!(create_feature_string(SWITCH), "@switch,");
+    assert_eq!(create_feature_string(FUNCTION), "@function,");
+
+    assert_eq!(create_feature_string(SIMPLE), "simple");
+    assert_eq!(create_feature_string(0), "simple");
+
+    Ok(())
+}
