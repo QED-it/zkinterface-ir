@@ -138,57 +138,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
         ],
     }
 }
-/*
-// fibonacci example
-pub fn fibonacci_instance(header: &Header) -> Instance {
-    Instance {
-        header: header.clone(),
-        common_inputs: vec![literal32(0), literal32(1)],
-    }
-}
 
-pub fn fibonacci_witness(header: &Header) -> Witness {
-    Witness {
-        header: header.clone(),
-        short_witness: vec![literal32(36)],
-    }
-}
-
-pub fn fibonacci_witness_incorrect(header: &Header) -> Witness {
-    Witness {
-        header: header.clone(),
-        short_witness: vec![
-            literal32(3), // incorrect.
-        ],
-    }
-}
-
-pub fn fibonacci_relation(header: &Header) -> Relation {
-    use crate::Gate::*;
-
-    Relation {
-        header: header.clone(),
-        gates:
-            vec![
-                // prover knows the 22nd value of the fibonacci sequence
-                Instance(0), // a_0 initial value
-                Instance(1), // a_1 initial value
-                For(0, 20, 0, 0,
-                    vec![(2, 1, 1)], // [2 + 1*i]
-                    vec![(0, 1, 2)], // [0 + 1*i, 1 + i*i]
-                    vec![
-                        Add(0, 1, 2),
-                    ]
-                ),
-                Witness(23),  // a_i+20
-                MulConstant(24, 23, encode_negative_one(&example_header())), // multiply by -1
-                Add(25, 22, 24),
-                AssertZero(25),
-                Free(0, Some(25)),
-            ],
-    }
-}
-*/
 pub const EXAMPLE_MODULUS: u32 = 101;
 
 pub fn literal<T: EndianScalar>(value: T) -> Vec<u8> {
