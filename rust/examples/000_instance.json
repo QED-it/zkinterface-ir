@@ -1,0 +1,40 @@
+{
+  message_type: "Instance",
+  message: {
+    header: {
+      version: "1.0.0",
+      field_characteristic: {
+        value: [
+          101
+        ]
+      },
+      field_degree: 1
+    },
+    common_inputs: [
+      {
+        value: [
+          25,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        value: [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        value: [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  message_type: "Witness",
+  message: {
+    header: {
+      version: "1.0.0",
+      field_characteristic: {
+        value: [
+          101
+        ]
+      },
+      field_degree: 1
+    },
+    short_witness: [
+      {
+        value: [
+          3,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        value: [
+          4,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        value: [
+          36,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+}
