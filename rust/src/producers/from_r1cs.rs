@@ -61,11 +61,12 @@ impl<S: Sink> R1CSConverter<S> {
     }
 
     fn build_term(&mut self, term: &zkiVariable) -> Result<WireId> {
+        let non_empty_term_value = if term.value.len() != 0 {term.value} else {&vec![0]};
         if term.id == 0 {
-            return Ok(self.b.create_gate(Constant(Vec::from(term.value))));
+            return Ok(self.b.create_gate(Constant(Vec::from(non_empty_term_value))));
         }
 
-        let val_id = self.b.create_gate(Constant(Vec::from(term.value)));
+        let val_id = self.b.create_gate(Constant(Vec::from(non_empty_term_value)));
         if let Some(term_id) = self.r1cs_to_ir_wire.get(&term.id) {
             return Ok(self.b.create_gate(Mul(*term_id, val_id)));
         } else {
@@ -76,8 +77,8 @@ impl<S: Sink> R1CSConverter<S> {
 
     fn add_lc(&mut self, lc: &Vec<zkiVariable>) -> Result<WireId> {
         if lc.len() == 0 {
-            // empty linear combination translates into an empty value
-            return Ok(self.b.create_gate(Constant(vec![])));
+            // empty linear combination translates into a 0 value
+            return Ok(self.b.create_gate(Constant(vec![0])));
         }
 
         let mut sum_id = self.build_term(&lc[0])?;
