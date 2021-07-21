@@ -14,7 +14,7 @@
     features: "@for,@switch,@function,",
     functions: [
       {
-        name: "example/mul",
+        name: "com.example::mul",
         output_count: 1,
         input_count: 2,
         body: [
@@ -133,7 +133,7 @@
                   {
                     directive_type: "GateCall",
                     directive: {
-                      name: "example/mul",
+                      name: "com.example::mul",
                       output_wires: {
                         elements: [
                           {
@@ -165,7 +165,7 @@
                   {
                     directive_type: "GateCall",
                     directive: {
-                      name: "example/mul",
+                      name: "com.example::mul",
                       output_wires: {
                         elements: [
                           {
@@ -261,7 +261,7 @@
                   {
                     directive_type: "GateCall",
                     directive: {
-                      name: "example/mul",
+                      name: "com.example::mul",
                       output_wires: {
                         elements: [
                           {
@@ -372,7 +372,7 @@
       {
         directive_type: "GateCall",
         directive: {
-          name: "example/mul",
+          name: "com.example::mul",
           output_wires: {
             elements: [
               {
