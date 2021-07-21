@@ -299,7 +299,7 @@ fn test_stats() -> crate::Result<()> {
         functions: HashMap::new(),
     };
     expected_stats.functions.insert(
-        "example/mul".to_string(),
+        "com.example::mul".to_string(),
         (Stats {
             mul_gates: 1,
             ..Stats::default()

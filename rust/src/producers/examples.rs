@@ -70,7 +70,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
         gate_mask: ADD|MUL| MULC,
         feat_mask: FUNCTION|SWITCH|FOR,
         functions: vec![
-            Function::new("example/mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)])
+            Function::new("com.example::mul".to_string(), 1, 2, 0, 0, vec![Mul(0, 1, 2)])
         ],
         gates: vec![
             Witness(1),
@@ -87,8 +87,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
                         vec![
                             Instance(0),  // In Global Namespace: Instance(0)
                             Witness(1),   // In Global Namespace: Witness(2)
-                            Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(8), Wire(8)]), // In Global Namespace: Mul(4, 1, 1)
-                            Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
+                            Call("com.example::mul".to_string(), vec![Wire(2)], vec![Wire(8), Wire(8)]), // In Global Namespace: Mul(4, 1, 1)
+                            Call("com.example::mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
                             Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
                             Witness(5),
                             Instance(6),
@@ -103,7 +103,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                         3, 2,
                         vec![
                             Instance(0),
-                            Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(8), Wire(0)]),
+                            Call("com.example::mul".to_string(), vec![Wire(1)], vec![Wire(8), Wire(0)]),
                             Witness(2),
                             Mul(3, 1, 2),
                             Add(4, 2, 3),
@@ -115,7 +115,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                 ],
             ),
             Constant(3, encode_negative_one(&example_header())), // -1
-            Call("example/mul".to_string(), vec![Wire(7)], vec![Wire(3), Wire(0)]), // - instance_0
+            Call("com.example::mul".to_string(), vec![Wire(7)], vec![Wire(3), Wire(0)]), // - instance_0
             Add(8, 6, 7),                                        // sum - instance_0
             Free(0, Some(7)),                                    // Free all previous wires
             AssertZero(8),                                       // difference == 0

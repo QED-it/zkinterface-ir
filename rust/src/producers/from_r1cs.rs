@@ -61,7 +61,8 @@ impl<S: Sink> R1CSConverter<S> {
     }
 
     fn build_term(&mut self, term: &zkiVariable) -> Result<WireId> {
-        let non_empty_term_value = if term.value.len() != 0 {term.value} else {&vec![0]};
+        let const_0: Vec<u8> = vec![0];
+        let non_empty_term_value = if term.value.len() != 0 {term.value} else {&const_0 };
         if term.id == 0 {
             return Ok(self.b.create_gate(Constant(Vec::from(non_empty_term_value))));
         }

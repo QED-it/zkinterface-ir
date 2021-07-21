@@ -16,6 +16,8 @@ use crate::structs::iterators::evaluate_iterexpr_list;
 type Field = BigUint;
 
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
+/// Used to check the validity of names of functions / iterators
+const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
 const IMPLEMENTED_CHECKS: &str = r"
 Here is the list of implemented semantic/syntactic checks:
 
@@ -214,6 +216,13 @@ impl Validator {
 
             let (name, output_count, input_count, instance_count, witness_count, subcircuit) =
                 (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+
+            // Check that the name follows the proper REGEX
+            let re = Regex::new(NAMES_REGEX).unwrap();
+            if !re.is_match(name.trim()) {
+                self.violate(format!("The function name ({}) should match the proper format ({}).", name, NAMES_REGEX));
+            }
+
             // Just record the signature.
             // The validation will be done when the function will be called.
             if self.known_functions.contains_key(&name) {
@@ -435,6 +444,11 @@ impl Validator {
                 if self.known_iterators.contains_key(iterator_name) {
                     self.violate("Iterator already used in this context.");
                     return;
+                }
+
+                let re = Regex::new(NAMES_REGEX).unwrap();
+                if !re.is_match(iterator_name) {
+                    self.violate(format!("The iterator name ({}) should match the following format ({}).", iterator_name, NAMES_REGEX));
                 }
 
                 for i in *start_val..=*end_val {
