@@ -315,11 +315,11 @@ impl Evaluator {
     /// This function will evaluate all the gates in the subcircuit, applying a translation to each
     /// relative to the current workspace.
     /// It will also consume instance and witnesses whenever required.
-    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], share_iterators: bool) -> Result<()> {
+    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], use_same_scope: bool) -> Result<()> {
         let mut output_input_wires = [output_wires, input_wires].concat();
 
         let iterators_backup = self.known_iterators.clone();
-        if !share_iterators {
+        if !use_same_scope {
             self.known_iterators.clear()
         }
 
@@ -330,7 +330,7 @@ impl Evaluator {
         }
         self.free_local_wire = free_local_wire;
 
-        if !share_iterators {
+        if !use_same_scope {
             self.known_iterators = iterators_backup.clone();
         }
 

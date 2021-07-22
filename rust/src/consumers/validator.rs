@@ -15,6 +15,10 @@ use crate::structs::iterators::evaluate_iterexpr_list;
 
 type Field = BigUint;
 
+// Tips: to write regex, use the following website (and select Python as the type of REGEX
+//    https://regex101.com/r/V3ROjH/1
+
+/// Used to chack the validity of the version.
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
 /// Used to check the validity of names of functions / iterators
 const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
@@ -540,7 +544,7 @@ impl Validator {
         input_wires: &[WireId],
         instance_count: usize,
         witness_count: usize,
-        share_iterators: bool,
+        use_same_scope: bool,
     ) {
         let mut current_validator = self.clone();
         current_validator.instance_queue_len = instance_count;
@@ -548,7 +552,7 @@ impl Validator {
         current_validator.live_wires = Default::default();
         current_validator.violations = vec![];
 
-        if !share_iterators {
+        if !use_same_scope {
             current_validator.known_iterators = Default::default();
         }
 
