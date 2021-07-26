@@ -1,35 +1,45 @@
 // This is a FlatBuffers schema.
 // See https://google.github.io/flatbuffers/
-
 namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
-
+// Ref. SIEVE-IR spec (1.)
 union Message {
    Relation,
    Instance,
    Witness,
 }
 
+// The 'version' field should match the following regexp "^\d+.\d+.\d+$"
+// The 'field_characteristic' should be prime, and stored little-endian byte-oriented vector
+// The 'field_degree' should be '1'. No other value is actually supported.
+// Ref. SIEVE-IR spec (3.1)
 table Header {
    version              :string;
-
    field_characteristic :Value;
    field_degree         :uint32;
 }
 
+// The 'gateset' field should be a string, either 'arithmetic' (resp. 'boolean') to allow all
+//    arithmetic (resp. boolean) gates. Or a concatenated string, comma-separated, of the individual gates
+//    @add/@addc/@mul/@mulc (resp. @and/@xor/@and)
+// The 'features' field should be a concatenated string, comma-separated, of the following features
+//    @function/@for/@switch. If none of this features is required for the following Relation, then it should be
+//    the string 'simple'
+// Ref. SIEVE-IR spec (3.3)
 table Relation {
    header               :Header;
    gateset              :string;
    features             :string;
-   gates                :[Gate];
+   functions            :[Function];
+   directives           :[Directive];
 }
-
+// Ref. SIEVE-IR spec (3.2)
 table Instance {
    header               :Header;
    common_inputs        :[Value];
 }
-
+// Ref. SIEVE-IR spec (3.2)
 table Witness {
    header               :Header;
    short_witness        :[Value];
@@ -38,20 +48,35 @@ table Witness {
 
 // ==== Helper types ====
 
-struct Wire {
+table Wire {
     id          :uint64;
-}
-
-struct WireDelta {
-    delta       :uint64;
 }
 
 // Field element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
-   value        :[ubyte];
+    value        :[ubyte];
+}
+// first/last are inclusive
+// Ref. SIEVE-IR spec (3.4)
+table WireRange {
+    first      :Wire;
+    last       :Wire;
 }
 
+union WireListElementU {
+    Wire,
+    WireRange,
+}
+// This additional table is a workaround to the flatc compiler limitation for Rust, since it does not support the
+// definition of 'vector of unions' as required for the 'WireList' type.
+table WireListElement {
+    element   :WireListElementU;
+}
+
+table WireList {
+    elements    :[WireListElement];
+}
 
 // ==== Gate types ====
 
@@ -125,6 +150,13 @@ table GateFree {
    last        :Wire;
 }
 
+// Function declaration. The 'name' field is string matching the following pattern
+//   [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
+//   (
+//       [`.' | `::']
+//       [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
+//   )*
+// Ref. SIEVE-IR spec (3.5)
 table Function {
     // Declare a Function gate as a custom computation
     name            :string;
@@ -132,47 +164,134 @@ table Function {
     input_count     :uint64;
     instance_count  :uint64;
     witness_count   :uint64;
-    subcircuit      :[Gate];
+    body            :[Directive];
+}
+// Invokes a previously defined Function gate
+// Ref. SIEVE-IR spec (3.5)
+table GateCall {
+    name              :string;
+    output_wires      :WireList;
+    input_wires       :WireList;
+}
+// Defines a anonymous basic-block consisting of a list of gates.
+table GateAnonCall {
+    output_wires    :WireList;
+    inner           :AbstractAnonCall;
 }
 
-table GateCall {
+/// The two Abstract types cannot exist by themselves in a circuit,
+/// they MUST be included in another gate (For / Switch / Call / ...)
+/// because they don't specify output wires, which should be specified in the
+/// encompassing structure itself.
+table AbstractGateCall {
     // Invokes a previously defined Function gate
     name              :string;
-    output_wires      :[Wire];
-    input_wires       :[Wire];
+    input_wires       :WireList;
 }
-
-table Block {
-    block   :[Gate];
-}
-
-table GateSwitch {
-    condition         :Wire;
-    output_wires      :[Wire];
-    input_wires       :[Wire];
-    instance_count    :uint64;
-    witness_count     :uint64;
-    cases             :[Value];
-    branches          :[Block];
-}
-
-struct Mapping {
-    base        :Wire;
-    stride      :WireDelta;
-    size        :uint64;
-}
-
-table GateFor {
-    start_val       :uint64;
-    end_val         :uint64;
+table AbstractAnonCall {
+    input_wires     :WireList;
     instance_count  :uint64;
     witness_count   :uint64;
-    output_map      :[Mapping];
-    input_map       :[Mapping];
-    body            :[Gate];
+    subcircuit      :[Directive];
 }
 
-union GateSet {
+// This is the 'invocation' equivalent
+// Ref. SIEVE-IR spec (3.7)
+union CaseInvokeU {
+    AbstractGateCall,
+    AbstractAnonCall,
+}
+// Workaround to flatc limitation in Rust which disallows 'vector of unions'
+table CaseInvoke {
+    invocation  :CaseInvokeU;
+}
+// Ref. SIEVE-IR spec (3.7)
+table GateSwitch {
+    condition         :Wire;
+    output_wires      :WireList;
+    cases             :[Value];
+    branches          :[CaseInvoke];
+}
+
+/* ========== For loop related stuff  ========== */
+// Ref. SIEVE-IR spec (3.6)
+union IterExpr {
+    IterExprConst,
+    IterExprName,
+    IterExprAdd,
+    IterExprSub,
+    IterExprMul,
+    IterExprDivConst,
+}
+
+table IterExprWireNumber { value :IterExpr;}
+
+// Constant value in an expression
+table IterExprConst { value :uint64; }
+// Named loop-iteration
+table IterExprName { name : string; }
+// Sum of two expressions
+table IterExprAdd { left :IterExprWireNumber; right :IterExprWireNumber; }
+// Difference of two expressions
+table IterExprSub { left :IterExprWireNumber; right :IterExprWireNumber; }
+// Product of two expressions
+table IterExprMul { left :IterExprWireNumber; right :IterExprWireNumber; }
+// Division of an expression by a constant
+table IterExprDivConst { numer :IterExprWireNumber; denom :uint64; }
+
+table IterExprWireRange {
+    first :IterExprWireNumber;
+    last  :IterExprWireNumber;
+}
+
+union IterExprWireListElementU {
+    IterExprWireNumber,
+    IterExprWireRange,
+}
+table IterExprWireListElement { element: IterExprWireListElementU; }
+
+table IterExprWireList {
+    elements :[IterExprWireListElement];
+}
+
+table IterExprFunctionInvoke {
+  name     :string;
+  outputs  :IterExprWireList;
+  inputs   :IterExprWireList;
+}
+
+table IterExprAnonFunction {
+  outputs          :IterExprWireList;
+  inputs           :IterExprWireList;
+  instance_count   :uint64;
+  witness_count    :uint64;
+  body             :[Directive];
+}
+
+union ForLoopBody {
+  IterExprFunctionInvoke,
+  IterExprAnonFunction
+}
+
+// Currently, the spec says that an iterator is identified by a string. Scoping of iterators is not explicitly detailed.
+//  Issue: if a For loop uses “i” as index, and in its body, calls a function using a For loop with index “i” too,
+//         things may go wrong, as during evaluation, the inner value may replace the outer one and lead to wrong
+//         computation
+//  Solution: Currently, For loop body is either an AnonCall, or a named Call. AnonCall can be viewed as a block,
+//         where variables are inherited from outer scope, while Call can be viewed as an independent execution.
+//         Therefore, the already defined indices will propagate to inner loops in case of AnonCall, but not in case
+//         of a Call.
+table GateFor {
+  outputs     :WireList;
+  iterator    :string;
+  first       :uint64;
+  last        :uint64;
+  body        :ForLoopBody;
+}
+
+/* ========== For loop related stuff  ========== */
+
+union DirectiveSet {
    GateConstant,
    GateAssertZero,
    GateCopy,
@@ -186,16 +305,15 @@ union GateSet {
    GateInstance,
    GateWitness,
    GateFree,
-   Function,
    GateCall,
+   GateAnonCall,
    GateSwitch,
    GateFor,
 }
 
-table Gate {
-    gate      :GateSet;
+table Directive {
+    directive      :DirectiveSet;
 }
-
 
 // ==== Flatbuffers details ====
 

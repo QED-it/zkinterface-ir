@@ -1,225 +1,227 @@
-use crate::Result;
-use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
-use crate::sieve_ir_generated::sieve_ir as g;
 use crate::{WireId, Gate};
+use crate::structs::wire::{WireList, WireListElement, expand_wirelist};
+use crate::structs::function::CaseInvoke;
 
-/// Convert from Flatbuffers references to owned structure.
-pub fn try_from_block(g_block: g::Block) -> Result<Vec<Gate>> {
-    let ret = Gate::try_from_vector(g_block.block().ok_or("Missing subcircuit in block")?)?;
-    Ok(ret)
-}
 
-/// Serialize this structure into a Flatbuffer message
-pub fn build_block<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    block: &'args [Gate],
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-) -> WIPOffset<g::Block<'bldr>> {
-    let impl_gates = Gate::build_vector(builder, block);
-    g::Block::create(
-        builder,
-        &g::BlockArgs {
-            block: Some(impl_gates),
-        }
-    )
-}
-
-/// Convert from Flatbuffers vector of directives into owned structure.
-pub fn try_from_block_vector<'a>(
-    g_vector: Vector<'a, ForwardsUOffset<g::Block<'a>>>,
-) -> Result<Vec<Vec<Gate>>> {
-    let mut directives = vec![];
-    for i in 0..g_vector.len() {
-        let g_a = g_vector.get(i);
-        directives.push(try_from_block(g_a)?);
-    }
-    Ok(directives)
-}
-
-/// Add a vector of this structure into a Flatbuffers message builder.
-pub fn build_block_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    directives: &'args [Vec<Gate>],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Block<'bldr>>>> {
-    let g_directives: Vec<_> = directives.iter()
-        .map(|directive| {
-            let impl_gates = Gate::build_vector(builder, directive);
-            g::Block::create(
-                builder,
-                &g::BlockArgs {
-                    block: Some(impl_gates),
-                }
-            )}
-        ).collect();
-    let g_vector = builder.create_vector(&g_directives);
-    g_vector
-}
-
-pub fn translate_gates<'s>(subcircuit: &'s[Gate], output_input_wires: &'s[WireId]) -> impl Iterator<Item = Gate> + 's {
+/// This functions will act on each gate of an iterable list of Gate, and will translate each of
+/// from the inner workspace into the outer one using the output/input vector of wires given as
+/// parameters. It will return an iterator.
+/// If a wireId in the inner workspace is bigger than the size of the output/input vector, then
+/// it's considered as a temporary wire. Temporary wires are stored starting at 2^63. It will
+/// "allocate" as many temporary wires as needed by incrementing 'free_temporary_wire' as many
+/// times.
+pub fn translate_gates<'s>(
+    subcircuit: &'s[Gate],
+    output_input_wires: &'s mut Vec<WireId>,
+    free_temporary_wire: &'s mut WireId
+) -> impl Iterator<Item = Gate> + 's {
     subcircuit
         .iter()
-        .map(move |gate| translate_gate(gate, output_input_wires))
+        .map(move |gate| translate_gate(gate, output_input_wires, free_temporary_wire))
 }
+/// This macro returns the translated value of a wire into the outer namespace.
+///  If the given wire id is out of bound, then it's considered as a temporary wire.
+macro_rules! translate_or_temp {
+        ($translation_vector:ident, $wire_name:expr, $free_temp_wire:expr) => {{
+            while $translation_vector.len() <= $wire_name as usize {
+                $translation_vector.push($free_temp_wire);
+                $free_temp_wire += 1;
+            }
+            $translation_vector[$wire_name as usize]
+        }};
+    }
 
-fn translate_gate(gate: &Gate, output_input_wires: &[WireId]) -> Gate {
+/// This function translate a single Gate from the inner workspace into the outer workspace
+/// using the output/input vector. If temporary wires are needed, it will pick one new one, and will
+/// increase the 'free_temporary_wire' reference.
+fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &mut WireId) -> Gate {
+    macro_rules! translate {
+        ($wire_name:expr) => {
+            translate_or_temp!(output_input_wires, $wire_name, *free_temporary_wire)
+        };
+    }
     match gate {
-        Gate::Constant(out, val) => Gate::Constant(output_input_wires[*out as usize], val.clone()),
-        Gate::AssertZero(out) => Gate::AssertZero(output_input_wires[*out as usize]),
-        Gate::Copy(out, inp) => Gate::Copy(output_input_wires[*out as usize], output_input_wires[*inp as usize]),
-        Gate::Add(out, a, b) => Gate::Add(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
-        Gate::Mul(out, a, b) => Gate::Mul(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
-        Gate::AddConstant(out, a, val) => Gate::AddConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone()),
-        Gate::MulConstant(out, a, val) => Gate::MulConstant(output_input_wires[*out as usize], output_input_wires[*a as usize], val.clone()),
-        Gate::And(out, a, b) => Gate::And(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
-        Gate::Xor(out, a, b) => Gate::Xor(output_input_wires[*out as usize], output_input_wires[*a as usize], output_input_wires[*b as usize]),
-        Gate::Not(out, a) => Gate::Not(output_input_wires[*out as usize], output_input_wires[*a as usize]),
-        Gate::Instance(out) => Gate::Instance(output_input_wires[*out as usize]),
-        Gate::Witness(out) => Gate::Witness(output_input_wires[*out as usize]),
-        Gate::Free(from, end) => Gate::Free(output_input_wires[*from as usize], end.map(|id| output_input_wires[id as usize])),
+        Gate::Constant(out, val) => Gate::Constant(translate!(*out), val.clone()),
+        Gate::AssertZero(out) => Gate::AssertZero(translate!(*out)),
+        Gate::Copy(out, inp) => Gate::Copy(translate!(*out), translate!(*inp)),
+        Gate::Add(out, a, b) => Gate::Add(translate!(*out), translate!(*a), translate!(*b)),
+        Gate::Mul(out, a, b) => Gate::Mul(translate!(*out), translate!(*a), translate!(*b)),
+        Gate::AddConstant(out, a, val) => Gate::AddConstant(translate!(*out), translate!(*a), val.clone()),
+        Gate::MulConstant(out, a, val) => Gate::MulConstant(translate!(*out), translate!(*a), val.clone()),
+        Gate::And(out, a, b) => Gate::And(translate!(*out), translate!(*a), translate!(*b)),
+        Gate::Xor(out, a, b) => Gate::Xor(translate!(*out), translate!(*a), translate!(*b)),
+        Gate::Not(out, a) => Gate::Not(translate!(*out), translate!(*a)),
+        Gate::Instance(out) => Gate::Instance(translate!(*out)),
+        Gate::Witness(out) => Gate::Witness(translate!(*out)),
+        Gate::Free(from, end) => Gate::Free(translate!(*from), end.map(|id| translate!(id))),
 
-        Gate::Call(name, outs,ins) =>
-            Gate::Call(name.clone(), translate_vector_wires(outs, output_input_wires), translate_vector_wires(ins, output_input_wires)),
-
-        Gate::Switch(condition, output_wires, input_wires, instance_count, witness_count, cases, branches) =>
-            Gate::Switch(
-                output_input_wires[*condition as usize],
-                translate_vector_wires(output_wires, output_input_wires),
-                translate_vector_wires(input_wires, output_input_wires),
-                *instance_count,
-                *witness_count,
-                cases.clone(),
-                branches.clone(),
+        Gate::AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) =>
+            Gate::AnonCall(
+                translate_wirelist(output_wires, output_input_wires, free_temporary_wire),
+                translate_wirelist(input_wires, output_input_wires, free_temporary_wire),
+                *instance_count, *witness_count,
+                subcircuit.clone()
             ),
 
-        // This one should never happen
-        Gate::Function(..) => panic!("Function should not be defined within bodies."),
+
+        Gate::Call(name, outs,ins) =>
+            Gate::Call(
+                name.clone(),
+                translate_wirelist(outs, output_input_wires, free_temporary_wire),
+                translate_wirelist(ins, output_input_wires, free_temporary_wire)
+            ),
+
+        Gate::Switch(condition, output_wires, cases, branches) => {
+            let translated_branches = branches.iter()
+                .map(|case| {
+                    match case {
+                        CaseInvoke::AbstractGateCall(name, inputs)
+                            => CaseInvoke::AbstractGateCall(
+                                   name.clone(),
+                                   translate_wirelist(inputs, output_input_wires, free_temporary_wire)
+                        ),
+                        CaseInvoke::AbstractAnonCall(inputs, ins, wit, sub)
+                            => CaseInvoke::AbstractAnonCall(translate_wirelist(inputs, output_input_wires, free_temporary_wire), *ins, *wit, sub.clone()),
+                    }
+                }).collect();
+
+            Gate::Switch(
+                translate!(*condition),
+                translate_wirelist(output_wires, output_input_wires, free_temporary_wire),
+                cases.clone(),
+                translated_branches,
+            )
+        }
 
         Gate::For(
+            iterator_name,
             start_val,
             end_val,
-            instance_count,
-            witness_count,
-            output_mapping,
-            input_mapping,
+            global_output_list,
             body
         ) => {
             Gate::For(
+                iterator_name.clone(),
                 *start_val,
                 *end_val,
-                *instance_count,
-                *witness_count,
-                output_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
-                input_mapping.iter().map(|mapping| (translate_wire(mapping.0, output_input_wires), mapping.1, mapping.2)).collect(),
+                translate_wirelist(global_output_list, output_input_wires, free_temporary_wire),
                 body.clone(),
             )
         }
     }
 }
 
-fn translate_vector_wires(wires: &[WireId], output_input_wires: &[WireId]) -> Vec<WireId> {
-    wires.iter().map(|id| translate_wire(*id, output_input_wires)).collect()
+/// This helper function will translate a (not necessarily expanded) WireList from the inner workspace
+/// to the outer one using the output/input vector of wires.
+/// It will return an expanded WireList of each individual translated wire.
+fn translate_wirelist(wires: &WireList, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &mut WireId) -> WireList {
+    expand_wirelist(wires)
+        .iter()
+        .map(|id|
+            WireListElement::Wire(translate_or_temp!(output_input_wires, *id, *free_temporary_wire))
+        ).collect()
 }
 
-fn translate_wire(wire: WireId, output_input_wires: &[WireId]) -> WireId {
-    output_input_wires[wire as usize]
-}
-
-pub fn expand_wire_mappings(mappings: &[(WireId, u64, usize)], current_index: u64) -> Vec<WireId> {
-    mappings.iter().flat_map(|mapping| {
-        (0..mapping.2).into_iter().map(move |j| mapping.0 + mapping.1 * current_index + j as u64)
-    }).collect()
-
-}
+#[cfg(test)]
+use crate::Result;
 
 #[test]
 fn test_translate_gate() -> Result<()> {
     use crate::Gate::*;
     use crate::producers::examples::{encode_negative_one, example_header};
+    use crate::structs::wire::WireListElement::*;
+    use crate::structs::function::CaseInvoke::*;
 
     let gates = vec![
-        Witness(1),
-        Switch(
-            1,                      // condition
-            vec![0, 2, 4, 5, 6],    // output wires
-            vec![1],
-            1,
-            1,
-            vec![vec![3], vec![5]], // cases
-            vec![
-                // branches
+            Witness(1),
+            Switch(
+                1,                      // condition
+                vec![Wire(0), Wire(2), WireRange(4, 6)],    // output wires, with both individual+range
+                vec![vec![3], vec![5]], // cases
                 vec![
-                    Instance(0),  // In Global Namespace: Instance(0)
-                    Witness(1),   // In Global Namespace: Witness(2)
-                    Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
-                    Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
-                    Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                ],
-                // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                vec![
-                    Instance(0),
-                    Call("example/mul".to_string(), vec![1], vec![5, 0]),
-                    Witness(2),
-                    Mul(3, 1, 2),
-                    Add(4, 2, 3),
-                ],
-            ],
-        ),
-        Constant(3, encode_negative_one(&example_header())), // -1
-        Call("example/mul".to_string(), vec![7], vec![3, 0]), // - instance_0
-        Add(8, 6, 7),                                        // sum - instance_0
-        Free(0, Some(7)),                                    // Free all previous wires
-        AssertZero(8),                                       // difference == 0
-    ];
+                    // branches
+                    AbstractAnonCall (
+                        // WireList, usize, usize, Vec<Gate>)
+                        vec![Wire(1)],
+                        1, 1,
+                        vec![
+                            Instance(0),  // In Global Namespace: Instance(0)
+                            Witness(1),   // In Global Namespace: Witness(2)
+                            Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(5), Wire(5)]), // In Global Namespace: Mul(4, 1, 1)
+                            Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
+                            Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                        ]
 
-    let output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
+                    ),
+                    // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
+                    AbstractAnonCall (
+                        // WireList, usize, usize, Vec<Gate>)
+                        vec![Wire(1)],
+                        1, 1,
+                        vec![
+                            Instance(0),
+                            Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(5), Wire(0)]),
+                            Witness(2),
+                            Mul(3, 1, 2),
+                            Add(4, 2, 3),
+                        ],
+                    )
+                ],
+            ),
+            Constant(3, encode_negative_one(&example_header())), // -1
+            Call("example/mul".to_string(), vec![Wire(7)], vec![Wire(3), Wire(0)]), // - instance_0
+            Add(8, 6, 7),                                        // sum - instance_0
+            Free(0, Some(7)),                                    // Free all previous wires
+            AssertZero(8),                                       // difference == 0
+        ];
+
+    let mut output_input_wires = vec![42, 43, 44, 45, 46, 47, 48, 49, 50];
     let expected = vec![
         Witness(43),
         Switch(
             43,                      // condition
-            vec![42, 44, 46, 47, 48],    // output wires
-            vec![43],
-            1,
-            1,
+            vec![Wire(42), Wire(44), Wire(46), Wire(47), Wire(48)],    // output wires
             vec![vec![3], vec![5]], // cases
             vec![
                 // branches
-                vec![
-                    Instance(0),  // In Global Namespace: Instance(0)
-                    Witness(1),   // In Global Namespace: Witness(2)
-                    Call("example/mul".to_string(), vec![2], vec![5, 5]), // In Global Namespace: Mul(4, 1, 1)
-                    Call("example/mul".to_string(), vec![3], vec![1, 1]), // In Global Namespace: Mul(5, 2, 2)
-                    Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                ],
+                AbstractAnonCall (
+                    // WireList, usize, usize, Vec<Gate>)
+                    vec![Wire(43)],
+                    1, 1,
+                    vec![
+                        Instance(0),  // In Global Namespace: Instance(0)
+                        Witness(1),   // In Global Namespace: Witness(2)
+                        Call("example/mul".to_string(), vec![Wire(2)], vec![Wire(5), Wire(5)]), // In Global Namespace: Mul(4, 1, 1)
+                        Call("example/mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
+                        Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    ]
+
+                ),
                 // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                vec![
-                    Instance(0),
-                    Call("example/mul".to_string(), vec![1], vec![5, 0]),
-                    Witness(2),
-                    Mul(3, 1, 2),
-                    Add(4, 2, 3),
-                ],
+                AbstractAnonCall (
+                    // WireList, usize, usize, Vec<Gate>)
+                    vec![Wire(43)],
+                    1, 1,
+                    vec![
+                        Instance(0),
+                        Call("example/mul".to_string(), vec![Wire(1)], vec![Wire(5), Wire(0)]),
+                        Witness(2),
+                        Mul(3, 1, 2),
+                        Add(4, 2, 3),
+                    ],
+                )
             ],
         ),
         Constant(45, encode_negative_one(&example_header())), // -1
-        Call("example/mul".to_string(), vec![49], vec![45, 42]), // - instance_0
+        Call("example/mul".to_string(), vec![Wire(49)], vec![Wire(45), Wire(42)]), // - instance_0
         Add(50, 48, 49),                                        // sum - instance_0
         Free(42, Some(49)),                                    // Free all previous wires
         AssertZero(50),                                       // difference == 0
     ];
 
-    let translated: Vec<Gate> = translate_gates(&gates, &output_input_wires).collect();
+    let mut free_wire = 1u64<<32;
+    let translated: Vec<Gate> = translate_gates(&gates, &mut output_input_wires, &mut free_wire).collect();
     assert_eq!(translated, expected);
-
-    Ok(())
-}
-
-#[test]
-fn test_wire_mapping_expansion() -> Result<()> {
-    let wire_mappings: Vec<(u64, u64, usize)> = vec![(5, 0, 1), (10, 100, 2), (60, 100, 3)];
-    let expanded = expand_wire_mappings(&wire_mappings, 1);
-
-    let expected: Vec<u64> = vec![5, 110, 111, 160, 161, 162];
-
-    assert_eq!(expanded, expected);
 
     Ok(())
 }

@@ -1,25 +1,53 @@
-use crate::{Gate, Header, Instance, Message, Relation, Result, Witness};
+use crate::{Gate, Header, Instance, Message, Relation, Result, Witness, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
 use std::ops::{BitAnd, BitXor};
-use crate::structs::subcircuit::{translate_gates, expand_wire_mappings};
+use crate::structs::subcircuit::translate_gates;
+use crate::structs::wire::expand_wirelist;
+use crate::structs::function::{CaseInvoke, ForLoopBody};
+use crate::consumers::TEMPORARY_WIRES_START;
+use crate::structs::iterators::evaluate_iterexpr_list;
 
-type Wire = u64;
 type Repr = BigUint;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Evaluator {
-    values: HashMap<Wire, Repr>,
+    values: HashMap<WireId, Repr>,
     modulus: Repr,
     instance_queue: VecDeque<Repr>,
     witness_queue: VecDeque<Repr>,
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: HashMap<String, Vec<Gate>>,
+    known_iterators: HashMap<String, u64>,
+
+    // use to allocate temporary wires if required.
+    free_local_wire :WireId,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
+}
+
+impl Default for Evaluator {
+    fn default() -> Self {
+        Evaluator {
+            values : Default::default(),
+            modulus: Default::default(),
+            instance_queue: Default::default(),
+            witness_queue: Default::default(),
+
+            // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+            known_functions: Default::default(),
+            known_iterators: Default::default(),
+
+            // use to allocate temporary wires if required.
+            free_local_wire : TEMPORARY_WIRES_START,
+
+            verified_at_least_one_gate: Default::default(),
+            found_error: Default::default(),
+        }
+    }
 }
 
 impl Evaluator {
@@ -92,6 +120,11 @@ impl Evaluator {
         if relation.gates.len() > 0 {
             self.verified_at_least_one_gate = true;
         }
+
+        for f in relation.functions.iter() {
+            self.known_functions.insert(f.name.clone(), f.body.clone());
+        }
+
 
         for gate in &relation.gates {
             self.ingest_gate(gate)?;
@@ -188,24 +221,32 @@ impl Evaluator {
                 }
             }
 
-            Function(name, _, _, _, _, subcircuit) => {
-                self.known_functions.insert(name.clone(), subcircuit.clone());
-            }
-
             Call(name, output_wires, input_wires) => {
                 let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
-                self.ingest_subcircuit(&subcircuit, output_wires, input_wires)?;
+                let expanded_output = expand_wirelist(output_wires);
+                let expanded_input = expand_wirelist(input_wires);
+                self.ingest_subcircuit(&subcircuit, &expanded_output, &expanded_input, false)?;
             }
 
-            Switch(condition, output_wires, input_wires, _, _, cases, branches) => {
+            AnonCall(output_wires, input_wires, _, _, subcircuit) => {
+                let expanded_output = expand_wirelist(output_wires);
+                let expanded_input = expand_wirelist(input_wires);
+                self.ingest_subcircuit(subcircuit, &expanded_output, &expanded_input, true)?;
+            }
+
+            Switch(condition, output_wires, cases, branches) => {
 
                 let mut selected  :bool = false;
 
                 for (case, branch) in cases.iter().zip(branches.iter()) {
                     if self.get(*condition).ok() == Some(&Repr::from_bytes_le(case)) {
                         selected = true;
-
-                        self.ingest_subcircuit(branch, output_wires, input_wires)?;
+                        match branch {
+                            CaseInvoke::AbstractGateCall(name, inputs) => self.ingest_gate(&Call(name.clone(), output_wires.clone(), inputs.clone()))?,
+                            CaseInvoke::AbstractAnonCall(input_wires, instance_count, witness_count, subcircuit) => {
+                                self.ingest_gate(&AnonCall(output_wires.clone(), input_wires.clone(), *instance_count, *witness_count, subcircuit.clone()))?
+                            }
+                        }
                     }
                 }
 
@@ -217,39 +258,55 @@ impl Evaluator {
             }
 
             For(
+                iterator_name,
                 start_val,
                 end_val,
-                _, _,
-                output_mapping,
-                input_mapping,
+                _,
                 body
             ) => {
                 for i in *start_val..=*end_val {
-                    let output_wires= expand_wire_mappings(output_mapping, i);
-                    let input_wires= expand_wire_mappings(input_mapping, i);
-                    self.ingest_subcircuit(body, &output_wires, &input_wires)?;
+                    self.known_iterators.insert(iterator_name.clone(), i);
+
+                    match body {
+                        ForLoopBody::IterExprCall(name, outputs, inputs) => {
+                            let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
+                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            self.ingest_subcircuit(&subcircuit, &expanded_outputs, &expanded_inputs, false)?;
+                        }
+                        ForLoopBody::IterExprAnonCall(
+                            output_wires,
+                            input_wires,
+                            _, _,
+                            subcircuit
+                        ) => {
+                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
+                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
+                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, true)?;
+                        }
+                    };
                 }
             },
         }
         Ok(())
     }
 
-    fn set_encoded(&mut self, id: Wire, encoded: &[u8]) {
+    fn set_encoded(&mut self, id: WireId, encoded: &[u8]) {
         self.set(id, BigUint::from_bytes_le(encoded));
     }
 
-    fn set(&mut self, id: Wire, mut value: Repr) {
+    fn set(&mut self, id: WireId, mut value: Repr) {
         value %= &self.modulus;
         self.values.insert(id, value);
     }
 
-    pub fn get(&self, id: Wire) -> Result<&Repr> {
+    pub fn get(&self, id: WireId) -> Result<&Repr> {
         self.values
             .get(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
     }
 
-    fn remove(&mut self, id: Wire) -> Result<Repr> {
+    fn remove(&mut self, id: WireId) -> Result<Repr> {
         self.values
             .remove(&id)
             .ok_or(format!("No value given for wire_{}", id).into())
@@ -258,11 +315,23 @@ impl Evaluator {
     /// This function will evaluate all the gates in the subcircuit, applying a translation to each
     /// relative to the current workspace.
     /// It will also consume instance and witnesses whenever required.
-    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[Wire], input_wires: &[Wire]) -> Result<()> {
-        let output_input_wires = [output_wires, input_wires].concat();
+    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], use_same_scope: bool) -> Result<()> {
+        let mut output_input_wires = [output_wires, input_wires].concat();
 
-        for gate in translate_gates(subcircuit, &output_input_wires) {
+        let iterators_backup = self.known_iterators.clone();
+        if !use_same_scope {
+            self.known_iterators.clear()
+        }
+
+
+        let mut free_local_wire = self.free_local_wire;
+        for gate in translate_gates(subcircuit, &mut output_input_wires, &mut free_local_wire) {
             self.ingest_gate(&gate)?;
+        }
+        self.free_local_wire = free_local_wire;
+
+        if !use_same_scope {
+            self.known_iterators = iterators_backup.clone();
         }
 
         Ok(())
@@ -287,58 +356,3 @@ fn test_simulator() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_switch() -> Result<()> {
-    use Gate::*;
-    use crate::producers::examples::*;
-    use crate::structs::relation::{ARITH, SWITCH};
-
-    let instance = example_instance();
-    let witness = example_witness();
-    let relation =
-        Relation {
-            header: example_header(),
-            gate_mask: ARITH,
-            feat_mask: SWITCH,
-            gates: vec![
-                Witness(1),
-                Switch(1,                     // condition
-                    vec![0, 2, 4, 5, 6],      // output wires
-                    vec![1],                  // input wires
-                    1, 1,                     // instance_count, witness_count
-                    vec![vec![3], vec![5]],   // cases
-                    vec![                     // branches
-                        vec![                 // case 3
-                            Instance(0),
-                            Witness(1),
-                            Mul(2, 5, 5),
-                            Mul(3, 1, 1),
-                            Add(4, 2, 3),
-                        ],
-                        vec![                 // case 5
-                            Instance(0),
-                            Witness(2),
-                            Mul(1, 5, 0),
-                            Mul(3, 1, 2),
-                            Add(4, 2, 3),
-                        ],
-                    ],
-                ),
-                Constant(3, encode_negative_one(&example_header())), // -1
-                Mul(7, 3, 0),                                              // - instance_0
-                Add(8, 6, 7),                                              // sum - instance_0
-                Free(0, Some(7)),                                          // Free all previous wires
-                AssertZero(8),                                             // difference == 0
-            ],
-        };
-
-
-    let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance)?;
-    simulator.ingest_witness(&witness)?;
-    simulator.ingest_relation(&relation)?;
-
-    assert_eq!(simulator.get_violations().len(), 0);
-
-    Ok(())
-}

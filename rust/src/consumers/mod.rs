@@ -12,3 +12,5 @@ pub mod stats;
 
 /// Helper functions to read buffers.
 pub mod utils;
+
+pub const TEMPORARY_WIRES_START: u64 = 1u64<<63;

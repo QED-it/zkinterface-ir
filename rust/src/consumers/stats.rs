@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
+use crate::structs::function::{CaseInvoke, ForLoopBody};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
@@ -71,6 +72,16 @@ impl Stats {
         self.ingest_header(&relation.header);
         self.relation_messages += 1;
 
+        for f in relation.functions.iter() {
+            let (name, _, _, instance_count, witness_count, subcircuit) =
+                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+            // Just record the signature.
+            self.functions_defined += 1;
+            let func_stats = self.ingest_subcircuit(&subcircuit);
+            self.functions.insert(name.clone(), (func_stats, instance_count, witness_count));
+
+        }
+
         for gate in &relation.gates {
             self.ingest_gate(gate);
         }
@@ -133,12 +144,6 @@ impl Stats {
                 self.variables_freed += (last_one - *first + 1) as usize;
             }
 
-            Function(name, _, _, instance_count, witness_count, implementation) => {
-                self.functions_defined += 1;
-                let func_stats = self.ingest_subcircuit(implementation);
-                self.functions.insert(name.clone(), (func_stats, *instance_count, *witness_count));
-            }
-
             Call(name, _, _) => {
                 self.functions_called += 1;
                 if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
@@ -150,27 +155,73 @@ impl Stats {
                 }
             }
 
-            Switch(_, _, _, instance_count, witness_count, _, branches) => {
-                self.switches += 1;
-                self.branches += branches.len();
-                for block in branches {
-                    self.ingest_call_stats(&self.ingest_subcircuit(block));
-                }
-
+            AnonCall(_, _, instance_count, witness_count, subcircuit) => {
+                self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
                 self.instance_variables += instance_count;
                 self.witness_variables  += witness_count;
             }
 
+            Switch(_, _,  _, branches) => {
+                self.switches += 1;
+                self.branches += branches.len();
+                let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
+
+                for branch in branches {
+                    let (instance_count, witness_count) = match branch {
+                        CaseInvoke::AbstractGateCall(name, _) => {
+                            self.functions_called += 1;
+                            if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                                self.ingest_call_stats(&stats_ins_wit.0);
+                                (stats_ins_wit.1, stats_ins_wit.2)
+                            } else {
+                                eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                                (0usize, 0usize)
+                            }
+                        }
+                        CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, subcircuit) => {
+                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                            (*instance_count, *witness_count)
+                        }
+                    };
+
+                    max_instance_count = std::cmp::max(max_instance_count, instance_count);
+                    max_witness_count  = std::cmp::max(max_witness_count,  witness_count);
+                }
+
+                self.instance_variables += max_instance_count;
+                self.witness_variables  += max_witness_count;
+            }
+
             For(
-                _, _,
-                instance_count,
-                witness_count,
-                _, _,
+                _,
+                start_val,
+                end_val,
+                _,
                 body
             ) => {
-                self.ingest_call_stats(&self.ingest_subcircuit(body));
-                self.instance_variables += instance_count;
-                self.witness_variables += witness_count;
+                for _ in *start_val..=*end_val {
+                    match body {
+                        ForLoopBody::IterExprCall(name, _, _) => {
+                            self.functions_called += 1;
+                            if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                                self.ingest_call_stats(&stats_ins_wit.0);
+                                self.instance_variables += stats_ins_wit.1;
+                                self.witness_variables += stats_ins_wit.2;
+                            } else {
+                                eprintln!("WARNING Stats: function not defined \"{}\"", name);
+                            }
+                        }
+                        ForLoopBody::IterExprAnonCall(_, _,
+                                                      instance_count,
+                                                      witness_count,
+                                                      subcircuit
+                        ) => {
+                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                            self.instance_variables += *instance_count;
+                            self.witness_variables += *witness_count;
+                        }
+                    }
+                }
             },
         }
     }
@@ -225,19 +276,19 @@ fn test_stats() -> crate::Result<()> {
     let mut expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
-        instance_variables: 1,
-        witness_variables: 2,
+        instance_variables: 3,
+        witness_variables: 3,
         constants_gates: 1,
-        assert_zero_gates: 1,
+        assert_zero_gates: 2,
         copy_gates: 0,
-        add_gates: 3,
+        add_gates: 25,
         mul_gates: 5,
         add_constant_gates: 0,
-        mul_constant_gates: 0,
+        mul_constant_gates: 1,
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
-        variables_freed: 8,
+        variables_freed: 35,
         functions_defined: 1,
         functions_called: 4,
         switches: 1,
@@ -248,7 +299,7 @@ fn test_stats() -> crate::Result<()> {
         functions: HashMap::new(),
     };
     expected_stats.functions.insert(
-        "example/mul".to_string(),
+        "com.example::mul".to_string(),
         (Stats {
             mul_gates: 1,
             ..Stats::default()
