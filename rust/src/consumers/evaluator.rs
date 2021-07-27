@@ -325,10 +325,11 @@ impl Evaluator {
 
 
         let mut free_local_wire = self.free_local_wire;
-        for gate in translate_gates(subcircuit, &mut output_input_wires, &mut free_local_wire) {
+        let free_wire = std::cell::Cell::from_mut(&mut free_local_wire);
+        for gate in translate_gates(subcircuit, &mut output_input_wires, &free_wire) {
             self.ingest_gate(&gate)?;
         }
-        self.free_local_wire = free_local_wire;
+        self.free_local_wire = free_wire.get();
 
         if !use_same_scope {
             self.known_iterators = iterators_backup.clone();
