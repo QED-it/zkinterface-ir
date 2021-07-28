@@ -284,7 +284,7 @@ impl Evaluator {
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
                             self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, true)?;
                         }
-                    };
+                    }
                 }
             },
         }
