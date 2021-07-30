@@ -1,3 +1,14 @@
+# v1.0.0, 2021-08
+
+Schema (.fbs):
+- Switch / For / Functions statements.
+- Iterator Expressions
+- List and Range of wires
+
+Rust:
+- Structures, Validator and Evaluator adapted to the new schema.
+
+
 # v0.2.0, 2021-04
 
 Schema (.fbs):
