@@ -1,7 +1,7 @@
 use crate::{Gate, Header, Instance, Message, Relation, Result, Witness, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque, BTreeMap};
 use std::ops::{BitAnd, BitXor};
 use crate::structs::subcircuit::translate_gates;
 use crate::structs::wire::expand_wirelist;
@@ -13,7 +13,7 @@ type Repr = BigUint;
 
 #[derive(Clone)]
 pub struct Evaluator {
-    values: HashMap<WireId, Repr>,
+    values: BTreeMap<WireId, Repr>,
     modulus: Repr,
     instance_queue: VecDeque<Repr>,
     witness_queue: VecDeque<Repr>,
