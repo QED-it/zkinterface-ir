@@ -10,12 +10,12 @@ use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Witness as zkiWitness;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub struct R1CSConverter<S: Sink> {
     b: GateBuilder<S>,
     // Useful to know which variable in R1CS is associated to which WireId in IR circuit.
-    r1cs_to_ir_wire: HashMap<u64, WireId>,
+    r1cs_to_ir_wire: BTreeMap<u64, WireId>,
     minus_one: WireId,
 }
 
@@ -26,7 +26,7 @@ impl<S: Sink> R1CSConverter<S> {
     pub fn new(sink: S, zki_header: &zkiCircuitHeader) -> Self {
         let mut conv = Self {
             b: GateBuilder::new(sink, zki_header_to_header(zki_header).unwrap()),
-            r1cs_to_ir_wire: HashMap::new(),
+            r1cs_to_ir_wire: Default::default(),
             minus_one: 0,
         };
 
