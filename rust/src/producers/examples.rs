@@ -43,7 +43,6 @@ pub fn example_instance_h(header: &Header) -> Instance {
 
 pub fn example_witness_h(header: &Header) -> Witness {
     let modulus = BigUint::from_bytes_le(&header.field_characteristic);
-    println!("{}", modulus);
     let fibonacci_22 = BigUint::from(17711 as u64) % modulus;
     Witness {
         header: header.clone(),
