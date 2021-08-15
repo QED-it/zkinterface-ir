@@ -1,4 +1,6 @@
 use crate::{Gate, Header, Instance, Message, Relation, Result, Witness, WireId};
+use crate::consumers::flattening::flatten_gate;
+use core::cell::Cell;
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
@@ -339,20 +341,41 @@ impl Evaluator {
     }
 }
 
+fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>{
+    let mut map = HashMap::new();
+    for f in relation.functions.iter() {
+	map.insert(f.name.clone(),(f.output_count,f.input_count,f.instance_count, f.witness_count, f.body.clone()));
+    }
+    map
+}
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
 
-    let relation = example_relation();
+    let mut relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
-
+    let field_order = instance.header.field_characteristic.clone();
+    let known_functions = get_known_functions(&relation);
     let mut simulator = Evaluator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;
 
-    assert_eq!(simulator.get_violations().len(), 0);
+    let known_iterators = simulator.known_iterators.clone();
+    let free_temp_wire = simulator.free_local_wire;
+    let gates:Vec<Gate> = relation.gates;
+
+    let flattened_gates:Vec<Gate> = gates.iter().flat_map(move |inner_gate| flatten_gate(inner_gate.clone(), &known_functions, &known_iterators, &Cell::new(free_temp_wire),field_order.clone())).collect::<Vec<Gate>>();
+
+    let mut new_relation = example_relation();
+    new_relation.gates = flattened_gates;
+    let mut new_simulator = Evaluator::default();
+    new_simulator.ingest_instance(&instance);
+    new_simulator.ingest_witness(&witness);
+    new_simulator.ingest_relation(&new_relation);
+
+    assert_eq!(new_simulator.get_violations().len(), 0);
 
     Ok(())
 }

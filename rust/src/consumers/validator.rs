@@ -1,5 +1,5 @@
 use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId, Result};
-
+use core::cell::Cell;
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
 use std::collections::{HashSet, HashMap};
@@ -10,7 +10,7 @@ use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND}
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
-use crate::consumers::TEMPORARY_WIRES_START;
+use crate::consumers::{TEMPORARY_WIRES_START,flattening::flatten_gate};
 use crate::structs::iterators::evaluate_iterexpr_list;
 
 type Field = BigUint;
@@ -270,6 +270,7 @@ impl Validator {
             }
 
             Mul(out, left, right) => {
+//		println!("mul {:?}", left);
                 self.ensure_allowed_gate("@mul", MUL);
 
                 self.ensure_defined_and_set(*left);
@@ -709,19 +710,34 @@ impl Validator {
 }
 
 #[test]
-fn test_validator() -> crate::Result<()> {
+fn test_validator_only() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let instance = example_instance();
     let witness = example_witness();
-    let relation = example_relation();
+    let mut relation = example_relation();
+    let field_order = instance.header.field_characteristic.clone();
 
     let mut validator = Validator::new_as_prover();
+
     validator.ingest_instance(&instance);
     validator.ingest_witness(&witness);
     validator.ingest_relation(&relation);
+    let gates:Vec<Gate> = relation.gates;
 
-    let violations = validator.get_violations();
+    let known_functions = validator.known_functions.clone();
+    let known_iterators = validator.known_iterators.clone();
+    let free_temporary_wire = validator.free_local_wire.clone();
+    let flattened_gates:Vec<Gate> = gates.iter().flat_map(move |inner_gate| flatten_gate(inner_gate.clone(), &known_functions, &known_iterators, &Cell::new(free_temporary_wire),field_order.clone())).collect::<Vec<Gate>>();
+    relation.gates = flattened_gates;
+
+    let mut new_val = Validator::new_as_prover();
+
+
+    new_val.ingest_instance(&instance);
+    new_val.ingest_witness(&witness);
+    new_val.ingest_relation(&relation);    
+    let violations = new_val.get_violations();
     assert_eq!(violations, Vec::<String>::new());
 
     Ok(())
