@@ -4,7 +4,7 @@ use crate::{Gate, WireId};
 use std::iter;
 use std::collections::HashMap;
 use crate::structs::subcircuit::translate_gates;
- use crate::Value;
+use crate::Value;
 use crate::structs::wire::{expand_wirelist,WireList,WireListElement::{Wire,WireRange}};
 use std::cell::Cell;
 use crate::structs::gates::Gate::*;
@@ -16,6 +16,12 @@ use num_integer::Integer;
 // (output_count, input_count, instance_count, witness_count, subcircuit)
 type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
 
+fn tmp_wire(free_temporary_wire: &Cell<WireId>) -> u64 {
+    let new_wire = free_temporary_wire.get();
+    free_temporary_wire.set(free_temporary_wire.get() + 1);
+    new_wire
+}
+    
 pub fn flatten_gate(
     gate: Gate,
     known_functions: &HashMap<String, FunctionDeclare>,
@@ -122,161 +128,168 @@ pub fn flatten_gate(
 	    outputs
         }
 
-        Gate::Switch(wireId, output_wires, cases, branches) => {
+        Gate::Switch(wire_id, output_wires, cases, branches) => {
 	    let mut instance_counts = Vec::new();
-	    let mut witness_counts = Vec::new();
-	    let mut global_gates = Vec::new();
+	    let mut witness_counts  = Vec::new();
+	    let mut global_gates    = Vec::new();
    	    let expanded_output_wires = expand_wirelist(&output_wires);
-
 	    
 	    for branch in branches{
-		//maps inner context to outer context
-		//also get input, witness count
+                println!("Initial pass rewrites {:?}", branch);
+		// maps inner context to outer context
+		// also get input, witness count
 		let new_gates =
-		 match branch {
-		     CaseInvoke::AbstractGateCall(name, input_wires) => {
-			 if let Some(declaration) = known_functions.get(&name){
-		     	    let expanded_input_wires = expand_wirelist(&input_wires);
-     			     let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
-			     instance_counts.push(declaration.2);
-			     witness_counts.push(declaration.3);
-			     let gates = translate_gates(&declaration.4, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
-			     gates
-			 }
-			 else{
-			     vec![]
-			 }
-		     },
-		    CaseInvoke::AbstractAnonCall(input_wires,instance_count,witness_count,branch) => {
-			let expanded_input_wires = expand_wirelist(&input_wires);
-			let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
-			instance_counts.push(instance_count);
-			witness_counts.push(witness_count);
-			let gates = translate_gates(&branch, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
-			gates
-		    }
-		   
-		 };
+		    match branch {
+		        CaseInvoke::AbstractGateCall(name, input_wires) => {
+			    if let Some(declaration) = known_functions.get(&name){
+		     	        let expanded_input_wires = expand_wirelist(&input_wires);
+     			        let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
+			        instance_counts.push(declaration.2);
+			        witness_counts.push(declaration.3);
+			        let gates = translate_gates(&declaration.4, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
+			        gates
+			    }
+			    else{
+			        vec![]
+			    }
+		        },
+		        CaseInvoke::AbstractAnonCall(input_wires,instance_count,witness_count,branch) => {
+			    let expanded_input_wires = expand_wirelist(&input_wires);
+			    let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
+			    instance_counts.push(instance_count);
+			    witness_counts.push(witness_count);
+			    let gates = translate_gates(&branch, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
+			    gates
+		        }
+		        
+		    };
+                println!("to {:?}\n", new_gates);
 		global_gates.push(new_gates);
 	    }
-	    let mut gates:Vec<Gate> = Vec::new();
+	    let mut gates:Vec<Gate> = Vec::new(); // Where we produce the flattening of the switch
+
+            // We get the max number of instance pulls and witness pulls across branches
    	    let max_instance = *instance_counts.iter().max().unwrap();
-	    let max_witness = *witness_counts.iter().max().unwrap();
-	    let mut instance_wires = Vec::new();
+	    let max_witness  = *witness_counts.iter().max().unwrap();
+            
+            // We do all instance pulls ahead of the flattened switch
+	    let mut instance_wires = Vec::new(); // we remember the wire ids of the instance pulls
 	    for _ in 0..max_instance{
-		let new_wire = free_temporary_wire.get();
-		println!("new instance wire {:?}",new_wire);
+		let new_wire = tmp_wire(free_temporary_wire);
+		println!("new instance wire {:?}", new_wire);
 		let instance_gate = Gate::Instance(new_wire);
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
 		instance_wires.push(new_wire);
 		gates.push(instance_gate);
 	    }
 
+            // We do all instance pulls ahead of the flattened switch
 	    let mut witness_wires = Vec::new();
 	    for _ in 0..max_witness{
-		let new_wire = free_temporary_wire.get();
+		let new_wire = tmp_wire(free_temporary_wire);
 		println!("new witness wire {:?}", new_wire);
 		let witness_gate = Gate::Witness(new_wire);
 		witness_wires.push(new_wire);
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
 		gates.push(witness_gate);
 	    }
 
-	    //assign -1 to a wire to be used later - modulus - 1
+	    // Introduce a constant wire containing -1 (i.e. modulus - 1) to be used later
 	    // subtract in little endian
-	    let neg_one_wire = free_temporary_wire.get();
+	    let neg_one_wire = tmp_wire(free_temporary_wire);
 
-	    //	    new_modulus  and exponent vars assigned to modulus - 1
+	    //new_modulus  and exponent vars assigned to modulus - 1
 	    //convert little endian Vec<u8> to an integer you can subtract from
-	    let modulus_bigint = BigUint::from_bytes_le(&modulus[..]);
-	    let modulus_minus_1 = modulus_bigint - BigUint::from(1u32);
+	    let modulus_bigint        = BigUint::from_bytes_le(&modulus[..]);
+	    let modulus_minus_1       = modulus_bigint - BigUint::from(1u32);
 	    let modulus_minus_1_value = modulus_minus_1.to_bytes_le();
 	    //convert moudulus_minus_1 to little endian
 	    
-	    gates.push(Gate::Constant(neg_one_wire,modulus_minus_1_value.clone()));
-	    free_temporary_wire.set(free_temporary_wire.get() + 1);
+	    gates.push(Gate::Constant(neg_one_wire, modulus_minus_1_value.clone()));
 
-   	    let one_wireId = free_temporary_wire.get();
-	    gates.push(Gate::Constant(one_wireId, [1,0,0,0].to_vec()));
-	    free_temporary_wire.set(free_temporary_wire.get() + 1);
+	    // Introduce a constant wire containing 1
+   	    let one_wire_id = tmp_wire(free_temporary_wire);
+	    gates.push(Gate::Constant(one_wire_id, [1,0,0,0].to_vec()));
 
 	    
 	    let mut temp_maps = Vec::new();
 	    for (i,branch_gates) in global_gates.iter().enumerate(){
-		/** construct gates for computing 1 - ($0 - 42)^(p-1) **/
-		//assign case id to temp wire
-		let caseIdWire = free_temporary_wire.get();
-		gates.push(Gate::Constant(caseIdWire,cases[i].clone()));
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
 
-		//multiply caseIdWire by -1 to get - 42
-		let negative_caseId = free_temporary_wire.get();
-		gates.push(Gate::Mul(negative_caseId, caseIdWire, neg_one_wire));
+                println!("Second pass rewrites {:?}", branch_gates);
 
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
+                /****** the first thing we do is compute the weight of the branch, ***********/
+		/* i.e. a wire assigned the value 1 - ($0 - 42)^(p-1) for a switch on $0, case value 42,
+                where p is the field's characteristic */
 
-		//compute $0 - 42 
-		let baseWire = free_temporary_wire.get();
-		gates.push(Gate::Add(baseWire, wireId, negative_caseId));
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
-		let exp_wire = free_temporary_wire.get();
-		//(base_wire)^(p - 1) - base_wire has value of ($0 - 42)
-		//exp outputs its value to free_temporary_wire at the point of call
+                //assign case value (42) to temp wire
+                // For some reason, gate AddConstant fails (not authorized?)
+		let case_id_wire = tmp_wire(free_temporary_wire);
+		gates.push(Gate::Constant(case_id_wire,cases[i].clone()));
+
+		//multiply case_id_wire by -1 to get -42
+		let negative_case_id = tmp_wire(free_temporary_wire);
+		gates.push(Gate::Mul(negative_case_id, case_id_wire, neg_one_wire));
+
+		//compute $0 - 42, assigning it to base_wire
+		let base_wire = tmp_wire(free_temporary_wire);
+		gates.push(Gate::Add(base_wire, wire_id, negative_case_id));
+
+                // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
+                // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
+                // By convention, exp assigns the output value to the first available temp wire at the point of call.
+                // Therefore, we remember what this wire is:
+		let exp_wire   = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
 		let exp_as_int = BigUint::from_bytes_le(&modulus_minus_1_value[..]);
-		gates = [gates,exp(baseWire,exp_as_int,free_temporary_wire)].concat();
+                let exp_gates  = exp(base_wire, exp_as_int, free_temporary_wire);
+		gates = [gates, exp_gates ].concat();
 
-
-		let neg_exp_wire = free_temporary_wire.get();
+                // multiply by -1 to compute (- ($0 - 42)^(p-1))
+		let neg_exp_wire = tmp_wire(free_temporary_wire);
 		gates.push(Gate::Mul(neg_exp_wire,neg_one_wire,exp_wire));
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
 
-
-		//		gates.push(Gate::AddConstant(free_temporary_wire.get(), neg_exp_wire, [1,0,0,0].to_vec()));
-		gates.push(Gate::Add(free_temporary_wire.get(), neg_exp_wire, one_wireId));
-		let weight_wire_id = free_temporary_wire.get();
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
+                // For some reason, gate AddConstant fails (not authorized?)
+		// gates.push(Gate::AddConstant(free_temporary_wire.get(), neg_exp_wire, [1,0,0,0].to_vec()));
+		let weight_wire_id = tmp_wire(free_temporary_wire);
+		gates.push(Gate::Add(weight_wire_id, neg_exp_wire, one_wire_id));
 		//********* end weight ************************/
-		let mut map:HashMap<WireId,WireId> = HashMap::new();
+
+
+                // We take as many temp wires as there are outputs for the switch, and keep a renaming map
+                let mut map:HashMap<WireId,WireId> = HashMap::new();
 		for o in &expanded_output_wires{
-		    map.insert(*o,free_temporary_wire.get());
-		    free_temporary_wire.set(free_temporary_wire.get() + 1);
+		    let tmp = tmp_wire(free_temporary_wire);
+		    map.insert(*o,tmp);
 		}
 		//nnswap global outputs for the temp outputs of the branch in each gate
 		let mut instance_counter = 0;
 		let mut witness_counter = 0;
 		let mut defined_outputs = Vec::new();
 		println!("map {:?}", &map);
-		 for inner_gate in branch_gates{
-		     let new_gate = swap_gate_outputs(inner_gate.clone(),&map,&mut instance_wires,&mut witness_wires,instance_counter,witness_counter,&mut defined_outputs);
-		     println!("original gate line 242 {:?} \n", inner_gate);
-		     println!("new gate line 243 {:?} \n", new_gate);
-		     //if it is assert_zero, then add a multiplication gate before it
-		     match new_gate{
-			 Gate::AssertZero(wireId) => {
-			     let new_temp_wire = free_temporary_wire.get();
-			     gates.push(Gate::Mul(new_temp_wire, wireId, weight_wire_id));
-			     gates.push(Gate::AssertZero(new_temp_wire));
-			     free_temporary_wire.set(free_temporary_wire.get() + 1);
-			 },
-			 _ => {
-			     gates.push(new_gate.clone());
-			 }
-		     }
-		 }
+		for inner_gate in branch_gates {
+		    let new_gate = swap_gate_outputs(inner_gate.clone(),&map,&mut instance_wires,&mut witness_wires,instance_counter,witness_counter,&mut defined_outputs);
+		    println!("line 265 {:?} to  {:?} \n", inner_gate, new_gate);
+		    //if it is assert_zero, then add a multiplication gate before it
+		    match new_gate{
+			Gate::AssertZero(wire_id) => {
+			    let new_temp_wire = tmp_wire(free_temporary_wire);
+			    gates.push(Gate::Mul(new_temp_wire, wire_id, weight_wire_id));
+			    gates.push(Gate::AssertZero(new_temp_wire));
+			},
+			_ => {
+			    gates.push(new_gate.clone());
+			}
+		    }
+		}
+                println!("Second pass to {:?}", gates);
 		//at this point, we have replaced outputs for temps in all top level gates
 		//now for  each temp wire in map, we want to multiply it by weight_wire_id and assign it to a new temp wire
 		let mut new_temps = Vec::new();
 		let mut output_wires_vec = Vec::new();
-		for o in defined_outputs{
-		    let new_output_temp = free_temporary_wire.get();
+		for o in defined_outputs {
+		    let new_output_temp = tmp_wire(free_temporary_wire);
 		    let temp = map.get(&o).unwrap();
-
-
 		    gates.push(Gate::Mul(new_output_temp,*temp,weight_wire_id));
 		    //reassign output to weighted temp
 		    new_temps.push(new_output_temp);
 		    output_wires_vec.push(o);
-		    free_temporary_wire.set(free_temporary_wire.get() + 1);
 		}
 		for (index,temp) in new_temps.iter().enumerate(){
 		    map.insert(output_wires_vec[index],new_temps[index]);
@@ -311,7 +324,7 @@ pub fn flatten_gate(
 
 fn get_wire_id(wire:WireListElement) -> Vec<u64>{
     match wire{
-	Wire(wireId) => vec![wireId],
+	Wire(wire_id) => vec![wire_id],
 	WireRange(s,e) => {
 	    let mut v  = Vec::new();
 	    for i in s..e{
@@ -321,59 +334,59 @@ fn get_wire_id(wire:WireListElement) -> Vec<u64>{
 	}
     }
 }
-/* modulus = 7
+
+
+/* Example run:
+
+exponent = 7
 free_wire = Cell<12>
 
-output <- 12
-free_wire <-13 
+output     <- 12
+free_wire  <- Cell<13> 
 output_rec <- 13
-exp(wireId, 3, Cell<13>)
-   output <- Cell<13>
-   free_wire <- Cell<14>
-   output_rec <- Cell<14>
-   gates = exp(wireId, 1, Cell<14>)
-        return Vec<Copy(14,wireId)>
-   gates.push((Gate::Mul(15, 14, 14)))
-   Gate::Mul(13,wireId,15)
-Mul(16, 13, 13) -> Mul(next temp wire, output, output)
+exp(wire_id, 3, Cell<13>)
+   output     <- 13
+   free_wire  <- Cell<14>
+   output_rec <- 14
+   gates = exp(wire_id, 1, Cell<14>)
+        return Vec<Copy(14,wire_id)>
+   Gate::Mul(15, 14, 14)    // squaring
+   Gate::Mul(13,wire_id,15) // 3 was odd
+Gate::Mul(16, 13, 13)    // squaring
+Gate::Mul(12,wire_id,16) // 7 was odd    
+**/
 
-    
-
-
-  **/
-fn exp(wireId:WireId,exponent:BigUint,free_wire:&Cell<WireId>) -> Vec<Gate>{
-    if  exponent == BigUint::from(1u32){
-	let wire = free_wire.get();
-	free_wire.set(free_wire.get() + 1);
-	return vec![Copy(wire,wireId)];
+fn exp(wire_id:WireId,exponent:BigUint,free_wire:&Cell<WireId>) -> Vec<Gate>{
+    if exponent == BigUint::from(1u32) {
+	let wire = tmp_wire(free_wire);
+	return vec![Copy(wire,wire_id)];
     }
-    let output = free_wire.get();
-    free_wire.set(free_wire.get() + 1);
+    let output      = tmp_wire(free_wire); // We reserve the first available wire for our own output
+    let output_rec  = free_wire.get(); // We remember where the recursive call will place its output
+    let big_int_div = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
+    let mut gates   = exp(wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_wire);
 
-    let output_rec = free_wire.get();
-    let bigIntDiv = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
-    let mut gates = exp(wireId,BigUint::try_from(bigIntDiv).ok().unwrap(),free_wire);
-
-    if(exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32)){
+    // Exponent was even: we just square the result of the recursive call
+    if exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32) {
 	gates.push(Gate::Mul(output,output_rec,output_rec));
     }
-    else{
-	let temp_output = free_wire.get();
-	free_wire.set(free_wire.get() + 1);
+    else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
+	let temp_output = tmp_wire(free_wire);
 	gates.push(Gate::Mul(temp_output, output_rec,output_rec));
-	gates.push(Gate::Mul(output, wireId, temp_output));
+	gates.push(Gate::Mul(output, wire_id, temp_output));
     }
     return gates;
 }
-    fn get_output_wire_list(gate:Gate) -> WireList{
-	match gate {
-	    Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) => output_wires,
-    	    Gate::Call(name,output_wires,input_wires) => output_wires,
-	    Gate::Switch(wireId,wireList,values,cases) => wireList,
-	    Gate::For(name,start_val,end_val,global_output_list,body) => global_output_list,
-	    _ => vec![]
-	}
+
+fn get_output_wire_list(gate:Gate) -> WireList{
+    match gate {
+	Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) => output_wires,
+    	Gate::Call(name,output_wires,input_wires) => output_wires,
+	Gate::Switch(wire_id,wire_list,values,cases) => wire_list,
+	Gate::For(name,start_val,end_val,global_output_list,body) => global_output_list,
+	_ => vec![]
     }
+}
     
 fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut Vec<WireId>, witness_wires:&mut Vec<WireId>,mut witness_counter:u64, mut instance_counter: u64,defined_outputs:&mut Vec<WireId>) -> Gate {
 	match gate{
@@ -383,7 +396,7 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		for wire in output_wires {
        		    let temp_wire =
 			match wire{
-			    Wire(wireId) => Wire(*map.get(&wireId).unwrap()),
+			    Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
 			    WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
 			};
 		    new_wires.push(temp_wire);
@@ -392,12 +405,12 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		for input in input_wires{
 		    let new_input =
 			match input {
-			    Wire(wireId) => {
-				if let Some(w) = map.get(&wireId){
+			    Wire(wire_id) => {
+				if let Some(w) = map.get(&wire_id){
 				    new_inputs.push(Wire(*w));
 				}
 				else{
-				    new_inputs.push(Wire(wireId));
+				    new_inputs.push(Wire(wire_id));
 				}
 			    },
 			    WireRange(s,e) => {
@@ -420,7 +433,7 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		for wire in output_wires {
     		    let temp_wire =
 			match wire{
-			    Wire(wireId) => Wire(*map.get(&wireId).unwrap()),
+			    Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
 			    WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
 			};
 		    new_wires.push(temp_wire);
@@ -429,12 +442,12 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		for input in input_wires{
 		    let new_input =
 			match input {
-			    Wire(wireId) => {
-				if let Some(w) = map.get(&wireId){
+			    Wire(wire_id) => {
+				if let Some(w) = map.get(&wire_id){
 				    new_inputs.push(Wire(*w));
 				}
 				else{
-				    new_inputs.push(Wire(wireId));
+				    new_inputs.push(Wire(wire_id));
 				}
 			    },
 			    WireRange(s,e) => {
@@ -451,18 +464,18 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		}
 		Gate::Call(name,new_wires,new_inputs)
 	    },
-	    Gate::Switch(wireId, output_wires , values, cases) => {
+	    Gate::Switch(wire_id, output_wires , values, cases) => {
 		let mut new_wires = Vec::new();
 		for wire in output_wires {
 		    let temp_wire =
 			match wire{
-			    Wire(wireId) => Wire(*map.get(&wireId).unwrap()),
+			    Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
 			    WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
 			};
 			    
 		    new_wires.push(temp_wire);
 		}
-		Gate::Switch(wireId,new_wires,values,cases)
+		Gate::Switch(wire_id,new_wires,values,cases)
 	    
 	    },
 	    Gate::For(name,start_val,end_val,output_wires,body) => {
@@ -470,25 +483,25 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		for wire in output_wires {
 		    let temp_wire =
 			match wire{
-			    Wire(wireId) => Wire(*map.get(&wireId).unwrap()),
+			    Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
 			    WireRange(start,end) => WireRange(*map.get(&start).unwrap(),*map.get(&start).unwrap())
 			};
 		    new_wires.push(temp_wire);
 		}
 		Gate::For(name,start_val,end_val,new_wires,body)
 	    },
-	    Gate::Constant(wireId,value) => {
-		defined_outputs.push(wireId);
-		Gate::Constant(*map.get(&wireId).unwrap(),value)
+	    Gate::Constant(wire_id,value) => {
+		defined_outputs.push(wire_id);
+		Gate::Constant(*map.get(&wire_id).unwrap(),value)
 	    },
-	    Gate::Copy(wireId,value) => {
-		defined_outputs.push(wireId);
-		Gate::Copy(*map.get(&wireId).unwrap(),value)
+	    Gate::Copy(wire_id,value) => {
+		defined_outputs.push(wire_id);
+		Gate::Copy(*map.get(&wire_id).unwrap(),value)
 	    },
-	    Gate::Add(wireIdOut,wireId1,wireId2) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireId1;
-		let mut in_2:WireId = wireId2;
+	    Gate::Add(wire_id_out,wire_id1,wire_id2) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id1;
+		let mut in_2:WireId = wire_id2;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
@@ -496,84 +509,84 @@ fn swap_gate_outputs(gate:Gate,map:&HashMap<WireId,WireId>,instance_wires:&mut V
 		    in_2 =* w;
 		}
 
-		Gate::Add(*map.get(&wireIdOut).unwrap(),in_1,in_2)
+		Gate::Add(*map.get(&wire_id_out).unwrap(),in_1,in_2)
 	    },
-   	    Gate::Mul(wireIdOut,wireId1,wireId2) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireId1;
-		let mut in_2:WireId = wireId2;
+   	    Gate::Mul(wire_id_out,wire_id1,wire_id2) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id1;
+		let mut in_2:WireId = wire_id2;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
 		if let Some(w) = map.get(&in_2){
 		    in_2 = *w;
 		}
-		Gate::Mul(*map.get(&wireIdOut).unwrap(),in_1,in_2)
+		Gate::Mul(*map.get(&wire_id_out).unwrap(),in_1,in_2)
 	    },
-    	    Gate::AddConstant(wireIdOut,wireIdIn,value) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireIdIn;
+    	    Gate::AddConstant(wire_id_out,wire_id_in,value) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id_in;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
-		Gate::AddConstant(*map.get(&wireIdOut).unwrap(),in_1,value)
+		Gate::AddConstant(*map.get(&wire_id_out).unwrap(),in_1,value)
 	    },
-    	    Gate::MulConstant(wireIdOut,wireIdIn, value) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireIdIn;
+    	    Gate::MulConstant(wire_id_out,wire_id_in, value) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id_in;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
-		Gate::MulConstant(*map.get(&wireIdOut).unwrap(),in_1,value)
+		Gate::MulConstant(*map.get(&wire_id_out).unwrap(),in_1,value)
 	    },
-    	    Gate::And(wireIdOut,wireId1,wireId2) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireId1;
-		let mut in_2:WireId = wireId2;
+    	    Gate::And(wire_id_out,wire_id1,wire_id2) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id1;
+		let mut in_2:WireId = wire_id2;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
 		if let Some(w) = map.get(&in_2){
 		    in_2 =* w;
 		}
-		Gate::And(*map.get(&wireIdOut).unwrap(),in_1,in_2)
+		Gate::And(*map.get(&wire_id_out).unwrap(),in_1,in_2)
 	    },
-    	    Gate::Xor(wireIdOut, wireId1, wireId2) => {
-		defined_outputs.push(wireIdOut);
-		let mut in_1:WireId = wireId1;
-		let mut in_2:WireId = wireId2;
+    	    Gate::Xor(wire_id_out, wire_id1, wire_id2) => {
+		defined_outputs.push(wire_id_out);
+		let mut in_1:WireId = wire_id1;
+		let mut in_2:WireId = wire_id2;
 		if let Some(w) = map.get(&in_1){
 		    in_1 = *w;
 		}
 		if let Some(w) = map.get(&in_2){
 		    in_2 = *w;
 		}
-		Gate::Xor(*map.get(&wireIdOut).unwrap(),in_1,in_2)
+		Gate::Xor(*map.get(&wire_id_out).unwrap(),in_1,in_2)
 	    },	    
-    	    Gate::Not(wireId,value) => {
-		defined_outputs.push(wireId);
-		Gate::Not(*map.get(&wireId).unwrap(),value)
+    	    Gate::Not(wire_id,value) => {
+		defined_outputs.push(wire_id);
+		Gate::Not(*map.get(&wire_id).unwrap(),value)
 	    },
-    	    Gate::Instance(wireId) => {
-		defined_outputs.push(wireId);
+    	    Gate::Instance(wire_id) => {
+		defined_outputs.push(wire_id);
 		let instance_wire = instance_wires[instance_counter as usize];
-		Gate::Copy(*map.get(&wireId).unwrap(),instance_wire)
+		Gate::Copy(*map.get(&wire_id).unwrap(),instance_wire)
 	    },
-    	    Gate::Witness(wireId) => {
-		defined_outputs.push(wireId);
+    	    Gate::Witness(wire_id) => {
+		defined_outputs.push(wire_id);
 		let witness_wire = witness_wires[witness_counter as usize];
-		Gate::Copy(*map.get(&wireId).unwrap(),witness_wire)
+		Gate::Copy(*map.get(&wire_id).unwrap(),witness_wire)
 	    },
-    	    Gate::Free(wireId,value) => {
-		defined_outputs.push(wireId);
-		Gate::Free(*map.get(&wireId).unwrap(),value)
+    	    Gate::Free(wire_id,value) => {
+		defined_outputs.push(wire_id);
+		Gate::Free(*map.get(&wire_id).unwrap(),value)
 	    },
-	    Gate::AssertZero(wireId) => {
-		if let Some(w) = map.get(&wireId){
+	    Gate::AssertZero(wire_id) => {
+		if let Some(w) = map.get(&wire_id){
 		    return Gate::AssertZero(*w);
 		}
 		else{
-		    return Gate::AssertZero(wireId);
+		    return Gate::AssertZero(wire_id);
 		}
 	    }
 	}

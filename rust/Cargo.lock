@@ -461,6 +461,7 @@ dependencies = [
  "colored",
  "flatbuffers 0.6.1",
  "num-bigint",
+ "num-integer",
  "num-traits",
  "regex",
  "serde",
