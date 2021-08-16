@@ -66,7 +66,7 @@ pub struct Options {
     ///
     /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
     ///
-    /// flatten       Flattens an IR relation.
+    /// flatten       Flattens a SIEVE IR relation.
     ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
@@ -430,22 +430,26 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 fn main_ir_flattening(opts: &Options) -> Result<()> {
     use crate::consumers::flattening::flatten_relation;
 
-    let mut source = Source::from_directory(&std::env::current_dir()?)?;
+    if opts.paths.len() != 2 {
+        return Err("You must specify exactly 2 paths: input and output. Use '-' fir stdin / stdout".into());
+    }
+
+    let mut input = Vec::new();
+    input.push(opts.paths[0].clone());
+
+    let mut source = Source::from_filenames(input);
     source.print_filenames = true;
     let messages = source.read_all_messages()?;
 
-    assert_eq!(messages.instances.len(), 1);
-    assert_eq!(messages.relations.len(), 1);
-    assert_eq!(messages.witnesses.len(), 1);
+    if messages.relations.len() != 1 {
+        return Err("The input is not a relation".into());
+    }        
 
     let relation = &messages.relations[0];
 
     let flattened_relation = flatten_relation(relation);
 
-    if opts.paths.len() != 1 {
-        return Err("Specify a single directory to write flattened IR into.".into());
-    }
-    let out_dir = &opts.paths[0];
+    let out_dir = &opts.paths[1];
 
     if out_dir == Path::new("-") {
         flattened_relation.write_into(&mut stdout())?;
