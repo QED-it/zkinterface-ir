@@ -11,8 +11,7 @@ use std::cell::Cell;
 use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use num_bigint::{BigUint, // ToBigUint,
-                 BigInt};
+use num_bigint::{BigUint, BigInt};
 use num_integer::Integer;
 
 // (output_count, input_count, instance_count, witness_count, subcircuit)
@@ -29,9 +28,39 @@ pub fn flatten_gate(
     known_functions: &HashMap<String, FunctionDeclare>,
     known_iterators: &HashMap<String, u64>,
     free_temporary_wire: &Cell<WireId>,
-    modulus: Value
+    modulus: Value,
+    instance_wires  :&mut Vec<WireId>,
+    witness_wires   :&mut Vec<WireId>,
+    instance_counter:&Cell<u64>,
+    witness_counter :&Cell<u64>,
 ) -> Vec<Gate> {
     match gate {
+
+        Gate::Instance(wire_id) => {
+            let ic = instance_counter.get() as usize;
+            if ic < instance_wires.len() {
+	        let instance_wire = instance_wires[ic];
+                instance_counter.set(instance_counter.get() + 1);
+	        vec![Gate::Copy(wire_id, instance_wire)]
+            } else {
+                instance_wires.push(wire_id);
+                instance_counter.set(instance_counter.get() + 1);
+                vec![gate]
+            }
+	},
+
+    	Gate::Witness(wire_id) => {
+            let wc = witness_counter.get() as usize;
+            if wc < witness_wires.len() {
+	        let witness_wire = witness_wires[wc];
+                witness_counter.set(witness_counter.get() + 1);
+	        vec![Gate::Copy(wire_id, witness_wire)]
+            } else {
+                witness_wires.push(wire_id);
+                witness_counter.set(witness_counter.get() + 1);
+                vec![gate]
+            }
+        },
 
         Gate::AnonCall(
             output_wires,
@@ -39,12 +68,20 @@ pub fn flatten_gate(
             _, _,
             subcircuit
         ) => {
-            let expanded_output_wires = expand_wirelist(&output_wires);
-            let expanded_input_wires = expand_wirelist(&input_wires);
+            let expanded_output_wires  = expand_wirelist(&output_wires);
+            let expanded_input_wires   = expand_wirelist(&input_wires);
             let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
 
             let outputs = translate_gates(&subcircuit, &mut output_input_wires, free_temporary_wire)
-                .flat_map(move |inner_gate| flatten_gate(inner_gate, known_functions, known_iterators, free_temporary_wire, modulus.clone()))
+                .flat_map(move |inner_gate| flatten_gate(inner_gate,
+                                                         known_functions,
+                                                         known_iterators,
+                                                         free_temporary_wire,
+                                                         modulus.clone(),
+                                                         instance_wires,
+                                                         witness_wires,
+                                                         instance_counter,
+                                                         witness_counter))
                 .collect::<Vec<Gate>>();
 	    outputs
         }
@@ -59,7 +96,11 @@ pub fn flatten_gate(
                     known_functions,
                     &HashMap::default(),
                     free_temporary_wire,
-		    modulus.clone() );
+		    modulus.clone(),
+                    instance_wires,
+                    witness_wires,
+                    instance_counter,
+                    witness_counter);
             } else {
                 // The function is not known, so this should either panic, or return an empty vector.
                 // We will consider that this means the original circuit is not valid, while
@@ -123,8 +164,11 @@ pub fn flatten_gate(
                                 known_functions,
                                 if use_same_context {&local_known_iterators} else {&null_hashmap},
                                 free_temporary_wire,
-				modulus.clone()
-                            )
+				modulus.clone(),
+                                instance_wires,
+                                witness_wires,
+                                instance_counter,
+                                witness_counter)
                         ).collect::<Vec<Gate>>()
                 }).collect::<Vec<Gate>>();
 	    outputs
@@ -135,10 +179,13 @@ pub fn flatten_gate(
 	    let mut witness_counts  = Vec::new();
 	    let mut global_gates    = Vec::new();
    	    let expanded_output_wires = expand_wirelist(&output_wires);
+
+            let instance_counter_at_start = instance_counter.get();
+            let witness_counter_at_start  = witness_counter.get();
 	    
-            println!("Reducing {:?} <- switch {:?} [{:?}]\n", expanded_output_wires, wire_id, cases);
-	    for branch in branches{
-                println!("Initial pass rewrites\n{:?}", branch);
+            // println!("Reducing {:?} <- switch {:?} [{:?}]\n", expanded_output_wires, wire_id, cases);
+	    for branch in branches {
+                // println!("Initial pass rewrites\n{:?}", branch);
 		// maps inner context to outer context
 		// also get input, witness count
 		let new_gates =
@@ -156,7 +203,7 @@ pub fn flatten_gate(
 			        vec![]
 			    }
 		        },
-		        CaseInvoke::AbstractAnonCall(input_wires,instance_count,witness_count,branch) => {
+		        CaseInvoke::AbstractAnonCall(input_wires, instance_count, witness_count, branch) => {
 			    let expanded_input_wires = expand_wirelist(&input_wires);
 			    let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
 			    instance_counts.push(instance_count);
@@ -166,7 +213,7 @@ pub fn flatten_gate(
 		        }
 		        
 		    };
-                println!("to\n{:?}\n", new_gates);
+                // println!("to\n{:?}\n", new_gates);
 		global_gates.push(new_gates);
 	    }
 	    let mut gates:Vec<Gate> = Vec::new(); // Where we produce the flattening of the switch
@@ -175,26 +222,6 @@ pub fn flatten_gate(
    	    let max_instance = *instance_counts.iter().max().unwrap();
 	    let max_witness  = *witness_counts.iter().max().unwrap();
             
-            // We do all instance pulls ahead of the flattened switch
-	    let mut instance_wires = Vec::new(); // we remember the wire ids of the instance pulls
-	    for _ in 0..max_instance{
-		let new_wire = tmp_wire(free_temporary_wire);
-		println!("new instance wire {:?}", new_wire);
-		let instance_gate = Gate::Instance(new_wire);
-		instance_wires.push(new_wire);
-		gates.push(instance_gate);
-	    }
-
-            // We do all instance pulls ahead of the flattened switch
-	    let mut witness_wires = Vec::new();
-	    for _ in 0..max_witness{
-		let new_wire = tmp_wire(free_temporary_wire);
-		println!("new witness wire {:?}", new_wire);
-		let witness_gate = Gate::Witness(new_wire);
-		witness_wires.push(new_wire);
-		gates.push(witness_gate);
-	    }
-
 	    // Introduce a constant wire containing -1 (i.e. modulus - 1) to be used later
 	    // subtract in little endian
 	    let neg_one_wire = tmp_wire(free_temporary_wire);
@@ -212,11 +239,13 @@ pub fn flatten_gate(
    	    let one_wire_id = tmp_wire(free_temporary_wire);
 	    gates.push(Gate::Constant(one_wire_id, [1,0,0,0].to_vec()));
 
-	    
 	    let mut temp_maps = Vec::new();
-	    for (i,branch_gates) in global_gates.iter().enumerate(){
 
-                println!("Second pass rewrites {:?}", branch_gates);
+	    for (i,branch_gates) in global_gates.iter().enumerate() {
+
+                let mut new_branch_gates = Vec::new();
+
+                // println!("Second pass rewrites {:?}", branch_gates);
 
                 /****** the first thing we do is compute the weight of the branch, ***********/
 		/* i.e. a wire assigned the value 1 - ($0 - 42)^(p-1) for a switch on $0, case value 42,
@@ -225,15 +254,15 @@ pub fn flatten_gate(
                 //assign case value (42) to temp wire
                 // For some reason, gate AddConstant fails (not authorized?)
 		let case_id_wire = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Constant(case_id_wire,cases[i].clone()));
+		new_branch_gates.push(Gate::Constant(case_id_wire,cases[i].clone()));
 
 		//multiply case_id_wire by -1 to get -42
 		let negative_case_id = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Mul(negative_case_id, case_id_wire, neg_one_wire));
+		new_branch_gates.push(Gate::Mul(negative_case_id, case_id_wire, neg_one_wire));
 
 		//compute $0 - 42, assigning it to base_wire
 		let base_wire = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Add(base_wire, wire_id, negative_case_id));
+		new_branch_gates.push(Gate::Add(base_wire, wire_id, negative_case_id));
 
                 // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
                 // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
@@ -242,16 +271,16 @@ pub fn flatten_gate(
 		let exp_wire   = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
 		let exp_as_int = BigUint::from_bytes_le(&modulus_minus_1_value[..]);
                 let exp_gates  = exp(base_wire, exp_as_int, free_temporary_wire);
-		gates = [gates, exp_gates ].concat();
+		new_branch_gates = [new_branch_gates, exp_gates ].concat();
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
 		let neg_exp_wire = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Mul(neg_exp_wire,neg_one_wire,exp_wire));
+		new_branch_gates.push(Gate::Mul(neg_exp_wire,neg_one_wire,exp_wire));
 
                 // For some reason, gate AddConstant fails (not authorized?)
 		// gates.push(Gate::AddConstant(free_temporary_wire.get(), neg_exp_wire, [1,0,0,0].to_vec()));
 		let weight_wire_id = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Add(weight_wire_id, neg_exp_wire, one_wire_id));
+		new_branch_gates.push(Gate::Add(weight_wire_id, neg_exp_wire, one_wire_id));
 		//********* end weight ************************/
 
 
@@ -264,33 +293,32 @@ pub fn flatten_gate(
 		    let tmp = tmp_wire(free_temporary_wire);
 		    map.insert(*o,tmp);
 		}
-		println!("map {:?}", &map);
+		// println!("map {:?}", &map);
 		//nnswap global outputs for the temp outputs of the branch in each gate
-		let instance_counter = Cell::new(0);
-		let witness_counter  = Cell::new(0);
+		// let instance_counter = Cell::new(0);
+		// let witness_counter  = Cell::new(0);
 		let mut defined_outputs = Vec::new();
 		for inner_gate in branch_gates {
 		    let new_gate = swap_gate_outputs(inner_gate.clone(),
                                                      &map,
-                                                     &mut instance_wires,
-                                                     &mut witness_wires,
-                                                     &instance_counter,
-                                                     &witness_counter,
+                                                     // &mut instance_wires,
+                                                     // &mut witness_wires,
+                                                     // &instance_counter,
+                                                     // &witness_counter,
                                                      &mut defined_outputs);
-		    println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
+		    // println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
 		    //if it is assert_zero, then add a multiplication gate before it
 		    match new_gate{
 			Gate::AssertZero(wire_id) => {
 			    let new_temp_wire = tmp_wire(free_temporary_wire);
-			    gates.push(Gate::Mul(new_temp_wire, wire_id, weight_wire_id));
-			    gates.push(Gate::AssertZero(new_temp_wire));
+			    new_branch_gates.push(Gate::Mul(new_temp_wire, wire_id, weight_wire_id));
+			    new_branch_gates.push(Gate::AssertZero(new_temp_wire));
 			},
 			_ => {
-			    gates.push(new_gate.clone());
+			    new_branch_gates.push(new_gate.clone());
 			}
 		    }
 		}
-                println!("Second pass to {:?}", gates);
 
 		// at this point, we have replaced outputs for temps in all top level gates
 		// now we produce the weighted version of those output temps
@@ -300,7 +328,7 @@ pub fn flatten_gate(
 		for o in defined_outputs {
 		    let new_output_temp = tmp_wire(free_temporary_wire);
 		    let temp = map.get(&o).unwrap();
-		    gates.push(Gate::Mul(new_output_temp,*temp,weight_wire_id));
+		    new_branch_gates.push(Gate::Mul(new_output_temp,*temp,weight_wire_id));
 		    //reassign output to weighted temp
 		    new_temps.push(new_output_temp);
 		    output_wires_vec.push(o);
@@ -309,6 +337,20 @@ pub fn flatten_gate(
 		    map.insert(output_wires_vec[index],new_temps[index]);
 		}
 		temp_maps.push(map);
+                instance_counter.set(instance_counter_at_start);
+                witness_counter.set(witness_counter_at_start);
+                for gate in new_branch_gates {
+                    let recurs_gates = flatten_gate(gate,
+                                                    known_functions,
+                                                    known_iterators,
+                                                    free_temporary_wire,
+                                                    modulus.clone(),
+                                                    instance_wires,
+                                                    witness_wires,
+                                                    instance_counter,
+                                                    witness_counter);
+                    gates = [gates, recurs_gates ].concat();
+                }
 	    }
 	    
             // Now we define the real outputs of the switch as the weighted sums of the branches' outputs
@@ -323,11 +365,9 @@ pub fn flatten_gate(
 		}
 		gates.push(Gate::Copy(*output,sum_wire));
 	    }
-
-	    
-	    let outputs = gates.iter().flat_map(move |inner_gate| flatten_gate(inner_gate.clone(),known_functions,known_iterators,free_temporary_wire,modulus.clone())).collect();
-
-	    outputs
+            instance_counter.set(instance_counter_at_start + (max_instance as u64));
+            witness_counter.set(witness_counter_at_start + (max_witness as u64));
+	    gates
 	    
 	},
         _ => vec![gate],
@@ -379,10 +419,6 @@ fn exp(wire_id:WireId,exponent:BigUint,free_wire:&Cell<WireId>) -> Vec<Gate>{
     
 fn swap_gate_outputs(gate:Gate,
                      map:&HashMap<WireId,WireId>,
-                     instance_wires  :&mut Vec<WireId>,
-                     witness_wires   :&mut Vec<WireId>,
-                     witness_counter :&Cell<u64>,
-                     instance_counter:&Cell<u64>,
                      defined_outputs:&mut Vec<WireId>) -> Gate {
 	match gate{
 	   Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) =>
@@ -562,15 +598,11 @@ fn swap_gate_outputs(gate:Gate,
 	    },
     	    Gate::Instance(wire_id) => {
 		defined_outputs.push(wire_id);
-		let instance_wire = instance_wires[instance_counter.get() as usize];
-                instance_counter.set(instance_counter.get() + 1);
-		Gate::Copy(*map.get(&wire_id).unwrap(),instance_wire)
+		Gate::Instance(*map.get(&wire_id).unwrap())
 	    },
     	    Gate::Witness(wire_id) => {
 		defined_outputs.push(wire_id);
-		let witness_wire = witness_wires[witness_counter.get() as usize];
-	        witness_counter.set(witness_counter.get() + 1);
-		Gate::Copy(*map.get(&wire_id).unwrap(),witness_wire)
+		Gate::Witness(*map.get(&wire_id).unwrap())
 	    },
     	    Gate::Free(wire_id,value) => {
 		defined_outputs.push(wire_id);
