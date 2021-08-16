@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use num_bigint::BigUint;
-use std::fs::File;
+use std::fs::{File, create_dir_all};
 use std::io::{copy, stdout, stdin, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
@@ -64,6 +64,8 @@ pub struct Options {
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
     ///
+    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -89,6 +91,11 @@ pub struct Options {
     ///
     #[structopt(short, long, default_value = "-")]
     pub resource: String,
+
+    /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
+    #[structopt(long)]
+    pub modular_reduce: bool,
+
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -104,6 +111,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
+        "ir-to-zkif" => main_ir_to_r1cs(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -358,6 +366,63 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
     Ok(())
 }
 
+// Convert to R1CS zkinterface format.
+// Expects one instance, witness, and relation only.
+fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
+    use crate::producers::to_r1cs::to_r1cs;
+
+    let mut source = Source::from_directory(&std::env::current_dir()?)?;
+    source.print_filenames = true;
+    let messages = source.read_all_messages()?;
+
+    assert_eq!(messages.instances.len(), 1);
+    assert_eq!(messages.relations.len(), 1);
+    assert_eq!(messages.witnesses.len(), 1);
+
+    let instance = &messages.instances[0];
+    let relation = &messages.relations[0];
+    let witness = &messages.witnesses[0];
+
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, relation, witness, opts.modular_reduce);
+
+    zki_header.write_into(&mut stdout())?;
+    zki_r1cs.write_into(&mut stdout())?;
+    zki_witness.write_into(&mut stdout())?;
+
+    if opts.paths.len() != 1 {
+        return Err("Specify a single directory to write r1cs into.".into());
+    }
+    let out_dir = &opts.paths[0];
+
+    if out_dir == Path::new("-") {
+        zki_header.write_into(&mut stdout())?;
+        zki_witness.write_into(&mut stdout())?;
+        zki_r1cs.write_into(&mut stdout())?;
+    } else if zkinterface::consumers::workspace::has_zkif_extension(out_dir) {
+        let mut file = File::create(out_dir)?;
+        zki_header.write_into(&mut file)?;
+        zki_witness.write_into(&mut file)?;
+        zki_r1cs.write_into(&mut file)?;
+    } else {
+        create_dir_all(out_dir)?;
+
+        let path = out_dir.join("header.zkif");
+        zki_header.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("witness.zkif");
+        zki_witness.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("constraints.zkif");
+        zki_r1cs.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+    }
+    
+    Ok(())
+}
+
+
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
     if errors.len() > 0 {
@@ -383,6 +448,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string()
+        modular_reduce: false,
     })?;
 
     cli(&Options {
@@ -391,6 +457,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string()
+        modular_reduce: false,
     })?;
 
     Ok(())
