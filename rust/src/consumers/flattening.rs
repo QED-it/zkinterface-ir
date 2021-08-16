@@ -136,8 +136,9 @@ pub fn flatten_gate(
 	    let mut global_gates    = Vec::new();
    	    let expanded_output_wires = expand_wirelist(&output_wires);
 	    
+            println!("Reducing {:?} <- switch {:?} [{:?}]\n", expanded_output_wires, wire_id, cases);
 	    for branch in branches{
-                println!("Initial pass rewrites {:?}", branch);
+                println!("Initial pass rewrites\n{:?}", branch);
 		// maps inner context to outer context
 		// also get input, witness count
 		let new_gates =
@@ -165,7 +166,7 @@ pub fn flatten_gate(
 		        }
 		        
 		    };
-                println!("to {:?}\n", new_gates);
+                println!("to\n{:?}\n", new_gates);
 		global_gates.push(new_gates);
 	    }
 	    let mut gates:Vec<Gate> = Vec::new(); // Where we produce the flattening of the switch
@@ -254,17 +255,20 @@ pub fn flatten_gate(
 		//********* end weight ************************/
 
 
-                // We take as many temp wires as there are outputs for the switch, and keep a renaming map
+                // Now, after the first pass above, the new gates are using the global output wire ids to write their outputs
+                // They shouldn't: each branch is writing on them while each branch should write its outputs on temp wires,
+                // and the final outputs should be the weighted sums of these temp wires.
+                // For the branch we're in, we take as many temp wires as there are outputs for the switch, and keep a renaming map
                 let mut map:HashMap<WireId,WireId> = HashMap::new();
 		for o in &expanded_output_wires{
 		    let tmp = tmp_wire(free_temporary_wire);
 		    map.insert(*o,tmp);
 		}
+		println!("map {:?}", &map);
 		//nnswap global outputs for the temp outputs of the branch in each gate
 		let instance_counter = Cell::new(0);
-		let witness_counter = Cell::new(0);
+		let witness_counter  = Cell::new(0);
 		let mut defined_outputs = Vec::new();
-		println!("map {:?}", &map);
 		for inner_gate in branch_gates {
 		    let new_gate = swap_gate_outputs(inner_gate.clone(),
                                                      &map,
@@ -287,9 +291,11 @@ pub fn flatten_gate(
 		    }
 		}
                 println!("Second pass to {:?}", gates);
-		//at this point, we have replaced outputs for temps in all top level gates
-		//now for  each temp wire in map, we want to multiply it by weight_wire_id and assign it to a new temp wire
-		let mut new_temps = Vec::new();
+
+		// at this point, we have replaced outputs for temps in all top level gates
+		// now we produce the weighted version of those output temps
+                // for each temp wire in map, we want to multiply it by weight_wire_id and assign it to a new temp wire
+		let mut new_temps        = Vec::new();
 		let mut output_wires_vec = Vec::new();
 		for o in defined_outputs {
 		    let new_output_temp = tmp_wire(free_temporary_wire);
@@ -305,19 +311,17 @@ pub fn flatten_gate(
 		temp_maps.push(map);
 	    }
 	    
-
+            // Now we define the real outputs of the switch as the weighted sums of the branches' outputs
 	    for output in &expanded_output_wires{
-		let mut left_summand = free_temporary_wire.get();
-		gates.push(Gate::Constant(left_summand, vec![0,0,0,0]));
-		free_temporary_wire.set(free_temporary_wire.get() + 1);
-		let mut new_temp = 0;
-		for map in &temp_maps{
-		    new_temp = free_temporary_wire.get();
-		    gates.push(Gate::Add(new_temp, left_summand, *map.get(&output).unwrap()));
-		    left_summand = new_temp;
-		    free_temporary_wire.set(new_temp + 1);
+                // Weighted sum starts with 0
+		let mut sum_wire = tmp_wire(free_temporary_wire);
+		gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
+		for map in &temp_maps {
+		    let new_temp = tmp_wire(free_temporary_wire);
+		    gates.push(Gate::Add(new_temp, sum_wire, *map.get(&output).unwrap()));
+		    sum_wire = new_temp;
 		}
-		gates.push(Gate::Copy(*output,new_temp));
+		gates.push(Gate::Copy(*output,sum_wire));
 	    }
 
 	    
@@ -329,19 +333,6 @@ pub fn flatten_gate(
         _ => vec![gate],
     }
 }
-
-// fn get_wire_id(wire:WireListElement) -> Vec<u64>{
-//     match wire{
-// 	Wire(wire_id) => vec![wire_id],
-// 	WireRange(s,e) => {
-// 	    let mut v  = Vec::new();
-// 	    for i in s..e{
-// 		v.push(i);
-// 	    }
-// 	    v
-// 	}
-//     }
-// }
 
 
 /* Example run:
@@ -385,16 +376,6 @@ fn exp(wire_id:WireId,exponent:BigUint,free_wire:&Cell<WireId>) -> Vec<Gate>{
     }
     return gates;
 }
-
-// fn get_output_wire_list(gate:Gate) -> WireList{
-//     match gate {
-// 	Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) => output_wires,
-//     	Gate::Call(name,output_wires,input_wires) => output_wires,
-// 	Gate::Switch(wire_id,wire_list,values,cases) => wire_list,
-// 	Gate::For(name,start_val,end_val,global_output_list,body) => global_output_list,
-// 	_ => vec![]
-//     }
-// }
     
 fn swap_gate_outputs(gate:Gate,
                      map:&HashMap<WireId,WireId>,
