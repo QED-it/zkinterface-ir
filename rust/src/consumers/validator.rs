@@ -1,5 +1,4 @@
 use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId, Result};
-use core::cell::Cell;
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
 use std::collections::{HashSet, HashMap};
@@ -10,7 +9,7 @@ use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND}
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
-use crate::consumers::{TEMPORARY_WIRES_START,flattening::flatten_gate};
+use crate::consumers::{TEMPORARY_WIRES_START};
 use crate::structs::iterators::evaluate_iterexpr_list;
 
 type Field = BigUint;
@@ -712,6 +711,8 @@ impl Validator {
 #[test]
 fn test_validator_only() -> crate::Result<()> {
     use crate::producers::examples::*;
+    use core::cell::Cell;
+    use crate::consumers::flattening::flatten_gate;
 
     let instance = example_instance();
     let witness = example_witness();

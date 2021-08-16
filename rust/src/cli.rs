@@ -66,6 +66,8 @@ pub struct Options {
     ///
     /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
     ///
+    /// flatten       Flattens an IR relation.
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.

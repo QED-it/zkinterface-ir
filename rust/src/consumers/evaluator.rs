@@ -1,6 +1,4 @@
 use crate::{Gate, Header, Instance, Message, Relation, Result, Witness, WireId};
-use crate::consumers::flattening::flatten_gate;
-use core::cell::Cell;
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
@@ -352,8 +350,10 @@ pub fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize,
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
+    use crate::consumers::flattening::flatten_gate;
+    use core::cell::Cell;
 
-    let mut relation = example_relation();
+    let relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
     let field_order = instance.header.field_characteristic.clone();
@@ -382,9 +382,9 @@ fn test_simulator() -> Result<()> {
     let mut new_relation = example_relation();
     new_relation.gates = flattened_gates;
     let mut new_simulator = Evaluator::default();
-    new_simulator.ingest_instance(&instance);
-    new_simulator.ingest_witness(&witness);
-    new_simulator.ingest_relation(&new_relation);
+    let _ = new_simulator.ingest_instance(&instance);
+    let _ = new_simulator.ingest_witness(&witness);
+    let _ = new_simulator.ingest_relation(&new_relation);
 
     assert_eq!(new_simulator.get_violations().len(), 0);
 
