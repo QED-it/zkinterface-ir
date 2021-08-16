@@ -112,6 +112,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
+        "flatten" => main_ir_flattening(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -383,7 +384,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     let relation = &messages.relations[0];
     let witness = &messages.witnesses[0];
 
-    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, relation, witness, opts.modular_reduce);
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, &relation, witness, opts.modular_reduce);
 
     zki_header.write_into(&mut stdout())?;
     zki_r1cs.write_into(&mut stdout())?;
@@ -422,6 +423,43 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     Ok(())
 }
 
+// Convert to R1CS zkinterface format.
+// Expects one instance, witness, and relation only.
+fn main_ir_flattening(opts: &Options) -> Result<()> {
+    use crate::consumers::flattening::flatten_relation;
+
+    let mut source = Source::from_directory(&std::env::current_dir()?)?;
+    source.print_filenames = true;
+    let messages = source.read_all_messages()?;
+
+    assert_eq!(messages.instances.len(), 1);
+    assert_eq!(messages.relations.len(), 1);
+    assert_eq!(messages.witnesses.len(), 1);
+
+    let relation = &messages.relations[0];
+
+    let flattened_relation = flatten_relation(relation);
+
+    if opts.paths.len() != 1 {
+        return Err("Specify a single directory to write flattened IR into.".into());
+    }
+    let out_dir = &opts.paths[0];
+
+    if out_dir == Path::new("-") {
+        flattened_relation.write_into(&mut stdout())?;
+    } else if has_sieve_extension(out_dir) {
+        let mut file = File::create(out_dir)?;
+        flattened_relation.write_into(&mut file)?;
+    } else {
+        create_dir_all(out_dir)?;
+        let path = out_dir.join("relation.flat.sieve");
+        flattened_relation.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+    }
+    
+    Ok(())
+}
+
 
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
@@ -447,7 +485,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        resource: "-".to_string()
+        resource: "-".to_string(),
         modular_reduce: false,
     })?;
 
@@ -456,7 +494,7 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        resource: "-".to_string()
+        resource: "-".to_string(),
         modular_reduce: false,
     })?;
 

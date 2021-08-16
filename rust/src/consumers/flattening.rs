@@ -3,6 +3,8 @@ use std::convert::TryFrom;
 use crate::{Gate, WireId};
 // use std::iter;
 use std::collections::HashMap;
+use num_bigint::{BigUint, BigInt};
+use num_integer::Integer;
 use crate::structs::subcircuit::translate_gates;
 use crate::Value;
 use crate::structs::wire::{expand_wirelist,// WireList,
@@ -11,8 +13,9 @@ use std::cell::Cell;
 use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use num_bigint::{BigUint, BigInt};
-use num_integer::Integer;
+use crate::structs::relation::Relation;
+use crate::consumers::evaluator::get_known_functions;
+use crate::consumers::TEMPORARY_WIRES_START;
 
 // (output_count, input_count, instance_count, witness_count, subcircuit)
 type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
@@ -636,3 +639,31 @@ pub fn flatten_subcircuit(
         .collect()
 }
 */
+
+pub fn flatten_relation(relation : &Relation) -> Relation {
+    let field_order = relation.header.field_characteristic.clone();
+    let known_functions = get_known_functions(&relation);
+    let known_iterators = Default::default();
+
+    let flattened_gates:Vec<Gate> = relation.gates.iter().flat_map(move |inner_gate| flatten_gate(
+        inner_gate.clone(),
+        &known_functions,
+        &known_iterators,
+        &Cell::new(TEMPORARY_WIRES_START),
+        field_order.clone(),
+        &mut Vec::new(),
+        &mut Vec::new(),
+        &Cell::new(0),
+        &Cell::new(0)
+    )).collect::<Vec<Gate>>();
+
+    return
+        Relation {
+            header   : relation.header.clone(),
+            gate_mask: relation.gate_mask,
+            feat_mask: relation.feat_mask,
+            functions: Vec::new(),
+            gates: flattened_gates,
+        };
+
+}

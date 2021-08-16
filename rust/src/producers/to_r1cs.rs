@@ -5,6 +5,7 @@ use crate::structs::value::Value;
 use crate::structs::WireId;
 use crate::Gate::*;
 use crate::{Gate, Header, Instance, Relation, Witness};
+use crate::consumers::flattening::flatten_relation;
 
 use zkinterface::BilinearConstraint;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
@@ -638,6 +639,7 @@ pub fn to_r1cs(
     assert_eq!(instance.header, relation.header);
     assert_eq!(witness.header, relation.header);
 
+    let relation = flatten_relation(relation);
     let (gates, free_variable_id) = deconflict_gate_wires(&relation.gates);
 
     let mut gc = GateConverter {

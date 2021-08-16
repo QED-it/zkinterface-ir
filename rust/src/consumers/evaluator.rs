@@ -341,13 +341,14 @@ impl Evaluator {
     }
 }
 
-fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>{
+pub fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>{
     let mut map = HashMap::new();
     for f in relation.functions.iter() {
 	map.insert(f.name.clone(),(f.output_count,f.input_count,f.instance_count, f.witness_count, f.body.clone()));
     }
     map
 }
+
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
