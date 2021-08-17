@@ -1,24 +1,22 @@
-// use crate::structs::wire::WireListElement;
 use std::convert::TryFrom;
-use crate::{Gate, WireId};
-// use std::iter;
 use std::collections::HashMap;
+use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
 use num_integer::Integer;
 use crate::structs::subcircuit::translate_gates;
-use crate::Value;
-use crate::structs::wire::{expand_wirelist,// WireList,
-                           WireListElement::{Wire,WireRange}};
-use std::cell::Cell;
+use crate::structs::wire::{expand_wirelist, WireListElement::{Wire,WireRange}};
 use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::relation::Relation;
-use crate::consumers::evaluator::get_known_functions;
-use crate::consumers::TEMPORARY_WIRES_START;
+use crate::{Gate, WireId, Value};
+use crate::consumers::{TEMPORARY_WIRES_START, evaluator::get_known_functions};
 
 // (output_count, input_count, instance_count, witness_count, subcircuit)
 type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
+
+// Getting a new temp wire id (u64).
+// Looks at a reference containing the first available wire id; bumping it by 1.
 
 fn tmp_wire(free_temporary_wire: &Cell<WireId>) -> u64 {
     let new_wire = free_temporary_wire.get();
@@ -27,39 +25,39 @@ fn tmp_wire(free_temporary_wire: &Cell<WireId>) -> u64 {
 }
     
 pub fn flatten_gate(
-    gate: Gate,
+    gate: Gate,                         // The gate to be flattened
     known_functions: &HashMap<String, FunctionDeclare>,
     known_iterators: &HashMap<String, u64>,
-    free_temporary_wire: &Cell<WireId>,
+    free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
     modulus: Value,
-    instance_wires  :&mut Vec<WireId>,
-    witness_wires   :&mut Vec<WireId>,
-    instance_counter:&Cell<u64>,
-    witness_counter :&Cell<u64>,
-    output_gates    :&mut Vec<Gate>,
+    instance_wires  :&mut Vec<WireId>, // All instance data pulled before gate (incl. in previous switch branches)
+    witness_wires   :&mut Vec<WireId>, // All witness data pulled before gate (incl. in previous switch branches)
+    instance_counter:&Cell<u64>, // How many instance pulls have been done before gate (excl. in previous switch branches), semantically (can be smaller than instance_wires length)
+    witness_counter :&Cell<u64>, // How many instance pulls have been done before gate (excl. in previous switch branches), semantically (can be smaller than witness_wires length)
+    output_gates    :&mut Vec<Gate>, // Accumulator where we have written the flattened version of the gates seen before gate, on top of which we'll push the flattened version of gate
 ) {
     match gate {
 
         Gate::Instance(wire_id) => {
             let ic = instance_counter.get() as usize;
-            if ic < instance_wires.len() {
+            if ic < instance_wires.len() { // The instance data we want has already been pulled and is stored in a wire; we just copy it.
 	        let instance_wire = instance_wires[ic];
                 instance_counter.set(instance_counter.get() + 1);
 	        output_gates.push(Gate::Copy(wire_id, instance_wire));
-            } else {
+            } else { // The instance data we want hasn't been pulled yet; we pull it with an Instance gate.
                 instance_wires.push(wire_id);
                 instance_counter.set(instance_counter.get() + 1);
                 output_gates.push(gate);
             }
 	},
 
-    	Gate::Witness(wire_id) => {
+    	Gate::Witness(wire_id) => { // The witness data we want has already been pulled and is stored in a wire; we just copy it.
             let wc = witness_counter.get() as usize;
             if wc < witness_wires.len() {
 	        let witness_wire = witness_wires[wc];
                 witness_counter.set(witness_counter.get() + 1);
 	        output_gates.push(Gate::Copy(wire_id, witness_wire));
-            } else {
+            } else { // The witness data we want hasn't been pulled yet; we pull it with a Witness gate.
                 witness_wires.push(wire_id);
                 witness_counter.set(witness_counter.get() + 1);
                 output_gates.push(gate);
