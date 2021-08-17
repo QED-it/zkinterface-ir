@@ -36,7 +36,8 @@ pub fn flatten_gate(
     witness_wires   :&mut Vec<WireId>,
     instance_counter:&Cell<u64>,
     witness_counter :&Cell<u64>,
-) -> Vec<Gate> {
+    output_gates    :&mut Vec<Gate>,
+) {
     match gate {
 
         Gate::Instance(wire_id) => {
@@ -44,11 +45,11 @@ pub fn flatten_gate(
             if ic < instance_wires.len() {
 	        let instance_wire = instance_wires[ic];
                 instance_counter.set(instance_counter.get() + 1);
-	        vec![Gate::Copy(wire_id, instance_wire)]
+	        output_gates.push(Gate::Copy(wire_id, instance_wire));
             } else {
                 instance_wires.push(wire_id);
                 instance_counter.set(instance_counter.get() + 1);
-                vec![gate]
+                output_gates.push(gate);
             }
 	},
 
@@ -57,11 +58,11 @@ pub fn flatten_gate(
             if wc < witness_wires.len() {
 	        let witness_wire = witness_wires[wc];
                 witness_counter.set(witness_counter.get() + 1);
-	        vec![Gate::Copy(wire_id, witness_wire)]
+	        output_gates.push(Gate::Copy(wire_id, witness_wire));
             } else {
                 witness_wires.push(wire_id);
                 witness_counter.set(witness_counter.get() + 1);
-                vec![gate]
+                output_gates.push(gate);
             }
         },
 
@@ -75,18 +76,18 @@ pub fn flatten_gate(
             let expanded_input_wires   = expand_wirelist(&input_wires);
             let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
 
-            let outputs = translate_gates(&subcircuit, &mut output_input_wires, free_temporary_wire)
-                .flat_map(move |inner_gate| flatten_gate(inner_gate,
-                                                         known_functions,
-                                                         known_iterators,
-                                                         free_temporary_wire,
-                                                         modulus.clone(),
-                                                         instance_wires,
-                                                         witness_wires,
-                                                         instance_counter,
-                                                         witness_counter))
-                .collect::<Vec<Gate>>();
-	    outputs
+            for inner_gate in translate_gates(&subcircuit, &mut output_input_wires, free_temporary_wire) {
+                flatten_gate(inner_gate,
+                             known_functions,
+                             known_iterators,
+                             free_temporary_wire,
+                             modulus.clone(),
+                             instance_wires,
+                             witness_wires,
+                             instance_counter,
+                             witness_counter,
+                             output_gates);
+            }
         }
 
         Gate::Call(name, output_wires, input_wires) => {
@@ -94,7 +95,7 @@ pub fn flatten_gate(
                 // When a function is 'executed', then it's a completely new context, meaning
                 // that iterators defined previously, will not be forwarded to the function.
                 // This is why we set an empty (HashMap::default()) set of iterators.
-                return flatten_gate(
+                flatten_gate(
                     AnonCall(output_wires, input_wires, declaration.2, declaration.3, declaration.4.clone()),
                     known_functions,
                     &HashMap::default(),
@@ -103,12 +104,12 @@ pub fn flatten_gate(
                     instance_wires,
                     witness_wires,
                     instance_counter,
-                    witness_counter);
+                    witness_counter,
+                    output_gates);
             } else {
                 // The function is not known, so this should either panic, or return an empty vector.
                 // We will consider that this means the original circuit is not valid, while
                 // it should have been tested beforehand
-                return vec![];
             }
         }
 
@@ -119,62 +120,60 @@ pub fn flatten_gate(
             _,
             body
         ) => {
-            let outputs = (start_val as usize..=(end_val as usize))
-                .into_iter()
-                .flat_map(|i| {
-                    let mut local_known_iterators = known_iterators.clone();
-                    local_known_iterators.insert(iterator_name.clone(), i as u64);
+            let range = (start_val as usize..=(end_val as usize)).into_iter();
+            for i in range {
+                let mut local_known_iterators = known_iterators.clone();
+                local_known_iterators.insert(iterator_name.clone(), i as u64);
 
-                    let (subcircuit, expanded_outputs, expanded_inputs, use_same_context) = match &body {
-                        ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                            let expanded_outputs = evaluate_iterexpr_list(&outputs, &local_known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(&inputs, &local_known_iterators);
+                let (subcircuit, expanded_outputs, expanded_inputs, use_same_context) = match &body {
+                    ForLoopBody::IterExprCall(name, outputs, inputs) => {
+                        let expanded_outputs = evaluate_iterexpr_list(&outputs, &local_known_iterators);
+                        let expanded_inputs = evaluate_iterexpr_list(&inputs, &local_known_iterators);
 
 
-                            if let Some(declaration) = known_functions.get(name) {
-                                // When a function is 'executed', then it's a completely new context, meaning
-                                // that iterators defined previously, will not be forwarded to the function.
-                                (&declaration.4, expanded_outputs, expanded_inputs, false)
-                            } else {
-                                // The function is not known, so this should either panic, or return an empty vector.
-                                // We will consider that this means the original circuit is not valid, while
-                                // it should have been tested beforehand
-                                return vec![];
-                            }
+                        if let Some(declaration) = known_functions.get(name) {
+                            // When a function is 'executed', then it's a completely new context, meaning
+                            // that iterators defined previously, will not be forwarded to the function.
+                            (&declaration.4, expanded_outputs, expanded_inputs, false)
+                        } else {
+                            // The function is not known, so this should either panic, or return an empty vector.
+                            // We will consider that this means the original circuit is not valid, while
+                            // it should have been tested beforehand
+                            return ();
                         }
+                    }
 
-                        ForLoopBody::IterExprAnonCall(
-                            output_wires,
-                            input_wires,
-                            _, _,
-                            subcircuit
-                        ) => {
-                            let expanded_outputs = evaluate_iterexpr_list(&output_wires, &local_known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(&input_wires, &local_known_iterators);
+                    ForLoopBody::IterExprAnonCall(
+                        output_wires,
+                        input_wires,
+                        _, _,
+                        subcircuit
+                    ) => {
+                        let expanded_outputs = evaluate_iterexpr_list(&output_wires, &local_known_iterators);
+                        let expanded_inputs = evaluate_iterexpr_list(&input_wires, &local_known_iterators);
 
-                            // In the case of a AnonCall, it's just like a block, where the context is
-                            // forwarded from the outer workspace, into the inner one.
-                            (subcircuit, expanded_outputs, expanded_inputs, true)
-                        }
-                    };
+                        // In the case of a AnonCall, it's just like a block, where the context is
+                        // forwarded from the outer workspace, into the inner one.
+                        (subcircuit, expanded_outputs, expanded_inputs, true)
+                    }
+                };
 
-                    let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
-                    let null_hashmap: HashMap<String, u64> = HashMap::default();
-                    translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire)
-                        .flat_map(|inner_gate|
-                            flatten_gate(
-                                inner_gate,
-                                known_functions,
-                                if use_same_context {&local_known_iterators} else {&null_hashmap},
-                                free_temporary_wire,
-				modulus.clone(),
-                                instance_wires,
-                                witness_wires,
-                                instance_counter,
-                                witness_counter)
-                        ).collect::<Vec<Gate>>()
-                }).collect::<Vec<Gate>>();
-	    outputs
+                let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
+                let null_hashmap: HashMap<String, u64> = HashMap::default();
+                for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
+                    flatten_gate(
+                        inner_gate,
+                        known_functions,
+                        if use_same_context {&local_known_iterators} else {&null_hashmap},
+                        free_temporary_wire,
+			modulus.clone(),
+                        instance_wires,
+                        witness_wires,
+                        instance_counter,
+                        witness_counter,
+                        output_gates);
+                }
+            }
         }
 
         Gate::Switch(wire_id, output_wires, cases, branches) => {
@@ -219,7 +218,6 @@ pub fn flatten_gate(
                 // println!("to\n{:?}\n", new_gates);
 		global_gates.push(new_gates);
 	    }
-	    let mut gates:Vec<Gate> = Vec::new(); // Where we produce the flattening of the switch
 
             // We get the max number of instance pulls and witness pulls across branches
    	    let max_instance = *instance_counts.iter().max().unwrap();
@@ -236,11 +234,11 @@ pub fn flatten_gate(
 	    let modulus_minus_1_value = modulus_minus_1.to_bytes_le();
 	    //convert moudulus_minus_1 to little endian
 	    
-	    gates.push(Gate::Constant(neg_one_wire, modulus_minus_1_value.clone()));
+	    output_gates.push(Gate::Constant(neg_one_wire, modulus_minus_1_value.clone()));
 
 	    // Introduce a constant wire containing 1
    	    let one_wire_id = tmp_wire(free_temporary_wire);
-	    gates.push(Gate::Constant(one_wire_id, [1,0,0,0].to_vec()));
+	    output_gates.push(Gate::Constant(one_wire_id, [1,0,0,0].to_vec()));
 
 	    let mut temp_maps = Vec::new();
 
@@ -343,16 +341,16 @@ pub fn flatten_gate(
                 instance_counter.set(instance_counter_at_start);
                 witness_counter.set(witness_counter_at_start);
                 for gate in new_branch_gates {
-                    let recurs_gates = flatten_gate(gate,
-                                                    known_functions,
-                                                    known_iterators,
-                                                    free_temporary_wire,
-                                                    modulus.clone(),
-                                                    instance_wires,
-                                                    witness_wires,
-                                                    instance_counter,
-                                                    witness_counter);
-                    gates = [gates, recurs_gates ].concat();
+                    flatten_gate(gate,
+                                 known_functions,
+                                 known_iterators,
+                                 free_temporary_wire,
+                                 modulus.clone(),
+                                 instance_wires,
+                                 witness_wires,
+                                 instance_counter,
+                                 witness_counter,
+                                 output_gates);
                 }
 	    }
 	    
@@ -360,20 +358,19 @@ pub fn flatten_gate(
 	    for output in &expanded_output_wires{
                 // Weighted sum starts with 0
 		let mut sum_wire = tmp_wire(free_temporary_wire);
-		gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
+		output_gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
 		for map in &temp_maps {
 		    let new_temp = tmp_wire(free_temporary_wire);
-		    gates.push(Gate::Add(new_temp, sum_wire, *map.get(&output).unwrap()));
+		    output_gates.push(Gate::Add(new_temp, sum_wire, *map.get(&output).unwrap()));
 		    sum_wire = new_temp;
 		}
-		gates.push(Gate::Copy(*output,sum_wire));
+		output_gates.push(Gate::Copy(*output,sum_wire));
 	    }
             instance_counter.set(instance_counter_at_start + (max_instance as u64));
             witness_counter.set(witness_counter_at_start + (max_witness as u64));
-	    gates
 	    
 	},
-        _ => vec![gate],
+        _ => output_gates.push(gate),
     }
 }
 
@@ -644,18 +641,22 @@ pub fn flatten_relation(relation : &Relation) -> Relation {
     let field_order = relation.header.field_characteristic.clone();
     let known_functions = get_known_functions(&relation);
     let known_iterators = Default::default();
+    let mut flattened_gates = Vec::new();
 
-    let flattened_gates:Vec<Gate> = relation.gates.iter().flat_map(move |inner_gate| flatten_gate(
-        inner_gate.clone(),
-        &known_functions,
-        &known_iterators,
-        &Cell::new(TEMPORARY_WIRES_START),
-        field_order.clone(),
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &Cell::new(0),
-        &Cell::new(0)
-    )).collect::<Vec<Gate>>();
+    for inner_gate in &relation.gates {
+        flatten_gate(
+            inner_gate.clone(),
+            &known_functions,
+            &known_iterators,
+            &Cell::new(TEMPORARY_WIRES_START),
+            field_order.clone(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &Cell::new(0),
+            &Cell::new(0),
+            &mut flattened_gates
+        );
+    }
 
     return
         Relation {

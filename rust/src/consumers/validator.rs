@@ -729,17 +729,20 @@ fn test_validator_only() -> crate::Result<()> {
     let known_functions = validator.known_functions.clone();
     let known_iterators = validator.known_iterators.clone();
     let free_temporary_wire = validator.free_local_wire.clone();
-    let flattened_gates:Vec<Gate> = gates.iter().flat_map(move |inner_gate| flatten_gate(
-        inner_gate.clone(),
-        &known_functions,
-        &known_iterators,
-        &Cell::new(free_temporary_wire),
-        field_order.clone(),
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &Cell::new(0),
-        &Cell::new(0)
-    )).collect::<Vec<Gate>>();
+    let mut flattened_gates = Vec::new();
+    for inner_gate in gates.iter() {
+        flatten_gate(
+            inner_gate.clone(),
+            &known_functions,
+            &known_iterators,
+            &Cell::new(free_temporary_wire),
+            field_order.clone(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &Cell::new(0),
+            &Cell::new(0),
+            &mut flattened_gates);
+    }
     relation.gates = flattened_gates;
 
     let mut new_val = Validator::new_as_prover();

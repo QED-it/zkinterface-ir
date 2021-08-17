@@ -367,17 +367,20 @@ fn test_simulator() -> Result<()> {
     let free_temp_wire = simulator.free_local_wire;
     let gates:Vec<Gate> = relation.gates;
 
-    let flattened_gates:Vec<Gate> = gates.iter().flat_map(move |inner_gate| flatten_gate(
-        inner_gate.clone(),
-        &known_functions,
-        &known_iterators,
-        &Cell::new(free_temp_wire),
-        field_order.clone(),
-        &mut Vec::new(),
-        &mut Vec::new(),
-        &Cell::new(0),
-        &Cell::new(0)
-    )).collect::<Vec<Gate>>();
+    let mut flattened_gates = Vec::new();
+    for inner_gate in gates.iter() {
+        flatten_gate(
+            inner_gate.clone(),
+            &known_functions,
+            &known_iterators,
+            &Cell::new(free_temp_wire),
+            field_order.clone(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &Cell::new(0),
+            &Cell::new(0),
+            &mut flattened_gates);
+    }
 
     let mut new_relation = example_relation();
     new_relation.gates = flattened_gates;
