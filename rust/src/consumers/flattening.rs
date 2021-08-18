@@ -42,7 +42,7 @@ fn tmp_wire(free_wire: &Cell<WireId>) -> u64 {
     new_wire
 }
 
-// Useful auxiliary function
+// Useful auxiliary functions
 
 fn minus(modulus: &Value, x : &Value) -> Value {
     //convert little endian Vec<u8> to an integer you can subtract from
@@ -51,6 +51,43 @@ fn minus(modulus: &Value, x : &Value) -> Value {
     let modulus_minus_x       = modulus_bigint - x_bigint;
     //convert moudulus_minus_x to little endian
     return modulus_minus_x.to_bytes_le()
+}
+
+
+fn add(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &mut Vec<Gate>) {
+    if is_boolean {
+	gates.push(Gate::Xor(output, lhs, rhs));
+    } else {
+	gates.push(Gate::Add(output, lhs, rhs));
+    }
+}
+
+fn addC(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
+    if is_boolean {
+        let tmp = tmp_wire(free_temporary_wire);
+	gates.push(Gate::Constant(tmp, cst));
+	gates.push(Gate::Xor(output, input, tmp));
+    } else {
+	gates.push(Gate::AddConstant(output, input, cst));
+    }
+}
+
+fn mul(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &mut Vec<Gate>) {
+    if is_boolean {
+	gates.push(Gate::And(output, lhs, rhs));
+    } else {
+	gates.push(Gate::Mul(output, lhs, rhs));
+    }
+}
+
+fn mulC(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
+    if is_boolean {
+        let tmp = tmp_wire(free_temporary_wire);
+	gates.push(Gate::Constant(tmp, cst));
+	gates.push(Gate::And(output, input, tmp));
+    } else {
+	gates.push(Gate::MulConstant(output, input, cst));
+    }
 }
 
 pub fn flatten_gate(
@@ -134,7 +171,7 @@ pub fn flatten_gate(
                 let (subcircuit, expanded_outputs, expanded_inputs, use_same_context) = match &body {
                     ForLoopBody::IterExprCall(name, outputs, inputs) => {
                         let expanded_outputs = evaluate_iterexpr_list(&outputs, &local_known_iterators);
-                        let expanded_inputs = evaluate_iterexpr_list(&inputs, &local_known_iterators);
+                        let expanded_inputs  = evaluate_iterexpr_list(&inputs, &local_known_iterators);
 
                         if let Some(declaration) = args.known_functions.get(name) {
                             // When a function is 'executed', then it's a completely new context, meaning
@@ -144,7 +181,7 @@ pub fn flatten_gate(
                             // The function is not known, so this should either panic, or return an empty vector.
                             // We will consider that this means the original circuit is not valid, while
                             // it should have been tested beforehand
-                            return ();
+                            panic!();
                         }
                     }
 
@@ -230,7 +267,7 @@ pub fn flatten_gate(
 
 		//compute $0 - 42, assigning it to base_wire
 		let base_wire = tmp_wire(free_temporary_wire);
-		new_branch_gates.push(Gate::AddConstant(base_wire, wire_id, minus_42));
+                addC(args.is_boolean, base_wire, wire_id, minus_42, free_temporary_wire, &mut new_branch_gates);
 
                 // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
                 // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
@@ -238,15 +275,15 @@ pub fn flatten_gate(
                 // Therefore, we remember what this wire is:
 		let exp_wire   = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
 		let exp_as_int = BigUint::from_bytes_le(&args.minus_one);
-                exp(base_wire, exp_as_int, free_temporary_wire, &mut new_branch_gates);
+                exp(args.is_boolean, base_wire, exp_as_int, free_temporary_wire, &mut new_branch_gates);
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
 		let neg_exp_wire = tmp_wire(free_temporary_wire);
-		new_branch_gates.push(Gate::MulConstant(neg_exp_wire, exp_wire, args.minus_one.clone()));
+                mulC(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, &mut new_branch_gates);
 
                 // Adding 1 to compute (1 - ($0 - 42)^(p-1))
 		let weight_wire_id = tmp_wire(free_temporary_wire);
-		new_branch_gates.push(Gate::AddConstant(weight_wire_id, neg_exp_wire, args.one.clone()));
+                addC(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, &mut new_branch_gates);
 		//********* end weight ************************/
 
 
@@ -261,8 +298,6 @@ pub fn flatten_gate(
 		}
 		// println!("map {:?}", &map);
 		//nnswap global outputs for the temp outputs of the branch in each gate
-		// let instance_counter = Cell::new(0);
-		// let witness_counter  = Cell::new(0);
 		let mut defined_outputs = Vec::new();
 		for inner_gate in branch_gates {
 		    let new_gate = swap_gate_outputs(inner_gate.clone(), &map, &mut defined_outputs);
@@ -271,7 +306,7 @@ pub fn flatten_gate(
 		    match new_gate{
 			Gate::AssertZero(wire_id) => {
 			    let new_temp_wire = tmp_wire(free_temporary_wire);
-			    new_branch_gates.push(Gate::Mul(new_temp_wire, wire_id, weight_wire_id));
+                            mul(args.is_boolean, new_temp_wire, wire_id, weight_wire_id, &mut new_branch_gates);
 			    new_branch_gates.push(Gate::AssertZero(new_temp_wire));
 			},
 			_ => {
@@ -288,7 +323,7 @@ pub fn flatten_gate(
 		for o in defined_outputs {
 		    let new_output_temp = tmp_wire(free_temporary_wire);
 		    let temp = map.get(&o).unwrap();
-		    new_branch_gates.push(Gate::Mul(new_output_temp,*temp,weight_wire_id));
+                    mul(args.is_boolean, new_output_temp,*temp,weight_wire_id, &mut new_branch_gates);
 		    //reassign output to weighted temp
 		    new_temps.push(new_output_temp);
 		    output_wires_vec.push(o);
@@ -311,7 +346,7 @@ pub fn flatten_gate(
 		args.output_gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
 		for map in &temp_maps {
 		    let new_temp = tmp_wire(free_temporary_wire);
-		    args.output_gates.push(Gate::Add(new_temp, sum_wire, *map.get(&output).unwrap()));
+                    add(args.is_boolean, new_temp, sum_wire, *map.get(&output).unwrap(), args.output_gates);
 		    sum_wire = new_temp;
 		}
 		args.output_gates.push(Gate::Copy(*output,sum_wire));
@@ -345,7 +380,7 @@ Gate::Mul(16, 13, 13)    // squaring
 Gate::Mul(12,wire_id,16) // 7 was odd    
 **/
 
-fn exp(wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
+fn exp(is_boolean : bool, wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
     if exponent == BigUint::from(1u32) {
 	let wire = tmp_wire(free_temporary_wire);
 	gates.push(Copy(wire,wire_id));
@@ -353,16 +388,16 @@ fn exp(wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>, g
         let output      = tmp_wire(free_temporary_wire); // We reserve the first available wire for our own output
         let output_rec  = free_temporary_wire.get(); // We remember where the recursive call will place its output
         let big_int_div = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
-        exp(wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_temporary_wire, gates);
+        exp(is_boolean, wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_temporary_wire, gates);
 
         // Exponent was even: we just square the result of the recursive call
         if exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32) {
-	    gates.push(Gate::Mul(output,output_rec,output_rec));
+            mul(is_boolean, output, output_rec, output_rec, gates);
         }
         else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
 	    let temp_output = tmp_wire(free_temporary_wire);
-	    gates.push(Gate::Mul(temp_output, output_rec,output_rec));
-	    gates.push(Gate::Mul(output, wire_id, temp_output));
+            mul(is_boolean, temp_output, output_rec, output_rec, gates);
+            mul(is_boolean, output, wire_id, temp_output, gates);
         }
     }
 }
