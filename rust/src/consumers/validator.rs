@@ -711,46 +711,23 @@ impl Validator {
 #[test]
 fn test_validator_only() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use core::cell::Cell;
-    use crate::consumers::flattening::flatten_gate;
+    use crate::consumers::flattening::flatten_relation;
 
     let instance = example_instance();
     let witness = example_witness();
-    let mut relation = example_relation();
-    let field_order = instance.header.field_characteristic.clone();
+    let relation = example_relation();
 
     let mut validator = Validator::new_as_prover();
 
     validator.ingest_instance(&instance);
     validator.ingest_witness(&witness);
     validator.ingest_relation(&relation);
-    let gates:Vec<Gate> = relation.gates;
 
-    let known_functions = validator.known_functions.clone();
-    let known_iterators = validator.known_iterators.clone();
-    let free_temporary_wire = validator.free_local_wire.clone();
-    let mut flattened_gates = Vec::new();
-    for inner_gate in gates.iter() {
-        flatten_gate(
-            inner_gate.clone(),
-            &known_functions,
-            &known_iterators,
-            &Cell::new(free_temporary_wire),
-            field_order.clone(),
-            &mut Vec::new(),
-            &mut Vec::new(),
-            &Cell::new(0),
-            &Cell::new(0),
-            &mut flattened_gates);
-    }
-    relation.gates = flattened_gates;
-
-    let mut new_val = Validator::new_as_prover();
-
-
+    let new_relation = flatten_relation(&relation);
+    let mut new_val  = Validator::new_as_prover();
     new_val.ingest_instance(&instance);
     new_val.ingest_witness(&witness);
-    new_val.ingest_relation(&relation);    
+    new_val.ingest_relation(&new_relation);
     let violations = new_val.get_violations();
     assert_eq!(violations, Vec::<String>::new());
 

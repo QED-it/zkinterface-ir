@@ -350,40 +350,23 @@ pub fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize,
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::flattening::flatten_gate;
-    use core::cell::Cell;
+    use crate::consumers::flattening::flatten_relation;
 
     let relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
-    let field_order = instance.header.field_characteristic.clone();
-    let known_functions = get_known_functions(&relation);
+    
     let mut simulator = Evaluator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation)?;
 
-    let known_iterators = simulator.known_iterators.clone();
-    let free_temp_wire = simulator.free_local_wire;
-    let gates:Vec<Gate> = relation.gates;
+    // flatten_relation is computing this on its own. Same as in simulator?
+    // let known_iterators = simulator.known_iterators.clone();
+    // let free_temp_wire = simulator.free_local_wire;
 
-    let mut flattened_gates = Vec::new();
-    for inner_gate in gates.iter() {
-        flatten_gate(
-            inner_gate.clone(),
-            &known_functions,
-            &known_iterators,
-            &Cell::new(free_temp_wire),
-            field_order.clone(),
-            &mut Vec::new(),
-            &mut Vec::new(),
-            &Cell::new(0),
-            &Cell::new(0),
-            &mut flattened_gates);
-    }
+    let new_relation = flatten_relation(&relation);
 
-    let mut new_relation = example_relation();
-    new_relation.gates = flattened_gates;
     let mut new_simulator = Evaluator::default();
     let _ = new_simulator.ingest_instance(&instance);
     let _ = new_simulator.ingest_witness(&witness);
