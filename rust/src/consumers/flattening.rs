@@ -62,7 +62,7 @@ fn add(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &
     }
 }
 
-fn addC(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
+fn add_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
     if is_boolean {
         let tmp = tmp_wire(free_temporary_wire);
 	gates.push(Gate::Constant(tmp, cst));
@@ -80,7 +80,7 @@ fn mul(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &
     }
 }
 
-fn mulC(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
+fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
     if is_boolean {
         let tmp = tmp_wire(free_temporary_wire);
 	gates.push(Gate::Constant(tmp, cst));
@@ -267,7 +267,7 @@ pub fn flatten_gate(
 
 		//compute $0 - 42, assigning it to base_wire
 		let base_wire = tmp_wire(free_temporary_wire);
-                addC(args.is_boolean, base_wire, wire_id, minus_42, free_temporary_wire, &mut new_branch_gates);
+                add_c(args.is_boolean, base_wire, wire_id, minus_42, free_temporary_wire, &mut new_branch_gates);
 
                 // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
                 // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
@@ -279,11 +279,11 @@ pub fn flatten_gate(
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
 		let neg_exp_wire = tmp_wire(free_temporary_wire);
-                mulC(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, &mut new_branch_gates);
+                mul_c(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, &mut new_branch_gates);
 
                 // Adding 1 to compute (1 - ($0 - 42)^(p-1))
 		let weight_wire_id = tmp_wire(free_temporary_wire);
-                addC(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, &mut new_branch_gates);
+                add_c(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, &mut new_branch_gates);
 		//********* end weight ************************/
 
 

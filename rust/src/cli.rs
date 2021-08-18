@@ -66,7 +66,7 @@ pub struct Options {
     ///
     /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
     ///
-    /// flatten       Flattens a SIEVE IR relation.
+    /// flatten       Flatten a SIEVE IR relation.
     ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
@@ -97,6 +97,14 @@ pub struct Options {
     /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
     #[structopt(long)]
     pub modular_reduce: bool,
+
+    /// Which directory to use when simplifying circuits.
+    #[structopt(short, long, default_value = "-")]
+    pub out: PathBuf,
+
+    /// First available temporary wire id to use when simplifying circuits (2^63 if unspecified).
+    #[structopt(long)]
+    pub tmp_wire_start: Option<u64>,
 
 }
 
@@ -425,43 +433,50 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-// Convert to R1CS zkinterface format.
-// Expects one instance, witness, and relation only.
+// Flattens SIEVE IR format by removing loops functions and switches.
+// Expects a set of dirs and files and a resource, places the flattened relations into the file or dir specified by --out.
 fn main_ir_flattening(opts: &Options) -> Result<()> {
-    use crate::consumers::flattening::flatten_relation;
+    use crate::consumers::flattening::{flatten_relation, flatten_relation_from};
+    // use crate::{FilesSink, Sink};
+    use crate::structs::message::Message;
+    use crate::FILE_EXTENSION;
 
-    if opts.paths.len() != 2 {
-        return Err("You must specify exactly 2 paths: input and output. Use '-' fir stdin / stdout".into());
+    let source  = stream_messages(opts)?;
+    let out_dir = &opts.out;
+
+    for msg in source.iter_messages() {
+        match msg? {
+            Message::Instance(_) => {}
+            Message::Witness(_)  => {}
+            Message::Relation(relation) => {
+                let flattened_relation =
+                    if let Some(tmp_wire_start) = opts.tmp_wire_start {
+                        flatten_relation_from(&relation, tmp_wire_start)
+                    } else {
+                        flatten_relation(&relation)
+                    };
+                
+                if out_dir == Path::new("-") {
+                    flattened_relation.write_into(&mut stdout())?;
+                } else if has_sieve_extension(&out_dir) {
+                    let mut file = File::create(out_dir)?;
+                    flattened_relation.write_into(&mut file)?;
+                } else {
+                    create_dir_all(out_dir)?;
+                    let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
+                    flattened_relation.write_into(&mut File::create(&path)?)?;
+                    eprintln!("Written {}", path.display());
+                    // FilesSink stuff doesn't seem to support splitting relation into several files
+                    // and it forces the creation of empty witness and instance files;
+                    // Not what we want and no benefit.
+                    // let mut sink = FilesSink::new_clean(out_dir)?;
+                    // sink.print_filenames();
+                    // sink.push_relation_message(&flattened_relation)?;
+                }
+            }
+        }
     }
 
-    let mut input = Vec::new();
-    input.push(opts.paths[0].clone());
-
-    let mut source = Source::from_filenames(input);
-    source.print_filenames = true;
-    let messages = source.read_all_messages()?;
-
-    if messages.relations.len() != 1 {
-        return Err("The input is not a relation".into());
-    }        
-
-    let relation = &messages.relations[0];
-
-    let flattened_relation = flatten_relation(relation);
-
-    let out_dir = &opts.paths[1];
-
-    if out_dir == Path::new("-") {
-        flattened_relation.write_into(&mut stdout())?;
-    } else if has_sieve_extension(out_dir) {
-        let mut file = File::create(out_dir)?;
-        flattened_relation.write_into(&mut file)?;
-    } else {
-        create_dir_all(out_dir)?;
-        let path = out_dir.join("relation.flat.sieve");
-        flattened_relation.write_into(&mut File::create(&path)?)?;
-        eprintln!("Written {}", path.display());
-    }
     
     Ok(())
 }
@@ -493,6 +508,8 @@ fn test_cli() -> Result<()> {
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
+        out: PathBuf::from("-"),
+        tmp_wire_start: None,
     })?;
 
     cli(&Options {
@@ -502,6 +519,8 @@ fn test_cli() -> Result<()> {
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
+        out: PathBuf::from("-"),
+        tmp_wire_start: None,
     })?;
 
     Ok(())
