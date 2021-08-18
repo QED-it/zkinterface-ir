@@ -238,8 +238,7 @@ pub fn flatten_gate(
                 // Therefore, we remember what this wire is:
 		let exp_wire   = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
 		let exp_as_int = BigUint::from_bytes_le(&args.minus_one);
-                let exp_gates  = exp(base_wire, exp_as_int, free_temporary_wire);
-		new_branch_gates = [new_branch_gates, exp_gates ].concat();
+                exp(base_wire, exp_as_int, free_temporary_wire, &mut new_branch_gates);
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
 		let neg_exp_wire = tmp_wire(free_temporary_wire);
@@ -346,26 +345,26 @@ Gate::Mul(16, 13, 13)    // squaring
 Gate::Mul(12,wire_id,16) // 7 was odd    
 **/
 
-fn exp(wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>) -> Vec<Gate>{
+fn exp(wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
     if exponent == BigUint::from(1u32) {
 	let wire = tmp_wire(free_temporary_wire);
-	return vec![Copy(wire,wire_id)];
-    }
-    let output      = tmp_wire(free_temporary_wire); // We reserve the first available wire for our own output
-    let output_rec  = free_temporary_wire.get(); // We remember where the recursive call will place its output
-    let big_int_div = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
-    let mut gates   = exp(wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_temporary_wire);
+	gates.push(Copy(wire,wire_id));
+    } else {
+        let output      = tmp_wire(free_temporary_wire); // We reserve the first available wire for our own output
+        let output_rec  = free_temporary_wire.get(); // We remember where the recursive call will place its output
+        let big_int_div = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
+        exp(wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_temporary_wire, gates);
 
-    // Exponent was even: we just square the result of the recursive call
-    if exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32) {
-	gates.push(Gate::Mul(output,output_rec,output_rec));
+        // Exponent was even: we just square the result of the recursive call
+        if exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32) {
+	    gates.push(Gate::Mul(output,output_rec,output_rec));
+        }
+        else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
+	    let temp_output = tmp_wire(free_temporary_wire);
+	    gates.push(Gate::Mul(temp_output, output_rec,output_rec));
+	    gates.push(Gate::Mul(output, wire_id, temp_output));
+        }
     }
-    else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
-	let temp_output = tmp_wire(free_temporary_wire);
-	gates.push(Gate::Mul(temp_output, output_rec,output_rec));
-	gates.push(Gate::Mul(output, wire_id, temp_output));
-    }
-    return gates;
 }
     
 fn swap_gate_outputs(gate:Gate,
