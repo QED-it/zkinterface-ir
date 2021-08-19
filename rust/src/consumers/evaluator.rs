@@ -350,7 +350,7 @@ pub fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize,
 #[test]
 fn test_simulator() -> Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::flattening::flatten_relation;
+    use crate::consumers::flattening::flatten_relation_from;
 
     let relation = example_relation();
     let instance = example_instance();
@@ -363,9 +363,8 @@ fn test_simulator() -> Result<()> {
 
     // flatten_relation is computing this on its own. Same as in simulator?
     // let known_iterators = simulator.known_iterators.clone();
-    // let free_temp_wire = simulator.free_local_wire;
 
-    let new_relation = flatten_relation(&relation);
+    let new_relation = flatten_relation_from(&relation, simulator.free_local_wire);
 
     let mut new_simulator = Evaluator::default();
     let _ = new_simulator.ingest_instance(&instance);

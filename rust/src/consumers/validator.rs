@@ -4,6 +4,7 @@ use num_traits::identities::One;
 use std::collections::{HashSet, HashMap};
 
 use regex::Regex;
+use std::cmp;
 use std::cmp::Ordering;
 use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND};
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
@@ -113,6 +114,25 @@ impl Validator {
         }
     }
 
+    pub fn new_as_verifier_tws(tmp : u64) -> Validator {
+        Validator {
+            free_local_wire : tmp,
+            ..Default::default()
+        }
+    }
+
+    pub fn new_as_prover_tws(tmp : u64) -> Validator {
+        Validator {
+            as_prover : true,
+            free_local_wire : tmp,
+            ..Default::default()
+        }
+    }
+
+    pub fn get_tws(&self) -> u64 {
+        self.free_local_wire
+    }
+    
     pub fn print_implemented_checks() {
         println!("{}", IMPLEMENTED_CHECKS);
     }
@@ -241,6 +261,16 @@ impl Validator {
         }
     }
 
+    fn bump_tws(&mut self, wire : &WireId) {
+        self.free_local_wire = cmp::max(self.free_local_wire, *wire + 1);
+        // println!("Seeing {:?} make new value {:?}", wire, self.free_local_wire);
+    }
+
+    fn bump_twss(&mut self, wires : &Vec<WireId>) {
+        let m = *wires.iter().max().unwrap();
+        self.bump_tws(&m);
+    }
+
     fn ingest_gate(&mut self, gate: &Gate) {
         use Gate::*;
 
@@ -248,6 +278,7 @@ impl Validator {
             Constant(out, value) => {
                 self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             AssertZero(inp) => {
@@ -257,6 +288,7 @@ impl Validator {
             Copy(out, inp) => {
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             Add(out, left, right) => {
@@ -266,6 +298,8 @@ impl Validator {
                 self.ensure_defined_and_set(*right);
 
                 self.ensure_undefined_and_set(*out);
+
+                self.bump_tws(out);
             }
 
             Mul(out, left, right) => {
@@ -276,6 +310,8 @@ impl Validator {
                 self.ensure_defined_and_set(*right);
 
                 self.ensure_undefined_and_set(*out);
+
+                self.bump_tws(out);
             }
 
             AddConstant(out, inp, constant) => {
@@ -283,6 +319,7 @@ impl Validator {
                 self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             MulConstant(out, inp, constant) => {
@@ -290,6 +327,7 @@ impl Validator {
                 self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             And(out, left, right) => {
@@ -297,6 +335,7 @@ impl Validator {
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             Xor(out, left, right) => {
@@ -305,6 +344,7 @@ impl Validator {
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             Not(out, inp) => {
@@ -312,18 +352,21 @@ impl Validator {
 
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
+                self.bump_tws(out);
             }
 
             Instance(out) => {
                 self.declare(*out);
                 // Consume value.
                 self.consume_instance(1);
+                self.bump_tws(out);
             }
 
             Witness(out) => {
                 self.declare(*out);
                 // Consume value.
                 self.consume_witness(1);
+                self.bump_tws(out);
             }
 
             Free(first, last) => {
@@ -352,6 +395,8 @@ impl Validator {
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
 
+                self.bump_twss(&expanded_outputs);
+
             }
 
             Call(name, output_wires, input_wires) => {
@@ -371,6 +416,8 @@ impl Validator {
                 self.consume_witness(witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
+
+                self.bump_twss(&expanded_outputs);
             }
 
             Switch(condition, output_wires, cases, branches) => {
@@ -406,6 +453,8 @@ impl Validator {
                 let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
 
                 let expanded_outputs = expand_wirelist(output_wires);
+                self.bump_twss(&expanded_outputs);
+
                 // 'Validate' each branch of the switch independently, and perform checks
                 for branch in branches {
                     let (instance_count, witness_count) = match branch {
@@ -492,6 +541,7 @@ impl Validator {
                 // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);
                 expanded_global_outputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
+
             }
         }
     }
@@ -711,7 +761,7 @@ impl Validator {
 #[test]
 fn test_validator_only() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::flattening::flatten_relation;
+    use crate::consumers::flattening::flatten_relation_from;
 
     let instance = example_instance();
     let witness = example_witness();
@@ -723,7 +773,7 @@ fn test_validator_only() -> crate::Result<()> {
     validator.ingest_witness(&witness);
     validator.ingest_relation(&relation);
 
-    let new_relation = flatten_relation(&relation);
+    let new_relation = flatten_relation_from(&relation, validator.free_local_wire);
     let mut new_val  = Validator::new_as_prover();
     new_val.ingest_instance(&instance);
     new_val.ingest_witness(&witness);

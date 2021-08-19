@@ -131,10 +131,13 @@ impl Relation {
 
 /// This helper function will parse the string stored in a FBS Relation::gateset field
 /// and will translate it into a internal mask handling the same information.
-fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
+// Why the Into+Copy trait?
+// pub fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
+pub fn parse_gate_set_string(gateset: String) -> Result<u16> {
 
     let mut ret: u16 = 0x0000;
-    for substr in gateset.into().split(',') {
+    // for substr in gateset.into().split(',') {
+    for substr in gateset.split(',') {
         match &substr.replace(" ", "")[..] {
             "arithmetic" => return Ok(ARITH),
             "@add"       => ret |= ADD,
@@ -149,12 +152,18 @@ fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
 
             ""           => {/* DO NOTHING */}
 
-            _ => return Err(format!("Unable to parse the following gateset: {}", gateset.into()).into()),
+            // _ => return Err(format!("Unable to parse the following gateset: {}", gateset.into()).into()),
+            _ => return Err(format!("Unable to parse the following gateset: {}", gateset).into()),
         }
     }
     Ok(ret)
 }
 
+pub fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
+    parse_gate_set_string(gateset.into())
+}
+
+    
 /// This functions exports a Relation::gateset string into a FBS binary message.
 fn build_gate_set<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     gateset: u16,

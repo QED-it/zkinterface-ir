@@ -68,6 +68,8 @@ pub struct Options {
     ///
     /// flatten       Flatten a SIEVE IR relation.
     ///
+    /// expand-definable    Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -98,13 +100,17 @@ pub struct Options {
     #[structopt(long)]
     pub modular_reduce: bool,
 
-    /// Which directory to use when simplifying circuits.
+    /// Which directory to use when flattening circuits or expanding their definable gates.
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
 
-    /// First available temporary wire id to use when simplifying circuits (2^63 if unspecified).
+    /// First available temporary wire id to use when flattening circuits or expanding their definable gates (2^63 if unspecified).
     #[structopt(long)]
     pub tmp_wire_start: Option<u64>,
+
+    /// Target gate set for expanding definable gates.
+    #[structopt(long)]
+    pub gate_set: Option<String>,
 
 }
 
@@ -123,6 +129,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
         "flatten" => main_ir_flattening(options),
+        "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -436,7 +443,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 // Flattens SIEVE IR format by removing loops functions and switches.
 // Expects a set of dirs and files and a resource, places the flattened relations into the file or dir specified by --out.
 fn main_ir_flattening(opts: &Options) -> Result<()> {
-    use crate::consumers::flattening::{flatten_relation, flatten_relation_from};
+    use crate::consumers::flattening::flatten_relation_from;
     // use crate::{FilesSink, Sink};
     use crate::structs::message::Message;
     use crate::FILE_EXTENSION;
@@ -444,17 +451,23 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
     let source  = stream_messages(opts)?;
     let out_dir = &opts.out;
 
+    let mut validator =
+        if let Some(tmp_wire_start) = opts.tmp_wire_start {
+            Validator::new_as_verifier_tws(tmp_wire_start)
+        } else {
+            Validator::new_as_verifier()
+        };       
+
     for msg in source.iter_messages() {
-        match msg? {
+        let msg = msg?;
+        validator.ingest_message(&msg);
+        match msg {
             Message::Instance(_) => {}
             Message::Witness(_)  => {}
             Message::Relation(relation) => {
+                let tmp_wire_start = validator.get_tws();
                 let flattened_relation =
-                    if let Some(tmp_wire_start) = opts.tmp_wire_start {
-                        flatten_relation_from(&relation, tmp_wire_start)
-                    } else {
-                        flatten_relation(&relation)
-                    };
+                    flatten_relation_from(&relation, tmp_wire_start);
                 
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
@@ -481,6 +494,60 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
     Ok(())
 }
 
+// Expand definable gates in IR1, like.
+// Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
+fn main_expand_definable(opts: &Options) -> Result<()> {
+    use crate::consumers::exp_definable::exp_definable_from;
+    use crate::structs::message::Message;
+    use crate::structs::relation::parse_gate_set_string;
+    use crate::FILE_EXTENSION;
+
+    let source  = stream_messages(opts)?;
+    let out_dir = &opts.out;
+
+    if let Some(gate_set) = opts.gate_set.clone() {
+
+        let mut validator =
+            if let Some(tmp_wire_start) = opts.tmp_wire_start {
+                Validator::new_as_verifier_tws(tmp_wire_start)
+            } else {
+                Validator::new_as_verifier()
+            };       
+
+        match parse_gate_set_string(gate_set) {
+            Ok(gate_mask) => {
+                for msg in source.iter_messages() {
+                    let msg = msg?;
+                    validator.ingest_message(&msg);
+                    match msg {
+                        Message::Instance(_) => {}
+                        Message::Witness(_)  => {}
+                        Message::Relation(relation) => {
+                            let tmp_wire_start = validator.get_tws();
+                            let flattened_relation = exp_definable_from(&relation, gate_mask, tmp_wire_start);
+                            
+                            if out_dir == Path::new("-") {
+                                flattened_relation.write_into(&mut stdout())?;
+                            } else if has_sieve_extension(&out_dir) {
+                                let mut file = File::create(out_dir)?;
+                                flattened_relation.write_into(&mut file)?;
+                            } else {
+                                create_dir_all(out_dir)?;
+                                let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
+                                flattened_relation.write_into(&mut File::create(&path)?)?;
+                                eprintln!("Written {}", path.display());
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(e)   => { Err(e) }
+        }
+    } else {
+        panic!()
+    }
+}
 
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
@@ -510,6 +577,7 @@ fn test_cli() -> Result<()> {
         modular_reduce: false,
         out: PathBuf::from("-"),
         tmp_wire_start: None,
+        gate_set: None,
     })?;
 
     cli(&Options {
@@ -521,6 +589,7 @@ fn test_cli() -> Result<()> {
         modular_reduce: false,
         out: PathBuf::from("-"),
         tmp_wire_start: None,
+        gate_set: None,
     })?;
 
     Ok(())

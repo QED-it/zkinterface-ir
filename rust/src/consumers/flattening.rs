@@ -10,9 +10,10 @@ use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::relation::{contains_feature, Relation, BOOL, ARITH, SIMPLE};
+use crate::structs::message::Message;
 use crate::{Gate, WireId, Value};
 use crate::consumers::evaluator::get_known_functions;
-use crate::consumers::{TEMPORARY_WIRES_START};
+use crate::consumers::validator::Validator;
 
 // (output_count, input_count, instance_count, witness_count, subcircuit)
 type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
@@ -36,7 +37,7 @@ pub struct FlatArgs<'a> {
 // Getting a new temp wire id (u64).
 // Looks at a reference containing the first available wire id; bumping it by 1.
 
-fn tmp_wire(free_wire: &Cell<WireId>) -> u64 {
+pub fn tmp_wire(free_wire: &Cell<WireId>) -> u64 {
     let new_wire = free_wire.get();
     free_wire.set(free_wire.get() + 1);
     new_wire
@@ -663,5 +664,8 @@ pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> Rela
 }
 
 pub fn flatten_relation(relation : &Relation) -> Relation {
-    return flatten_relation_from(relation, TEMPORARY_WIRES_START);
+    let mut validator = Validator::new_as_verifier();
+    validator.ingest_message(&Message::Relation(relation.clone()));
+    let tmp_wire_start = validator.get_tws();
+    return flatten_relation_from(relation, tmp_wire_start);
 }
