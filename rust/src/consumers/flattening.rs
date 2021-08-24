@@ -1,5 +1,4 @@
 use std::cmp;
-use std::convert::TryFrom;
 use std::collections::HashMap;
 use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
@@ -273,7 +272,8 @@ fn flatten_gate(
                 // By convention, exp assigns the output value to the first available temp wire at the point of call.
                 // Therefore, we remember what this wire is:
 		let exp_wire   = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
-		let exp_as_int = BigUint::from_bytes_le(&args.minus_one);
+		let exp_as_uint = BigUint::from_bytes_le(&args.minus_one);
+                let exp_as_int  = BigInt::from(exp_as_uint);
                 exp(args.is_boolean, base_wire, exp_as_int, free_temporary_wire, &mut new_branch_gates);
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
@@ -379,18 +379,18 @@ Gate::Mul(16, 13, 13)    // squaring
 Gate::Mul(12,wire_id,16) // 7 was odd    
 **/
 
-fn exp(is_boolean : bool, wire_id : WireId, exponent : BigUint, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
-    if exponent == BigUint::from(1u32) {
+fn exp(is_boolean : bool, wire_id : WireId, exponent : BigInt, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
+    if exponent == BigInt::from(1u32) {
 	let wire = tmp_wire(free_temporary_wire);
 	gates.push(Copy(wire,wire_id));
     } else {
         let output      = tmp_wire(free_temporary_wire); // We reserve the first available wire for our own output
         let output_rec  = free_temporary_wire.get(); // We remember where the recursive call will place its output
-        let big_int_div = BigInt::from(exponent.clone()).div_floor(&BigInt::from(2u32));
-        exp(is_boolean, wire_id, BigUint::try_from(big_int_div).ok().unwrap(), free_temporary_wire, gates);
+        let big_int_div = exponent.div_floor(&BigInt::from(2u32));
+        exp(is_boolean, wire_id, big_int_div, free_temporary_wire, gates);
 
         // Exponent was even: we just square the result of the recursive call
-        if exponent.clone() % BigUint::from(2u32) == BigUint::from(0u32) {
+        if exponent % BigInt::from(2u32) == BigInt::from(0u32) {
             mul(is_boolean, output, output_rec, output_rec, gates);
         }
         else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
