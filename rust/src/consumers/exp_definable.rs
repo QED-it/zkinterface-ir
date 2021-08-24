@@ -2,7 +2,7 @@ use std::cell::Cell;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::relation::{contains_feature, Relation, SIMPLE, ADD, MUL, ADDC, MULC, XOR, AND};
 use crate::{Gate, WireId};
-use crate::consumers::{flattening::tmp_wire, TEMPORARY_WIRES_START};
+use crate::consumers::flattening::tmp_wire;
 
 
 fn exp_definable_gate(
@@ -134,7 +134,7 @@ fn exp_definable_gate(
 }
 
 
-pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start : u64) -> Relation {
+pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start : u64) -> (Relation, u64) {
     use num_bigint::{BigUint};
 
     let mut gates = Vec::new();
@@ -157,15 +157,20 @@ pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start 
         exp_definable_gate(inner_gate.clone(),  &mut free_temporary_wire, gate_mask, &mut gates);
     }
 
-    Relation {
+    (Relation {
         header   : relation.header.clone(),
         gate_mask: gate_mask,
         feat_mask: SIMPLE,
         functions: vec![],
         gates    : gates,
-    }
+    },
+     free_temporary_wire.get())
 }
 
 pub fn exp_definable(relation : &Relation, gate_mask : u16) -> Relation {
-    exp_definable_from(relation, gate_mask, TEMPORARY_WIRES_START)
+    use crate::consumers::validator::Validator;
+    let mut validator = Validator::new_as_verifier();
+    validator.ingest_relation(relation);
+    let tmp_wire_start = validator.get_tws();
+    exp_definable_from(relation, gate_mask, tmp_wire_start).0
 }

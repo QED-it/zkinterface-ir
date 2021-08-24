@@ -114,18 +114,29 @@ impl Validator {
         }
     }
 
-    pub fn new_as_verifier_tws(tmp : u64) -> Validator {
-        Validator {
-            free_local_wire : tmp,
-            ..Default::default()
+    pub fn new_as_verifier_tws(tws : Option<u64>) -> Validator {
+        if let Some(tmp_wire_start) = tws {
+            Validator {
+                free_local_wire : tmp_wire_start,
+                ..Default::default()
+            }
+        } else {
+            Validator::default()
         }
     }
 
-    pub fn new_as_prover_tws(tmp : u64) -> Validator {
-        Validator {
-            as_prover : true,
-            free_local_wire : tmp,
-            ..Default::default()
+    pub fn new_as_prover_tws(tws : Option<u64>) -> Validator {
+        if let Some(tmp_wire_start) = tws {
+            Validator {
+                as_prover : true,
+                free_local_wire : tmp_wire_start,
+                ..Default::default()
+            }
+        } else {
+            Validator {
+                as_prover : true,
+                ..Default::default()
+            }
         }
     }
 

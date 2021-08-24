@@ -450,24 +450,22 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
 
     let source  = stream_messages(opts)?;
     let out_dir = &opts.out;
-
-    let mut validator =
-        if let Some(tmp_wire_start) = opts.tmp_wire_start {
-            Validator::new_as_verifier_tws(tmp_wire_start)
-        } else {
-            Validator::new_as_verifier()
-        };       
+    let mut tws = opts.tmp_wire_start.clone();
 
     for msg in source.iter_messages() {
         let msg = msg?;
-        validator.ingest_message(&msg);
         match msg {
             Message::Instance(_) => {}
             Message::Witness(_)  => {}
             Message::Relation(relation) => {
+                let mut validator = Validator::new_as_verifier_tws(tws);
+                validator.ingest_relation(&relation);
+
                 let tmp_wire_start = validator.get_tws();
-                let flattened_relation =
+                let (flattened_relation, new_tws) =
                     flatten_relation_from(&relation, tmp_wire_start);
+                tws = Some(new_tws);
+                
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -485,11 +483,11 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     // sink.print_filenames();
                     // sink.push_relation_message(&flattened_relation)?;
                 }
-                validator.ingest_message(&Message::Relation(flattened_relation));
+                let mut new_validator = Validator::new_as_verifier();
+                new_validator.ingest_relation(&flattened_relation);
             }
         }
     }
-
     
     Ok(())
 }
@@ -504,40 +502,36 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
 
     let source  = stream_messages(opts)?;
     let out_dir = &opts.out;
+    let mut tws = opts.tmp_wire_start.clone();
 
     if let Some(gate_set) = opts.gate_set.clone() {
-
-        let mut validator =
-            if let Some(tmp_wire_start) = opts.tmp_wire_start {
-                Validator::new_as_verifier_tws(tmp_wire_start)
-            } else {
-                Validator::new_as_verifier()
-            };       
-
         match parse_gate_set_string(gate_set) {
             Ok(gate_mask) => {
                 for msg in source.iter_messages() {
-                    let msg = msg?;
-                    validator.ingest_message(&msg);
-                    match msg {
+                    match msg? {
                         Message::Instance(_) => {}
                         Message::Witness(_)  => {}
                         Message::Relation(relation) => {
+                            let mut validator = Validator::new_as_verifier_tws(tws);
+                            validator.ingest_relation(&relation);
+
                             let tmp_wire_start = validator.get_tws();
-                            let flattened_relation = exp_definable_from(&relation, gate_mask, tmp_wire_start);
+                            let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
+                            tws = Some(new_tws);
                             
                             if out_dir == Path::new("-") {
-                                flattened_relation.write_into(&mut stdout())?;
+                                exp_relation.write_into(&mut stdout())?;
                             } else if has_sieve_extension(&out_dir) {
                                 let mut file = File::create(out_dir)?;
-                                flattened_relation.write_into(&mut file)?;
+                                exp_relation.write_into(&mut file)?;
                             } else {
                                 create_dir_all(out_dir)?;
                                 let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
-                                flattened_relation.write_into(&mut File::create(&path)?)?;
+                                exp_relation.write_into(&mut File::create(&path)?)?;
                                 eprintln!("Written {}", path.display());
                             }
-                            validator.ingest_message(&Message::Relation(flattened_relation));
+                            let mut new_validator = Validator::new_as_verifier();
+                            new_validator.ingest_relation(&exp_relation);
                         }
                     }
                 }

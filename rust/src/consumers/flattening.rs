@@ -10,7 +10,6 @@ use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::relation::{contains_feature, get_known_functions, Relation, BOOL, ARITH, SIMPLE};
-use crate::structs::message::Message;
 use crate::{Gate, WireId, Value};
 use crate::consumers::validator::Validator;
 
@@ -623,7 +622,7 @@ pub fn flatten_subcircuit(
 */
 
 
-pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> Relation {
+pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> (Relation, u64) {
 
     let modulus = relation.header.field_characteristic.clone();
     let one : Value = [1,0,0,0].to_vec(); // = True for Boolean circuits
@@ -651,22 +650,22 @@ pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> Rela
         flatten_gate(inner_gate.clone(), &known_iterators, &mut free_temporary_wire, &mut args);
     }
 
-    return
-        Relation {
-            header   : relation.header.clone(),
-            gate_mask: if args.is_boolean {BOOL} else {ARITH},
-            feat_mask: SIMPLE,
-            functions: vec![],
-            gates    : flattened_gates,
-        };
+    (Relation {
+        header   : relation.header.clone(),
+        gate_mask: if args.is_boolean {BOOL} else {ARITH},
+        feat_mask: SIMPLE,
+        functions: vec![],
+        gates    : flattened_gates,
+    },
+     free_temporary_wire.get())
 
 }
 
 pub fn flatten_relation(relation : &Relation) -> Relation {
     let mut validator = Validator::new_as_verifier();
-    validator.ingest_message(&Message::Relation(relation.clone()));
+    validator.ingest_relation(relation);
     let tmp_wire_start = validator.get_tws();
-    return flatten_relation_from(relation, tmp_wire_start);
+    return flatten_relation_from(relation, tmp_wire_start).0;
 }
 
 #[test]
