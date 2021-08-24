@@ -262,11 +262,11 @@ fn flatten_gate(
 		/* i.e. a wire assigned the value 1 - ($0 - 42)^(p-1) for a switch on $0, case value 42,
                 where p is the field's characteristic */
 
-		let minus_42 = minus(&args.modulus, &cases[i]);
+		let minus_val = minus(&args.modulus, &cases[i]);
 
 		//compute $0 - 42, assigning it to base_wire
 		let base_wire = tmp_wire(free_temporary_wire);
-                add_c(args.is_boolean, base_wire, wire_id, minus_42, free_temporary_wire, &mut new_branch_gates);
+                add_c(args.is_boolean, base_wire, wire_id, minus_val, free_temporary_wire, &mut new_branch_gates);
 
                 // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
                 // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.

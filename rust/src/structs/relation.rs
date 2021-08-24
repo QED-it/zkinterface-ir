@@ -132,8 +132,6 @@ impl Relation {
 
 /// This helper function will parse the string stored in a FBS Relation::gateset field
 /// and will translate it into a internal mask handling the same information.
-// Why the Into+Copy trait?
-// pub fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
 pub fn parse_gate_set_string(gateset: String) -> Result<u16> {
 
     let mut ret: u16 = 0x0000;
