@@ -9,10 +9,9 @@ use crate::structs::wire::{expand_wirelist, WireListElement::{Wire,WireRange}};
 use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use crate::structs::relation::{contains_feature, Relation, BOOL, ARITH, SIMPLE};
+use crate::structs::relation::{contains_feature, get_known_functions, Relation, BOOL, ARITH, SIMPLE};
 use crate::structs::message::Message;
 use crate::{Gate, WireId, Value};
-use crate::consumers::evaluator::get_known_functions;
 use crate::consumers::validator::Validator;
 
 // (output_count, input_count, instance_count, witness_count, subcircuit)
@@ -21,7 +20,7 @@ type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
 // A struct for the arguments of the flattening function that don't change with recursive calls
 // (otherwise the calls become very heavy...)
 
-pub struct FlatArgs<'a> {
+struct FlatArgs<'a> {
     modulus    : Value,
     is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
     one        : Value, // Don't want to compute 1 and -1 at every recursive call...
@@ -47,9 +46,9 @@ pub fn tmp_wire(free_wire: &Cell<WireId>) -> u64 {
 
 fn minus(modulus: &Value, x : &Value) -> Value {
     //convert little endian Vec<u8> to an integer you can subtract from
-    let modulus_bigint        = BigUint::from_bytes_le(&modulus[..]);
-    let x_bigint              = BigUint::from_bytes_le(&x[..]);
-    let modulus_minus_x       = modulus_bigint - x_bigint;
+    let modulus_bigint  = BigUint::from_bytes_le(&modulus[..]);
+    let x_bigint        = BigUint::from_bytes_le(&x[..]);
+    let modulus_minus_x = modulus_bigint - x_bigint;
     //convert moudulus_minus_x to little endian
     return modulus_minus_x.to_bytes_le()
 }
@@ -91,7 +90,7 @@ fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_t
     }
 }
 
-pub fn flatten_gate(
+fn flatten_gate(
     gate: Gate,                             // The gate to be flattened
     known_iterators: &HashMap<String, u64>, // This changes in recursive calls
     free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
@@ -669,3 +668,56 @@ pub fn flatten_relation(relation : &Relation) -> Relation {
     let tmp_wire_start = validator.get_tws();
     return flatten_relation_from(relation, tmp_wire_start);
 }
+
+#[test]
+fn test_validator_only() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation = example_relation();
+
+    let mut validator = Validator::new_as_prover();
+
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let new_relation = flatten_relation(&relation);
+    let mut new_val  = Validator::new_as_prover();
+    new_val.ingest_instance(&instance);
+    new_val.ingest_witness(&witness);
+    new_val.ingest_relation(&new_relation);
+    let violations = new_val.get_violations();
+
+    assert_eq!(violations, Vec::<String>::new());
+
+    Ok(())
+}
+
+#[test]
+fn test_flattening() -> crate::Result<()> {
+    use crate::producers::examples::*;
+    use crate::consumers::evaluator::Evaluator;
+
+    let relation = example_relation();
+    let instance = example_instance();
+    let witness = example_witness();
+    
+    let mut simulator = Evaluator::default();
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
+    simulator.ingest_relation(&relation)?;
+
+    let new_relation = flatten_relation(&relation);
+
+    let mut new_simulator = Evaluator::default();
+    let _ = new_simulator.ingest_instance(&instance);
+    let _ = new_simulator.ingest_witness(&witness);
+    let _ = new_simulator.ingest_relation(&new_relation);
+
+    assert_eq!(new_simulator.get_violations().len(), 0);
+
+    Ok(())
+}
+

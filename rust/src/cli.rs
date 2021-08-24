@@ -468,7 +468,6 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                 let tmp_wire_start = validator.get_tws();
                 let flattened_relation =
                     flatten_relation_from(&relation, tmp_wire_start);
-                
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -486,6 +485,7 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     // sink.print_filenames();
                     // sink.push_relation_message(&flattened_relation)?;
                 }
+                validator.ingest_message(&Message::Relation(flattened_relation));
             }
         }
     }
@@ -537,6 +537,7 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                                 flattened_relation.write_into(&mut File::create(&path)?)?;
                                 eprintln!("Written {}", path.display());
                             }
+                            validator.ingest_message(&Message::Relation(flattened_relation));
                         }
                     }
                 }

@@ -758,31 +758,6 @@ impl Validator {
     }
 }
 
-#[test]
-fn test_validator_only() -> crate::Result<()> {
-    use crate::producers::examples::*;
-    use crate::consumers::flattening::flatten_relation_from;
-
-    let instance = example_instance();
-    let witness = example_witness();
-    let relation = example_relation();
-
-    let mut validator = Validator::new_as_prover();
-
-    validator.ingest_instance(&instance);
-    validator.ingest_witness(&witness);
-    validator.ingest_relation(&relation);
-
-    let new_relation = flatten_relation_from(&relation, validator.free_local_wire);
-    let mut new_val  = Validator::new_as_prover();
-    new_val.ingest_instance(&instance);
-    new_val.ingest_witness(&witness);
-    new_val.ingest_relation(&new_relation);
-    let violations = new_val.get_violations();
-    assert_eq!(violations, Vec::<String>::new());
-
-    Ok(())
-}
 
 #[test]
 fn test_validator_violations() -> crate::Result<()> {

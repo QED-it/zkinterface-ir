@@ -5,7 +5,7 @@ use crate::{Gate, WireId};
 use crate::consumers::{flattening::tmp_wire, TEMPORARY_WIRES_START};
 
 
-pub fn exp_definable_gate(
+fn exp_definable_gate(
     gate: Gate,                          // The gate to be rewritten (if need be)
     free_temporary_wire: &Cell<WireId>,  // Cell containing the id of the first available temp wire; acts as a global ref
     gate_mask          : u16,            // The mask for the gates that are allowed
@@ -110,7 +110,7 @@ pub fn exp_definable_gate(
                     let arith_gate = Gate::Mul(wire_id_out,wire_id1,wire_id2);
                     output_gates.push(arith_gate);
                 } else { // otherwise we may loop
-                    panic!();
+                    panic!("You are trying to eliminate an AND gate, but I don't know how to do that without a MUL gate");
                 }
             } else {
                 output_gates.push(gate);
@@ -123,7 +123,7 @@ pub fn exp_definable_gate(
                     let arith_gate = Gate::Add(wire_id_out,wire_id1,wire_id2);
                     output_gates.push(arith_gate);
                 } else { // otherwise we may loop
-                    panic!();
+                    panic!("You are trying to eliminate a XOR gate, but I don't know how to do that without an ADD gate");
                 }
             } else {
                 output_gates.push(gate);
@@ -139,8 +139,21 @@ pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start 
     let mut gates = Vec::new();
     let mut free_temporary_wire = Cell::new(tmp_wire_start);
 
+    let is_two : bool =
+        relation.header.field_characteristic == [2,0,0,0].to_vec();
+
+    if (contains_feature(relation.gate_mask, XOR) || contains_feature(relation.gate_mask, AND))
+        && !is_two {
+            panic!("The input relation allows XOR or AND for a field of characteristic > 2");
+        }
+
+    if (contains_feature(gate_mask, XOR) || contains_feature(gate_mask, AND))
+        && !is_two {
+            panic!("You are trying to use XOR or AND for a field of characteristic > 2");
+        }
+
     for inner_gate in &relation.gates {
-        exp_definable_gate(inner_gate.clone(), &mut free_temporary_wire, gate_mask, &mut gates);
+        exp_definable_gate(inner_gate.clone(),  &mut free_temporary_wire, gate_mask, &mut gates);
     }
 
     Relation {

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
+use std::collections::{HashMap};
 
 use super::gates::Gate;
 use super::header::Header;
@@ -277,6 +278,16 @@ fn create_feature_string(features: u16) -> String {
 pub fn contains_feature(feature_set: u16, feature: u16) -> bool {
     (feature_set & feature) == feature
 }
+
+/// Get the known functions
+pub fn get_known_functions(relation:&Relation) -> HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>{
+    let mut map = HashMap::new();
+    for f in relation.functions.iter() {
+	map.insert(f.name.clone(),(f.output_count,f.input_count,f.instance_count, f.witness_count, f.body.clone()));
+    }
+    map
+}
+
 
 #[test]
 fn test_parse_gate_set() -> Result<()> {
