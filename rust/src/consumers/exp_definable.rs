@@ -135,12 +135,13 @@ fn exp_definable_gate(
 
 
 pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start : u64) -> Relation {
+    use num_bigint::{BigUint};
 
     let mut gates = Vec::new();
     let mut free_temporary_wire = Cell::new(tmp_wire_start);
 
-    let is_two : bool =
-        relation.header.field_characteristic == [2,0,0,0].to_vec();
+    let modulus_bigint = BigUint::from_bytes_le(&relation.header.field_characteristic);
+    let is_two : bool = modulus_bigint == BigUint::from(2 as u64);
 
     if (contains_feature(relation.gate_mask, XOR) || contains_feature(relation.gate_mask, AND))
         && !is_two {
