@@ -134,8 +134,8 @@ fn exp_definable_gate(
             if !contains_feature(gate_mask, NOT) { // Has to be in field of characteristic 2
                 let tmp = tmp_wire(free_temporary_wire);
 	        output_gates.push(Gate::Constant(tmp, [1,0,0,0].to_vec()));
-                let arith_gate = Gate::Xor(wire_id_out,wire_id,tmp);
-                output_gates.push(arith_gate);
+                let xor_gate = Gate::Xor(wire_id_out,wire_id,tmp);
+                exp_definable_gate(xor_gate, free_temporary_wire, gate_mask, output_gates); // We recurse on it in case Xor is not authorized
             } else {
                 output_gates.push(gate);
             }
