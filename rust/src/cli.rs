@@ -453,8 +453,7 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
     let mut tws = opts.tmp_wire_start.clone();
 
     for msg in source.iter_messages() {
-        let msg = msg?;
-        match msg {
+        match msg? {
             Message::Instance(_) => {}
             Message::Witness(_)  => {}
             Message::Relation(relation) => {
