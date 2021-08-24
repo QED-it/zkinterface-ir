@@ -4,7 +4,7 @@ use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
 use num_integer::Integer;
 use crate::structs::subcircuit::translate_gates;
-use crate::structs::wire::{expand_wirelist, WireListElement::{Wire,WireRange}};
+use crate::structs::wire::{expand_wirelist, WireListElement, WireListElement::{Wire}};
 use crate::structs::gates::Gate::*;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
 use crate::structs::iterators::evaluate_iterexpr_list;
@@ -401,107 +401,45 @@ fn exp(is_boolean : bool, wire_id : WireId, exponent : BigInt, free_temporary_wi
     }
 }
 
+// Applies a map to a list of wires
+fn swap_vec(wires: &Vec<WireListElement>,
+            map  : &HashMap<WireId,WireId>) -> Vec<WireListElement> {
+    let expanded_wires = expand_wirelist(&wires);
+    let mut new_wires  = Vec::new();
+    for wire in expanded_wires {
+        let new_wire =
+            if let Some(w) = map.get(&wire){
+                Wire(*w)
+            } else {
+                Wire(wire)
+            };
+        new_wires.push(new_wire);
+    }
+    new_wires
+}
+
 fn swap_gate_outputs(gate:Gate,
                      map:&HashMap<WireId,WireId>,
                      defined_outputs:&mut Vec<WireId>) -> Gate {
     match gate{
         Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) =>
         {
-            let mut new_wires = Vec::new();
-            for wire in output_wires {
-                let temp_wire =
-                    match wire{
-                        Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
-                        WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
-                    };
-                new_wires.push(temp_wire);
-            }
-            let mut new_inputs = Vec::new();
-            for input in input_wires{
-                match input {
-                    Wire(wire_id) => {
-                        if let Some(w) = map.get(&wire_id){
-                            new_inputs.push(Wire(*w));
-                        }
-                        else{
-                            new_inputs.push(Wire(wire_id));
-                        }
-                    },
-                    WireRange(s,e) => {
-                        for i in s..e+1{
-                            if let Some(w) = map.get(&i){
-                                new_inputs.push(Wire(*w));
-                            }
-                            else{
-                                new_inputs.push(Wire(i));
-                            }
-                        }
-                    }
-                }
-            }
-            Gate::AnonCall(new_wires,new_inputs,instance_count,witness_count,subcircuit.clone())
-                
+            let new_outputs = swap_vec(&output_wires,map);
+            let new_inputs  = swap_vec(&input_wires,map);
+            Gate::AnonCall(new_outputs,new_inputs,instance_count,witness_count,subcircuit.clone())
         },
         Gate::Call(name,output_wires,input_wires) => {
-            let mut new_wires = Vec::new();
-            for wire in output_wires {
-                let temp_wire =
-                    match wire{
-                        Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
-                        WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
-                    };
-                new_wires.push(temp_wire);
-            }
-            let mut new_inputs = Vec::new();
-            for input in input_wires{
-                match input {
-                    Wire(wire_id) => {
-                        if let Some(w) = map.get(&wire_id){
-                            new_inputs.push(Wire(*w));
-                        }
-                        else{
-                            new_inputs.push(Wire(wire_id));
-                        }
-                    },
-                    WireRange(s,e) => {
-                        for i in s..e+1{
-                            if let Some(w) = map.get(&i){
-                                new_inputs.push(Wire(*w));
-                            }
-                            else{
-                                new_inputs.push(Wire(i));
-                            }
-                        }
-                    }
-                }
-            }
-            Gate::Call(name,new_wires,new_inputs)
+            let new_outputs = swap_vec(&output_wires,map);
+            let new_inputs  = swap_vec(&input_wires,map);
+            Gate::Call(name,new_outputs,new_inputs)
         },
         Gate::Switch(wire_id, output_wires , values, cases) => {
-            let mut new_wires = Vec::new();
-            for wire in output_wires {
-                let temp_wire =
-                    match wire{
-                        Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
-                        WireRange(s,e) => WireRange(*map.get(&s).unwrap(),*map.get(&e).unwrap())
-                    };
-                
-                new_wires.push(temp_wire);
-            }
-            Gate::Switch(wire_id,new_wires,values,cases)
-                
+            let new_outputs = swap_vec(&output_wires,map);
+            Gate::Switch(wire_id,new_outputs,values,cases)
         },
         Gate::For(name,start_val,end_val,output_wires,body) => {
-            let mut new_wires = Vec::new();
-            for wire in output_wires {
-                let temp_wire =
-                    match wire{
-                        Wire(wire_id) => Wire(*map.get(&wire_id).unwrap()),
-                        WireRange(start,end) => WireRange(*map.get(&start).unwrap(),*map.get(&end).unwrap())
-                    };
-                new_wires.push(temp_wire);
-            }
-            Gate::For(name,start_val,end_val,new_wires,body)
+            let new_outputs = swap_vec(&output_wires,map);
+            Gate::For(name,start_val,end_val,new_outputs,body)
         },
         Gate::Constant(wire_id,value) => {
             defined_outputs.push(wire_id);
