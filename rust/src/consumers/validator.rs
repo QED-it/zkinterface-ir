@@ -278,8 +278,10 @@ impl Validator {
     }
 
     fn bump_twss(&mut self, wires : &Vec<WireId>) {
-        let m = *wires.iter().max().unwrap();
-        self.bump_tws(&m);
+        if let Some(n) = wires.iter().max() {
+            let m : WireId = *n;
+            self.bump_tws(&m);
+        }
     }
 
     fn ingest_gate(&mut self, gate: &Gate) {
