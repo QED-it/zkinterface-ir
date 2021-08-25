@@ -630,6 +630,8 @@ pub fn deconflict_gate_wires(
     (ret, map.free_variable_id)
 }
 
+// TODO: create a class for it, that can keep a state, so that it can convert many relations using
+// the same wire numbering
 pub fn to_r1cs(
     instance: &Instance,
     relation: &Relation,
