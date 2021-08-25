@@ -538,7 +538,7 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                                 eprintln!("Written {}", path.display());
                             }
 
-                            flatten_validator.ingest_relation(&flattened_relation);
+                            flatten_validator.ingest_relation(&exp_relation);
                             assert_eq!(flatten_validator.how_many_violations(), 0);
                         }
                     }
