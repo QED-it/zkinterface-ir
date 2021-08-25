@@ -339,3 +339,21 @@ impl Evaluator {
     }
 }
 
+#[test]
+fn test_evaluator() -> crate::Result<()> {
+    use crate::producers::examples::*;
+    use crate::consumers::evaluator::Evaluator;
+
+    let relation = example_relation();
+    let instance = example_instance();
+    let witness = example_witness();
+
+    let mut simulator = Evaluator::default();
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
+    simulator.ingest_relation(&relation)?;
+
+    assert_eq!(simulator.get_violations().len(), 0);
+
+    Ok(())
+}

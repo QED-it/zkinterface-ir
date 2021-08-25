@@ -646,18 +646,12 @@ pub fn flatten_relation(relation : &Relation) -> Relation {
 }
 
 #[test]
-fn test_validator_only() -> crate::Result<()> {
+fn test_validate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let instance = example_instance();
     let witness = example_witness();
     let relation = example_relation();
-
-    let mut validator = Validator::new_as_prover();
-
-    validator.ingest_instance(&instance);
-    validator.ingest_witness(&witness);
-    validator.ingest_relation(&relation);
 
     let new_relation = flatten_relation(&relation);
     let mut new_val  = Validator::new_as_prover();
@@ -672,18 +666,13 @@ fn test_validator_only() -> crate::Result<()> {
 }
 
 #[test]
-fn test_flattening() -> crate::Result<()> {
+fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
     use crate::consumers::evaluator::Evaluator;
 
     let relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
-    
-    let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance)?;
-    simulator.ingest_witness(&witness)?;
-    simulator.ingest_relation(&relation)?;
 
     let new_relation = flatten_relation(&relation);
 
