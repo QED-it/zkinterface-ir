@@ -12,6 +12,8 @@ use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::consumers::{TEMPORARY_WIRES_START};
 use crate::structs::iterators::evaluate_iterexpr_list;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 type Field = BigUint;
 
@@ -73,7 +75,7 @@ pub struct Validator {
     field_degree: usize,
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
-    known_functions: HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>,
+    known_functions: Rc<RefCell<HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>>>,
     known_iterators: HashMap<String, u64>,
 
     violations: Vec<String>,
@@ -94,7 +96,7 @@ impl Default for Validator {
             free_local_wire: TEMPORARY_WIRES_START,
             field_characteristic: Default::default(),
             field_degree: Default::default(),
-            known_functions: Default::default(),
+            known_functions: Rc::new(RefCell::new(HashMap::default())),
             known_iterators: Default::default(),
             violations: Default::default(),
         }
@@ -277,10 +279,10 @@ impl Validator {
 
             // Just record the signature.
             // The validation will be done when the function will be called.
-            if self.known_functions.contains_key(&name) {
+            if self.known_functions.borrow().contains_key(&name) {
                 self.violate(format!("A function with the name '{}' already exists", name));
             } else {
-                self.known_functions.insert(name.clone(), (output_count, input_count, instance_count, witness_count, subcircuit));
+                self.known_functions.borrow_mut().insert(name.clone(), (output_count, input_count, instance_count, witness_count, subcircuit));
             }
         }
 
@@ -582,20 +584,20 @@ impl Validator {
     /// to do so whenever necessary.
     /// It returns the tuple (instance_count, witness_count)
     fn ingest_call (&mut self, name: &str, output_wires: &[WireId], input_wires: &[WireId]) -> Result<(usize, usize)> {
-        let (output_count, input_count, instance_count, witness_count, subcircuit)
-            = if let Some(function_signature) = self.known_functions.get(name).cloned() {
-            function_signature
-        } else {
+        if !self.known_functions.borrow().contains_key(name) {
             self.violate(format!("Unknown Function gate {}", name));
             return Err("This function does not exist.".into());
-        };
+        }
+
+        let (output_count, input_count, instance_count, witness_count, subcircuit)
+            = self.known_functions.borrow().get(name).cloned().unwrap();
 
         if output_count != output_wires.len() {
-            self.violate("AbstractCall: number of output wires mismatch.");
+            self.violate("Call: number of output wires mismatch.");
         }
 
         if input_count != input_wires.len() {
-            self.violate("AbstractCall: number of input wires mismatch.");
+            self.violate("Call: number of input wires mismatch.");
         }
 
         self.ingest_subcircuit(&subcircuit,
