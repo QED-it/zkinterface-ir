@@ -73,7 +73,6 @@ impl<S: Sink> R1CSConverter<S> {
         } else {
             return Err(format!("The WireId {} has not been defined yet.", term.id).into());
         }
-
     }
 
     fn add_lc(&mut self, lc: &Vec<zkiVariable>) -> Result<WireId> {
@@ -171,12 +170,12 @@ fn stats(conv: R1CSConverter<MemorySink> ) -> Stats {
 #[test]
 fn test_r1cs_to_gates() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
-    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use num_traits::ToPrimitive;
 
     let zki_header = zki_example_header_inputs(3, 4, 25);
-    let zki_r1cs = zki_example_constrains();
+    let zki_r1cs = zki_example_constraints();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
     let ir_header = zki_header_to_header(&zki_header)?;
@@ -217,11 +216,11 @@ fn assert_header(header: &Header) {
 #[test]
 fn test_r1cs_stats() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
-    use zkinterface::producers::examples::example_constraints as zki_example_constrains;
+    use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
 
     let zki_header = zki_example_header_inputs(3, 4, 25);
-    let zki_r1cs = zki_example_constrains();
+    let zki_r1cs = zki_example_constraints();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
     let ir_header = zki_header_to_header(&zki_header)?;

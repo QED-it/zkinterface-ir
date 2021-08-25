@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use num_bigint::BigUint;
-use std::fs::File;
+use std::fs::{File, create_dir_all, OpenOptions};
 use std::io::{copy, stdout, stdin, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
@@ -64,6 +64,12 @@ pub struct Options {
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
     ///
+    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
+    ///
+    /// flatten       Flatten a SIEVE IR relation.
+    ///
+    /// expand-definable    Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
+    ///
     /// list-validations    Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -89,6 +95,23 @@ pub struct Options {
     ///
     #[structopt(short, long, default_value = "-")]
     pub resource: String,
+
+    /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
+    #[structopt(long)]
+    pub modular_reduce: bool,
+
+    /// Which directory to use when flattening circuits or expanding their definable gates.
+    #[structopt(short, long, default_value = "-")]
+    pub out: PathBuf,
+
+    /// First available temporary wire id to use when flattening circuits or expanding their definable gates (2^63 if unspecified).
+    #[structopt(long)]
+    pub tmp_wire_start: Option<u64>,
+
+    /// Target gate set for expanding definable gates.
+    #[structopt(long)]
+    pub gate_set: Option<String>,
+
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -104,6 +127,9 @@ pub fn cli(options: &Options) -> Result<()> {
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
+        "ir-to-zkif" => main_ir_to_r1cs(options),
+        "flatten" => main_ir_flattening(options),
+        "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -358,6 +384,169 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
     Ok(())
 }
 
+// Convert to R1CS zkinterface format.
+// Expects one instance, witness, and relation only.
+fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
+    use crate::producers::to_r1cs::to_r1cs;
+
+    let mut source = Source::from_directory(&std::env::current_dir()?)?;
+    source.print_filenames = true;
+    let messages = source.read_all_messages()?;
+
+    assert_eq!(messages.instances.len(), 1);
+    assert_eq!(messages.relations.len(), 1);
+    assert_eq!(messages.witnesses.len(), 1);
+
+    let instance = &messages.instances[0];
+    let relation = &messages.relations[0];
+    let witness = &messages.witnesses[0];
+
+    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, &relation, witness, opts.modular_reduce);
+
+    zki_header.write_into(&mut stdout())?;
+    zki_r1cs.write_into(&mut stdout())?;
+    zki_witness.write_into(&mut stdout())?;
+
+    if opts.paths.len() != 1 {
+        return Err("Specify a single directory to write r1cs into.".into());
+    }
+    let out_dir = &opts.paths[0];
+
+    if out_dir == Path::new("-") {
+        zki_header.write_into(&mut stdout())?;
+        zki_witness.write_into(&mut stdout())?;
+        zki_r1cs.write_into(&mut stdout())?;
+    } else if zkinterface::consumers::workspace::has_zkif_extension(out_dir) {
+        let mut file = File::create(out_dir)?;
+        zki_header.write_into(&mut file)?;
+        zki_witness.write_into(&mut file)?;
+        zki_r1cs.write_into(&mut file)?;
+    } else {
+        create_dir_all(out_dir)?;
+
+        let path = out_dir.join("header.zkif");
+        zki_header.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("witness.zkif");
+        zki_witness.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+
+        let path = out_dir.join("constraints.zkif");
+        zki_r1cs.write_into(&mut File::create(&path)?)?;
+        eprintln!("Written {}", path.display());
+    }
+    
+    Ok(())
+}
+
+// Flattens SIEVE IR format by removing loops functions and switches.
+// Expects a set of dirs and files and a resource, places the flattened relations into the file or dir specified by --out.
+fn main_ir_flattening(opts: &Options) -> Result<()> {
+    use crate::consumers::flattening::flatten_relation_from;
+    // use crate::{FilesSink, Sink};
+    use crate::structs::message::Message;
+    use crate::FILE_EXTENSION;
+
+    let source  = stream_messages(opts)?;
+    let out_dir = &opts.out;
+    let mut tws = opts.tmp_wire_start.clone();
+
+    for msg in source.iter_messages() {
+        match msg? {
+            Message::Instance(_) => {}
+            Message::Witness(_)  => {}
+            Message::Relation(relation) => {
+                // TODO use this validator as a global one fed with all relations.
+                let mut validator = Validator::new_as_verifier_tws(tws);
+                validator.ingest_relation(&relation);
+
+                let tmp_wire_start = validator.get_tws();
+                let (flattened_relation, new_tws) =
+                    flatten_relation_from(&relation, tmp_wire_start);
+                tws = Some(new_tws);
+                
+                if out_dir == Path::new("-") {
+                    flattened_relation.write_into(&mut stdout())?;
+                } else if has_sieve_extension(&out_dir) {
+                    let mut file = File::create(out_dir)?;
+                    flattened_relation.write_into(&mut file)?;
+                } else {
+                    create_dir_all(out_dir)?;
+                    let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
+                    let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
+                    flattened_relation.write_into(&mut file)?;
+                    eprintln!("New Relation written to {}", path.display());
+                    // FilesSink stuff doesn't seem to support splitting relation into several files
+                    // and it forces the creation of empty witness and instance files;
+                    // Not what we want and no benefit.
+                    // let mut sink = FilesSink::new_clean(out_dir)?;
+                    // sink.print_filenames();
+                    // sink.push_relation_message(&flattened_relation)?;
+                }
+                // TODO check that there is no violation in the "flatten_validator"
+                // TODO make this a global validator, and feed it with all relation/instance/witness
+                let mut new_validator = Validator::new_as_verifier();
+                new_validator.ingest_relation(&flattened_relation);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+// Expand definable gates in IR1, like.
+// Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
+fn main_expand_definable(opts: &Options) -> Result<()> {
+    use crate::consumers::exp_definable::exp_definable_from;
+    use crate::structs::message::Message;
+    use crate::structs::relation::parse_gate_set_string;
+    use crate::FILE_EXTENSION;
+
+    let source  = stream_messages(opts)?;
+    let out_dir = &opts.out;
+    let mut tws = opts.tmp_wire_start.clone();
+
+    if let Some(gate_set) = opts.gate_set.clone() {
+        match parse_gate_set_string(gate_set) {
+            Ok(gate_mask) => {
+                for msg in source.iter_messages() {
+                    match msg? {
+                        Message::Instance(_) => {}
+                        Message::Witness(_)  => {}
+                        Message::Relation(relation) => {
+                            let mut validator = Validator::new_as_verifier_tws(tws);
+                            validator.ingest_relation(&relation);
+
+                            let tmp_wire_start = validator.get_tws();
+                            let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
+                            tws = Some(new_tws);
+                            
+                            if out_dir == Path::new("-") {
+                                exp_relation.write_into(&mut stdout())?;
+                            } else if has_sieve_extension(&out_dir) {
+                                let mut file = File::create(out_dir)?;
+                                exp_relation.write_into(&mut file)?;
+                            } else {
+                                create_dir_all(out_dir)?;
+                                let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
+                                exp_relation.write_into(&mut File::create(&path)?)?;
+                                eprintln!("Written {}", path.display());
+                            }
+                            let mut new_validator = Validator::new_as_verifier();
+                            new_validator.ingest_relation(&exp_relation);
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(e)   => { Err(e) }
+        }
+    } else {
+        panic!()
+    }
+}
+
 fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
     if errors.len() > 0 {
@@ -382,7 +571,11 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        resource: "-".to_string()
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        tmp_wire_start: None,
+        gate_set: None,
     })?;
 
     cli(&Options {
@@ -390,7 +583,11 @@ fn test_cli() -> Result<()> {
         paths: vec![workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
-        resource: "-".to_string()
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        tmp_wire_start: None,
+        gate_set: None,
     })?;
 
     Ok(())

@@ -10,3 +10,5 @@ pub mod from_r1cs;
 
 /// gates builder and interface
 pub mod builder;
+/// ir to r1cs converter
+pub mod to_r1cs;

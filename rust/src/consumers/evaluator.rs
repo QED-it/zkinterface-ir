@@ -284,7 +284,7 @@ impl Evaluator {
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
                             self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, true)?;
                         }
-                    };
+                    }
                 }
             },
         }
@@ -325,10 +325,11 @@ impl Evaluator {
 
 
         let mut free_local_wire = self.free_local_wire;
-        for gate in translate_gates(subcircuit, &mut output_input_wires, &mut free_local_wire) {
+        let free_wire = std::cell::Cell::from_mut(&mut free_local_wire);
+        for gate in translate_gates(subcircuit, &mut output_input_wires, &free_wire) {
             self.ingest_gate(&gate)?;
         }
-        self.free_local_wire = free_local_wire;
+        self.free_local_wire = free_wire.get();
 
         if !use_same_scope {
             self.known_iterators = iterators_backup.clone();
@@ -339,8 +340,9 @@ impl Evaluator {
 }
 
 #[test]
-fn test_simulator() -> Result<()> {
+fn test_evaluator() -> crate::Result<()> {
     use crate::producers::examples::*;
+    use crate::consumers::evaluator::Evaluator;
 
     let relation = example_relation();
     let instance = example_instance();
@@ -355,4 +357,3 @@ fn test_simulator() -> Result<()> {
 
     Ok(())
 }
-
