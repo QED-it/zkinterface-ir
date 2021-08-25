@@ -1,7 +1,7 @@
 use crate::{Gate, Header, Instance, Message, Relation, Witness, WireId, Result};
 use num_bigint::{BigUint, ToBigUint};
 use num_traits::identities::One;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashSet, HashMap, BTreeSet};
 
 use regex::Regex;
 use std::cmp;
@@ -60,7 +60,7 @@ pub struct Validator {
 
     instance_queue_len: usize,
     witness_queue_len: usize,
-    live_wires: HashSet<WireId>,
+    live_wires: BTreeSet<WireId>,
 
     got_header: bool,
     gate_set: u16,
@@ -771,6 +771,26 @@ impl Validator {
     }
 }
 
+#[test]
+fn test_validator() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let witness = example_witness();
+    let relation = example_relation();
+
+    let mut validator = Validator::new_as_prover();
+
+    validator.ingest_instance(&instance);
+    validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+
+    assert_eq!(violations, Vec::<String>::new());
+
+    Ok(())
+}
 
 #[test]
 fn test_validator_violations() -> crate::Result<()> {

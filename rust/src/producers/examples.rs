@@ -1,5 +1,6 @@
 use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
+use num_bigint::BigUint;
 
 use crate::{Header, Instance, Relation, Witness};
 use crate::structs::relation::{ADD, MUL, FUNCTION, SWITCH, FOR, MULC};
@@ -41,9 +42,11 @@ pub fn example_instance_h(header: &Header) -> Instance {
 }
 
 pub fn example_witness_h(header: &Header) -> Witness {
+    let modulus = BigUint::from_bytes_le(&header.field_characteristic);
+    let fibonacci_22 = BigUint::from(17711 as u64) % modulus;
     Witness {
         header: header.clone(),
-        short_witness: vec![literal32(3), literal32(4), literal32(36)],
+        short_witness: vec![literal32(3), literal32(4), fibonacci_22.to_bytes_le()],
     }
 }
 
@@ -114,7 +117,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                     )
                 ],
             ),
-            Constant(3, encode_negative_one(&example_header())), // -1
+            Constant(3, encode_negative_one(&header)), // -1
             Call("com.example::mul".to_string(), vec![Wire(7)], vec![Wire(3), Wire(0)]), // - instance_0
             Add(8, 6, 7),                                        // sum - instance_0
             Free(0, Some(7)),                                    // Free all previous wires
@@ -131,7 +134,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                         vec![Add(0, 1, 2)],
                 )
             ),
-            MulConstant(33, 32, encode_negative_one(&example_header())), // multiply by -1
+            MulConstant(33, 32, encode_negative_one(&header)), // multiply by -1
             Add(34, 9, 33),
             AssertZero(34),
             Free(8, Some(34)),

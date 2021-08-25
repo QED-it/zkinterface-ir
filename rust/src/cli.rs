@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use num_bigint::BigUint;
-use std::fs::{File, create_dir_all};
+use std::fs::{File, create_dir_all, OpenOptions};
 use std::io::{copy, stdout, stdin, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
@@ -457,6 +457,7 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
             Message::Instance(_) => {}
             Message::Witness(_)  => {}
             Message::Relation(relation) => {
+                // TODO use this validator as a global one fed with all relations.
                 let mut validator = Validator::new_as_verifier_tws(tws);
                 validator.ingest_relation(&relation);
 
@@ -473,8 +474,9 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                 } else {
                     create_dir_all(out_dir)?;
                     let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
-                    flattened_relation.write_into(&mut File::create(&path)?)?;
-                    eprintln!("Written {}", path.display());
+                    let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
+                    flattened_relation.write_into(&mut file)?;
+                    eprintln!("New Relation written to {}", path.display());
                     // FilesSink stuff doesn't seem to support splitting relation into several files
                     // and it forces the creation of empty witness and instance files;
                     // Not what we want and no benefit.
@@ -482,6 +484,8 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     // sink.print_filenames();
                     // sink.push_relation_message(&flattened_relation)?;
                 }
+                // TODO check that there is no violation in the "flatten_validator"
+                // TODO make this a global validator, and feed it with all relation/instance/witness
                 let mut new_validator = Validator::new_as_verifier();
                 new_validator.ingest_relation(&flattened_relation);
             }
