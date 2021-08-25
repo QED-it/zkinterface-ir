@@ -1,6 +1,6 @@
 use std::cell::Cell;
 use crate::structs::function::{ForLoopBody,CaseInvoke};
-use crate::structs::relation::{contains_feature, Relation, SIMPLE, ADD, MUL, ADDC, MULC, XOR, AND};
+use crate::structs::relation::{contains_feature, Relation, SIMPLE, ADD, MUL, ADDC, MULC, XOR, AND, NOT};
 use crate::{Gate, WireId};
 use crate::consumers::flattening::tmp_wire;
 
@@ -129,6 +129,19 @@ fn exp_definable_gate(
                 output_gates.push(gate);
             }
 	},
+
+    	Gate::Not(wire_id_out, wire_id) => {
+            if !contains_feature(gate_mask, NOT) { // Has to be in field of characteristic 2
+                let tmp = tmp_wire(free_temporary_wire);
+	        output_gates.push(Gate::Constant(tmp, [1,0,0,0].to_vec()));
+                let xor_gate = Gate::Xor(wire_id_out,wire_id,tmp);
+                exp_definable_gate(xor_gate, free_temporary_wire, gate_mask, output_gates); // We recurse on it in case Xor is not authorized
+            } else {
+                output_gates.push(gate);
+            }
+	},
+
+        
 	_ => { output_gates.push(gate) }
     }
 }
@@ -143,12 +156,16 @@ pub fn exp_definable_from(relation : &Relation, gate_mask : u16, tmp_wire_start 
     let modulus_bigint = BigUint::from_bytes_le(&relation.header.field_characteristic);
     let is_two : bool = modulus_bigint == BigUint::from(2 as u64);
 
-    if (contains_feature(relation.gate_mask, XOR) || contains_feature(relation.gate_mask, AND))
+    if (contains_feature(relation.gate_mask, XOR)
+        || contains_feature(relation.gate_mask, AND)
+        || contains_feature(relation.gate_mask, NOT))
         && !is_two {
             panic!("The input relation allows XOR or AND for a field of characteristic > 2");
         }
 
-    if (contains_feature(gate_mask, XOR) || contains_feature(gate_mask, AND))
+    if (contains_feature(gate_mask, XOR)
+        || contains_feature(gate_mask, AND)
+        || contains_feature(gate_mask, NOT))
         && !is_two {
             panic!("You are trying to use XOR or AND for a field of characteristic > 2");
         }
