@@ -474,8 +474,9 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                 } else {
                     create_dir_all(out_dir)?;
                     let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
-                    let mut file = OpenOptions::new().write(true).create(true).append(true).open(path.as_ref())?;
+                    let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
                     flattened_relation.write_into(&mut file)?;
+                    eprintln!("New Relation written to {}", path.display());
                     // FilesSink stuff doesn't seem to support splitting relation into several files
                     // and it forces the creation of empty witness and instance files;
                     // Not what we want and no benefit.
@@ -490,7 +491,6 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
             }
         }
     }
-    eprintln!("Written {}", path.display());
     
     Ok(())
 }
