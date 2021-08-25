@@ -452,16 +452,19 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
     let out_dir = &opts.out;
     let mut tws = opts.tmp_wire_start.clone();
 
+    // validator used for the initial circuit
+    let mut initial_validator = Validator::new(None);
+    // validator used for the flattened circuit
+    let mut flatten_validator = Validator::new(None);
+
     for msg in source.iter_messages() {
         match msg? {
-            Message::Instance(_) => {}
-            Message::Witness(_)  => {}
             Message::Relation(relation) => {
-                // TODO use this validator as a global one fed with all relations.
-                let mut validator = Validator::new_as_verifier_tws(tws);
-                validator.ingest_relation(&relation);
+                initial_validator.set_tws(tws);
+                initial_validator.ingest_relation(&relation);
+                assert_eq!(initial_validator.how_many_violations(), 0);
 
-                let tmp_wire_start = validator.get_tws();
+                let tmp_wire_start = initial_validator.get_tws();
                 let (flattened_relation, new_tws) =
                     flatten_relation_from(&relation, tmp_wire_start);
                 tws = Some(new_tws);
@@ -477,18 +480,12 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
                     flattened_relation.write_into(&mut file)?;
                     eprintln!("New Relation written to {}", path.display());
-                    // FilesSink stuff doesn't seem to support splitting relation into several files
-                    // and it forces the creation of empty witness and instance files;
-                    // Not what we want and no benefit.
-                    // let mut sink = FilesSink::new_clean(out_dir)?;
-                    // sink.print_filenames();
-                    // sink.push_relation_message(&flattened_relation)?;
+                    flatten_validator.ingest_relation(&flattened_relation);
+                    assert_eq!(flatten_validator.how_many_violations(), 0);
                 }
-                // TODO check that there is no violation in the "flatten_validator"
-                // TODO make this a global validator, and feed it with all relation/instance/witness
-                let mut new_validator = Validator::new_as_verifier();
-                new_validator.ingest_relation(&flattened_relation);
             }
+
+            _ => {}
         }
     }
     
@@ -507,6 +504,11 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
     let out_dir = &opts.out;
     let mut tws = opts.tmp_wire_start.clone();
 
+    // validator used for the initial circuit
+    let mut initial_validator = Validator::new(None);
+    // validator used for the flattened circuit
+    let mut flatten_validator = Validator::new(None);
+
     if let Some(gate_set) = opts.gate_set.clone() {
         match parse_gate_set_string(gate_set) {
             Ok(gate_mask) => {
@@ -515,10 +517,11 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                         Message::Instance(_) => {}
                         Message::Witness(_)  => {}
                         Message::Relation(relation) => {
-                            let mut validator = Validator::new_as_verifier_tws(tws);
-                            validator.ingest_relation(&relation);
+                            initial_validator.set_tws(tws);
+                            initial_validator.ingest_relation(&relation);
+                            assert_eq!(initial_validator.how_many_violations(), 0);
 
-                            let tmp_wire_start = validator.get_tws();
+                            let tmp_wire_start = initial_validator.get_tws();
                             let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
                             tws = Some(new_tws);
                             
@@ -530,11 +533,13 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                             } else {
                                 create_dir_all(out_dir)?;
                                 let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
-                                exp_relation.write_into(&mut File::create(&path)?)?;
+                                let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
+                                exp_relation.write_into(&mut file)?;
                                 eprintln!("Written {}", path.display());
                             }
-                            let mut new_validator = Validator::new_as_verifier();
-                            new_validator.ingest_relation(&exp_relation);
+
+                            flatten_validator.ingest_relation(&flattened_relation);
+                            assert_eq!(flatten_validator.how_many_violations(), 0);
                         }
                     }
                 }

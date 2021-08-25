@@ -140,8 +140,22 @@ impl Validator {
         }
     }
 
+    pub(crate) fn new(tws : Option<u64>) -> Validator {
+        Validator {
+            instance_queue_len: usize::MAX,
+            witness_queue_len: usize::MAX,
+            free_local_wire : tws.unwrap_or(TEMPORARY_WIRES_START),
+            ..Default::default()
+        }
+    }
+
     pub fn get_tws(&self) -> u64 {
         self.free_local_wire
+    }
+    pub(crate) fn set_tws(&mut self, new_tws: Option<u64>)  {
+        if let Some(val) = new_tws {
+            self.free_local_wire = val;
+        }
     }
     
     pub fn print_implemented_checks() {
@@ -155,6 +169,10 @@ impl Validator {
             println!("WARNING: few variables were not freed.");
         }
         self.violations
+    }
+
+    pub fn how_many_violations(&self) -> usize {
+        self.violations.len()
     }
 
     pub fn ingest_message(&mut self, msg: &Message) {
@@ -316,7 +334,6 @@ impl Validator {
             }
 
             Mul(out, left, right) => {
-//		println!("mul {:?}", left);
                 self.ensure_allowed_gate("@mul", MUL);
 
                 self.ensure_defined_and_set(*left);

@@ -188,6 +188,7 @@ fn flatten_gate_internal(
                 // The function is not known, so this should either panic, or return an empty vector.
                 // We will consider that this means the original circuit is not valid, while
                 // it should have been tested beforehand
+                panic!("Function {} is unknown", name);
             }
         }
 
@@ -216,7 +217,7 @@ fn flatten_gate_internal(
                             // The function is not known, so this should either panic, or return an empty vector.
                             // We will consider that this means the original circuit is not valid, while
                             // it should have been tested beforehand
-                            panic!();
+                            panic!("Function {} is unknown", name);
                         }
                     }
 
@@ -272,7 +273,7 @@ fn flatten_gate_internal(
                             let gates = translate_gates(&declaration.4, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
                             global_gates.push(gates);
                         } else {
-                            panic!();
+                            panic!("Function {} is unknown", name);
                         }
                     },
                     CaseInvoke::AbstractAnonCall(input_wires, instance_count, witness_count, branch) => {
