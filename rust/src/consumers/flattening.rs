@@ -95,17 +95,15 @@ pub fn flatten_gate(
     free_temporary_wire: &Cell<WireId>,                  // free temporary wires
     modulus    : &Value,                                 // modulus used
     is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
-    one        : Option<Value>, // If 1 and -1 are given by the caller, then use them, otherwise compute them
-    minus_one  : Option<Value>,
+    one        : &Value, // If 1 and -1 are given by the caller, then use them, otherwise compute them
+    minus_one  : &Value,
 ) -> Vec<Gate> {
     let mut ret: Vec<Gate> = Vec::new();
-    let one = one.unwrap_or_else(|| vec![1]);
-    let minus_one = minus_one.unwrap_or_else(|| minus(modulus, &one));
     let mut args = FlatArgs {
         modulus,
         is_boolean,
-        one: &one,
-        minus_one: &minus_one,
+        one,
+        minus_one,
         known_functions,
         instance_wires: vec![],
         witness_wires: vec![],
@@ -382,7 +380,7 @@ fn flatten_gate_internal(
                 args.output_gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
                 for map in &temp_maps {
                     let new_temp = tmp_wire(free_temporary_wire);
-                    add(args.is_boolean, new_temp, sum_wire, *map.get(&output).unwrap(), args.output_gates);
+                    add(args.is_boolean, new_temp, sum_wire, get(map, *output), args.output_gates);
                     sum_wire = new_temp;
                 }
                 args.output_gates.push(Gate::Copy(*output,sum_wire));
