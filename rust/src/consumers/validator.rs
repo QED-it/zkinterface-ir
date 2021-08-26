@@ -569,6 +569,7 @@ impl Validator {
                         }
                     }
                 }
+                self.known_iterators.remove(iterator_name);
 
                 // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);

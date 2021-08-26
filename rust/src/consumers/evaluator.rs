@@ -286,6 +286,7 @@ impl Evaluator {
                         }
                     }
                 }
+                self.known_iterators.remove(iterator_name);
             },
         }
         Ok(())
