@@ -75,7 +75,7 @@ pub struct Validator {
     field_degree: usize,
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
-    known_functions: Rc<RefCell<HashMap<String, (usize, usize, usize, usize, Vec<Gate>)>>>,
+    known_functions: Rc<RefCell<HashMap<String, (usize, usize, usize, usize)>>>,
     known_iterators: HashMap<String, u64>,
 
     violations: Vec<String>,
@@ -270,8 +270,8 @@ impl Validator {
         for f in relation.functions.iter() {
             self.ensure_allowed_feature("@function", FUNCTION);
 
-            let (name, output_count, input_count, instance_count, witness_count, subcircuit) =
-                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+            let (name, output_count, input_count, instance_count, witness_count) =
+                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count);
 
             // Check that the name follows the proper REGEX
             let re = Regex::new(NAMES_REGEX).unwrap();
@@ -279,13 +279,22 @@ impl Validator {
                 self.violate(format!("The function name ({}) should match the proper format ({}).", name, NAMES_REGEX));
             }
 
-            // Just record the signature.
-            // The validation will be done when the function will be called.
+            // Just record the signature first.
             if self.known_functions.borrow().contains_key(&name) {
                 self.violate(format!("A function with the name '{}' already exists", name));
+                continue;
             } else {
-                self.known_functions.borrow_mut().insert(name.clone(), (output_count, input_count, instance_count, witness_count, subcircuit));
+                self.known_functions.borrow_mut().insert(name.clone(), (output_count, input_count, instance_count, witness_count));
             }
+            // Now validate the subcircuit.
+            self.ingest_subcircuit(
+                &f.body,
+                output_count,
+                input_count,
+                instance_count,
+                witness_count,
+                false);
+
         }
 
 
@@ -412,13 +421,15 @@ impl Validator {
             }
 
             AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
+                self.ensure_allowed_feature("@anoncall", FUNCTION);
                 let expanded_outputs = expand_wirelist(output_wires);
                 let expanded_inputs = expand_wirelist(input_wires);
 
+                expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                 // ingest it and validate it.
                 self.ingest_subcircuit(subcircuit,
-                                       &expanded_outputs,
-                                       &expanded_inputs,
+                                       expanded_outputs.len(),
+                                       expanded_inputs.len(),
                                        *instance_count,
                                        *witness_count,
                                        true,);
@@ -441,6 +452,8 @@ impl Validator {
                 // - consume witness.
                 let expanded_outputs = expand_wirelist(output_wires);
                 let expanded_inputs = expand_wirelist(input_wires);
+
+                expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
 
                 let (instance_count, witness_count)
                     = self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
@@ -494,13 +507,15 @@ impl Validator {
                     let (instance_count, witness_count) = match branch {
                         CaseInvoke::AbstractGateCall(name, inputs) => {
                             let expanded_inputs = expand_wirelist(inputs);
+                            expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0))
                         }
                         CaseInvoke::AbstractAnonCall(inputs, instance_count, witness_count, subcircuit) => {
                             let expanded_inputs = expand_wirelist(inputs);
+                            expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             self.ingest_subcircuit(subcircuit,
-                                                   &expanded_outputs,
-                                                   &expanded_inputs,
+                                                   expanded_outputs.len(),
+                                                   expanded_inputs.len(),
                                                    *instance_count,
                                                    *witness_count,
                                                    true);
@@ -545,6 +560,7 @@ impl Validator {
                         ForLoopBody::IterExprCall(name, outputs, inputs) => {
                             let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             let (instance_count, witness_count) =
                                 self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
 
@@ -562,7 +578,14 @@ impl Validator {
                         ) => {
                             let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
-                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, *instance_count, *witness_count, true);
+                            expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
+                            self.ingest_subcircuit(
+                                subcircuit,
+                                expanded_outputs.len(),
+                                expanded_inputs.len(),
+                                *instance_count,
+                                *witness_count,
+                                true);
 
                             // Now, consume instances and witnesses from self, and set the output wires
                             expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
@@ -592,7 +615,7 @@ impl Validator {
             return Err("This function does not exist.".into());
         }
 
-        let (output_count, input_count, instance_count, witness_count, subcircuit)
+        let (output_count, input_count, instance_count, witness_count)
             = self.known_functions.borrow().get(name).cloned().unwrap();
 
         if output_count != output_wires.len() {
@@ -602,13 +625,6 @@ impl Validator {
         if input_count != input_wires.len() {
             self.violate("Call: number of input wires mismatch.");
         }
-
-        self.ingest_subcircuit(&subcircuit,
-                               output_wires,
-                               input_wires,
-                               instance_count,
-                               witness_count,
-                               false);
 
         Ok((instance_count, witness_count))
     }
@@ -625,8 +641,8 @@ impl Validator {
     fn ingest_subcircuit(
         &mut self,
         subcircuit: &[Gate],
-        output_wires: &[WireId],
-        input_wires: &[WireId],
+        output_count: usize,
+        input_count: usize,
         instance_count: usize,
         witness_count: usize,
         use_same_scope: bool,
@@ -641,14 +657,9 @@ impl Validator {
             current_validator.known_iterators = Default::default();
         }
 
-        input_wires.iter().for_each(|id| self.ensure_defined_and_set(*id));
-
         // input wires should be already defined, and they are numbered from
         // output_wire, so we will artificially define them in the inner
         // validator.
-        let output_count = output_wires.len();
-        let input_count = input_wires.len();
-
         for wire in output_count..(output_count+input_count) {
             current_validator.live_wires.insert(wire as u64);
         }
