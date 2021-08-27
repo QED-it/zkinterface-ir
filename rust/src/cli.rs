@@ -64,9 +64,9 @@ pub struct Options {
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
     ///
-    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface.
+    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface (takes 3 files for witness, instance, and relation, or a directory with 3 files).
     ///
-    /// flatten       Flatten a SIEVE IR relation.
+    /// flatten       Flatten a SIEVE IR relation (takes files and directories, skips everything that is not a relation).
     ///
     /// expand-definable    Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
     ///
@@ -100,7 +100,7 @@ pub struct Options {
     #[structopt(long)]
     pub modular_reduce: bool,
 
-    /// Which directory to use when flattening circuits or expanding their definable gates.
+    /// Which output file or directory to use when flattening circuits, expanding their definable gates, or producing zkif (R1CS). "-" means stdout.
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
 
@@ -389,9 +389,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     use crate::producers::to_r1cs::to_r1cs;
 
-    let mut source = Source::from_directory(&std::env::current_dir()?)?;
-    source.print_filenames = true;
-    let messages = source.read_all_messages()?;
+    let messages = load_messages(opts)?;
 
     assert_eq!(messages.instances.len(), 1);
     assert_eq!(messages.relations.len(), 1);
@@ -399,18 +397,11 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 
     let instance = &messages.instances[0];
     let relation = &messages.relations[0];
-    let witness = &messages.witnesses[0];
+    let witness  = &messages.witnesses[0];
 
     let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, &relation, witness, opts.modular_reduce);
 
-    zki_header.write_into(&mut stdout())?;
-    zki_r1cs.write_into(&mut stdout())?;
-    zki_witness.write_into(&mut stdout())?;
-
-    if opts.paths.len() != 1 {
-        return Err("Specify a single directory to write r1cs into.".into());
-    }
-    let out_dir = &opts.paths[0];
+    let out_dir = &opts.out;
 
     if out_dir == Path::new("-") {
         zki_header.write_into(&mut stdout())?;
