@@ -197,62 +197,42 @@ fn flatten_gate_internal(
             _,
             body
         ) => {
-            let range = (start_val as usize..=(end_val as usize)).into_iter();
-
-            let iterator_name = &iterator_name;
-            // let (subcircuit, expanded_outputs, expanded_inputs, use_same_context) =
-            match &body {
-                ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                    if let Some(declaration) = args.known_functions.get(name) {
-                        // When a function is 'executed', then it's a completely new context, meaning
-                        // that iterators defined previously, will not be forwarded to the function.
-                        for i in range {
-                            known_iterators.insert(iterator_name.clone(), i as u64);
-                            let expanded_outputs = evaluate_iterexpr_list(&outputs, known_iterators);
-                            let expanded_inputs  = evaluate_iterexpr_list(&inputs, known_iterators);
-                            let subcircuit       = &declaration.4;
-                            let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
-                            let mut null_hashmap: HashMap<String, u64> = HashMap::default();
-                            for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
-                                flatten_gate_internal(
-                                    inner_gate,
-                                    &mut null_hashmap,
-                                    free_temporary_wire,
-                                    args);
-                            }
-                        }
-                    } else {
-                        // The function is not known, so this should either panic, or return an empty vector.
-                        // We will consider that this means the original circuit is not valid, while
-                        // it should have been tested beforehand
-                        panic!("Function {} is unknown", name);
-                    }
-                }
-
-                ForLoopBody::IterExprAnonCall(
-                    output_wires,
-                    input_wires,
-                    _, _,
-                    subcircuit
-                ) => {
-                    // In the case of a AnonCall, it's just like a block, where the context is
-                    // forwarded from the outer workspace, into the inner one.
-                    for i in range {
-                        known_iterators.insert(iterator_name.clone(), i as u64);
-                        let expanded_outputs = evaluate_iterexpr_list(&output_wires, known_iterators);
-                        let expanded_inputs  = evaluate_iterexpr_list(&input_wires, known_iterators);
-                        let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
-                        for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
-                            flatten_gate_internal(
-                                inner_gate,
-                                known_iterators,
-                                free_temporary_wire,
-                                args);
+            let mut null_hashmap = HashMap::new();
+            // extract the subcircuit / output list / input list / map of known iterators
+            let (subcircuit, outputs, inputs, current_iterators)
+                = match &body {
+                    ForLoopBody::IterExprCall(name, outputs, inputs) => {
+                        if let Some((_, _, _, _, subcircuit)) = args.known_functions.get(name) {
+                            // In this case, the scope is independant, so all previous iterators are forgotten
+                            (subcircuit, outputs, inputs, &mut null_hashmap)
+                        } else {
+                            // The function is not known, so we panic
+                            panic!("Function {} is unknown", name);
                         }
                     }
+                    ForLoopBody::IterExprAnonCall(
+                        outputs,
+                        inputs,
+                        _, _,
+                        subcircuit
+                    ) => (subcircuit, outputs, inputs, known_iterators)
+                };
+
+            for i in start_val as usize..=(end_val as usize) {
+                current_iterators.insert(iterator_name.clone(), i as u64);
+                let expanded_outputs = evaluate_iterexpr_list(&outputs, current_iterators);
+                let expanded_inputs  = evaluate_iterexpr_list(&inputs, current_iterators);
+                let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
+
+                for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
+                    flatten_gate_internal(
+                        inner_gate,
+                        current_iterators,
+                        free_temporary_wire,
+                        args);
                 }
             }
-            known_iterators.remove(iterator_name);
+            current_iterators.remove(&iterator_name);
         }
 
         Gate::Switch(wire_id, output_wires, cases, branches) => {
