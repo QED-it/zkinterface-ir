@@ -470,16 +470,6 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     flatten_relation_from(&relation, tmp_wire_start);
                 tws = Some(new_tws);
 
-                flatten_validator.ingest_relation(&flattened_relation);
-                print_violations(
-                    &flatten_validator.get_strict_violations(),
-                    "The flattened statement",
-                    "COMPLIANT with the specification",
-                )?;
-                if flatten_validator.how_many_violations() > 0 {
-                    return Err("Stopping here because of violations in output".into())
-                }
-
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -492,6 +482,18 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     flattened_relation.write_into(&mut file)?;
                     eprintln!("New Relation written to {}", path.display());
                 }
+
+                flatten_validator.ingest_relation(&flattened_relation);
+                print_violations(
+                    &flatten_validator.get_strict_violations(),
+                    "The flattened statement",
+                    "COMPLIANT with the specification",
+                )?;
+                if flatten_validator.how_many_violations() > 0 {
+                    return Err("Stopping here because of violations in output".into())
+                }
+
+
             }
 
             _ => {}
@@ -528,7 +530,14 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                         Message::Relation(relation) => {
                             initial_validator.set_tws(tws);
                             initial_validator.ingest_relation(&relation);
-                            assert_eq!(initial_validator.how_many_violations(), 0);
+                            print_violations(
+                                &initial_validator.get_strict_violations(),
+                                "The input statement",
+                                "COMPLIANT with the specification",
+                            )?;
+                            if initial_validator.how_many_violations() > 0 {
+                                return Err("Stopping here because of violations in input".into())
+                            }
 
                             let tmp_wire_start = initial_validator.get_tws();
                             let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
@@ -548,7 +557,15 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                             }
 
                             flatten_validator.ingest_relation(&exp_relation);
-                            assert_eq!(flatten_validator.how_many_violations(), 0);
+                            print_violations(
+                                &flatten_validator.get_strict_violations(),
+                                "The flattened statement",
+                                "COMPLIANT with the specification",
+                            )?;
+                            if flatten_validator.how_many_violations() > 0 {
+                                return Err("Stopping here because of violations in output".into())
+                            }
+
                         }
                     }
                 }
