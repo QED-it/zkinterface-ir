@@ -129,6 +129,7 @@ fn flatten_gate_internal(
     free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
     args: &mut FlatArgs                     // The other arguments that don't change in recursive calls
 ) {
+    let start_wire = free_temporary_wire.get();
     match gate {
 
         Gate::Instance(wire_id) => {
@@ -379,6 +380,10 @@ fn flatten_gate_internal(
             
         },
         _ => args.output_gates.push(gate),
+    }
+    let end_wire = free_temporary_wire.get();
+    if end_wire > start_wire {
+        args.output_gates.push(Gate::Free(start_wire, Some(end_wire - 1)));
     }
 }
 
