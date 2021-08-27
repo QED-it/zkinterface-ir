@@ -471,14 +471,14 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                 tws = Some(new_tws);
 
                 flatten_validator.ingest_relation(&flattened_relation);
-                // print_violations(
-                //     &flatten_validator.get_strict_violations(),
-                //     "The flattened statement",
-                //     "COMPLIANT with the specification",
-                // )?;
-                // if flatten_validator.how_many_violations() > 0 {
-                //     return Err("Stopping here because of violations in output".into())
-                // }
+                print_violations(
+                    &flatten_validator.get_strict_violations(),
+                    "The flattened statement",
+                    "COMPLIANT with the specification",
+                )?;
+                if flatten_validator.how_many_violations() > 0 {
+                    return Err("Stopping here because of violations in output".into())
+                }
 
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
