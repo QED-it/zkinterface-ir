@@ -148,6 +148,7 @@ use crate::producers::sink::MemorySink;
 use crate::consumers::evaluator::Evaluator;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
+use crate::consumers::stats::GateStats;
 
 #[cfg(test)]
 fn evaluate(conv: R1CSConverter<MemorySink> ) -> Evaluator {
@@ -236,27 +237,29 @@ fn test_r1cs_stats() -> Result<()> {
     let expected_stats = Stats {
         field_characteristic: vec![101],
         field_degree: 1,
-        instance_variables: 3,
-        witness_variables: 2,
-        constants_gates: 12,
-        assert_zero_gates: 3,
-        copy_gates: 0,
-        add_gates: 4,
-        mul_gates: 15,
-        add_constant_gates: 0,
-        mul_constant_gates: 0,
-        and_gates: 0,
-        xor_gates: 0,
-        not_gates: 0,
-        variables_freed: 0,
-        functions_defined: 0,
-        functions_called: 0,
-        switches: 0,
-        branches: 0,
-        for_loops: 0,
-        instance_messages: 1,
-        witness_messages: 1,
-        relation_messages: 1,
+        gate_stats: GateStats {
+            instance_variables: 3,
+            witness_variables: 2,
+            constants_gates: 12,
+            assert_zero_gates: 3,
+            copy_gates: 0,
+            add_gates: 4,
+            mul_gates: 15,
+            add_constant_gates: 0,
+            mul_constant_gates: 0,
+            and_gates: 0,
+            xor_gates: 0,
+            not_gates: 0,
+            variables_freed: 0,
+            functions_defined: 0,
+            functions_called: 0,
+            switches: 0,
+            branches: 0,
+            for_loops: 0,
+            instance_messages: 1,
+            witness_messages: 1,
+            relation_messages: 1,
+        },
         functions: Default::default()
     };
 

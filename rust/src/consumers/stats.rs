@@ -9,10 +9,7 @@ use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct Stats {
-    // Header.
-    pub field_characteristic: Vec<u8>,
-    pub field_degree: u32,
+pub struct GateStats {
     // Inputs.
     pub instance_variables: usize,
     pub witness_variables: usize,
@@ -41,8 +38,18 @@ pub struct Stats {
     pub instance_messages: usize,
     pub witness_messages: usize,
     pub relation_messages: usize,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub struct Stats {
+    // Header.
+    pub field_characteristic: Vec<u8>,
+    pub field_degree: u32,
+
+    pub gate_stats: GateStats,
+
     // Function definitions => stats / instance_count / witness_count
-    pub functions: HashMap<String, (Stats, usize, usize)>,
+    pub functions: HashMap<String, (GateStats, usize, usize)>,
 }
 
 impl Stats {
@@ -62,34 +69,49 @@ impl Stats {
 
     pub fn ingest_instance(&mut self, instance: &Instance) {
         self.ingest_header(&instance.header);
-        self.instance_messages += 1;
+        self.gate_stats.instance_messages += 1;
     }
 
     pub fn ingest_witness(&mut self, witness: &Witness) {
         self.ingest_header(&witness.header);
-        self.witness_messages += 1;
+        self.gate_stats.witness_messages += 1;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
-        self.relation_messages += 1;
+        self.gate_stats.relation_messages += 1;
 
         for f in relation.functions.iter() {
             let (name, _, _, instance_count, witness_count, subcircuit) =
                 (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
             // Just record the signature.
-            self.functions_defined += 1;
-            let func_stats = self.ingest_subcircuit(&subcircuit);
+            self.gate_stats.functions_defined += 1;
+            let func_stats = ingest_subcircuit(&subcircuit, &self.functions);
             self.functions.insert(name.clone(), (func_stats, instance_count, witness_count));
 
         }
 
         for gate in &relation.gates {
-            self.ingest_gate(gate);
+            self.gate_stats.ingest_gate(gate, &self.functions);
         }
     }
 
-    fn ingest_gate(&mut self, gate: &Gate) {
+    fn ingest_header(&mut self, header: &Header) {
+        self.field_characteristic = header.field_characteristic.clone();
+        self.field_degree = header.field_degree;
+    }
+}
+
+fn ingest_subcircuit(subcircuit: &[Gate], known_functions: &HashMap<String, (GateStats, usize, usize)>) -> GateStats {
+    let mut local_stats = GateStats::default();
+    for gate in subcircuit {
+        local_stats.ingest_gate(gate, known_functions);
+    }
+    local_stats
+}
+
+impl GateStats {
+    fn ingest_gate(&mut self, gate: &Gate, known_functions: &HashMap<String, (GateStats, usize, usize)>) {
         use Gate::*;
 
         match gate {
@@ -148,7 +170,7 @@ impl Stats {
 
             Call(name, _, _) => {
                 self.functions_called += 1;
-                if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
                     self.ingest_call_stats(&stats_ins_wit.0);
                     self.instance_variables += stats_ins_wit.1;
                     self.witness_variables  += stats_ins_wit.2;
@@ -158,7 +180,7 @@ impl Stats {
             }
 
             AnonCall(_, _, instance_count, witness_count, subcircuit) => {
-                self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                 self.instance_variables += instance_count;
                 self.witness_variables  += witness_count;
             }
@@ -172,7 +194,7 @@ impl Stats {
                     let (instance_count, witness_count) = match branch {
                         CaseInvoke::AbstractGateCall(name, _) => {
                             self.functions_called += 1;
-                            if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                            if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
                                 self.ingest_call_stats(&stats_ins_wit.0);
                                 (stats_ins_wit.1, stats_ins_wit.2)
                             } else {
@@ -181,7 +203,7 @@ impl Stats {
                             }
                         }
                         CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, subcircuit) => {
-                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                            self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                             (*instance_count, *witness_count)
                         }
                     };
@@ -206,7 +228,7 @@ impl Stats {
                     match body {
                         ForLoopBody::IterExprCall(name, _, _) => {
                             self.functions_called += 1;
-                            if let Some(stats_ins_wit) = self.functions.get(name).cloned() {
+                            if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
                                 self.ingest_call_stats(&stats_ins_wit.0);
                                 self.instance_variables += stats_ins_wit.1;
                                 self.witness_variables += stats_ins_wit.2;
@@ -219,7 +241,7 @@ impl Stats {
                                                       witness_count,
                                                       subcircuit
                         ) => {
-                            self.ingest_call_stats(&self.ingest_subcircuit(subcircuit));
+                            self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                             self.instance_variables += *instance_count;
                             self.witness_variables += *witness_count;
                         }
@@ -229,7 +251,7 @@ impl Stats {
         }
     }
 
-    fn ingest_call_stats(&mut self, other: &Stats) {
+    fn ingest_call_stats(&mut self, other: &GateStats) {
         // Gates.
         self.constants_gates += other.constants_gates;
         self.assert_zero_gates += other.assert_zero_gates;
@@ -247,20 +269,6 @@ impl Stats {
         self.branches += other.branches;
         self.for_loops += other.for_loops;
         self.functions_called += other.functions_called;
-    }
-
-    fn ingest_header(&mut self, header: &Header) {
-        self.field_characteristic = header.field_characteristic.clone();
-        self.field_degree = header.field_degree;
-    }
-
-    fn ingest_subcircuit(&self, subcircuit: &[Gate]) -> Stats {
-        let mut local_stats = Stats::default();
-        local_stats.functions = self.functions.clone();
-        for gate in subcircuit {
-            local_stats.ingest_gate(gate);
-        }
-        local_stats
     }
 }
 
@@ -280,34 +288,36 @@ fn test_stats() -> crate::Result<()> {
     let mut expected_stats = Stats {
         field_characteristic: literal(EXAMPLE_MODULUS),
         field_degree: 1,
-        instance_variables: 3,
-        witness_variables: 3,
-        constants_gates: 1,
-        assert_zero_gates: 2,
-        copy_gates: 0,
-        add_gates: 25,
-        mul_gates: 21,
-        add_constant_gates: 0,
-        mul_constant_gates: 1,
-        and_gates: 0,
-        xor_gates: 0,
-        not_gates: 0,
-        variables_freed: 51,
-        functions_defined: 1,
-        functions_called: 20,
-        switches: 1,
-        branches: 2,
-        for_loops: 2,
-        instance_messages: 1,
-        witness_messages: 1,
-        relation_messages: 1,
+        gate_stats: GateStats {
+            instance_variables: 3,
+            witness_variables: 3,
+            constants_gates: 1,
+            assert_zero_gates: 2,
+            copy_gates: 0,
+            add_gates: 25,
+            mul_gates: 21,
+            add_constant_gates: 0,
+            mul_constant_gates: 1,
+            and_gates: 0,
+            xor_gates: 0,
+            not_gates: 0,
+            variables_freed: 51,
+            functions_defined: 1,
+            functions_called: 20,
+            switches: 1,
+            branches: 2,
+            for_loops: 2,
+            instance_messages: 1,
+            witness_messages: 1,
+            relation_messages: 1,
+        },
         functions: HashMap::new(),
     };
     expected_stats.functions.insert(
         "com.example::mul".to_string(),
-        (Stats {
+        (GateStats {
             mul_gates: 1,
-            ..Stats::default()
+            ..GateStats::default()
         }, 0, 0),
     );
 
