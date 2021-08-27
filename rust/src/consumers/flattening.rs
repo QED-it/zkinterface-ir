@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
+use num_traits::Zero;
 use num_integer::Integer;
 use crate::structs::subcircuit::translate_gates;
 use crate::structs::wire::{expand_wirelist, WireListElement, WireListElement::{Wire}};
@@ -46,7 +47,12 @@ fn minus(modulus: &Value, x : &Value) -> Value {
     //convert little endian Vec<u8> to an integer you can subtract from
     let modulus_bigint  = BigUint::from_bytes_le(&modulus[..]);
     let x_bigint        = BigUint::from_bytes_le(&x[..]);
-    let modulus_minus_x = modulus_bigint - x_bigint;
+    let modulus_minus_x =
+        if x_bigint == BigUint::zero() {
+            BigUint::zero()
+        } else {
+            modulus_bigint - x_bigint
+        };
     //convert moudulus_minus_x to little endian
     return modulus_minus_x.to_bytes_le()
 }

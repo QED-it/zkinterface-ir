@@ -280,6 +280,7 @@ fn main_validate(source: &Source) -> Result<()> {
     }
     print_violations(
         &validator.get_violations(),
+        "The statement",
         "COMPLIANT with the specification",
     )
 }
@@ -290,7 +291,7 @@ fn main_evaluate(source: &Source) -> Result<()> {
     for msg in source.iter_messages() {
         evaluator.ingest_message(&msg?);
     }
-    print_violations(&evaluator.get_violations(), "TRUE")
+    print_violations(&evaluator.get_violations(), "The statement", "TRUE")
 }
 
 fn main_metrics(source: &Source) -> Result<()> {
@@ -322,9 +323,10 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
 
     let res1 = print_violations(
         &validator.get_violations(),
+        "The statement",
         "COMPLIANT with the specification",
     );
-    let res2 = print_violations(&evaluator.get_violations(), "TRUE");
+    let res2 = print_violations(&evaluator.get_violations(), "The statement", "TRUE");
     let res3 = serde_json::to_writer_pretty(stdout(), &stats);
     println!();
 
@@ -350,6 +352,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         }
         print_violations(
             &validator.get_violations(),
+            "The input statement",
             "COMPLIANT with the zkinterface specification"
         )?;
     }
@@ -453,13 +456,30 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
             Message::Relation(relation) => {
                 initial_validator.set_tws(tws);
                 initial_validator.ingest_relation(&relation);
-                assert_eq!(initial_validator.how_many_violations(), 0);
-
+                print_violations(
+                    &initial_validator.get_strict_violations(),
+                    "The input statement",
+                    "COMPLIANT with the specification",
+                )?;
+                if initial_validator.how_many_violations() > 0 {
+                    return Err("Stopping here because of violations in input".into())
+                }
+                
                 let tmp_wire_start = initial_validator.get_tws();
                 let (flattened_relation, new_tws) =
                     flatten_relation_from(&relation, tmp_wire_start);
                 tws = Some(new_tws);
-                
+
+                flatten_validator.ingest_relation(&flattened_relation);
+                // print_violations(
+                //     &flatten_validator.get_strict_violations(),
+                //     "The flattened statement",
+                //     "COMPLIANT with the specification",
+                // )?;
+                // if flatten_validator.how_many_violations() > 0 {
+                //     return Err("Stopping here because of violations in output".into())
+                // }
+
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -471,8 +491,6 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
                     flattened_relation.write_into(&mut file)?;
                     eprintln!("New Relation written to {}", path.display());
-                    flatten_validator.ingest_relation(&flattened_relation);
-                    assert_eq!(flatten_validator.how_many_violations(), 0);
                 }
             }
 
@@ -543,14 +561,14 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
     }
 }
 
-fn print_violations(errors: &[String], what_it_is_supposed_to_be: &str) -> Result<()> {
+fn print_violations(errors: &[String], which_statement: &str, what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
     if errors.len() > 0 {
-        eprintln!("The statement is NOT {}!", what_it_is_supposed_to_be);
+        eprintln!("{} is NOT {}!", which_statement, what_it_is_supposed_to_be);
         eprintln!("Violations:\n- {}\n", errors.join("\n- "));
         Err(format!("Found {} violations.", errors.len()).into())
     } else {
-        eprintln!("The statement is {}!", what_it_is_supposed_to_be);
+        eprintln!("{} is {}!", which_statement, what_it_is_supposed_to_be);
         Ok(())
     }
 }
