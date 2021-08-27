@@ -213,9 +213,9 @@ fn test_sink() {
     for msg in source.iter_messages() {
         stats.ingest_message(&msg.unwrap());
     }
-    assert_eq!(stats.instance_messages, 2);
-    assert_eq!(stats.witness_messages, 2);
-    assert_eq!(stats.relation_messages, 2);
+    assert_eq!(stats.gate_stats.instance_messages, 2);
+    assert_eq!(stats.gate_stats.witness_messages, 2);
+    assert_eq!(stats.gate_stats.relation_messages, 2);
 
     // clean workspace, and check there is no more file in it.
     clean_workspace(&workspace).unwrap();
