@@ -35,6 +35,8 @@ pub struct Stats {
     pub switches: usize,
     pub branches: usize,
 
+    pub for_loops: usize,
+
     // The number of messages into which the statement was split.
     pub instance_messages: usize,
     pub witness_messages: usize,
@@ -199,6 +201,7 @@ impl Stats {
                 _,
                 body
             ) => {
+                self.for_loops += 1;
                 for _ in *start_val..=*end_val {
                     match body {
                         ForLoopBody::IterExprCall(name, _, _) => {
@@ -242,6 +245,7 @@ impl Stats {
 
         self.switches += other.switches;
         self.branches += other.branches;
+        self.for_loops += other.for_loops;
         self.functions_called += other.functions_called;
     }
 
@@ -282,17 +286,18 @@ fn test_stats() -> crate::Result<()> {
         assert_zero_gates: 2,
         copy_gates: 0,
         add_gates: 25,
-        mul_gates: 5,
+        mul_gates: 21,
         add_constant_gates: 0,
         mul_constant_gates: 1,
         and_gates: 0,
         xor_gates: 0,
         not_gates: 0,
-        variables_freed: 35,
+        variables_freed: 51,
         functions_defined: 1,
-        functions_called: 4,
+        functions_called: 20,
         switches: 1,
         branches: 2,
+        for_loops: 2,
         instance_messages: 1,
         witness_messages: 1,
         relation_messages: 1,

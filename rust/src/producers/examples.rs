@@ -137,7 +137,20 @@ pub fn example_relation_h(header: &Header) -> Relation {
             MulConstant(33, 32, encode_negative_one(&header)), // multiply by -1
             Add(34, 9, 33),
             AssertZero(34),
-            Free(8, Some(34)),
+
+            // second useless loop that uses the same loop iterator
+            For("i".into(), 35, 50, vec![WireRange(35, 50)],
+                ForLoopBody::IterExprCall(
+                    "com.example::mul".to_string(),
+                    vec![Single(IterExprName("i".into()))], // i
+                    vec![
+                        Single(IterExprSub(Box::new(IterExprName("i".into())), Box::new(IterExprConst(1)))),
+                        Single(IterExprSub(Box::new(IterExprName("i".into())), Box::new(IterExprConst(2)))),
+                    ],
+                )
+            ),
+            Free(8, Some(50)),
+
         ],
     }
 }

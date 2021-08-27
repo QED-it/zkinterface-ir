@@ -90,7 +90,7 @@ fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_t
 
 pub fn flatten_gate(
     gate: Gate,                                          // The gate to be flattened
-    known_iterators: &HashMap<String, u64>,              // The list of iterators previously defined
+    known_iterators: &mut HashMap<String, u64>,              // The list of iterators previously defined
     known_functions : &HashMap<String, FunctionDeclare>, // defined functions
     free_temporary_wire: &Cell<WireId>,                  // free temporary wires
     modulus    : &Value,                                 // modulus used
@@ -125,10 +125,11 @@ pub fn flatten_gate(
 
 fn flatten_gate_internal(
     gate: Gate,                             // The gate to be flattened
-    known_iterators: &HashMap<String, u64>, // This changes in recursive calls
+    known_iterators: &mut HashMap<String, u64>, // This changes in recursive calls
     free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
     args: &mut FlatArgs                     // The other arguments that don't change in recursive calls
 ) {
+    let start_wire = free_temporary_wire.get();
     match gate {
 
         Gate::Instance(wire_id) => {
@@ -179,7 +180,7 @@ fn flatten_gate_internal(
                 // This is why we set an empty (HashMap::default()) set of iterators.
                 flatten_gate_internal(
                     AnonCall(output_wires, input_wires, declaration.2, declaration.3, declaration.4.clone()),
-                    &HashMap::default(),
+                    &mut HashMap::default(),
                     free_temporary_wire,
                     args);
             } else {
@@ -197,53 +198,42 @@ fn flatten_gate_internal(
             _,
             body
         ) => {
-            let range = (start_val as usize..=(end_val as usize)).into_iter();
-            for i in range {
-                let mut local_known_iterators = known_iterators.clone();
-                local_known_iterators.insert(iterator_name.clone(), i as u64);
-
-                let (subcircuit, expanded_outputs, expanded_inputs, use_same_context) = match &body {
+            let mut null_hashmap = HashMap::new();
+            // extract the subcircuit / output list / input list / map of known iterators
+            let (subcircuit, outputs, inputs, current_iterators)
+                = match &body {
                     ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                        let expanded_outputs = evaluate_iterexpr_list(&outputs, &local_known_iterators);
-                        let expanded_inputs  = evaluate_iterexpr_list(&inputs, &local_known_iterators);
-
-                        if let Some(declaration) = args.known_functions.get(name) {
-                            // When a function is 'executed', then it's a completely new context, meaning
-                            // that iterators defined previously, will not be forwarded to the function.
-                            (&declaration.4, expanded_outputs, expanded_inputs, false)
+                        if let Some((_, _, _, _, subcircuit)) = args.known_functions.get(name) {
+                            // In this case, the scope is independant, so all previous iterators are forgotten
+                            (subcircuit, outputs, inputs, &mut null_hashmap)
                         } else {
-                            // The function is not known, so this should either panic, or return an empty vector.
-                            // We will consider that this means the original circuit is not valid, while
-                            // it should have been tested beforehand
+                            // The function is not known, so we panic
                             panic!("Function {} is unknown", name);
                         }
                     }
-
                     ForLoopBody::IterExprAnonCall(
-                        output_wires,
-                        input_wires,
+                        outputs,
+                        inputs,
                         _, _,
                         subcircuit
-                    ) => {
-                        let expanded_outputs = evaluate_iterexpr_list(&output_wires, &local_known_iterators);
-                        let expanded_inputs = evaluate_iterexpr_list(&input_wires, &local_known_iterators);
-
-                        // In the case of a AnonCall, it's just like a block, where the context is
-                        // forwarded from the outer workspace, into the inner one.
-                        (subcircuit, expanded_outputs, expanded_inputs, true)
-                    }
+                    ) => (subcircuit, outputs, inputs, known_iterators)
                 };
 
+            for i in start_val as usize..=(end_val as usize) {
+                current_iterators.insert(iterator_name.clone(), i as u64);
+                let expanded_outputs = evaluate_iterexpr_list(&outputs, current_iterators);
+                let expanded_inputs  = evaluate_iterexpr_list(&inputs, current_iterators);
                 let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
-                let null_hashmap: HashMap<String, u64> = HashMap::default();
+
                 for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
                     flatten_gate_internal(
                         inner_gate,
-                        if use_same_context {&local_known_iterators} else {&null_hashmap},
+                        current_iterators,
                         free_temporary_wire,
                         args);
                 }
             }
+            current_iterators.remove(&iterator_name);
         }
 
         Gate::Switch(wire_id, output_wires, cases, branches) => {
@@ -390,6 +380,10 @@ fn flatten_gate_internal(
             
         },
         _ => args.output_gates.push(gate),
+    }
+    let end_wire = free_temporary_wire.get();
+    if end_wire > start_wire {
+        args.output_gates.push(Gate::Free(start_wire, Some(end_wire - 1)));
     }
 }
 
@@ -566,11 +560,11 @@ pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> (Rel
     };
 
 
-    let known_iterators         = Default::default();
+    let mut known_iterators         = Default::default();
     let mut free_temporary_wire = Cell::new(tmp_wire_start);
 
     for inner_gate in &relation.gates {
-        flatten_gate_internal(inner_gate.clone(), &known_iterators, &mut free_temporary_wire, &mut args);
+        flatten_gate_internal(inner_gate.clone(), &mut known_iterators, &mut free_temporary_wire, &mut args);
     }
 
     (Relation {

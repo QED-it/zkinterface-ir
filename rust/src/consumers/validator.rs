@@ -144,8 +144,10 @@ impl Validator {
 
     pub(crate) fn new(tws : Option<u64>) -> Validator {
         Validator {
-            instance_queue_len: usize::MAX,
-            witness_queue_len: usize::MAX,
+            // we shift by 1 to allow consuming additional instances/witnesses messages.
+            // since 2^63 is large enough...
+            instance_queue_len: usize::MAX >> 1,
+            witness_queue_len: usize::MAX >> 1,
             free_local_wire : tws.unwrap_or(TEMPORARY_WIRES_START),
             ..Default::default()
         }
@@ -569,6 +571,7 @@ impl Validator {
                         }
                     }
                 }
+                self.known_iterators.remove(iterator_name);
 
                 // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);
