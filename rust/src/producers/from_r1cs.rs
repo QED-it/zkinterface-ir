@@ -148,7 +148,6 @@ use crate::producers::sink::MemorySink;
 use crate::consumers::evaluator::Evaluator;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
-use crate::consumers::stats::GateStats;
 
 #[cfg(test)]
 fn evaluate(conv: R1CSConverter<MemorySink> ) -> Evaluator {
@@ -216,6 +215,7 @@ fn assert_header(header: &Header) {
 
 #[test]
 fn test_r1cs_stats() -> Result<()> {
+    use crate::consumers::stats::GateStats;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
