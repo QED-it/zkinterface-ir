@@ -128,7 +128,8 @@ pub fn cli(options: &Options) -> Result<()> {
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
-        "flatten" => main_ir_flattening(options),
+        "flatten"    => main_ir_flattening(options),
+        "unrol"      => main_unrol(options),
         "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
@@ -500,6 +501,64 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
         }
     }
     
+    Ok(())
+}
+
+fn main_unrol(opts: &Options) -> Result<()> {
+    use crate::structs::subcircuit::unrolling_rel;
+    // use crate::{FilesSink, Sink};
+    use crate::structs::message::Message;
+    use crate::FILE_EXTENSION;
+
+    let source  = stream_messages(opts)?;
+    let out_dir = &opts.out;
+
+    // validator used for the initial circuit
+    let mut initial_validator = Validator::new(None);
+    // validator used for the flattened circuit
+    let mut flatten_validator = Validator::new(None);
+
+    for msg in source.iter_messages() {
+        match msg? {
+            Message::Relation(relation) => {
+                initial_validator.ingest_relation(&relation);
+                print_violations(
+                    &initial_validator.get_strict_violations(),
+                    "The input statement",
+                    "COMPLIANT with the specification",
+                )?;
+                if initial_validator.how_many_violations() > 0 {
+                    return Err("Stopping here because of violations in input".into())
+                }
+                
+                let unrolled_relation = unrolling_rel(&relation);
+
+                if out_dir == Path::new("-") {
+                    unrolled_relation.write_into(&mut stdout())?;
+                } else if has_sieve_extension(&out_dir) {
+                    let mut file = File::create(out_dir)?;
+                    unrolled_relation.write_into(&mut file)?;
+                } else {
+                    create_dir_all(out_dir)?;
+                    let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
+                    let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
+                    unrolled_relation.write_into(&mut file)?;
+                    eprintln!("New Relation written to {}", path.display());
+                }
+
+                flatten_validator.ingest_relation(&unrolled_relation);
+                print_violations(
+                    &flatten_validator.get_strict_violations(),
+                    "The flattened statement",
+                    "COMPLIANT with the specification",
+                )?;
+                if flatten_validator.how_many_violations() > 0 {
+                    return Err("Stopping here because of violations in output".into())
+                }
+            }
+            _ => {}
+        }
+    }
     Ok(())
 }
 
