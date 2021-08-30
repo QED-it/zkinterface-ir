@@ -175,13 +175,11 @@ fn unroll(gate  : Gate,
 
         Gate::For(name, start_val, end_val, _, body) => {
 
-            let mut gates = Vec::new();
-
             // The line below, and the restoration of original_val further down,
-            // is necessary for handling loop shadowing (for i ... { for i ... })
+            // is necessary for handling loop shadowing (for i ... { for (int i ... }})
             // but Rust complains...
 
-            // let original_val = known_iterators.get(&name);
+            let original_val = known_iterators.get(&name).cloned();
             
             for i in start_val as usize..=(end_val as usize) {
                 known_iterators.insert(name.clone(), i as u64);
@@ -204,21 +202,27 @@ fn unroll(gate  : Gate,
                         Gate::AnonCall(list_from_vec(&expanded_outputs), list_from_vec(&expanded_inputs), *a, *b, subcircuit.clone())
                     }
                 };
-                gates.push(fgate);
+                unroll(fgate, known_iterators, new_gates);
+
                 known_iterators.remove(&name);
             };
 
-            // if let Some(w) = original_val {
-            //     known_iterators.insert(name.clone(), w.clone());
-            // }
-
-            for gate in gates {
-                unroll(gate, known_iterators, new_gates);
+            if let Some(w) = original_val {
+                known_iterators.insert(name.clone(), w.clone());
             }
 
         },
         a => { new_gates.push(a) }
     }
+}
+
+/// Public version of the above, simple interface on gate vectors
+
+pub fn unroll_gate(gate : Gate) -> Vec<Gate> {
+    let mut new_gates = Vec::new();
+    let mut known_iterators = Default::default();
+    unroll(gate, &mut known_iterators, &mut new_gates);
+    new_gates
 }
 
 /// Public version of the above, simple interface on gate vectors

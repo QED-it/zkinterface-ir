@@ -362,6 +362,6 @@ pub fn evaluate_iterexpr_list(iter_expr_list: &IterExprList, known_iterators: &H
     iter_expr_list
         .iter()
         .flat_map(|element|
-            evaluate_iterexpr_listelement(element, known_iterators).unwrap_or(vec![]))
+            evaluate_iterexpr_listelement(element, known_iterators).unwrap_or_else(|e| panic!("{}", e.to_string())))
         .collect()
 }

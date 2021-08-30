@@ -129,7 +129,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
         "flatten"    => main_ir_flattening(options),
-        "unrol"      => main_unrol(options),
+        "unroll"     => main_unrol(options),
         "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
@@ -471,6 +471,8 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     flatten_relation_from(&relation, tmp_wire_start);
                 tws = Some(new_tws);
 
+                flatten_validator.ingest_relation(&flattened_relation);
+
                 if out_dir == Path::new("-") {
                     flattened_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -484,7 +486,6 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
                     eprintln!("New Relation written to {}", path.display());
                 }
 
-                flatten_validator.ingest_relation(&flattened_relation);
                 print_violations(
                     &flatten_validator.get_strict_violations(),
                     "The flattened statement",
@@ -533,6 +534,8 @@ fn main_unrol(opts: &Options) -> Result<()> {
                 
                 let unrolled_relation = unrolling_rel(&relation);
 
+                flatten_validator.ingest_relation(&unrolled_relation);
+
                 if out_dir == Path::new("-") {
                     unrolled_relation.write_into(&mut stdout())?;
                 } else if has_sieve_extension(&out_dir) {
@@ -546,7 +549,6 @@ fn main_unrol(opts: &Options) -> Result<()> {
                     eprintln!("New Relation written to {}", path.display());
                 }
 
-                flatten_validator.ingest_relation(&unrolled_relation);
                 print_violations(
                     &flatten_validator.get_strict_violations(),
                     "The flattened statement",
@@ -602,6 +604,8 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                             let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
                             tws = Some(new_tws);
                             
+                            flatten_validator.ingest_relation(&exp_relation);
+
                             if out_dir == Path::new("-") {
                                 exp_relation.write_into(&mut stdout())?;
                             } else if has_sieve_extension(&out_dir) {
@@ -615,7 +619,6 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                                 eprintln!("Written {}", path.display());
                             }
 
-                            flatten_validator.ingest_relation(&exp_relation);
                             print_violations(
                                 &flatten_validator.get_strict_violations(),
                                 "The flattened statement",
