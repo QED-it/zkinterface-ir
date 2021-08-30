@@ -94,6 +94,26 @@ fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_t
 }
 
 pub fn flatten_gate(
+    gate: &Gate,     // The gates to be flattened
+    known_functions : &HashMap<String, FunctionDeclare>, // defined functions
+    free_temporary_wire: &Cell<WireId>,                  // free temporary wires
+    modulus    : &Value,                                 // modulus used
+    is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
+    one        : &Value, // If 1 and -1 are given by the caller, then use them, otherwise compute them
+    minus_one  : &Value,
+) -> Vec<Gate> {
+    flatten_gates(
+        &vec![gate.clone()],
+        known_functions,
+        free_temporary_wire,
+        modulus,
+        is_boolean,
+        one,
+        minus_one,
+    )
+}
+
+pub fn flatten_gates(
     gates: &Vec<Gate>,     // The gates to be flattened
     known_functions : &HashMap<String, FunctionDeclare>, // defined functions
     free_temporary_wire: &Cell<WireId>,                  // free temporary wires
@@ -517,7 +537,7 @@ pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> (Rel
     let is_boolean = contains_feature(relation.gate_mask, BOOL);
     
     let flattened_gates =
-        flatten_gate(
+        flatten_gates(
             &relation.gates,
             &known_functions,      // defined functions
             &free_temporary_wire,  // free temporary wires
