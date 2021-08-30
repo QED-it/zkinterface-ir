@@ -2,12 +2,12 @@ use std::cmp;
 use std::collections::HashMap;
 use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
+use num_traits::Zero;
 use num_integer::Integer;
-use crate::structs::subcircuit::translate_gates;
+use crate::structs::subcircuit::{translate_gates, unrolling, unroll_gate};
 use crate::structs::wire::{expand_wirelist, WireListElement, WireListElement::{Wire}};
 use crate::structs::gates::Gate::*;
-use crate::structs::function::{ForLoopBody,CaseInvoke};
-use crate::structs::iterators::evaluate_iterexpr_list;
+use crate::structs::function::CaseInvoke;
 use crate::structs::relation::{contains_feature, get_known_functions, Relation, BOOL, ARITH, SIMPLE};
 use crate::{Gate, WireId, Value};
 use crate::consumers::validator::Validator;
@@ -46,7 +46,12 @@ fn minus(modulus: &Value, x : &Value) -> Value {
     //convert little endian Vec<u8> to an integer you can subtract from
     let modulus_bigint  = BigUint::from_bytes_le(&modulus[..]);
     let x_bigint        = BigUint::from_bytes_le(&x[..]);
-    let modulus_minus_x = modulus_bigint - x_bigint;
+    let modulus_minus_x =
+        if x_bigint == BigUint::zero() {
+            BigUint::zero()
+        } else {
+            modulus_bigint - x_bigint
+        };
     //convert moudulus_minus_x to little endian
     return modulus_minus_x.to_bytes_le()
 }
@@ -89,8 +94,27 @@ fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_t
 }
 
 pub fn flatten_gate(
-    gate: Gate,                                          // The gate to be flattened
-    known_iterators: &mut HashMap<String, u64>,              // The list of iterators previously defined
+    gate: &Gate,     // The gates to be flattened
+    known_functions : &HashMap<String, FunctionDeclare>, // defined functions
+    free_temporary_wire: &Cell<WireId>,                  // free temporary wires
+    modulus    : &Value,                                 // modulus used
+    is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
+    one        : &Value, // If 1 and -1 are given by the caller, then use them, otherwise compute them
+    minus_one  : &Value,
+) -> Vec<Gate> {
+    flatten_gates(
+        &vec![gate.clone()],
+        known_functions,
+        free_temporary_wire,
+        modulus,
+        is_boolean,
+        one,
+        minus_one,
+    )
+}
+
+pub fn flatten_gates(
+    gates: &Vec<Gate>,     // The gates to be flattened
     known_functions : &HashMap<String, FunctionDeclare>, // defined functions
     free_temporary_wire: &Cell<WireId>,                  // free temporary wires
     modulus    : &Value,                                 // modulus used
@@ -112,24 +136,30 @@ pub fn flatten_gate(
         output_gates: &mut ret,
     };
 
+    let start_wire = free_temporary_wire.get();
 
-    flatten_gate_internal(
-        gate,
-        known_iterators,
-        free_temporary_wire,
-        &mut args,
-    );
+    for inner_gate in gates {
+        flatten_gate_internal(
+            inner_gate.clone(),
+            free_temporary_wire,
+            &mut args,
+        );
+    }
+
+    let end_wire = free_temporary_wire.get();
+    if end_wire > start_wire {
+        args.output_gates.push(Gate::Free(start_wire, Some(end_wire - 1)));
+    }
 
     ret
 }
 
 fn flatten_gate_internal(
     gate: Gate,                             // The gate to be flattened
-    known_iterators: &mut HashMap<String, u64>, // This changes in recursive calls
     free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
     args: &mut FlatArgs                     // The other arguments that don't change in recursive calls
 ) {
-    let start_wire = free_temporary_wire.get();
+    // println!("flattening gate\n {:?}", gate);
     match gate {
 
         Gate::Instance(wire_id) => {
@@ -169,7 +199,7 @@ fn flatten_gate_internal(
             let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
 
             for inner_gate in translate_gates(&subcircuit, &mut output_input_wires, free_temporary_wire) {
-                flatten_gate_internal(inner_gate, known_iterators, free_temporary_wire, args);
+                flatten_gate_internal(inner_gate, free_temporary_wire, args);
             }
         }
 
@@ -178,9 +208,9 @@ fn flatten_gate_internal(
                 // When a function is 'executed', then it's a completely new context, meaning
                 // that iterators defined previously, will not be forwarded to the function.
                 // This is why we set an empty (HashMap::default()) set of iterators.
+                let subcircuit = unrolling(&declaration.4);
                 flatten_gate_internal(
-                    AnonCall(output_wires, input_wires, declaration.2, declaration.3, declaration.4.clone()),
-                    &mut HashMap::default(),
+                    AnonCall(output_wires, input_wires, declaration.2, declaration.3, subcircuit),
                     free_temporary_wire,
                     args);
             } else {
@@ -191,49 +221,10 @@ fn flatten_gate_internal(
             }
         }
 
-        Gate::For(
-            iterator_name,
-            start_val,
-            end_val,
-            _,
-            body
-        ) => {
-            let mut null_hashmap = HashMap::new();
-            // extract the subcircuit / output list / input list / map of known iterators
-            let (subcircuit, outputs, inputs, current_iterators)
-                = match &body {
-                    ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                        if let Some((_, _, _, _, subcircuit)) = args.known_functions.get(name) {
-                            // In this case, the scope is independant, so all previous iterators are forgotten
-                            (subcircuit, outputs, inputs, &mut null_hashmap)
-                        } else {
-                            // The function is not known, so we panic
-                            panic!("Function {} is unknown", name);
-                        }
-                    }
-                    ForLoopBody::IterExprAnonCall(
-                        outputs,
-                        inputs,
-                        _, _,
-                        subcircuit
-                    ) => (subcircuit, outputs, inputs, known_iterators)
-                };
-
-            for i in start_val as usize..=(end_val as usize) {
-                current_iterators.insert(iterator_name.clone(), i as u64);
-                let expanded_outputs = evaluate_iterexpr_list(&outputs, current_iterators);
-                let expanded_inputs  = evaluate_iterexpr_list(&inputs, current_iterators);
-                let mut output_input_wires = [expanded_outputs, expanded_inputs].concat();
-
-                for inner_gate in translate_gates(subcircuit, &mut output_input_wires, free_temporary_wire) {
-                    flatten_gate_internal(
-                        inner_gate,
-                        current_iterators,
-                        free_temporary_wire,
-                        args);
-                }
+        Gate::For(_, _, _, _, _) => {
+            for inner_gate in unroll_gate(gate) {
+                flatten_gate_internal(inner_gate, free_temporary_wire, args);
             }
-            current_iterators.remove(&iterator_name);
         }
 
         Gate::Switch(wire_id, output_wires, cases, branches) => {
@@ -331,9 +322,10 @@ fn flatten_gate_internal(
                     map_weighted_branch_local.insert(*o, o_weighted_branch_local);
                     mul(args.is_boolean, o_weighted_branch_local, o_branch_local, weight_wire_id, &mut weighting_gates);
                 }
+
                 // println!("map {:?}", &map);
                 // Now we do the renaming in the branch, using map_branch_local
-                for inner_gate in branch_gates {
+                for inner_gate in unrolling(branch_gates) {
                     let new_gate = swap_gate_outputs(inner_gate.clone(), &map_branch_local);
                     // println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
                     //if it is assert_zero, then add a multiplication gate before it
@@ -356,7 +348,7 @@ fn flatten_gate_internal(
 
                 // We call ourselves recursively to handle the presence of nested loops, switches and functions
                 for gate in new_branch_gates {
-                    flatten_gate_internal(gate, known_iterators, free_temporary_wire, args);
+                    flatten_gate_internal(gate, free_temporary_wire, args);
                 }
                 // The above may result in instance pulls and witness pulls, so we reset them for the next branch
                 args.instance_counter.set(instance_counter_at_start);
@@ -380,10 +372,6 @@ fn flatten_gate_internal(
             
         },
         _ => args.output_gates.push(gate),
-    }
-    let end_wire = free_temporary_wire.get();
-    if end_wire > start_wire {
-        args.output_gates.push(Gate::Free(start_wire, Some(end_wire - 1)));
     }
 }
 
@@ -467,10 +455,9 @@ fn swap_gate_outputs(gate : Gate, map : &HashMap<WireId,WireId>) -> Gate {
             let new_outputs = swap_vec(&output_wires,map);
             Gate::Switch(wire_id,new_outputs,values,cases)
         },
-        Gate::For(name,start_val,end_val,output_wires,body) => {
-            let new_outputs = swap_vec(&output_wires,map);
-            Gate::For(name,start_val,end_val,new_outputs,body)
-        },
+        Gate::For(_, _, _, _, _) => {
+            panic!("For loops should have been unrolled!")
+        }
         Gate::Constant(wire_id,value) => {
             Gate::Constant(get(map, wire_id),value)
         },
@@ -545,31 +532,24 @@ pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> (Rel
     let one : Value = [1,0,0,0].to_vec(); // = True for Boolean circuits
     let minus_one : Value = minus(&modulus, &one); // should work for Booleans too, being True as well
     let known_functions = get_known_functions(&relation);
-    let mut flattened_gates = Vec::new();
-    let mut args = FlatArgs {
-        modulus    : &modulus,
-        is_boolean : contains_feature(relation.gate_mask, BOOL),
-        one        : &one,
-        minus_one  : &minus_one,
-        known_functions : &known_functions,
-        instance_wires  : Vec::new(),
-        witness_wires   : Vec::new(),
-        instance_counter: Cell::new(0),
-        witness_counter : Cell::new(0),
-        output_gates    : &mut flattened_gates
-    };
 
-
-    let mut known_iterators         = Default::default();
-    let mut free_temporary_wire = Cell::new(tmp_wire_start);
-
-    for inner_gate in &relation.gates {
-        flatten_gate_internal(inner_gate.clone(), &mut known_iterators, &mut free_temporary_wire, &mut args);
-    }
+    let free_temporary_wire = Cell::new(tmp_wire_start);
+    let is_boolean = contains_feature(relation.gate_mask, BOOL);
+    
+    let flattened_gates =
+        flatten_gates(
+            &relation.gates,
+            &known_functions,      // defined functions
+            &free_temporary_wire,  // free temporary wires
+            &modulus,              // modulus used
+            is_boolean,            // whether it's a Boolean circuit (as opposed to an arithmetic one)
+            &one, // If 1 and -1 are given by the caller, then use them, otherwise compute them
+            &minus_one
+        );
 
     (Relation {
         header   : relation.header.clone(),
-        gate_mask: if args.is_boolean {BOOL} else {ARITH},
+        gate_mask: if is_boolean {BOOL} else {ARITH},
         feat_mask: SIMPLE,
         functions: vec![],
         gates    : flattened_gates,
