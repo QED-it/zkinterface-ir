@@ -3,7 +3,7 @@ use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque, BTreeMap};
 use std::ops::{BitAnd, BitXor};
-use crate::structs::subcircuit::translate_gates;
+use crate::structs::subcircuit::{unrolling, translate_gate};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::consumers::TEMPORARY_WIRES_START;
@@ -327,8 +327,13 @@ impl Evaluator {
 
         let mut free_local_wire = self.free_local_wire;
         let free_wire = std::cell::Cell::from_mut(&mut free_local_wire);
+        /*
         for gate in translate_gates(subcircuit, &mut output_input_wires, &free_wire) {
             self.ingest_gate(&gate)?;
+        }
+         */
+        for gate in unrolling(subcircuit, &mut self.known_iterators) {
+            self.ingest_gate(&translate_gate(&gate, &mut output_input_wires, free_wire))?;
         }
         self.free_local_wire = free_wire.get();
 

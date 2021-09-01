@@ -4,7 +4,7 @@ use std::cell::Cell;
 use num_bigint::{BigUint, BigInt};
 use num_traits::Zero;
 use num_integer::Integer;
-use crate::structs::subcircuit::{translate_gates, unrolling, unroll_gate};
+use crate::structs::subcircuit::{unrolling, unroll_gate, translate_gate};
 use crate::structs::wire::{expand_wirelist, WireListElement, WireListElement::{Wire}};
 use crate::structs::gates::Gate::*;
 use crate::structs::function::CaseInvoke;
@@ -198,8 +198,8 @@ fn flatten_gate_internal(
             let expanded_input_wires   = expand_wirelist(&input_wires);
             let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
 
-            for inner_gate in translate_gates(&subcircuit, &mut output_input_wires, free_temporary_wire) {
-                flatten_gate_internal(inner_gate, free_temporary_wire, args);
+            for inner_gate in unrolling(&subcircuit, &mut HashMap::new()) {
+                flatten_gate_internal(translate_gate(&inner_gate, &mut output_input_wires, free_temporary_wire), free_temporary_wire, args);
             }
         }
 
@@ -208,7 +208,7 @@ fn flatten_gate_internal(
                 // When a function is 'executed', then it's a completely new context, meaning
                 // that iterators defined previously, will not be forwarded to the function.
                 // This is why we set an empty (HashMap::default()) set of iterators.
-                let subcircuit = unrolling(&declaration.4);
+                let subcircuit = unrolling(&declaration.4, &mut HashMap::new());
                 flatten_gate_internal(
                     AnonCall(output_wires, input_wires, declaration.2, declaration.3, subcircuit),
                     free_temporary_wire,
@@ -249,7 +249,11 @@ fn flatten_gate_internal(
                             let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
                             max_instance = cmp::max(max_instance, declaration.2);
                             max_witness  = cmp::max(max_witness, declaration.3);
-                            let gates = translate_gates(&declaration.4, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
+                            let gates
+                                = unrolling(&declaration.4, &mut HashMap::new())
+                                    .iter()
+                                    .map(|gate| translate_gate(gate, &mut output_input_wires, free_temporary_wire))
+                                .collect::<Vec<Gate>>();
                             global_gates.push(gates);
                         } else {
                             panic!("Function {} is unknown", name);
@@ -260,7 +264,11 @@ fn flatten_gate_internal(
                         let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
                         max_instance = cmp::max(max_instance, instance_count);
                         max_witness  = cmp::max(max_witness, witness_count);
-                        let gates = translate_gates(&branch, &mut output_input_wires, free_temporary_wire).collect::<Vec<Gate>>();
+                        let gates
+                            = unrolling(&branch, &mut HashMap::new())
+                                .iter()
+                                .map(|gate| translate_gate(gate, &mut output_input_wires, free_temporary_wire))
+                                .collect::<Vec<Gate>>();
                         global_gates.push(gates);
                     }
                 }
@@ -325,7 +333,7 @@ fn flatten_gate_internal(
 
                 // println!("map {:?}", &map);
                 // Now we do the renaming in the branch, using map_branch_local
-                for inner_gate in unrolling(branch_gates) {
+                for inner_gate in unrolling(branch_gates, &mut HashMap::new()) {
                     let new_gate = swap_gate_outputs(inner_gate.clone(), &map_branch_local);
                     // println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
                     //if it is assert_zero, then add a multiplication gate before it
