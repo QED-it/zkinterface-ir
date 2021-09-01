@@ -6,23 +6,6 @@ use crate::structs::iterators::evaluate_iterexpr_list;
 use std::collections::HashMap;
 use std::cell::Cell;
 
-
-/// This functions will act on each gate of an iterable list of Gate, and will translate each of
-/// from the inner workspace into the outer one using the output/input vector of wires given as
-/// parameters. It will return an iterator.
-/// If a wireId in the inner workspace is bigger than the size of the output/input vector, then
-/// it's considered as a temporary wire. Temporary wires are stored starting at 2^63. It will
-/// "allocate" as many temporary wires as needed by incrementing 'free_temporary_wire' as many
-/// times.
-pub fn translate_gates<'s>(
-    subcircuit: &'s [Gate],
-    output_input_wires: &'s mut Vec<WireId>,
-    free_temporary_wire: &'s Cell<WireId>,
-) -> impl Iterator<Item = Gate> + 's {
-    subcircuit
-        .iter()
-        .map(move |gate| translate_gate(&gate, output_input_wires, free_temporary_wire))
-}
 /// This macro returns the translated value of a wire into the outer namespace.
 ///  If the given wire id is out of bound, then it's considered as a temporary wire.
 macro_rules! translate_or_temp {
