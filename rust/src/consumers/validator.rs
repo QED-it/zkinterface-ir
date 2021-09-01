@@ -564,6 +564,7 @@ impl Validator {
                         ForLoopBody::IterExprCall(name, outputs, inputs) => {
                             let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            self.bump_twss(&expanded_outputs);
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             let (instance_count, witness_count) =
                                 self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
@@ -582,6 +583,7 @@ impl Validator {
                         ) => {
                             let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
                             let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
+                            self.bump_twss(&expanded_outputs);
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             self.ingest_subcircuit(
                                 subcircuit,
