@@ -6,23 +6,6 @@ use crate::structs::iterators::evaluate_iterexpr_list;
 use std::collections::HashMap;
 use std::cell::Cell;
 
-
-/// This functions will act on each gate of an iterable list of Gate, and will translate each of
-/// from the inner workspace into the outer one using the output/input vector of wires given as
-/// parameters. It will return an iterator.
-/// If a wireId in the inner workspace is bigger than the size of the output/input vector, then
-/// it's considered as a temporary wire. Temporary wires are stored starting at 2^63. It will
-/// "allocate" as many temporary wires as needed by incrementing 'free_temporary_wire' as many
-/// times.
-pub fn translate_gates<'s>(
-    subcircuit: &'s [Gate],
-    output_input_wires: &'s mut Vec<WireId>,
-    free_temporary_wire: &'s Cell<WireId>,
-) -> impl Iterator<Item = Gate> + 's {
-    subcircuit
-        .iter()
-        .map(move |gate| translate_gate(&gate, output_input_wires, free_temporary_wire))
-}
 /// This macro returns the translated value of a wire into the outer namespace.
 ///  If the given wire id is out of bound, then it's considered as a temporary wire.
 macro_rules! translate_or_temp {
@@ -39,7 +22,7 @@ macro_rules! translate_or_temp {
 /// This function translate a single Gate from the inner workspace into the outer workspace
 /// using the output/input vector. If temporary wires are needed, it will pick one new one, and will
 /// increase the 'free_temporary_wire' reference.
-fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &Cell<WireId>) -> Gate {
+pub(crate) fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_temporary_wire: &Cell<WireId>) -> Gate {
     macro_rules! translate {
         ($wire_name:expr) => {
             translate_or_temp!(output_input_wires, $wire_name, *free_temporary_wire)
@@ -98,13 +81,9 @@ fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_tempor
             )
         }
 
-        Gate::For(
-            iterator_name,
-            start_val,
-            end_val,
-            global_output_list,
-            body
-        ) => {
+        Gate::For(..) => {
+            panic!("translate_gate: For loops should have been unrolled.");
+            /*
             Gate::For(
                 iterator_name.clone(),
                 *start_val,
@@ -112,6 +91,8 @@ fn translate_gate(gate: &Gate, output_input_wires: &mut Vec<WireId>, free_tempor
                 translate_wirelist(global_output_list, output_input_wires, free_temporary_wire),
                 body.clone(),
             )
+
+             */
         }
     }
 }
@@ -203,9 +184,8 @@ fn unroll(gate  : Gate,
                     }
                 };
                 unroll(fgate, known_iterators, new_gates);
-
-                known_iterators.remove(&name);
             };
+            known_iterators.remove(&name);
 
             if let Some(w) = original_val {
                 known_iterators.insert(name.clone(), w.clone());
@@ -218,7 +198,7 @@ fn unroll(gate  : Gate,
 
 /// Public version of the above, simple interface on gate vectors
 
-pub fn unroll_gate(gate : Gate) -> Vec<Gate> {
+pub(crate) fn unroll_gate(gate : Gate) -> Vec<Gate> {
     let mut new_gates = Vec::new();
     let mut known_iterators = Default::default();
     unroll(gate, &mut known_iterators, &mut new_gates);
@@ -227,11 +207,10 @@ pub fn unroll_gate(gate : Gate) -> Vec<Gate> {
 
 /// Public version of the above, simple interface on gate vectors
 
-pub fn unrolling(gates : &Vec<Gate>) -> Vec<Gate> {
+pub fn unrolling(gates : &[Gate], known_iterators: &mut HashMap<String, u64>) -> Vec<Gate> {
     let mut new_gates = Vec::new();
-    let mut known_iterators = Default::default();
     for gate in gates {
-        unroll(gate.clone(), &mut known_iterators, &mut new_gates);
+        unroll(gate.clone(), known_iterators, &mut new_gates);
     }
     new_gates
 }
@@ -244,7 +223,7 @@ pub fn unrolling_rel(relation : &Relation) -> Relation {
         gate_mask: relation.gate_mask,
         feat_mask: relation.feat_mask,
         functions: relation.functions.clone(),
-        gates    : unrolling(&relation.gates),
+        gates    : unrolling(&relation.gates, &mut HashMap::new()),
     }
 }
 
@@ -352,7 +331,7 @@ fn test_translate_gate() -> Result<()> {
 
     let mut free_wire_tmp = 1u64<<32;
     let free_wire = Cell::from_mut(&mut free_wire_tmp);
-    let translated: Vec<Gate> = translate_gates(&gates, &mut output_input_wires, &free_wire).collect();
+    let translated: Vec<Gate> = gates.iter().map(|gate| translate_gate(gate, &mut output_input_wires, &free_wire)).collect();
     assert_eq!(translated, expected);
 
     Ok(())
