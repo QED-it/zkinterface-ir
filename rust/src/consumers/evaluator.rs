@@ -12,7 +12,7 @@ pub trait ZKInterpreter {
     type Wire: 'static + Clone;
     type FieldElement: 'static + Clone + Zero + One + Default;
 
-    fn from_bytes_le(val: &[u8]) -> Self::FieldElement;
+    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
     // If the modulus is not compatible with this ZKInterpreter, then it should return Err
     fn check_modulus(&mut self, modulus: &[u8]) -> Result<()>;
 
@@ -111,7 +111,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         self.ingest_header(&instance.header, interp)?;
 
         for value in &instance.common_inputs {
-            self.instance_queue.push_back(I::from_bytes_le(value));
+            self.instance_queue.push_back(I::from_bytes_le(value)?);
         }
         Ok(())
     }
@@ -120,7 +120,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         self.ingest_header(&witness.header, interp)?;
 
         for value in &witness.short_witness {
-            self.witness_queue.push_back(I::from_bytes_le(value));
+            self.witness_queue.push_back(I::from_bytes_le(value)?);
         }
         Ok(())
     }
@@ -213,14 +213,14 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
             AddConstant(out, inp, constant) => {
                 let l = get!(*inp)?;
-                let r = I::from_bytes_le(constant);
+                let r = I::from_bytes_le(constant)?;
                 let sum = interp.add_constant(l, r)?;
                 set!(*out, sum)?;
             }
 
             MulConstant(out, inp, constant) => {
                 let l = get!(*inp)?;
-                let r = I::from_bytes_le(constant);
+                let r = I::from_bytes_le(constant)?;
                 let prod = interp.mul_constant(l, r)?;
                 set!(*out, prod)?;
             }
@@ -262,7 +262,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
             Free(first, last) => {
                 let last_value = last.unwrap_or(*first);
                 for current in *first..=last_value {
-                    interp.free(&remove::<I>(scope, current)?);
+                    interp.free(&remove::<I>(scope, current)?)?;
                 }
             }
 
@@ -387,7 +387,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
                 for (case, branch) in cases.iter().zip(branches.iter()) {
 
-                    let weight: I::Wire = compute_weight(case, condition, modulus, is_boolean)/* Compute (1 - ('case' - 'condition') ^ (self.modulus - 1)) */;
+                    let weight: I::Wire = compute_weight(interp, case, get!(condition)?, modulus, is_boolean); /* Compute (1 - ('case' - 'condition') ^ (self.modulus - 1)) */
                     let mut branch_scope = HashMap::new();
                     match branch {
                         CaseInvoke::AbstractGateCall(name, inputs) => {
@@ -449,7 +449,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
 }
 
 fn set_constant<I: ZKInterpreter>(interp: &mut I, scope: &mut HashMap<WireId, I::Wire>, id: WireId, value: &[u8]) -> Result<()> {
-    let wire = interp.constant(I::from_bytes_le(value))?;
+    let wire = interp.constant(I::from_bytes_le(value)?)?;
     set::<I>(scope, id, wire)
 }
 
@@ -465,9 +465,10 @@ fn set_witness<I: ZKInterpreter>(interp: &mut I, scope: &mut HashMap<WireId, I::
 
 fn set<I: ZKInterpreter>(scope: &mut HashMap<WireId, I::Wire>, id: WireId, wire: I::Wire) -> Result<()> {
     if scope.insert(id, wire).is_some() {
-        return Err(format!("Wire_{} already has a value in this scope.", id).into());
+        Err(format!("Wire_{} already has a value in this scope.", id).into())
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 pub fn get<I: ZKInterpreter>(scope: &HashMap<WireId, I::Wire>, id: WireId) -> Result<&I::Wire> {
@@ -484,25 +485,15 @@ fn remove<I: ZKInterpreter>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) ->
 
 #[derive(Default)]
 pub struct PlaintextInterpreter {
-    pub v: HashMap<u64, BigUint>,
-    pub c: u64,
     pub m: BigUint,
 }
 
-impl PlaintextInterpreter {
-    pub fn new_wire(&mut self) -> u64 {
-        let ret = self.c;
-        self.c += 1;
-        ret
-    }
-}
-
 impl ZKInterpreter for PlaintextInterpreter {
-    type Wire = u64;
+    type Wire = BigUint;
     type FieldElement = BigUint;
 
-    fn from_bytes_le(val: &[u8]) -> Self::FieldElement {
-        BigUint::from_bytes_le(val)
+    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
+        Ok(BigUint::from_bytes_le(val))
     }
 
     fn check_modulus(&mut self, modulus: &[u8]) -> Result<()> {
@@ -515,13 +506,11 @@ impl ZKInterpreter for PlaintextInterpreter {
     }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
-        let wire = self.new_wire();
-        self.v.insert(wire, val);
-        Ok(wire)
+        Ok(val)
     }
 
     fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()> {
-        if self.v.get(wire).expect("ZKInterpreter: Wire does not exist").is_zero() {
+        if wire.is_zero() {
             Ok(())
         } else {
             Err("AssertZero failed".into())
@@ -529,68 +518,35 @@ impl ZKInterpreter for PlaintextInterpreter {
     }
 
     fn copy(&mut self, source: &Self::Wire) -> Result<Self::Wire> {
-        let wire = self.new_wire();
-        self.v.insert(wire, self.v.get(source).expect("ZKInterpreter: Wire does not exist").clone());
-        Ok(wire)
+        Ok(source.clone())
     }
 
     fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let b_val = self.v.get(b).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val + b_val) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a + b) % &self.m)
     }
 
     fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let b_val = self.v.get(b).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val * b_val) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a * b) % &self.m)
     }
 
     fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val + b) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a + b) % &self.m)
     }
 
     fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val * b) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a * b) % &self.m)
     }
 
     fn and(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let b_val = self.v.get(b).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val.bitand(b_val)) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a.bitand(b)) % &self.m)
     }
 
     fn xor(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let a_val = self.v.get(a).expect("ZKInterpreter: Wire does not exist");
-        let b_val = self.v.get(b).expect("ZKInterpreter: Wire does not exist");
-        let new_val = (a_val.bitxor(b_val)) % &self.m;
-        let wire = self.new_wire();
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok((a.bitxor(b)) % &self.m)
     }
 
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
-        let wire = self.new_wire();
-        let new_val = if self.v.get(a).expect("ZKInterpreter: Wire does not exist").is_zero() {BigUint::one()} else {BigUint::zero()};
-        self.v.insert(wire, new_val);
-        Ok(wire)
+        Ok(if a.is_zero() {BigUint::one()} else {BigUint::zero()})
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -598,387 +554,14 @@ impl ZKInterpreter for PlaintextInterpreter {
     }
 
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
-        self.constant(val.ok_or_else(|| "Missing value for PlaintextInterpreter")?)
+        self.constant(val.unwrap_or_else(|| panic!("Missing witness value for PlaintextInterpreter")))
     }
 
-    fn free(&mut self, wire: &Self::Wire) -> Result<()> {
-        if self.v.remove(wire).is_none() {
-            Err("Wire does not exist".into())
-        } else {
-            Ok(())
-        }
-    }
-}
-
-
-/*
-#[derive(Clone)]
-pub struct Evaluator {
-    values: HashMap<WireId, Repr>,
-    modulus: Repr,
-    instance_queue: VecDeque<Repr>,
-    witness_queue: VecDeque<Repr>,
-
-    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
-    known_functions: HashMap<String, Vec<Gate>>,
-    known_iterators: HashMap<String, u64>,
-
-    // use to allocate temporary wires if required.
-    free_local_wire :WireId,
-
-    verified_at_least_one_gate: bool,
-    found_error: Option<String>,
-}
-
-impl Default for Evaluator {
-    fn default() -> Self {
-        Evaluator {
-            values : Default::default(),
-            modulus: Default::default(),
-            instance_queue: Default::default(),
-            witness_queue: Default::default(),
-
-            // name => (output_count, input_count, instance_count, witness_count, subcircuit)
-            known_functions: Default::default(),
-            known_iterators: Default::default(),
-
-            // use to allocate temporary wires if required.
-            free_local_wire : TEMPORARY_WIRES_START,
-
-            verified_at_least_one_gate: Default::default(),
-            found_error: Default::default(),
-        }
-    }
-}
-
-impl Evaluator {
-    pub fn from_messages(messages: impl Iterator<Item = Result<Message>>) -> Self {
-        let mut evaluator = Evaluator::default();
-        messages.for_each(|msg| evaluator.ingest_message(&msg.unwrap()));
-        evaluator
-    }
-
-    pub fn get_violations(self) -> Vec<String> {
-        let mut violations = vec![];
-        if !self.verified_at_least_one_gate {
-            violations.push("Did not receive any gate to verify.".to_string());
-        }
-        if let Some(err) = self.found_error {
-            violations.push(err);
-        }
-        violations
-    }
-
-    pub fn ingest_message(&mut self, msg: &Message) {
-        if self.found_error.is_some() {
-            return;
-        }
-
-        match self.ingest_message_(msg) {
-            Err(err) => self.found_error = Some(err.to_string()),
-            Ok(()) => {}
-        }
-    }
-
-    fn ingest_message_(&mut self, msg: &Message) -> Result<()> {
-        match msg {
-            Message::Instance(i) => self.ingest_instance(&i),
-            Message::Witness(w) => self.ingest_witness(&w),
-            Message::Relation(r) => self.ingest_relation(&r),
-        }
-    }
-
-    fn ingest_header(&mut self, header: &Header) -> Result<()> {
-        self.modulus = BigUint::from_bytes_le(&header.field_characteristic);
-        if self.modulus.is_zero() {
-            Err("Header.field_characteristic cannot be zero".into())
-        } else {
-            Ok(())
-        }
-    }
-
-    pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
-        self.ingest_header(&instance.header)?;
-
-        for value in &instance.common_inputs {
-            self.instance_queue.push_back(BigUint::from_bytes_le(value));
-        }
-        Ok(())
-    }
-
-    pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
-        self.ingest_header(&witness.header)?;
-
-        for value in &witness.short_witness {
-            self.witness_queue.push_back(BigUint::from_bytes_le(value));
-        }
-        Ok(())
-    }
-
-    pub fn ingest_relation(&mut self, relation: &Relation) -> Result<()> {
-        self.ingest_header(&relation.header)?;
-
-        if relation.gates.len() > 0 {
-            self.verified_at_least_one_gate = true;
-        }
-
-        for f in relation.functions.iter() {
-            self.known_functions.insert(f.name.clone(), f.body.clone());
-        }
-
-
-        for gate in &relation.gates {
-            // offset is 0 here since gate written in relation live in the 'usual' workspace
-            self.ingest_gate(gate, 0)?;
-        }
-        Ok(())
-    }
-
-    fn ingest_gate(&mut self, gate: &Gate, offset: WireId) -> Result<()> {
-        use Gate::*;
-
-        // this macro applies the 'offset' to the WireId (useful when evaluating the body of
-        // For/Switch/Functions
-        macro_rules! o {
-            ($wire_name:expr) => {{
-                $wire_name + offset
-            }};
-        }
-        // This macro set '*tws' as the max between its previous value, and the wire given
-        macro_rules! m {
-            ($wire_name:expr) => {{
-                self.free_local_wire = std::cmp::max(self.free_local_wire, $wire_name + offset)
-            }};
-        }
-
-        match gate {
-            Constant(out, value) => {
-                self.set_encoded(o!(*out), value);
-                m!(*out);
-            },
-
-            AssertZero(inp) => {
-                let val = self.get(o!(*inp))?;
-                if !val.is_zero() {
-                    return Err(
-                        format!("wire_{} should equal 0 but has value {}", *inp, val).into(),
-                    );
-                }
-            }
-
-            Copy(out, inp) => {
-                let value = self.get(o!(*inp))?.clone();
-                self.set(o!(*out), value);
-                m!(*out);
-            }
-
-            Add(out, left, right) => {
-                let l = self.get(o!(*left))?;
-                let r = self.get(o!(*right))?;
-                let sum = l + r;
-                self.set(o!(*out), sum);
-                m!(*out);
-            }
-
-            Mul(out, left, right) => {
-                let l = self.get(o!(*left))?;
-                let r = self.get(o!(*right))?;
-                let prod = l * r;
-                self.set(o!(*out), prod);
-                m!(*out);
-            }
-
-            AddConstant(out, inp, constant) => {
-                let l = self.get(o!(*inp))?;
-                let r = BigUint::from_bytes_le(constant);
-                let sum = l + r;
-                self.set(o!(*out), sum);
-                m!(*out);
-            }
-
-            MulConstant(out, inp, constant) => {
-                let l = self.get(o!(*inp))?;
-                let r = BigUint::from_bytes_le(constant);
-                let prod = l * r;
-                self.set(o!(*out), prod);
-                m!(*out);
-            }
-
-            And(out, left, right) => {
-                let l = self.get(o!(*left))?;
-                let r = self.get(o!(*right))?;
-                let and = l.bitand(r);
-                self.set(o!(*out), and);
-                m!(*out);
-            }
-
-            Xor(out, left, right) => {
-                let l = self.get(o!(*left))?;
-                let r = self.get(o!(*right))?;
-                let xor = l.bitxor(r);
-                self.set(o!(*out), xor);
-                m!(*out);
-            }
-
-            Not(out, inp) => {
-                let val = self.get(o!(*inp))?;
-                let not = if val.is_zero() {
-                    BigUint::one()
-                } else {
-                    BigUint::zero()
-                };
-                self.set(o!(*out), not);
-                m!(*out);
-            }
-
-            Instance(out) => {
-                let val = self.instance_queue.pop_front().unwrap();
-                self.set(o!(*out), val);
-                m!(*out);
-            }
-
-            Witness(out) => {
-                let val = self.witness_queue.pop_front().unwrap();
-                self.set(o!(*out), val);
-                m!(*out);
-            }
-
-            Free(first, last) => {
-                let last_value = last.unwrap_or(*first);
-                for current in *first..=last_value {
-                    self.remove(o!(current))?;
-                }
-            }
-
-            Call(name, output_wires, input_wires) => {
-                let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
-                let expanded_output = expand_wirelist(output_wires);
-                let expanded_input = expand_wirelist(input_wires);
-                self.ingest_subcircuit(&subcircuit, &expanded_output, &expanded_input, offset)?;
-            }
-
-            AnonCall(output_wires, input_wires, _, _, subcircuit) => {
-                let expanded_output = expand_wirelist(output_wires);
-                let expanded_input = expand_wirelist(input_wires);
-                self.ingest_subcircuit(subcircuit, &expanded_output, &expanded_input, offset)?;
-            }
-
-            Switch(condition, output_wires, cases, branches) => {
-
-                let mut selected  :bool = false;
-
-                for (case, branch) in cases.iter().zip(branches.iter()) {
-                    if self.get(o!(*condition)).ok() == Some(&Repr::from_bytes_le(case)) {
-                        selected = true;
-                        match branch {
-                            CaseInvoke::AbstractGateCall(name, inputs) => self.ingest_gate(&Call(name.clone(), output_wires.clone(), inputs.clone()), offset)?,
-                            CaseInvoke::AbstractAnonCall(input_wires, _, _, subcircuit) => {
-                                let expanded_output = expand_wirelist(output_wires);
-                                let expanded_input = expand_wirelist(input_wires);
-                                self.ingest_subcircuit(subcircuit, &expanded_output, &expanded_input, offset)?;
-                            }
-                        }
-                    }
-                }
-
-                if !selected {
-                    return Err(
-                        format!("wire_{} value does not match any of the cases", *condition).into(),
-                    );
-                }
-            }
-
-            For(
-                iterator_name,
-                start_val,
-                end_val,
-                _,
-                body
-            ) => {
-                let iterator_backup = self.known_iterators.get(iterator_name).cloned();
-
-                let mut new_offset = offset;
-
-                for i in *start_val..=*end_val {
-                    self.known_iterators.insert(iterator_name.clone(), i);
-
-                    match body {
-                        ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                            let subcircuit= self.known_functions.get(name).cloned().ok_or("Unknown function")?;
-                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
-                            self.ingest_subcircuit(&subcircuit, &expanded_outputs, &expanded_inputs, new_offset)?;
-                        }
-                        ForLoopBody::IterExprAnonCall(
-                            output_wires,
-                            input_wires,
-                            _, _,
-                            subcircuit
-                        ) => {
-                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
-                            self.ingest_subcircuit(subcircuit, &expanded_outputs, &expanded_inputs, new_offset)?;
-                        }
-                    }
-                    new_offset = self.free_local_wire;
-                }
-                self.known_iterators.remove(iterator_name);
-
-                if let Some(val) = iterator_backup {
-                    self.known_iterators.insert(iterator_name.clone(), val);
-                }
-            },
-        }
-        Ok(())
-    }
-
-    fn set_encoded(&mut self, id: WireId, encoded: &[u8]) {
-        self.set(id, BigUint::from_bytes_le(encoded));
-    }
-
-    fn set(&mut self, id: WireId, mut value: Repr) {
-        value %= &self.modulus;
-        if self.values.insert(id, value).is_some() {
-            panic!("Wire_{} already has a value.", id);
-        }
-    }
-
-    pub fn get(&self, id: WireId) -> Result<&Repr> {
-        self.values
-            .get(&id)
-            .ok_or(format!("No value given for wire_{}", id).into())
-    }
-
-    fn remove(&mut self, id: WireId) -> Result<Repr> {
-        self.values
-            .remove(&id)
-            .ok_or(format!("No value given for wire_{}", id).into())
-    }
-
-    /// This function will evaluate all the gates in the subcircuit, applying a translation to each
-    /// relative to the current workspace.
-    /// It will also consume instance and witnesses whenever required.
-    fn ingest_subcircuit(&mut self, subcircuit: &[Gate], output_wires: &[WireId], input_wires: &[WireId], offset: WireId) -> Result<()> {
-
-        let new_offset = self.free_local_wire;
-        // copy inputs at proper location
-        for (idx, input_wire) in input_wires.iter().enumerate() {
-            let temporary_gate = Gate::Copy(((idx + output_wires.len()) as u64) + new_offset, *input_wire + offset);
-            self.ingest_gate(&temporary_gate, 0)?;
-        }
-
-        for gate in subcircuit {
-            self.ingest_gate(gate, new_offset)?;
-        }
-
-        for (idx, output_wire) in output_wires.iter().enumerate() {
-            self.ingest_gate(&Gate::Copy(*output_wire + offset, idx as u64 + new_offset), 0)?;
-        }
-
+    fn free(&mut self, _: &Self::Wire) -> Result<()> {
         Ok(())
     }
 }
-*/
+
 #[test]
 fn test_evaluator() -> crate::Result<()> {
     use crate::producers::examples::*;

@@ -188,7 +188,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     // check instance
     macro_rules! get_val {
         ($idx:expr) => {{
-            interp.v.get(eval.get($idx).unwrap()).unwrap().to_u32().unwrap()
+            eval.get($idx).unwrap().to_u32().unwrap()
         }};
     }
 
