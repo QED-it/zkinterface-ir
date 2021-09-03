@@ -16,6 +16,7 @@ use crate::consumers::{
 };
 use crate::producers::from_r1cs::R1CSConverter;
 use crate::{Messages, Result, Source};
+use crate::consumers::evaluator::PlaintextInterpreter;
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -287,11 +288,9 @@ fn main_validate(source: &Source) -> Result<()> {
 }
 
 fn main_evaluate(source: &Source) -> Result<()> {
+    let mut zkinterpreter = PlaintextInterpreter::default();
     // Validate semantics as verifier.
-    let mut evaluator = Evaluator::default();
-    for msg in source.iter_messages() {
-        evaluator.ingest_message(&msg?);
-    }
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkinterpreter);
     print_violations(&evaluator.get_violations(), "The statement", "TRUE")
 }
 
@@ -310,7 +309,8 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     // Validate semantics as prover.
     let mut validator = Validator::new_as_prover();
     // Check whether the statement is true.
-    let mut evaluator = Evaluator::default();
+    let mut zkinterpreter = PlaintextInterpreter::default();
+    let mut evaluator: Evaluator<PlaintextInterpreter> = Evaluator::default();
     // Measure metrics on the circuit.
     let mut stats = Stats::default();
 
@@ -318,7 +318,7 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     for msg in source.iter_messages() {
         let msg = msg?;
         validator.ingest_message(&msg);
-        evaluator.ingest_message(&msg);
+        evaluator.ingest_message(&msg, &mut zkinterpreter);
         stats.ingest_message(&msg);
     }
 
