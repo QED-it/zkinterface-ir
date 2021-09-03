@@ -597,7 +597,8 @@ fn test_validate_flattening() -> crate::Result<()> {
 #[test]
 fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::evaluator::Evaluator;
+    use crate::consumers::evaluator::{Evaluator, PlaintextInterpreter};
+
 
     let relation = example_relation();
     let instance = example_instance();
@@ -605,10 +606,11 @@ fn test_evaluate_flattening() -> crate::Result<()> {
 
     let new_relation = flatten_relation(&relation);
 
+    let mut interpreter = PlaintextInterpreter::default();
     let mut new_simulator = Evaluator::default();
-    let _ = new_simulator.ingest_instance(&instance);
-    let _ = new_simulator.ingest_witness(&witness);
-    let _ = new_simulator.ingest_relation(&new_relation);
+    let _ = new_simulator.ingest_instance(&instance, &mut interpreter);
+    let _ = new_simulator.ingest_witness(&witness, &mut interpreter);
+    let _ = new_simulator.ingest_relation(&new_relation, &mut interpreter);
 
     assert_eq!(new_simulator.get_violations().len(), 0);
 

@@ -484,9 +484,9 @@ fn remove<I: ZKInterpreter>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) ->
 
 #[derive(Default)]
 pub struct PlaintextInterpreter {
-    v: HashMap<u64, BigUint>,
-    c: u64,
-    m: BigUint,
+    pub v: HashMap<u64, BigUint>,
+    pub c: u64,
+    pub m: BigUint,
 }
 
 impl PlaintextInterpreter {

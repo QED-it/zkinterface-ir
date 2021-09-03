@@ -148,15 +148,9 @@ use crate::producers::sink::MemorySink;
 use crate::consumers::evaluator::Evaluator;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
-
 #[cfg(test)]
-fn evaluate(conv: R1CSConverter<MemorySink> ) -> Evaluator {
-    use crate::Source;
+use crate::consumers::evaluator::PlaintextInterpreter;
 
-    let sink = conv.finish();
-    let source: Source = sink.into();
-    Evaluator::from_messages(source.iter_messages())
-}
 
 #[cfg(test)]
 fn stats(conv: R1CSConverter<MemorySink> ) -> Stats {
@@ -173,6 +167,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use num_traits::ToPrimitive;
+    use crate::Source;
 
     let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_r1cs = zki_example_constraints();
@@ -186,18 +181,26 @@ fn test_r1cs_to_gates() -> Result<()> {
     converter.ingest_witness(&zki_witness)?;
     converter.ingest_constraints(&zki_r1cs)?;
 
-    let eval = evaluate(converter);
+    let source: Source = converter.finish().into();
+    let mut interp = PlaintextInterpreter::default();
+    let eval = Evaluator::from_messages(source.iter_messages(), &mut interp);
 
     // check instance
-    assert_eq!(eval.get(0).unwrap().to_u32().unwrap(), 1);
-    assert_eq!(eval.get(1).unwrap().to_u32().unwrap(), 100);
-    assert_eq!(eval.get(2).unwrap().to_u32().unwrap(), 3);
-    assert_eq!(eval.get(3).unwrap().to_u32().unwrap(), 4);
-    assert_eq!(eval.get(4).unwrap().to_u32().unwrap(), 25);
+    macro_rules! get_val {
+        ($idx:expr) => {{
+            interp.v.get(eval.get($idx).unwrap()).unwrap().to_u32().unwrap()
+        }};
+    }
+
+    assert_eq!(get_val!(0), 1);
+    assert_eq!(get_val!(1), 100);
+    assert_eq!(get_val!(2), 3);
+    assert_eq!(get_val!(3), 4);
+    assert_eq!(get_val!(4), 25);
 
     // check witness
-    assert_eq!(eval.get(5).unwrap().to_u32().unwrap(), 9);
-    assert_eq!(eval.get(6).unwrap().to_u32().unwrap(), 16);
+    assert_eq!(get_val!(5), 9);
+    assert_eq!(get_val!(6), 16);
 
     assert_eq!(eval.get_violations().len(), 0 as usize);
     Ok(())
