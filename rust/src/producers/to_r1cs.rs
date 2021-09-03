@@ -365,7 +365,7 @@ impl GateConverter {
         let zki_header = zkiCircuitHeader {
             instance_variables,
             free_variable_id: self.free_variable_id,
-            field_maximum: Some(pad_le_u8_vec(fm.to_bytes_le(), 8)),
+            field_maximum: Some(fm.to_bytes_le()),
             ..zkiCircuitHeader::default()
         };
 
