@@ -5,7 +5,7 @@ use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use num_bigint::BigUint;
-use std::ops::{BitAnd, BitXor};
+use std::ops::{BitAnd, BitXor, Shr};
 use crate::structs::relation::{contains_feature, BOOL};
 
 pub trait ZKInterpreter {
@@ -13,8 +13,12 @@ pub trait ZKInterpreter {
     type FieldElement: 'static + Clone + Zero + One + Default;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
-    // If the modulus is not compatible with this ZKInterpreter, then it should return Err
-    fn check_modulus(&mut self, modulus: &[u8]) -> Result<()>;
+    // If the field is not compatible with this ZKInterpreter, then it should return Err
+    fn set_field(&mut self, modulus: &[u8], degree: u32) -> Result<()>;
+
+    fn one(&self) -> Self::Wire;
+    fn minus_one(&self) -> Self::Wire;
+    fn zero(&self) -> Self::Wire;
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
     fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()>;
@@ -33,6 +37,30 @@ pub trait ZKInterpreter {
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire>;
 
     fn free(&mut self, wire: &Self::Wire) -> Result<()>;
+}
+
+/// This macro is used to evaluate a 'multiplication' in either the arithmetic case or the boolean,
+/// where it's replaced by an AND operation.
+macro_rules! as_mul {
+    ($interp:expr, $a:expr, $b:expr, $is_bool:expr) => {{
+        if $is_bool {
+            $interp.and($a, $b)
+        } else {
+            $interp.multiply($a, $b)
+        }
+    }};
+}
+
+/// This macro is used to evaluate an 'addition' in either the arithmetic case or the boolean,
+/// where it's replaced by an XOR operation.
+macro_rules! as_add {
+    ($interp:expr, $a:expr, $b:expr, $is_bool:expr) => {{
+        if $is_bool {
+            $interp.xor($a, $b)
+        } else {
+            $interp.add($a, $b)
+        }
+    }};
 }
 
 // I::FieldElement : BigUint
@@ -104,7 +132,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
     fn ingest_header(&mut self, header: &Header, interp: &mut I) -> Result<()> {
         self.modulus = BigUint::from_bytes_le(&header.field_characteristic);
-        interp.check_modulus(&header.field_characteristic)
+        interp.set_field(&header.field_characteristic, header.field_degree)
     }
 
     pub fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
@@ -127,7 +155,6 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
     pub fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
         self.ingest_header(&relation.header, interp)?;
-
         self.is_boolean = contains_feature(relation.gate_mask, BOOL);
 
         if relation.gates.len() > 0 {
@@ -182,7 +209,8 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
         match gate {
             Constant(out, value) => {
-                set_constant(interp, scope, *out, value)?;
+                let wire = interp.constant(I::from_bytes_le(value)?)?;
+                set::<I>(scope, *out, wire)?;
             },
 
             AssertZero(inp) => {
@@ -362,8 +390,8 @@ impl<I: ZKInterpreter> Evaluator<I> {
             },
 
             Switch(condition, output_wires, cases, branches) => {
-                unimplemented!();
-                /*
+                // unimplemented!();
+                //*
                 // TODO make it compatible with flattening, maybe, define a new function for it...
 
                 // determine the maximum instance/witness consumption
@@ -372,7 +400,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
                 for branch in branches.iter() {
                     let (instance_cnt, witness_cnt) = match branch {
                         CaseInvoke::AbstractGateCall(name, _) => {
-                            let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;;
+                            let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;
                             (function.0, function.1)
                         }
                         CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, _) => (*instance_count, *witness_count)
@@ -383,28 +411,72 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
                 let new_instances: VecDeque<I::FieldElement> = instances.drain(0..max_instance_count).collect::<VecDeque<_>>();
                 let new_witnesses: VecDeque<I::FieldElement> = witnesses.drain(0..max_witness_count).collect::<VecDeque<_>>();
-                let mut switch_scope = HashMap::new();
+                let mut branches_scope = Vec::new();
+
+                let expanded_output = expand_wirelist(output_wires);
+                let mut weights = Vec::new();
 
                 for (case, branch) in cases.iter().zip(branches.iter()) {
-
-                    let weight: I::Wire = compute_weight(interp, case, get!(condition)?, modulus, is_boolean); /* Compute (1 - ('case' - 'condition') ^ (self.modulus - 1)) */
+                    weights.push(compute_weight(interp, case, get!(*condition)?, modulus, is_boolean)?); /* Compute (1 - ('case' - 'condition') ^ (self.modulus - 1)) */
                     let mut branch_scope = HashMap::new();
                     match branch {
-                        CaseInvoke::AbstractGateCall(name, inputs) => {
-                            let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;
-
+                        CaseInvoke::AbstractGateCall(name, input_wires) => {
+                            let function = known_functions.get(name).ok_or_else(|| format!("Unknown function: {}", name))?;
+                            let expanded_input = expand_wirelist(input_wires);
+                            for wire in expanded_input.iter() {
+                                branch_scope.insert(*wire, get!(*wire)?.clone());
+                            }
+                            Self::ingest_subcircuit(
+                                &function.2,
+                                interp,
+                                &expanded_output,
+                                &expanded_input,
+                                &mut branch_scope,
+                                known_functions,
+                                &mut HashMap::new(),
+                                modulus,
+                                is_boolean,
+                                &mut new_instances.clone(),
+                                &mut new_witnesses.clone(),
+                            )?;
                         },
                         CaseInvoke::AbstractAnonCall(input_wires, _, _, subcircuit) => {
-
+                            let expanded_input = expand_wirelist(input_wires);
+                            for wire in expanded_input.iter() {
+                                branch_scope.insert(*wire, get!(*wire)?.clone());
+                            }
+                            Self::ingest_subcircuit(
+                                subcircuit,
+                                interp,
+                                &expanded_output,
+                                &expanded_input,
+                                &mut branch_scope,
+                                known_functions,
+                                known_iterators,
+                                modulus,
+                                is_boolean,
+                                &mut new_instances.clone(),
+                                &mut new_witnesses.clone(),
+                            )?;
                         }
                     }
+                    // TODO we don't need all the scope here, only the output wires.
+                    branches_scope.push(branch_scope);
                 }
 
-                if !selected {
-                    return Err(
-                        format!("wire_{} value does not match any of the cases", *condition).into(),
-                    );
+                // Compute the weighted sum for all output wire.
+                for output_wire in expanded_output.iter() {
+                    let weighted_output =
+                        branches_scope.iter()
+                            .zip(weights.iter())
+                            .fold(Ok(interp.zero().clone()), |accu, (branch_scope, weight)| {
+                                let weighted_wire = as_mul!(interp, get::<I>(branch_scope, *output_wire)?, weight, is_boolean)?;
+                                as_add!(interp, &accu?, &weighted_wire, is_boolean)
+                            }
+                        )?;
+                    set!(*output_wire, weighted_output)?;
                 }
+
                 // */
             }
         }
@@ -448,11 +520,6 @@ impl<I: ZKInterpreter> Evaluator<I> {
     }
 }
 
-fn set_constant<I: ZKInterpreter>(interp: &mut I, scope: &mut HashMap<WireId, I::Wire>, id: WireId, value: &[u8]) -> Result<()> {
-    let wire = interp.constant(I::from_bytes_le(value)?)?;
-    set::<I>(scope, id, wire)
-}
-
 fn set_instance<I: ZKInterpreter>(interp: &mut I, scope: &mut HashMap<WireId, I::Wire>, id: WireId, value: I::FieldElement) -> Result<()> {
     let wire = interp.instance(value)?;
     set::<I>(scope, id, wire)
@@ -483,9 +550,57 @@ fn remove<I: ZKInterpreter>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) ->
         .ok_or(format!("No value given for wire_{}", id).into())
 }
 
-#[derive(Default)]
+/// This function will compute the exponentiation of a given base to a given exponent recursively.
+/// It returns the wire holding the result.
+fn exp<I: ZKInterpreter>(interp: &mut I, base: &I::Wire, exponent: &BigUint, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
+    if exponent.is_one() {
+        return Ok(base.clone());
+    }
+
+    let previous = exp(interp, base, &exponent.shr(1), modulus, is_boolean)?;
+
+    let ret = as_mul!(interp, &previous, &previous, is_boolean);
+    if exponent.bitand(BigUint::one()).is_one() {
+        as_mul!(interp, &ret?, base, is_boolean)
+    } else {
+        ret
+    }
+
+}
+
+/// This function will compute '1 - (case - condition)^(p-1)' using a bunch of mul/and add/xor addc/xorc gates
+fn compute_weight<I: ZKInterpreter>(interp: &mut I, case: &[u8], condition: &I::Wire, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
+    let case_wire = interp.constant(I::from_bytes_le(case)?)?;
+    let one_wire = interp.one().clone();
+    let minus_one_wire = interp.minus_one().clone();
+    let minus_one = modulus - &BigUint::one();
+
+    let minus_cond = as_mul!(interp, condition, &minus_one_wire, is_boolean)?;
+    let base = as_add!(interp, &case_wire, &minus_cond, is_boolean)?;
+
+    let base_to_exp = exp(interp, &base, &minus_one, modulus, is_boolean)?;
+    let right = as_mul!(interp, &base_to_exp, &minus_one_wire, is_boolean)?;
+    as_add!(interp, &one_wire, &right, is_boolean)
+
+}
+
+
 pub struct PlaintextInterpreter {
     pub m: BigUint,
+    pub one: BigUint,
+    pub minus_one: BigUint,
+    pub zero: BigUint,
+}
+
+impl Default for PlaintextInterpreter {
+    fn default() -> Self {
+        PlaintextInterpreter {
+            one: BigUint::one(),
+            m: BigUint::zero(),
+            minus_one: BigUint::zero(),
+            zero: BigUint::zero(),
+        }
+    }
 }
 
 impl ZKInterpreter for PlaintextInterpreter {
@@ -496,13 +611,31 @@ impl ZKInterpreter for PlaintextInterpreter {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn check_modulus(&mut self, modulus: &[u8]) -> Result<()> {
+    fn set_field(&mut self, modulus: &[u8], degree: u32) -> Result<()> {
         self.m = BigUint::from_bytes_le(modulus);
         if self.m.is_zero() {
             Err("Modulus cannot be zero.".into())
+        } else if degree != 1 {
+            Err("Field should be of degree 1".into())
         } else {
+            self.minus_one = &self.m - &self.one;
             Ok(())
         }
+    }
+
+    fn one(&self) -> Self::Wire {
+        self.one.clone()
+    }
+
+    fn minus_one(&self) -> Self::Wire {
+        if self.m.is_zero() {
+            panic!("Modulus should have been set before calling this function.");
+        }
+        self.minus_one.clone()
+    }
+
+    fn zero(&self) -> Self::Wire {
+        self.zero.clone()
     }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -563,6 +696,44 @@ impl ZKInterpreter for PlaintextInterpreter {
 }
 
 #[test]
+fn test_exponentiation() -> Result<()> {
+
+    let mut interp = PlaintextInterpreter::default();
+
+    let moduli = vec![
+        BigUint::from(16249742125730185677094195492597105093u128),
+        BigUint::from(101u64),
+    ];
+
+    let bases = vec![
+        BigUint::from(2u128),
+        BigUint::from(42u64),
+    ];
+
+    let exponents = vec![
+        BigUint::from(2206000150907221872269901214599500635u128),
+        BigUint::from(100u64),
+    ];
+
+    let expecteds = vec![
+        BigUint::from(5834907326474057072663503101785122138u128),
+        BigUint::one()
+    ];
+
+    for (((modulus, base), exponent), expected) in moduli.iter()
+                .zip(bases.iter())
+                .zip(exponents.iter())
+                .zip(expecteds.iter())
+    {
+        interp.set_field(&modulus.to_bytes_le(), 1)?;
+        let result = exp(&mut interp, base, exponent, modulus, false)?;
+        assert_eq!(result, *expected);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_evaluator() -> crate::Result<()> {
     use crate::producers::examples::*;
     use crate::consumers::evaluator::Evaluator;
@@ -573,9 +744,9 @@ fn test_evaluator() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance, &mut zkinterpreter)?;
-    simulator.ingest_witness(&witness, &mut zkinterpreter)?;
-    simulator.ingest_relation(&relation, &mut zkinterpreter)?;
+    simulator.ingest_message(&Message::Instance(instance), &mut zkinterpreter);
+    simulator.ingest_message(&Message::Witness(witness), &mut zkinterpreter);
+    simulator.ingest_message(&Message::Relation(relation), &mut zkinterpreter);
 
     assert_eq!(simulator.get_violations().len(), 0);
 
@@ -593,9 +764,9 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance, &mut zkinterpreter)?;
-    simulator.ingest_witness(&witness, &mut zkinterpreter)?;
-    simulator.ingest_relation(&relation, &mut zkinterpreter)?;
+    simulator.ingest_message(&Message::Instance(instance), &mut zkinterpreter);
+    simulator.ingest_message(&Message::Witness(witness), &mut zkinterpreter);
+    simulator.ingest_message(&Message::Relation(relation), &mut zkinterpreter);
 
     assert_ne!(simulator.get_violations().len(), 0);
 
