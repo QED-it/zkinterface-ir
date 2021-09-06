@@ -9,7 +9,7 @@ use std::ops::{BitAnd, BitXor, Shr};
 use crate::structs::relation::{contains_feature, BOOL};
 
 pub trait ZKInterpreter {
-    type Wire: 'static + Clone;
+    type Wire: Clone;
     type FieldElement: 'static + Clone;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
@@ -22,7 +22,6 @@ pub trait ZKInterpreter {
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
     fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()>;
-    fn copy(&mut self, source: &Self::Wire) -> Result<Self::Wire>;
 
     fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
     fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
@@ -36,7 +35,7 @@ pub trait ZKInterpreter {
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire>;
 
-    fn free(&mut self, wire: &Self::Wire) -> Result<()>;
+    fn free(&mut self, wire: Self::Wire) -> Result<()>;
 }
 
 /// This macro is used to evaluate a 'multiplication' in either the arithmetic case or the boolean,
@@ -63,7 +62,14 @@ macro_rules! as_add {
     }};
 }
 
-// I::FieldElement : BigUint
+pub struct FunctionDeclaration {
+    subcircuit: Vec<Gate>,
+    instance_nbr: usize,
+    witness_nbr: usize,
+    output_count: usize,
+    input_count: usize,
+}
+
 pub struct Evaluator<I: ZKInterpreter> {
     values: HashMap<WireId, I::Wire>,
     modulus: BigUint,
@@ -72,7 +78,7 @@ pub struct Evaluator<I: ZKInterpreter> {
     is_boolean: bool,
 
     // name => (instance_nbr, witness_nbr, subcircuit)
-    known_functions: HashMap<String, (usize, usize, Vec<Gate>)>,
+    known_functions: HashMap<String, FunctionDeclaration>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -162,7 +168,13 @@ impl<I: ZKInterpreter> Evaluator<I> {
         }
 
         for f in relation.functions.iter() {
-            self.known_functions.insert(f.name.clone(), (f.instance_count, f.witness_count, f.body.clone()));
+            self.known_functions.insert(f.name.clone(), FunctionDeclaration {
+                subcircuit: f.body.clone(),
+                instance_nbr: f.instance_count,
+                witness_nbr: f.witness_count,
+                output_count: f.output_count,
+                input_count: f.input_count,
+            });
         }
 
         let mut known_iterators = HashMap::new();
@@ -186,7 +198,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         gate: &Gate,
         interp: &mut I,
         scope: &mut HashMap<WireId, I::Wire>,
-        known_functions: &HashMap<String, (usize, usize, Vec<Gate>)>,
+        known_functions: &HashMap<String, FunctionDeclaration>,
         known_iterators: &mut HashMap<String, u64>,
         modulus: &BigUint,
         is_boolean: bool,
@@ -221,7 +233,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
             Copy(out, inp) => {
                 let in_wire = get!(*inp)?;
-                let out_wire = interp.copy(in_wire)?;
+                let out_wire = in_wire.clone();
                 set!(*out, out_wire)?;
             }
 
@@ -290,17 +302,27 @@ impl<I: ZKInterpreter> Evaluator<I> {
             Free(first, last) => {
                 let last_value = last.unwrap_or(*first);
                 for current in *first..=last_value {
-                    interp.free(&remove::<I>(scope, current)?)?;
+                    interp.free(remove::<I>(scope, current)?)?;
                 }
             }
 
             Call(name, output_wires, input_wires) => {
-                let fonction = known_functions.get(name).ok_or("Unknown function")?;
+                let function = known_functions.get(name).ok_or("Unknown function")?;
                 let expanded_output = expand_wirelist(output_wires);
                 let expanded_input = expand_wirelist(input_wires);
+
+                // simple checks.
+                if expanded_output.len() != function.output_count {
+                    return Err(format!("Wrong number of output variables in call to function {} (Expected {} / Got {}).", name, function.output_count, expanded_output.len()).into());
+                }
+                if expanded_input.len() != function.input_count {
+                    return Err(format!("Wrong number of input variables in call to function {} (Expected {} / Got {}).", name, function.input_count, expanded_input.len()).into());
+                }
+
+
                 // in the case of an named call, iterators *ARE NOT* forwarded into inner bodies.
                 Self::ingest_subcircuit(
-                    &fonction.2,
+                    &function.subcircuit,
                     interp,
                     &expanded_output,
                     &expanded_input,
@@ -348,8 +370,17 @@ impl<I: ZKInterpreter> Evaluator<I> {
                             let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;
                             let expanded_output = evaluate_iterexpr_list(outputs, known_iterators);
                             let expanded_input = evaluate_iterexpr_list(inputs, known_iterators);
+
+                            // simple checks.
+                            if expanded_output.len() != function.output_count {
+                                return Err(format!("Wrong number of output variables in call to function {} (Expected {} / Got {}).", name, function.output_count, expanded_output.len()).into());
+                            }
+                            if expanded_input.len() != function.input_count {
+                                return Err(format!("Wrong number of input variables in call to function {} (Expected {} / Got {}).", name, function.input_count, expanded_input.len()).into());
+                            }
+
                             Self::ingest_subcircuit(
-                                &function.2,
+                                &function.subcircuit,
                                 interp,
                                 &expanded_output,
                                 &expanded_input,
@@ -401,7 +432,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
                     let (instance_cnt, witness_cnt) = match branch {
                         CaseInvoke::AbstractGateCall(name, _) => {
                             let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;
-                            (function.0, function.1)
+                            (function.instance_nbr, function.witness_nbr)
                         }
                         CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, _) => (*instance_count, *witness_count)
                     };
@@ -423,11 +454,20 @@ impl<I: ZKInterpreter> Evaluator<I> {
                         CaseInvoke::AbstractGateCall(name, input_wires) => {
                             let function = known_functions.get(name).ok_or_else(|| format!("Unknown function: {}", name))?;
                             let expanded_input = expand_wirelist(input_wires);
+
+                            // simple checks.
+                            if expanded_output.len() != function.output_count {
+                                return Err(format!("Wrong number of output variables in call to function {} (Expected {} / Got {}).", name, function.output_count, expanded_output.len()).into());
+                            }
+                            if expanded_input.len() != function.input_count {
+                                return Err(format!("Wrong number of input variables in call to function {} (Expected {} / Got {}).", name, function.input_count, expanded_input.len()).into());
+                            }
+
                             for wire in expanded_input.iter() {
                                 branch_scope.insert(*wire, get!(*wire)?.clone());
                             }
                             Self::ingest_subcircuit(
-                                &function.2,
+                                &function.subcircuit,
                                 interp,
                                 &expanded_output,
                                 &expanded_input,
@@ -489,7 +529,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         output_list: &[WireId],
         input_list: &[WireId],
         scope: &mut HashMap<WireId, I::Wire>,
-        known_functions: &HashMap<String, (usize, usize, Vec<Gate>)>,
+        known_functions: &HashMap<String, FunctionDeclaration>,
         known_iterators: &mut HashMap<String, u64>,
         modulus: &BigUint,
         is_boolean: bool,
@@ -650,10 +690,6 @@ impl ZKInterpreter for PlaintextInterpreter {
         }
     }
 
-    fn copy(&mut self, source: &Self::Wire) -> Result<Self::Wire> {
-        Ok(source.clone())
-    }
-
     fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         Ok((a + b) % &self.m)
     }
@@ -690,7 +726,7 @@ impl ZKInterpreter for PlaintextInterpreter {
         self.constant(val.unwrap_or_else(|| panic!("Missing witness value for PlaintextInterpreter")))
     }
 
-    fn free(&mut self, _: &Self::Wire) -> Result<()> {
+    fn free(&mut self, _: Self::Wire) -> Result<()> {
         Ok(())
     }
 }
