@@ -10,7 +10,7 @@ use crate::structs::relation::{contains_feature, BOOL};
 
 pub trait ZKInterpreter {
     type Wire: 'static + Clone;
-    type FieldElement: 'static + Clone + Zero + One + Default;
+    type FieldElement: 'static + Clone;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
     // If the field is not compatible with this ZKInterpreter, then it should return Err
