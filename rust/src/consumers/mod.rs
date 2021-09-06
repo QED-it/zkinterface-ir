@@ -13,10 +13,12 @@ pub mod stats;
 /// Helper functions to read buffers.
 pub mod utils;
 
-/// Flattening SIEVE IR.
-pub mod flattening;
+// Flattening SIEVE IR.
+// TODO fix
+// pub mod flattening;
 
-/// Expand definable gates in SIEVE IR.
-pub mod exp_definable;
+// Expand definable gates in SIEVE IR.
+// TODO fix
+// pub mod exp_definable;
 
 pub const TEMPORARY_WIRES_START: u64 = 1u64<<63;

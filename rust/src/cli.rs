@@ -2,7 +2,7 @@ extern crate serde;
 extern crate serde_json;
 
 use num_bigint::BigUint;
-use std::fs::{File, create_dir_all, OpenOptions};
+use std::fs::File;
 use std::io::{copy, stdout, stdin, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
@@ -105,10 +105,6 @@ pub struct Options {
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
 
-    /// First available temporary wire id to use when flattening circuits or expanding their definable gates (2^63 if unspecified).
-    #[structopt(long)]
-    pub tmp_wire_start: Option<u64>,
-
     /// Target gate set for expanding definable gates.
     #[structopt(long)]
     pub gate_set: Option<String>,
@@ -128,10 +124,10 @@ pub fn cli(options: &Options) -> Result<()> {
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
-        "ir-to-zkif" => main_ir_to_r1cs(options),
-        "flatten"    => main_ir_flattening(options),
-        "unroll"     => main_unrol(options),
-        "expand-definable" => main_expand_definable(options),
+//         "ir-to-zkif" => main_ir_to_r1cs(options),
+//         "flatten"    => main_ir_flattening(options),
+//         "unroll"     => main_unrol(options),
+//         "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -390,6 +386,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
 
 // Convert to R1CS zkinterface format.
 // Expects one instance, witness, and relation only.
+/*
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     use crate::producers::to_r1cs::to_r1cs;
 
@@ -434,6 +431,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     
     Ok(())
 }
+
 
 // Flattens SIEVE IR format by removing loops functions and switches.
 // Expects a set of dirs and files and a resource, places the flattened relations into the file or dir specified by --out.
@@ -640,6 +638,8 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
     }
 }
 
+ */
+
 fn print_violations(errors: &[String], which_statement: &str, what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();
     if errors.len() > 0 {
@@ -667,7 +667,7 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        tmp_wire_start: None,
+        // tmp_wire_start: None,
         gate_set: None,
     })?;
 
@@ -679,7 +679,7 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        tmp_wire_start: None,
+        // tmp_wire_start: None,
         gate_set: None,
     })?;
 

@@ -135,7 +135,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         interp.set_field(&header.field_characteristic, header.field_degree)
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
+    fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
         self.ingest_header(&instance.header, interp)?;
 
         for value in &instance.common_inputs {
@@ -144,7 +144,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         Ok(())
     }
 
-    pub fn ingest_witness(&mut self, witness: &Witness, interp: &mut I) -> Result<()> {
+    fn ingest_witness(&mut self, witness: &Witness, interp: &mut I) -> Result<()> {
         self.ingest_header(&witness.header, interp)?;
 
         for value in &witness.short_witness {
@@ -153,7 +153,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         Ok(())
     }
 
-    pub fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
+    fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
         self.ingest_header(&relation.header, interp)?;
         self.is_boolean = contains_feature(relation.gate_mask, BOOL);
 
@@ -744,9 +744,9 @@ fn test_evaluator() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    simulator.ingest_message(&Message::Instance(instance), &mut zkinterpreter);
-    simulator.ingest_message(&Message::Witness(witness), &mut zkinterpreter);
-    simulator.ingest_message(&Message::Relation(relation), &mut zkinterpreter);
+    simulator.ingest_instance(&instance, &mut zkinterpreter)?;
+    simulator.ingest_witness(&witness, &mut zkinterpreter)?;
+    simulator.ingest_relation(&relation, &mut zkinterpreter)?;
 
     assert_eq!(simulator.get_violations().len(), 0);
 
@@ -764,11 +764,12 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    simulator.ingest_message(&Message::Instance(instance), &mut zkinterpreter);
-    simulator.ingest_message(&Message::Witness(witness), &mut zkinterpreter);
-    simulator.ingest_message(&Message::Relation(relation), &mut zkinterpreter);
+    let _ = simulator.ingest_instance(&instance, &mut zkinterpreter);
+    let _ = simulator.ingest_witness(&witness, &mut zkinterpreter);
+    let should_be_err = simulator.ingest_relation(&relation, &mut zkinterpreter);
 
-    assert_ne!(simulator.get_violations().len(), 0);
+    assert!(should_be_err.is_err());
+    assert_eq!("Wire_8 should be 0, while it is not", should_be_err.err().unwrap().to_string());
 
     Ok(())
 }
