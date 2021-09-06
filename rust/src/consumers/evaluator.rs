@@ -135,7 +135,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         interp.set_field(&header.field_characteristic, header.field_degree)
     }
 
-    fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
+    pub fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
         self.ingest_header(&instance.header, interp)?;
 
         for value in &instance.common_inputs {
@@ -144,7 +144,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         Ok(())
     }
 
-    fn ingest_witness(&mut self, witness: &Witness, interp: &mut I) -> Result<()> {
+    pub fn ingest_witness(&mut self, witness: &Witness, interp: &mut I) -> Result<()> {
         self.ingest_header(&witness.header, interp)?;
 
         for value in &witness.short_witness {
@@ -153,7 +153,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
         Ok(())
     }
 
-    fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
+    pub fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
         self.ingest_header(&relation.header, interp)?;
         self.is_boolean = contains_feature(relation.gate_mask, BOOL);
 
