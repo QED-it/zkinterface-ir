@@ -142,6 +142,7 @@ pub fn flatten_gates(
         flatten_gate_internal(
             inner_gate.clone(),
             free_temporary_wire,
+            None,
             &mut args,
         );
     }
@@ -156,7 +157,8 @@ pub fn flatten_gates(
 
 fn flatten_gate_internal(
     gate: Gate,                             // The gate to be flattened
-    free_temporary_wire: &Cell<WireId>, // Cell containing the id of the first available temp wire; acts as a global ref
+    free_temporary_wire: &Cell<WireId>,     // Cell containing the id of the first available temp wire; acts as a global ref
+    weight: Option<WireId>,                 // Weight by which we need to multiply the wires that are tested for assertZero
     args: &mut FlatArgs                     // The other arguments that don't change in recursive calls
 ) {
     // println!("flattening gate\n {:?}", gate);
@@ -199,7 +201,7 @@ fn flatten_gate_internal(
             let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
 
             for inner_gate in unrolling(&subcircuit, &mut HashMap::new()) {
-                flatten_gate_internal(translate_gate(&inner_gate, &mut output_input_wires, free_temporary_wire), free_temporary_wire, args);
+                flatten_gate_internal(translate_gate(&inner_gate, &mut output_input_wires, free_temporary_wire), free_temporary_wire, weight, args);
             }
         }
 
@@ -212,6 +214,7 @@ fn flatten_gate_internal(
                 flatten_gate_internal(
                     AnonCall(output_wires, input_wires, declaration.2, declaration.3, subcircuit),
                     free_temporary_wire,
+                    weight,
                     args);
             } else {
                 // The function is not known, so this should either panic, or return an empty vector.
@@ -223,7 +226,7 @@ fn flatten_gate_internal(
 
         Gate::For(_, _, _, _, _) => {
             for inner_gate in unroll_gate(gate) {
-                flatten_gate_internal(inner_gate, free_temporary_wire, args);
+                flatten_gate_internal(inner_gate, free_temporary_wire, weight, args);
             }
         }
 
@@ -281,10 +284,6 @@ fn flatten_gate_internal(
 
             for (i,branch_gates) in global_gates.iter().enumerate() {
 
-                let mut new_branch_gates = Vec::new();
-
-                // println!("Second pass rewrites {:?}", branch_gates);
-
                 /****** the first thing we do is compute the weight of the branch, ***********/
                 /* i.e. a wire assigned the value 1 - ($0 - 42)^(p-1) for a switch on $0, case value 42,
                 where p is the field's characteristic */
@@ -293,7 +292,7 @@ fn flatten_gate_internal(
 
                 //compute $0 - 42, assigning it to base_wire
                 let base_wire = tmp_wire(free_temporary_wire);
-                add_c(args.is_boolean, base_wire, wire_id, minus_val, free_temporary_wire, &mut new_branch_gates);
+                add_c(args.is_boolean, base_wire, wire_id, minus_val, free_temporary_wire, args.output_gates);
 
                 // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
                 // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
@@ -302,15 +301,15 @@ fn flatten_gate_internal(
                 let exp_wire    = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
                 let exp_as_uint = BigUint::from_bytes_le(&args.minus_one);
                 let exp_as_int  = BigInt::from(exp_as_uint);
-                exp(args.is_boolean, base_wire, exp_as_int, free_temporary_wire, &mut new_branch_gates);
+                exp(args.is_boolean, base_wire, exp_as_int, free_temporary_wire, args.output_gates);
 
                 // multiply by -1 to compute (- ($0 - 42)^(p-1))
                 let neg_exp_wire = tmp_wire(free_temporary_wire);
-                mul_c(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, &mut new_branch_gates);
+                mul_c(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, args.output_gates);
 
                 // Adding 1 to compute (1 - ($0 - 42)^(p-1))
                 let weight_wire_id = tmp_wire(free_temporary_wire);
-                add_c(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, &mut new_branch_gates);
+                add_c(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, args.output_gates);
                 //********* end weight ************************/
 
 
@@ -336,31 +335,26 @@ fn flatten_gate_internal(
 
                 // println!("map {:?}", &map);
                 // Now we do the renaming in the branch, using map_branch_local
+                // and we call ourselves recursively to handle the presence of nested loops, switches and functions
                 for inner_gate in unrolling(branch_gates, &mut HashMap::new()) {
                     let new_gate = swap_gate_outputs(inner_gate.clone(), &map_branch_local);
                     // println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
-                    //if it is assert_zero, then add a multiplication gate before it
-                    match new_gate {
-                        Gate::AssertZero(wire_id) => {
-                            let new_temp_wire = tmp_wire(free_temporary_wire);
-                            mul(args.is_boolean, new_temp_wire, wire_id, weight_wire_id, &mut new_branch_gates);
-                            new_branch_gates.push(Gate::AssertZero(new_temp_wire));
-                        },
-                        _ => {
-                            new_branch_gates.push(new_gate.clone());
-                        }
-                    }
+                    let agreg_weight =
+                        if let Some(w) = weight {
+                            let tmp = tmp_wire(free_temporary_wire);
+                            mul(args.is_boolean, tmp, w, weight_wire_id, args.output_gates);
+                            tmp
+                        } else {
+                            weight_wire_id
+                        };
+
+                    flatten_gate_internal(new_gate, free_temporary_wire, Some(agreg_weight), args);
                 }
 
                 // Now we can add the weighting gates
-                new_branch_gates.extend_from_slice(&weighting_gates);
+                args.output_gates.extend_from_slice(&weighting_gates);
                 // We remember the map for the branch
                 temp_maps.push(map_weighted_branch_local);
-
-                // We call ourselves recursively to handle the presence of nested loops, switches and functions
-                for gate in new_branch_gates {
-                    flatten_gate_internal(gate, free_temporary_wire, args);
-                }
 
                 // We add the weight to the sum of the weights
                 let new_temp = tmp_wire(free_temporary_wire);
@@ -393,6 +387,18 @@ fn flatten_gate_internal(
             args.witness_counter.set(witness_counter_at_start + (max_witness as u64));
             
         },
+
+        Gate::AssertZero(wire_id) => {
+            // if it is assert_zero and we have a weight, then add a multiplication gate before it
+            if let Some(w) = weight {
+                let new_temp_wire = tmp_wire(free_temporary_wire);
+                mul(args.is_boolean, new_temp_wire, wire_id, w, args.output_gates);
+                args.output_gates.push(Gate::AssertZero(new_temp_wire));
+            } else {
+                args.output_gates.push(gate)
+            }
+        },
+
         _ => args.output_gates.push(gate),
     }
 }
