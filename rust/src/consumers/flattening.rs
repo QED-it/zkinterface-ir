@@ -273,7 +273,10 @@ fn flatten_gate_internal(
                     }
                 }
             }
-            
+
+            let mut at_least1_wire = tmp_wire(free_temporary_wire); // In this wire we add up the branches weights; at the end, this must be == 1 otherwise no case has been taken
+            args.output_gates.push(Gate::Constant(at_least1_wire, vec![0,0,0,0]));
+
             let mut temp_maps = Vec::new();
 
             for (i,branch_gates) in global_gates.iter().enumerate() {
@@ -358,11 +361,22 @@ fn flatten_gate_internal(
                 for gate in new_branch_gates {
                     flatten_gate_internal(gate, free_temporary_wire, args);
                 }
+
+                // We add the weight to the sum of the weights
+                let new_temp = tmp_wire(free_temporary_wire);
+                add(args.is_boolean, new_temp, at_least1_wire, weight_wire_id, args.output_gates);
+                at_least1_wire = new_temp;
+
                 // The above may result in instance pulls and witness pulls, so we reset them for the next branch
                 args.instance_counter.set(instance_counter_at_start);
                 args.witness_counter.set(witness_counter_at_start);
             }
-            
+
+            // We check that 1 branch has been taken 
+            let at_least1_minus_1 = tmp_wire(free_temporary_wire);
+            add_c(args.is_boolean, at_least1_minus_1, at_least1_wire, args.minus_one.clone(), free_temporary_wire, &mut args.output_gates);
+            args.output_gates.push(Gate::AssertZero(at_least1_minus_1));
+             
             // Now we define the real outputs of the switch as the weighted sums of the branches' outputs
             for output in &expanded_output_wires{
                 // Weighted sum starts with 0
