@@ -442,7 +442,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
                 }
 
                 let new_instances: VecDeque<I::FieldElement> = instances.drain(0..max_instance_count).collect::<VecDeque<_>>();
-                let new_witnesses: VecDeque<I::FieldElement> = witnesses.drain(0..max_witness_count).collect::<VecDeque<_>>();
+                let new_witnesses: VecDeque<I::FieldElement> = if witnesses.len() == 0 {witnesses.clone()} else {witnesses.drain(0..max_witness_count).collect::<VecDeque<_>>()};
                 let mut branches_scope = Vec::new();
 
                 let expanded_output = expand_wirelist(output_wires);
