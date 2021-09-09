@@ -9,7 +9,10 @@ use std::ops::{BitAnd, BitXor, Shr};
 use crate::structs::relation::{contains_feature, BOOL};
 
 pub trait ZKInterpreter {
+    /// If this type should not be cloned, prefer using a Rc<> of your type instead, with a proper
+    /// implementation of the `Drop` trait.
     type Wire: Clone;
+    /// Usually a big Integer type.
     type FieldElement: 'static + Clone;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
@@ -34,8 +37,6 @@ pub trait ZKInterpreter {
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire>;
-
-    fn free(&mut self, wire: Self::Wire) -> Result<()>;
 }
 
 /// This macro is used to evaluate a 'multiplication' in either the arithmetic case or the boolean,
@@ -302,7 +303,7 @@ impl<I: ZKInterpreter> Evaluator<I> {
             Free(first, last) => {
                 let last_value = last.unwrap_or(*first);
                 for current in *first..=last_value {
-                    interp.free(remove::<I>(scope, current)?)?;
+                    remove::<I>(scope, current)?;
                 }
             }
 
@@ -724,10 +725,6 @@ impl ZKInterpreter for PlaintextInterpreter {
 
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
         self.constant(val.unwrap_or_else(|| panic!("Missing witness value for PlaintextInterpreter")))
-    }
-
-    fn free(&mut self, _: Self::Wire) -> Result<()> {
-        Ok(())
     }
 }
 
