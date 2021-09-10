@@ -640,8 +640,8 @@ fn exp<I: ZKInterpreter>(interp: &mut I, base: &I::Wire, exponent: &BigUint, mod
 /// This function will compute '1 - (case - condition)^(p-1)' using a bunch of mul/and add/xor addc/xorc gates
 fn compute_weight<I: ZKInterpreter>(interp: &mut I, case: &[u8], condition: &I::Wire, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
     let case_wire = interp.constant(I::from_bytes_le(case)?)?;
-    let one_wire = interp.one().clone();
-    let minus_one_wire = interp.minus_one().clone();
+    let one_wire = interp.one();
+    let minus_one_wire = interp.minus_one();
     let minus_one = modulus - &BigUint::one();
 
     let minus_cond = as_mul!(interp, condition, &minus_one_wire, is_boolean)?;

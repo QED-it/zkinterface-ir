@@ -72,7 +72,7 @@ pub struct Validator {
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: Rc<RefCell<HashMap<String, (usize, usize, usize, usize)>>>,
-    known_iterators: HashMap<String, u64>,
+    known_iterators: Rc<RefCell<HashMap<String, u64>>>,
 
     violations: Vec<String>,
 }
@@ -91,7 +91,7 @@ impl Default for Validator {
             field_characteristic: Default::default(),
             field_degree: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
-            known_iterators: Default::default(),
+            known_iterators: Rc::new(RefCell::new(HashMap::default())),
             violations: Default::default(),
         }
     }
@@ -477,7 +477,7 @@ impl Validator {
             ) => {
                 self.ensure_allowed_feature("@for", FOR);
 
-                if self.known_iterators.contains_key(iterator_name) {
+                if self.known_iterators.borrow().contains_key(iterator_name) {
                     self.violate("Iterator already used in this context.");
                     return;
                 }
@@ -488,12 +488,12 @@ impl Validator {
                 }
 
                 for i in *start_val..=*end_val {
-                    self.known_iterators.insert(iterator_name.clone(), i);
+                    self.known_iterators.borrow_mut().insert(iterator_name.clone(), i);
 
                     match body {
                         ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
+                            let expanded_outputs = evaluate_iterexpr_list(outputs, &*self.known_iterators.borrow());
+                            let expanded_inputs = evaluate_iterexpr_list(inputs, &*self.known_iterators.borrow());
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             let (instance_count, witness_count) =
                                 self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
@@ -510,8 +510,8 @@ impl Validator {
                             witness_count,
                             subcircuit
                         ) => {
-                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
+                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &*self.known_iterators.borrow());
+                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &*self.known_iterators.borrow());
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             self.ingest_subcircuit(
                                 subcircuit,
@@ -528,7 +528,7 @@ impl Validator {
                         }
                     }
                 }
-                self.known_iterators.remove(iterator_name);
+                self.known_iterators.borrow_mut().remove(iterator_name);
 
                 // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);
@@ -578,17 +578,23 @@ impl Validator {
         input_count: usize,
         instance_count: usize,
         witness_count: usize,
-        use_same_scope: bool,
+        use_same_scope: bool
     ) {
-        let mut current_validator = self.clone();
-        current_validator.instance_queue_len = instance_count;
-        current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
-        current_validator.live_wires = Default::default();
-        current_validator.violations = vec![];
-
-        if !use_same_scope {
-            current_validator.known_iterators = Default::default();
-        }
+        let mut current_validator = Validator {
+            as_prover: self.as_prover,
+            instance_queue_len: instance_count,
+            witness_queue_len: if self.as_prover {witness_count} else {0},
+            live_wires: Default::default(),
+            got_header: self.got_header,
+            gate_set: self.gate_set,
+            features: self.features,
+            header_version: self.header_version.clone(),
+            field_characteristic: self.field_characteristic.clone(),
+            field_degree: self.field_degree,
+            known_functions: self.known_functions.clone(),
+            known_iterators: if use_same_scope {self.known_iterators.clone()} else {Default::default()},
+            violations: vec![]
+        };
 
         // input wires should be already defined, and they are numbered from
         // output_wire, so we will artificially define them in the inner
