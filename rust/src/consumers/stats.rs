@@ -292,7 +292,7 @@ fn test_stats() -> crate::Result<()> {
             instance_variables: 3,
             witness_variables: 3,
             constants_gates: 1,
-            assert_zero_gates: 2,
+            assert_zero_gates: 3,
             copy_gates: 0,
             add_gates: 25,
             mul_gates: 21,

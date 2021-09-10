@@ -113,6 +113,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
                             Instance(5),
                             Instance(6),
                             Witness(7),
+                            AssertZero(0), // '0' is obviously not zero in this branch, but this branch is not taken, so should be disabled.
                         ],
                     )
                 ],
