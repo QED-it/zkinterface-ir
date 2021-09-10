@@ -763,7 +763,6 @@ fn test_validator_as_verifier() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let instance = example_instance();
-    let witness = example_witness();
     let relation = example_relation();
 
     let mut validator = Validator::new_as_verifier();
