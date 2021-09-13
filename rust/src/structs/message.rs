@@ -3,6 +3,7 @@ use std::error::Error;
 use std::convert::TryFrom;
 use crate::sieve_ir_generated::sieve_ir as fb;
 use crate::{Result, Instance, Witness, Relation};
+use std::io::Write;
 
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -35,5 +36,28 @@ impl<'a> TryFrom<&'a [u8]> for Message {
                 return Err("Invalid message type".into())
             }
         })
+    }
+}
+
+impl Message {
+    /// Writes this Message as a Flatbuffers message into the provided buffer.
+    ///
+    /// # Examples
+    /// ```
+    /// use zki_sieve::{Instance, Message};
+    /// use std::convert::TryFrom;
+    ///
+    /// let message = Message::Instance(Instance::default());
+    /// let mut buf = Vec::<u8>::new();
+    /// message.write_into(&mut buf).unwrap();
+    /// let message2 = Message::try_from(&buf[..]).unwrap();
+    /// assert_eq!(message, message2);
+    /// ```
+    pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
+        match self {
+            Message::Instance(instance) => instance.write_into(writer),
+            Message::Witness(witness) => witness.write_into(writer),
+            Message::Relation(relation) => relation.write_into(writer)
+        }
     }
 }

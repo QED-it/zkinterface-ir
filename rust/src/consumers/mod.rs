@@ -15,7 +15,7 @@ pub mod utils;
 
 // Flattening SIEVE IR.
 // TODO fix
-// pub mod flattening;
+pub mod flattening;
 
 // Expand definable gates in SIEVE IR.
 // TODO fix

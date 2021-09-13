@@ -17,7 +17,7 @@ pub trait ZKInterpreter {
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
     // If the field is not compatible with this ZKInterpreter, then it should return Err
-    fn set_field(&mut self, modulus: &[u8], degree: u32) -> Result<()>;
+    fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()>;
 
     fn one(&self) -> Self::Wire;
     fn minus_one(&self) -> Self::Wire;
@@ -131,19 +131,19 @@ impl<I: ZKInterpreter> Evaluator<I> {
 
     fn ingest_message_(&mut self, msg: &Message, interp: &mut I) -> Result<()> {
         match msg {
-            Message::Instance(i) => self.ingest_instance(&i, interp),
-            Message::Witness(w) => self.ingest_witness(&w, interp),
+            Message::Instance(i) => self.ingest_instance(&i),
+            Message::Witness(w) => self.ingest_witness(&w),
             Message::Relation(r) => self.ingest_relation(&r, interp),
         }
     }
 
-    fn ingest_header(&mut self, header: &Header, interp: &mut I) -> Result<()> {
+    fn ingest_header(&mut self, header: &Header) -> Result<()> {
         self.modulus = BigUint::from_bytes_le(&header.field_characteristic);
-        interp.set_field(&header.field_characteristic, header.field_degree)
+        Ok(())
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance, interp: &mut I) -> Result<()> {
-        self.ingest_header(&instance.header, interp)?;
+    pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
+        self.ingest_header(&instance.header)?;
 
         for value in &instance.common_inputs {
             self.instance_queue.push_back(I::from_bytes_le(value)?);
@@ -151,8 +151,8 @@ impl<I: ZKInterpreter> Evaluator<I> {
         Ok(())
     }
 
-    pub fn ingest_witness(&mut self, witness: &Witness, interp: &mut I) -> Result<()> {
-        self.ingest_header(&witness.header, interp)?;
+    pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
+        self.ingest_header(&witness.header)?;
 
         for value in &witness.short_witness {
             self.witness_queue.push_back(I::from_bytes_le(value)?);
@@ -161,8 +161,9 @@ impl<I: ZKInterpreter> Evaluator<I> {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation, interp: &mut I) -> Result<()> {
-        self.ingest_header(&relation.header, interp)?;
+        self.ingest_header(&relation.header)?;
         self.is_boolean = contains_feature(relation.gate_mask, BOOL);
+        interp.set_field(&relation.header.field_characteristic, relation.header.field_degree, self.is_boolean)?;
 
         if relation.gates.len() > 0 {
             self.verified_at_least_one_gate = true;
@@ -680,7 +681,7 @@ impl ZKInterpreter for PlaintextInterpreter {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_field(&mut self, modulus: &[u8], degree: u32) -> Result<()> {
+    fn set_field(&mut self, modulus: &[u8], degree: u32, _is_boolean: bool) -> Result<()> {
         self.m = BigUint::from_bytes_le(modulus);
         if self.m.is_zero() {
             Err("Modulus cannot be zero.".into())
@@ -786,7 +787,7 @@ fn test_exponentiation() -> Result<()> {
                 .zip(exponents.iter())
                 .zip(expecteds.iter())
     {
-        interp.set_field(&modulus.to_bytes_le(), 1)?;
+        interp.set_field(&modulus.to_bytes_le(), 1, false)?;
         let result = exp(&mut interp, base, exponent, modulus, false)?;
         assert_eq!(result, *expected);
     }
@@ -805,8 +806,8 @@ fn test_evaluator() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance, &mut zkinterpreter)?;
-    simulator.ingest_witness(&witness, &mut zkinterpreter)?;
+    simulator.ingest_instance(&instance)?;
+    simulator.ingest_witness(&witness)?;
     simulator.ingest_relation(&relation, &mut zkinterpreter)?;
 
     assert_eq!(simulator.get_violations().len(), 0);
@@ -828,7 +829,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         type Wire = i64;
         type FieldElement = BigUint;
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
-        fn set_field(&mut self, _modulus: &[u8], _degree: u32) -> Result<()> {Ok(())}
+        fn set_field(&mut self, _modulus: &[u8], _degree: u32, _is_boolean: bool) -> Result<()> {Ok(())}
         fn one(&self) -> Self::Wire {1}
         fn minus_one(&self) -> Self::Wire {-1}
         fn zero(&self) -> Self::Wire {0}
@@ -847,7 +848,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
 
     let mut zkinterpreter = VerifierInterpreter{};
     let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance, &mut zkinterpreter)?;
+    simulator.ingest_instance(&instance)?;
     simulator.ingest_relation(&relation, &mut zkinterpreter)?;
 
     assert_eq!(simulator.get_violations().len(), 0);
@@ -867,8 +868,8 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
 
     let mut zkinterpreter = PlaintextInterpreter::default();
     let mut simulator = Evaluator::default();
-    let _ = simulator.ingest_instance(&instance, &mut zkinterpreter);
-    let _ = simulator.ingest_witness(&witness, &mut zkinterpreter);
+    let _ = simulator.ingest_instance(&instance);
+    let _ = simulator.ingest_witness(&witness);
     let should_be_err = simulator.ingest_relation(&relation, &mut zkinterpreter);
 
     assert!(should_be_err.is_err());
