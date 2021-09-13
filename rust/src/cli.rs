@@ -69,7 +69,7 @@ pub struct Options {
     ///
     /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface (takes 3 files for witness, instance, and relation, or a directory with 3 files).
     ///
-    /// flatten       Flatten a SIEVE IR relation (takes files and directories, skips everything that is not a relation).
+    /// flatten       Flatten a SIEVE IR circuit (takes files and directories, output resulting circuit in stdout or directory specified by --out).
     ///
     /// expand-definable    Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
     ///
