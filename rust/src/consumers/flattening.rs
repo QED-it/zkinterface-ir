@@ -1,7 +1,7 @@
 use crate::{Sink, WireId, Header, Result, Value};
 use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::relation::{SIMPLE, ARITH, BOOL};
-use crate::consumers::evaluator::{ZKInterpreter};
+use crate::consumers::evaluator::{ZKBackend};
 use num_bigint::BigUint;
 use crate::producers::build_gates::BuildGate;
 use num_traits::One;
@@ -42,7 +42,7 @@ impl<S: Sink> Drop for IRFlattener<S> {
     }
 }
 
-impl<S: Sink> ZKInterpreter for IRFlattener<S> {
+impl<S: Sink> ZKBackend for IRFlattener<S> {
     type Wire = WireId;
     type FieldElement = BigUint;
 

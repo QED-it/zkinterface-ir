@@ -214,7 +214,6 @@ impl Validator {
         self.witness_queue_len += witness.short_witness.len();
     }
 
-    // TODO check that once a first gate has been ingested, no new functions should be defined then.
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
