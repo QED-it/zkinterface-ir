@@ -70,8 +70,7 @@ impl Source {
         let source = if paths == vec![PathBuf::from("-")] {
             BufferSource::Stdin
         } else {
-            // paths.sort();
-            //
+            paths.sort();
             paths.sort_by_key(|path| {
                 let name = path.file_name().unwrap().to_str().unwrap();
                 match () {
