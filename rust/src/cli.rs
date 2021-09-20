@@ -20,6 +20,7 @@ use crate::consumers::evaluator::PlaintextInterpreter;
 use crate::producers::sink::MemorySink;
 use crate::consumers::flattening::IRFlattener;
 use zkinterface::WorkspaceSink;
+use crate::consumers::exp_definable::ExpandDefinable;
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -124,7 +125,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
         "flatten"    => main_ir_flattening(options),
-//         "expand-definable" => main_expand_definable(options),
+        "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -448,84 +449,49 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 
 
 
-/*
+
 // Expand definable gates in IR1, like.
 // Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
 fn main_expand_definable(opts: &Options) -> Result<()> {
-    use crate::consumers::exp_definable::exp_definable_from;
-    use crate::structs::message::Message;
     use crate::structs::relation::parse_gate_set_string;
-    use crate::FILE_EXTENSION;
 
     let source  = stream_messages(opts)?;
     let out_dir = &opts.out;
-    let mut tws = opts.tmp_wire_start.clone();
-
-    // validator used for the initial circuit
-    let mut initial_validator = Validator::new(None);
-    // validator used for the flattened circuit
-    let mut flatten_validator = Validator::new(None);
 
     if let Some(gate_set) = opts.gate_set.clone() {
         match parse_gate_set_string(gate_set) {
             Ok(gate_mask) => {
-                for msg in source.iter_messages() {
-                    match msg? {
-                        Message::Instance(_) => {}
-                        Message::Witness(_)  => {}
-                        Message::Relation(relation) => {
-                            initial_validator.set_tws(tws);
-                            initial_validator.ingest_relation(&relation);
-                            print_violations(
-                                &initial_validator.get_strict_violations(),
-                                "The input statement",
-                                "COMPLIANT with the specification",
-                            )?;
-                            if initial_validator.how_many_violations() > 0 {
-                                return Err("Stopping here because of violations in input".into())
-                            }
+                if out_dir == Path::new("-") {
+                    let mut expander = ExpandDefinable::new(MemorySink::default(), gate_mask);
+                    let mut evaluator = Evaluator::default();
 
-                            let tmp_wire_start = initial_validator.get_tws();
-                            let (exp_relation, new_tws) = exp_definable_from(&relation, gate_mask, tmp_wire_start);
-                            tws = Some(new_tws);
-                            
-                            flatten_validator.ingest_relation(&exp_relation);
-
-                            if out_dir == Path::new("-") {
-                                exp_relation.write_into(&mut stdout())?;
-                            } else if has_sieve_extension(&out_dir) {
-                                let mut file = File::create(out_dir)?;
-                                exp_relation.write_into(&mut file)?;
-                            } else {
-                                create_dir_all(out_dir)?;
-                                let path = out_dir.join(format!("002_relation.{}", FILE_EXTENSION));
-                                let mut file = OpenOptions::new().create(true).append(true).open(<PathBuf as AsRef<Path>>::as_ref(&path))?;
-                                exp_relation.write_into(&mut file)?;
-                                eprintln!("Written {}", path.display());
-                            }
-
-                            print_violations(
-                                &flatten_validator.get_strict_violations(),
-                                "The flattened statement",
-                                "COMPLIANT with the specification",
-                            )?;
-                            if flatten_validator.how_many_violations() > 0 {
-                                return Err("Stopping here because of violations in output".into())
-                            }
-
-                        }
+                    for msg in source.iter_messages() {
+                        evaluator.ingest_message(&msg?, &mut expander);
                     }
-                }
-                Ok(())
-            }
-            Err(e)   => { Err(e) }
-        }
-    } else {
-        panic!()
-    }
-}
 
- */
+                    let s: Source = expander.finish().into();
+                    for msg in s.iter_messages() {
+                        let msg = msg?;
+                        msg.write_into(&mut stdout())?;
+                    }
+                } else if has_sieve_extension(&out_dir) {
+                    return Err("IR flattening requires a directory as output value".into());
+                } else {
+                    let mut expander = ExpandDefinable::new(FilesSink::new_clean(out_dir)?, gate_mask);
+                    let mut evaluator = Evaluator::default();
+
+                    for msg in source.iter_messages() {
+                        evaluator.ingest_message(&msg?, &mut expander);
+                    }
+                    expander.finish();
+                }
+            }
+            Err(a) => return Err(a),
+        }
+    }
+
+    Ok(())
+}
 
 fn print_violations(errors: &[String], which_statement: &str, what_it_is_supposed_to_be: &str) -> Result<()> {
     eprintln!();

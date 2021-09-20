@@ -17,7 +17,6 @@ pub mod utils;
 pub mod flattening;
 
 // Expand definable gates in SIEVE IR.
-// TODO fix
-// pub mod exp_definable;
+pub mod exp_definable;
 
 pub const TEMPORARY_WIRES_START: u64 = 1u64<<63;
