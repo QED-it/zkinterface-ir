@@ -14,11 +14,12 @@ use crate::consumers::{
     stats::Stats,
     validator::Validator,
 };
-use crate::producers::from_r1cs::R1CSConverter;
-use crate::{Messages, Result, Source, FilesSink, Sink};
+use crate::producers::from_r1cs::FromR1CSConverter;
+use crate::{Messages, Result, Source, FilesSink, Sink, Message};
 use crate::consumers::evaluator::PlaintextInterpreter;
 use crate::producers::sink::MemorySink;
 use crate::consumers::flattening::IRFlattener;
+use zkinterface::WorkspaceSink;
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -99,10 +100,6 @@ pub struct Options {
     #[structopt(short, long, default_value = "-")]
     pub resource: String,
 
-    /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
-    #[structopt(long)]
-    pub modular_reduce: bool,
-
     /// Which output file or directory to use when flattening circuits, expanding their definable gates, or producing zkif (R1CS). "-" means stdout.
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
@@ -110,7 +107,6 @@ pub struct Options {
     /// Target gate set for expanding definable gates.
     #[structopt(long)]
     pub gate_set: Option<String>,
-
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -126,7 +122,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "metrics" => main_metrics(&stream_messages(options)?),
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
-//         "ir-to-zkif" => main_ir_to_r1cs(options),
+        "ir-to-zkif" => main_ir_to_r1cs(options),
         "flatten"    => main_ir_flattening(options),
 //         "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
@@ -365,7 +361,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         }).ok_or("Header not present in ZKIF workspace.")?;
 
     // instantiate the converter
-    let mut converter = R1CSConverter::new(
+    let mut converter = FromR1CSConverter::new(
         FilesSink::new_clean(&PathBuf::from(".")).unwrap(), 
         &zki_header
     );
@@ -419,47 +415,32 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
 
 // Convert to R1CS zkinterface format.
 // Expects one instance, witness, and relation only.
-/*
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
-    use crate::producers::to_r1cs::to_r1cs;
+    use crate::producers::to_r1cs::ToR1CSConverter;
 
-    let messages = load_messages(opts)?;
+    let source  = stream_messages(opts)?;
+    let mut use_witness = false;
 
-    assert_eq!(messages.instances.len(), 1);
-    assert_eq!(messages.relations.len(), 1);
-    assert_eq!(messages.witnesses.len(), 1);
-
-    let instance = &messages.instances[0];
-    let relation = &messages.relations[0];
-    let witness  = &messages.witnesses[0];
-
-    let (zki_header, zki_r1cs, zki_witness) = to_r1cs(instance, &relation, witness, opts.modular_reduce);
-
+    for m in source.iter_messages() {
+        let m = m?;
+        // if there is at least one witness message, then we'll convert them as well.
+        match m {
+            Message::Witness(_) => {use_witness = true;}
+            _ => {/* DO NOTHING */}
+        }
+    }
     let out_dir = &opts.out;
 
-    if out_dir == Path::new("-") {
-        zki_header.write_into(&mut stdout())?;
-        zki_witness.write_into(&mut stdout())?;
-        zki_r1cs.write_into(&mut stdout())?;
-    } else if zkinterface::consumers::workspace::has_zkif_extension(out_dir) {
-        let mut file = File::create(out_dir)?;
-        zki_header.write_into(&mut file)?;
-        zki_witness.write_into(&mut file)?;
-        zki_r1cs.write_into(&mut file)?;
+    if out_dir == Path::new("-") || has_sieve_extension(&out_dir) {
+        return Err("IR->R1CS converter requires a directory as output value".into());
     } else {
-        create_dir_all(out_dir)?;
+        let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(out_dir)?, use_witness);
+        let mut evaluator = Evaluator::default();
 
-        let path = out_dir.join("header.zkif");
-        zki_header.write_into(&mut File::create(&path)?)?;
-        eprintln!("Written {}", path.display());
-
-        let path = out_dir.join("witness.zkif");
-        zki_witness.write_into(&mut File::create(&path)?)?;
-        eprintln!("Written {}", path.display());
-
-        let path = out_dir.join("constraints.zkif");
-        zki_r1cs.write_into(&mut File::create(&path)?)?;
-        eprintln!("Written {}", path.display());
+        for msg in source.iter_messages() {
+            evaluator.ingest_message(&msg?, &mut to_r1cs);
+        }
+        to_r1cs.finish()?;
     }
     
     Ok(())
@@ -467,7 +448,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 
 
 
-
+/*
 // Expand definable gates in IR1, like.
 // Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
 fn main_expand_definable(opts: &Options) -> Result<()> {
@@ -571,9 +552,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
-        modular_reduce: false,
         out: PathBuf::from("-"),
-        // tmp_wire_start: None,
         gate_set: None,
     })?;
 
@@ -583,9 +562,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
-        modular_reduce: false,
         out: PathBuf::from("-"),
-        // tmp_wire_start: None,
         gate_set: None,
     })?;
 

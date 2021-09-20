@@ -12,14 +12,14 @@ use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Witness as zkiWitness;
 use std::collections::BTreeMap;
 
-pub struct R1CSConverter<S: Sink> {
+pub struct FromR1CSConverter<S: Sink> {
     b: GateBuilder<S>,
     // Useful to know which variable in R1CS is associated to which WireId in IR circuit.
     r1cs_to_ir_wire: BTreeMap<u64, WireId>,
     minus_one: WireId,
 }
 
-impl<S: Sink> R1CSConverter<S> {
+impl<S: Sink> FromR1CSConverter<S> {
     /// Create a new R1CSConverter instance.
     /// the Sink is used to tell where to 'write' the output circuit
     /// the ZKI CircuitHeader will be used to preallocate things
@@ -153,7 +153,7 @@ use crate::consumers::evaluator::PlaintextInterpreter;
 
 
 #[cfg(test)]
-fn stats(conv: R1CSConverter<MemorySink> ) -> Stats {
+fn stats(conv: FromR1CSConverter<MemorySink> ) -> Stats {
     use crate::Source;
 
     let sink = conv.finish();
@@ -176,7 +176,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     let ir_header = zki_header_to_header(&zki_header)?;
     assert_header(&ir_header);
 
-    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
     converter.ingest_witness(&zki_witness)?;
     converter.ingest_constraints(&zki_r1cs)?;
@@ -230,7 +230,7 @@ fn test_r1cs_stats() -> Result<()> {
     let ir_header = zki_header_to_header(&zki_header)?;
     assert_header(&ir_header);
 
-    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
     converter.ingest_witness(&zki_witness)?;
     converter.ingest_constraints(&zki_r1cs)?;

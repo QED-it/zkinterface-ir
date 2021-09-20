@@ -12,4 +12,4 @@ pub mod from_r1cs;
 pub mod builder;
 // ir to r1cs converter
 // TODO fix
-// pub mod to_r1cs;
+pub mod to_r1cs;
