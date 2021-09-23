@@ -101,6 +101,10 @@ pub struct Options {
     #[structopt(short, long, default_value = "-")]
     pub resource: String,
 
+    /// `ir-to-zkif --modular-reduce` will produce zkinterface R1CS with baked-in modular reduction (because libsnark does not respect field size).
+    #[structopt(long)]
+    pub modular_reduce: bool,
+
     /// Which output file or directory to use when flattening circuits, expanding their definable gates, or producing zkif (R1CS). "-" means stdout.
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
@@ -435,7 +439,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     if out_dir == Path::new("-") || has_sieve_extension(&out_dir) {
         return Err("IR->R1CS converter requires a directory as output value".into());
     } else {
-        let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(out_dir)?, use_witness);
+        let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(out_dir)?, use_witness, opts.modular_reduce);
         let mut evaluator = Evaluator::default();
 
         for msg in source.iter_messages() {
@@ -518,6 +522,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
+        modular_reduce: false,
         out: PathBuf::from("-"),
         gate_set: None,
     })?;
@@ -528,6 +533,7 @@ fn test_cli() -> Result<()> {
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
+        modular_reduce: false,
         out: PathBuf::from("-"),
         gate_set: None,
     })?;
