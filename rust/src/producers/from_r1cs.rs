@@ -150,6 +150,7 @@ use crate::consumers::evaluator::Evaluator;
 use crate::consumers::stats::Stats;
 #[cfg(test)]
 use crate::consumers::evaluator::PlaintextInterpreter;
+use crate::structs::IR_VERSION;
 
 
 #[cfg(test)]
@@ -210,7 +211,7 @@ fn test_r1cs_to_gates() -> Result<()> {
 fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
 
-    assert_eq!(header.version, "1.0.0");
+    assert_eq!(header.version, IR_VERSION);
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
     assert_eq!(fc.to_u32().unwrap(), 101);
     assert_eq!(header.field_degree, 1);

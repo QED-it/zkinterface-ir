@@ -6,6 +6,7 @@ use std::error::Error;
 
 use super::value::{build_value, try_from_value, Value};
 use crate::sieve_ir_generated::sieve_ir as g;
+use crate::structs::IR_VERSION;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Header {
@@ -26,7 +27,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            version: "1.0.0".to_string(),
+            version: IR_VERSION.clone(),
             field_characteristic: vec![],
             field_degree: 1,
         }

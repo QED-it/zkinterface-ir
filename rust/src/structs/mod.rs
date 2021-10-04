@@ -33,3 +33,5 @@ pub mod iterators;
 
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
+
+pub const IR_VERSION: String = "1.0.0".to_string();
