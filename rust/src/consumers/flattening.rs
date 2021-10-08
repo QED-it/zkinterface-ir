@@ -203,7 +203,7 @@ fn test_validate_flattening() -> crate::Result<()> {
 #[test]
 fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::evaluator::{Evaluator, PlaintextInterpreter};
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
     use crate::producers::sink::MemorySink;
     use crate::Source;
 
@@ -221,7 +221,7 @@ fn test_evaluate_flattening() -> crate::Result<()> {
 
     let s: Source = flattener.finish().into();
 
-    let mut interpreter = PlaintextInterpreter::default();
+    let mut interpreter = PlaintextBackend::default();
     let new_simulator = Evaluator::from_messages(s.iter_messages(), &mut interpreter);
 
     assert_eq!(new_simulator.get_violations().len(), 0);

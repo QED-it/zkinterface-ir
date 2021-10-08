@@ -149,8 +149,8 @@ use crate::consumers::evaluator::Evaluator;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
 #[cfg(test)]
-use crate::consumers::evaluator::PlaintextInterpreter;
-use crate::structs::IR_VERSION;
+use crate::consumers::evaluator::PlaintextBackend;
+
 
 
 #[cfg(test)]
@@ -183,7 +183,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     converter.ingest_constraints(&zki_r1cs)?;
 
     let source: Source = converter.finish().into();
-    let mut interp = PlaintextInterpreter::default();
+    let mut interp = PlaintextBackend::default();
     let eval = Evaluator::from_messages(source.iter_messages(), &mut interp);
 
     // check instance
@@ -210,6 +210,7 @@ fn test_r1cs_to_gates() -> Result<()> {
 #[cfg(test)]
 fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
+    use crate::structs::IR_VERSION;
 
     assert_eq!(header.version, IR_VERSION);
     let fc = BigUint::from_bytes_le(&header.field_characteristic);

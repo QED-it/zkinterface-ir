@@ -16,7 +16,7 @@ use crate::consumers::{
 };
 use crate::producers::from_r1cs::FromR1CSConverter;
 use crate::{Messages, Result, Source, FilesSink, Sink, Message};
-use crate::consumers::evaluator::PlaintextInterpreter;
+use crate::consumers::evaluator::PlaintextBackend;
 use crate::producers::sink::MemorySink;
 use crate::consumers::flattening::IRFlattener;
 use zkinterface::WorkspaceSink;
@@ -285,7 +285,7 @@ fn main_validate(source: &Source) -> Result<()> {
 }
 
 fn main_evaluate(source: &Source) -> Result<()> {
-    let mut zkinterpreter = PlaintextInterpreter::default();
+    let mut zkinterpreter = PlaintextBackend::default();
     // Validate semantics as verifier.
     let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkinterpreter);
     print_violations(&evaluator.get_violations(), "The statement", "TRUE")
@@ -306,8 +306,8 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
     // Validate semantics as prover.
     let mut validator = Validator::new_as_prover();
     // Check whether the statement is true.
-    let mut zkinterpreter = PlaintextInterpreter::default();
-    let mut evaluator: Evaluator<PlaintextInterpreter> = Evaluator::default();
+    let mut zkinterpreter = PlaintextBackend::default();
+    let mut evaluator: Evaluator<PlaintextBackend> = Evaluator::default();
     // Measure metrics on the circuit.
     let mut stats = Stats::default();
 

@@ -8,6 +8,12 @@ use num_bigint::BigUint;
 use std::ops::{BitAnd, BitXor, Shr};
 use crate::structs::relation::{contains_feature, BOOL};
 
+/// The `ZKBackend` trait should be implemented by any backend that wants to evaluate SIEVE IR circuits.
+/// It has to define 2 types:
+///  - `Wire`: represents a variable in the circuit. It should implement the `Clone` trait.
+///  - `FieldElement`: represents elements of the underlying field. Mainly used when importing
+///                    instances/witnesses from the corresponding pools.
+/// see `PlaintextBackend` for an working example of an implementation.
 pub trait ZKBackend {
     /// If this type should not be cloned, prefer using a Rc<> of your type instead, with a proper
     /// implementation of the `Drop` trait.
@@ -15,27 +21,56 @@ pub trait ZKBackend {
     /// Usually a big Integer type.
     type FieldElement: 'static + Clone;
 
+    /// Imports a `Self::FieldElement` from a byte buffer, in little endian.
+    /// If the buffer does not represent an element of the underlying field, then
+    /// it returns an Err.
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
-    // If the field is not compatible with this ZKInterpreter, then it should return Err
+    /// Set the underlying field of the running backend.
+    /// If the field is not compatible with this ZKBackend, then it should return Err
     fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()>;
 
+    /// Returns a `Self::Wire` representing the constant '1' in the underlying field.
     fn one(&self) -> Self::Wire;
+    /// Returns a `Self::Wire` representing the constant '-1' in the underlying field.
     fn minus_one(&self) -> Self::Wire;
+    /// Returns a `Self::Wire` representing the constant '0' in the underlying field.
     fn zero(&self) -> Self::Wire;
 
+    /// Imports a constant value into a new `Self::Wire`.
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
+    /// This functions checks whether the given `Self::Wire` is indeed zero or not.
+    /// Depending upon whether `self` is in prover, or verifier mode, this function should act
+    /// accordingly. E.g. in prover mode, if the wire is not zero, then this function should
+    /// return an Err.
     fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()>;
 
+    /// Adds two wires into a new wire.
     fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    /// Multiplies two wires into a new wire.
     fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    /// Adds a given wire by a constant `Self::FieldElement` into a new wire.
     fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire>;
+    /// Multiplies a given wire by a constant `Self::FieldElement` into a new wire.
     fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire>;
 
+    /// Performs a boolean `and` between two wires. The result is stored in a new wire.
     fn and(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    /// Performs a boolean `xor` between two wires. The result is stored in a new wire.
     fn xor(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    /// Performs a boolean `not` on a given wire. The result is stored in a new wire.
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire>;
 
+    /// This functions declares a new instance variable owning the value given as parameter,
+    /// which should be stored in a new wire.
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
+    /// This functions declares a new witness variable owning the value given as parameter,
+    /// which should be stored in a new wire.
+    /// The value is given as a `Option`, because depending upon the type of this ZKBackend
+    /// (prover / verifier), it should act differently.
+    ///  - In prover mode, the witness should be provided, so the value should be `Some`.
+    ///  - In verifier mode, the witness should normally not be provided (except maybe in test mode)
+    /// Both cases should return a `Self::Wire` so the ZKBackend should have a specific wire value
+    /// to handle it when in verifier mode.
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire>;
 }
 
@@ -63,7 +98,9 @@ macro_rules! as_add {
     }};
 }
 
-pub struct FunctionDeclaration {
+/// This structure defines a function as defined in the circuit, but without the name.
+/// It's mainly used to retrieve information from the name.
+struct FunctionDeclaration {
     subcircuit: Vec<Gate>,
     instance_nbr: usize,
     witness_nbr: usize,
@@ -71,6 +108,26 @@ pub struct FunctionDeclaration {
     input_count: usize,
 }
 
+/// This structure is the core of IR evaluation. It is instanciated using a ZKBackend,
+/// and will read the IR circuit, parses it, and calls the corresponding function from the
+/// ZKBackend to evaluate each single operation.
+/// It will inline functions, unroll loops, and multiplex switches.
+///
+/// # Example
+/// ```
+/// use zki_sieve::consumers::evaluator::{PlaintextBackend, Evaluator};
+/// use zki_sieve::producers::examples::*;
+/// 
+/// let relation = example_relation();
+/// let instance = example_instance();
+/// let witness = example_witness();
+///
+/// let mut zkbackend = PlaintextBackend::default();
+/// let mut simulator = Evaluator::default();
+/// let _ = simulator.ingest_instance(&instance);
+/// let _ = simulator.ingest_witness(&witness);
+/// let _ = simulator.ingest_relation(&relation, &mut zkbackend);
+/// ```
 pub struct Evaluator<B: ZKBackend> {
     values: HashMap<WireId, B::Wire>,
     modulus: BigUint,
@@ -101,12 +158,17 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 }
 
 impl<B: ZKBackend> Evaluator<B> {
+    /// Creates an Evaluator for an iterator over `Messages`
+    /// The returned Evaluator can then be reused to ingest more messages using the one of the
+    /// `ingest_***` functions.
     pub fn from_messages(messages: impl Iterator<Item=Result<Message>>, backend: &mut B) -> Self {
         let mut evaluator = Evaluator::default();
         messages.for_each(|msg| evaluator.ingest_message(&msg.unwrap(), backend));
         evaluator
     }
 
+    /// Returns the list of violations detected when evaluating the IR circuit.
+    /// It consumes `self`.
     pub fn get_violations(self) -> Vec<String> {
         let mut violations = vec![];
         if !self.verified_at_least_one_gate {
@@ -118,6 +180,9 @@ impl<B: ZKBackend> Evaluator<B> {
         violations
     }
 
+    /// Ingests a `Message` using the ZKBackend given in parameter.
+    /// If a error was found in previous Messages, then it does nothing but returns,
+    /// otherwise it ingests the message.
     pub fn ingest_message(&mut self, msg: &Message, backend: &mut B) {
         if self.found_error.is_some() {
             return;
@@ -142,6 +207,8 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// Ingest an `Instance` message, and returns a `Result` whether ot nor an error
+    /// was encountered. It stores the instance values in a pool.
     pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
         self.ingest_header(&instance.header)?;
 
@@ -151,6 +218,8 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// Ingest an `Witness` message, and returns a `Result` whether ot nor an error
+    /// was encountered. It stores the witness values in a pool.
     pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
         self.ingest_header(&witness.header)?;
 
@@ -160,6 +229,7 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// Ingest a `Relation` message
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
         self.ingest_header(&relation.header)?;
         self.is_boolean = contains_feature(relation.gate_mask, BOOL);
@@ -198,6 +268,19 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// This function ingests one gate at a time (but can call itself recursively)
+    /// If the current gate is in a branch of a switch, then it has to be weighted.
+    /// The weight is used in `AssertZero` gates by multiplying the tested wire by the weight. It
+    /// allows to 'disable' assertions that are in a not-taken branch. The weight should propagate
+    /// to inner gates.
+    /// - `scope` contains the list of existing wires with their respective value. It will be
+    ///    augmented if this gate produces outputs, or reduced if this is a `GateFree`
+    /// - `known_functions` is the map of functions defined in previous or current `Relation` message
+    /// - `known_iterators` is the map of defined iterators. It will be temporarily updated if the
+    ///    current gate is a `GateFor`
+    /// - `modulus` and `is_boolean` are used mainly is switches to compute the weight of each branch.
+    /// - `instances` and `witnesses` are the instances and witnesses pools, implemented as Queues.
+    ///    They will be consumed whenever necessary.
     fn ingest_gate(
         gate: &Gate,
         backend: &mut B,
@@ -368,6 +451,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 )?;
             }
 
+            // For loops are unrolled. The body is called as many times (NB: the loop bounds are
+            // inclusive), and iterator expressions are evaluated for each.
             For(
                 iterator_name,
                 start_val,
@@ -435,6 +520,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 known_iterators.remove(iterator_name);
             },
 
+            // Switches are multiplexed. Each branch has a weight, which is (in plaintext) either 1
+            // or 0 (0 if the branch is not taken, 1 otherwise)
             Switch(condition, output_wires, cases, branches) => {
 
                 // determine the maximum instance/witness consumption
@@ -452,11 +539,16 @@ impl<B: ZKBackend> Evaluator<B> {
                     max_witness_count = std::cmp::max(max_witness_count, witness_cnt);
                 }
 
+                // 'consumes' max_instances and max_witnesses values from the corresponding pools
+                // by removing them from the instances/witnesses variables, and storing them into
+                // new queues. The new queues (a clone of them) will be used in each branch.
                 let mut new_instances: VecDeque<B::FieldElement> = instances.split_off(std::cmp::min(instances.len(), max_instance_count));
                     std::mem::swap(instances, &mut new_instances);
                 let mut new_witnesses: VecDeque<B::FieldElement> = witnesses.split_off(std::cmp::min(witnesses.len(), max_witness_count));
                     std::mem::swap(witnesses, &mut new_witnesses);
 
+                // This will handle the input/output wires for each branches. Output wires will then
+                // be combined using their respective weight.
                 let mut branches_scope = Vec::new();
 
                 let expanded_output = expand_wirelist(output_wires);
@@ -547,6 +639,11 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// This function is similar to `ingest_gate` except that it operates linearly on a subcircuit
+    /// (i.e. a list of gates in an inner body of another gate).
+    /// It will operate on an internal `scope`, and will write outputs produced by the subcircuit
+    /// into the caller scope.
+    /// Internally, it will call `ingest_gate` with the internal scope for each sub-gate.
     fn ingest_subcircuit(
         subcircuit: &[Gate],
         backend: &mut B,
@@ -580,6 +677,8 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// This helper function can be used to retrieve value of a given wire at some point
+    /// if it has *NOT* been freed yet, otherwise it will return an Err.
     pub fn get(&self, id: WireId) -> Result<&B::Wire> {
         get::<B>(&self.values, id)
     }
@@ -615,8 +714,8 @@ fn remove<I: ZKBackend>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) -> Res
         .ok_or(format!("No value given for wire_{}", id).into())
 }
 
-/// This function will compute the exponentiation of a given base to a given exponent recursively.
-/// It returns the wire holding the result.
+/// This function will compute the modular exponentiation of a given base to a given exponent
+/// recursively. It returns the wire holding the result.
 fn exp<I: ZKBackend>(backend: &mut I, base: &I::Wire, exponent: &BigUint, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
     if exponent.is_one() {
         return Ok(base.clone());
@@ -649,17 +748,23 @@ fn compute_weight<I: ZKBackend>(backend: &mut I, case: &[u8], condition: &I::Wir
 
 }
 
-
-pub struct PlaintextInterpreter {
+/// This is the default backend, evaluating a IR circuit in plaintext, meaning that it is not meant
+/// for security purposes, will never ensure ZK properties, ...
+/// It's used only for demo or tests.
+/// Moreover, it's not optimized at all for modular operations (e.g. modular multiplications) and
+/// can even be slower than a secure backend if the evaluated circuit contains a lot of such
+/// operations.
+/// Currently, this backend does not support 'verifier' mode, and requires witnesses to be provided.
+pub struct PlaintextBackend {
     pub m: BigUint,
     pub one: BigUint,
     pub minus_one: BigUint,
     pub zero: BigUint,
 }
 
-impl Default for PlaintextInterpreter {
+impl Default for PlaintextBackend {
     fn default() -> Self {
-        PlaintextInterpreter {
+        PlaintextBackend {
             one: BigUint::one(),
             m: BigUint::zero(),
             minus_one: BigUint::zero(),
@@ -668,7 +773,7 @@ impl Default for PlaintextInterpreter {
     }
 }
 
-impl ZKBackend for PlaintextInterpreter {
+impl ZKBackend for PlaintextBackend {
     type Wire = BigUint;
     type FieldElement = BigUint;
 
@@ -748,14 +853,14 @@ impl ZKBackend for PlaintextInterpreter {
     }
 
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
-        self.constant(val.unwrap_or_else(|| panic!("Missing witness value for PlaintextInterpreter")))
+        self.constant(val.unwrap_or_else(|| panic!("Missing witness value for PlaintextBackend")))
     }
 }
 
 #[test]
 fn test_exponentiation() -> Result<()> {
 
-    let mut backend = PlaintextInterpreter::default();
+    let mut backend = PlaintextBackend::default();
 
     let moduli = vec![
         BigUint::from(16249742125730185677094195492597105093u128),
@@ -799,7 +904,7 @@ fn test_evaluator() -> crate::Result<()> {
     let instance = example_instance();
     let witness = example_witness();
 
-    let mut zkbackend = PlaintextInterpreter::default();
+    let mut zkbackend = PlaintextBackend::default();
     let mut simulator = Evaluator::default();
     simulator.ingest_instance(&instance)?;
     simulator.ingest_witness(&witness)?;
@@ -861,7 +966,7 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
     let instance = example_instance();
     let witness = example_witness_incorrect();
 
-    let mut zkbackend = PlaintextInterpreter::default();
+    let mut zkbackend = PlaintextBackend::default();
     let mut simulator = Evaluator::default();
     let _ = simulator.ingest_instance(&instance);
     let _ = simulator.ingest_witness(&witness);

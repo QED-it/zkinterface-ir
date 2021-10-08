@@ -27,7 +27,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            version: IR_VERSION.clone(),
+            version: IR_VERSION.to_string(),
             field_characteristic: vec![],
             field_degree: 1,
         }
