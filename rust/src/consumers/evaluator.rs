@@ -973,7 +973,7 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
     let should_be_err = simulator.ingest_relation(&relation, &mut zkbackend);
 
     assert!(should_be_err.is_err());
-    assert_eq!("Wire_8 (may be weighted) should be 0, while it is not", should_be_err.err().unwrap().to_string());
+    assert_eq!("Wire_9 (may be weighted) should be 0, while it is not", should_be_err.err().unwrap().to_string());
 
     Ok(())
 }

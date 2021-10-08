@@ -290,9 +290,9 @@ fn test_stats() -> crate::Result<()> {
         field_degree: 1,
         gate_stats: GateStats {
             instance_variables: 3,
-            witness_variables: 3,
+            witness_variables: 4,
             constants_gates: 1,
-            assert_zero_gates: 3,
+            assert_zero_gates: 6,
             copy_gates: 0,
             add_gates: 25,
             mul_gates: 21,
