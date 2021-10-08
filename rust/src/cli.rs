@@ -365,20 +365,46 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
             _ => None,
         }).ok_or("Header not present in ZKIF workspace.")?;
 
-    // instantiate the converter
-    let mut converter = FromR1CSConverter::new(
-        FilesSink::new_clean(&PathBuf::from(".")).unwrap(), 
-        &zki_header
-    );
-    // Ingest all non-header messages
-    for message in workspace.iter_messages() {
-        match message {
-            Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
-            Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
-            _ => {}
+    let out_dir = &opts.out;
+    if out_dir == Path::new("-") {
+        let mut converter = FromR1CSConverter::new(
+            MemorySink::default(),
+            &zki_header
+        );
+
+        // Ingest all non-header messages
+        for message in workspace.iter_messages() {
+            match message {
+                Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+                Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
+                _ => {}
+            }
         }
+
+        let s: Source = converter.finish().into();
+        for msg in s.iter_messages() {
+            let msg = msg?;
+            msg.write_into(&mut stdout())?;
+        }
+    } else if has_sieve_extension(&out_dir) {
+        return Err("IR flattening requires a directory as output value".into());
+    } else {
+        // instantiate the converter
+        let mut converter = FromR1CSConverter::new(
+            FilesSink::new_clean(out_dir).unwrap(),
+            &zki_header
+        );
+
+        // Ingest all non-header messages
+        for message in workspace.iter_messages() {
+            match message {
+                Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+                Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
+                _ => {}
+            }
+        }
+        converter.finish();
     }
-    converter.finish();
 
     Ok(())
 }
