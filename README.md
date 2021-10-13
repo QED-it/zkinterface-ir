@@ -373,12 +373,17 @@ This API has been written to allow backends to easily operate on IR without havi
 the complexity, and future upgrades of IR specifications, nor the internal structures described in the 
 previous section.
 
-This API is currently used in many cases throughout this project, such as:
+The core of it is the `ZKBackend` trait defined in `consumers/evaluator.rs`. It has to be implemented by any backend
+wanting to deal with IR.
+See for example `PlaintextBackend` for a simple (but unsecure) implementation of this trait.
+
+This trait is currently used in many cases throughout this project, such as:
   - the circuit evaluator to ensure that a circuit is verified
   - the IR to IR-simple converter
-  - the R1CS to IR converter
-  
-See for example the `PlaintextBackend` for a simple (but unsecure) implementation of this trait.
+  - the IR to R1CS converter  
+
+This API is the recommended way for backends to operate on SIEVE IR, since it's independent from the internal structures,
+and will decrease the development overhead of new versions of the standard.
 
 ### Low-level serialization
 

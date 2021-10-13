@@ -24,8 +24,7 @@ pub mod value;
 
 /// WireList are used to defined a wire, a range of wires, or a mix of both
 pub mod wire;
-// Subcircuits are used to define bodies of For/Switch/Function
-// pub mod subcircuit;
+
 /// Handles the AnonGate stuff
 pub mod function;
 /// Handles For loops related stuff (mainly because of iterator expression).
