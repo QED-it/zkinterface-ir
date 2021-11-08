@@ -23,7 +23,7 @@ impl<'a> TryFrom<g::Instance<'a>> for Instance {
         Ok(Instance {
             header: Header::try_from(g_instance.header())?,
             common_inputs: try_from_values_vector(
-                g_instance.common_inputs().ok_or("Missing common_input")?,
+                g_instance.common_inputs().ok_or_else(|| "Missing common_input")?,
             )?,
         })
     }
@@ -36,7 +36,7 @@ impl<'a> TryFrom<&'a [u8]> for Instance {
         Instance::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_instance()
-                .ok_or("Not a Instance message.")?,
+                .ok_or_else(|| "Not a Instance message.")?,
         )
     }
 }

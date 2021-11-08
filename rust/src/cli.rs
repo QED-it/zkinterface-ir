@@ -363,7 +363,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         .find_map(|mess| match mess {
             Message::Header(head) => Some(head),
             _ => None,
-        }).ok_or("Header not present in ZKIF workspace.")?;
+        }).ok_or_else(|| "Header not present in ZKIF workspace.")?;
 
     let out_dir = &opts.out;
     if out_dir == Path::new("-") {

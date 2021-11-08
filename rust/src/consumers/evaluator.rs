@@ -401,7 +401,7 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             Call(name, output_wires, input_wires) => {
-                let function = known_functions.get(name).ok_or("Unknown function")?;
+                let function = known_functions.get(name).ok_or_else(|| "Unknown function")?;
                 let expanded_output = expand_wirelist(output_wires);
                 let expanded_input = expand_wirelist(input_wires);
 
@@ -705,13 +705,13 @@ fn set<I: ZKBackend>(scope: &mut HashMap<WireId, I::Wire>, id: WireId, wire: I::
 pub fn get<I: ZKBackend>(scope: &HashMap<WireId, I::Wire>, id: WireId) -> Result<&I::Wire> {
     scope
         .get(&id)
-        .ok_or(format!("No value given for wire_{}", id).into())
+        .ok_or_else(|| format!("No value given for wire_{}", id).into())
 }
 
 fn remove<I: ZKBackend>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) -> Result<I::Wire> {
     scope
         .remove(&id)
-        .ok_or(format!("No value given for wire_{}", id).into())
+        .ok_or_else(|| format!("No value given for wire_{}", id).into())
 }
 
 /// This function will compute the modular exponentiation of a given base to a given exponent

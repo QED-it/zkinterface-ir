@@ -23,7 +23,7 @@ impl<'a> TryFrom<g::Witness<'a>> for Witness {
         Ok(Witness {
             header: Header::try_from(g_witness.header())?,
             short_witness: try_from_values_vector(
-                g_witness.short_witness().ok_or("Missing short_witness")?,
+                g_witness.short_witness().ok_or_else(|| "Missing short_witness")?,
             )?,
         })
     }
@@ -36,7 +36,7 @@ impl<'a> TryFrom<&'a [u8]> for Witness {
         Witness::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_witness()
-                .ok_or("Not a Witness message.")?,
+                .ok_or_else(|| "Not a Witness message.")?,
         )
     }
 }

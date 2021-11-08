@@ -39,13 +39,13 @@ impl<'a> TryFrom<Option<g::Header<'a>>> for Header {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_header: Option<g::Header>) -> Result<Header> {
-        let g_header = g_header.ok_or("Missing header")?;
+        let g_header = g_header.ok_or_else(|| "Missing header")?;
         Ok(Header {
-            version: g_header.version().ok_or("Missing version")?.to_string(),
+            version: g_header.version().ok_or_else(|| "Missing version")?.to_string(),
             field_characteristic: try_from_value(
                 g_header
                     .field_characteristic()
-                    .ok_or("Missing field characteristic")?,
+                    .ok_or_else(|| "Missing field characteristic")?,
             )?,
             field_degree: g_header.field_degree(),
         })

@@ -34,10 +34,10 @@ impl<'a> TryFrom<g::Function<'a>> for Function {
     fn try_from(g_function: g::Function) -> Result<Function> {
         let g_directives = g_function
             .body()
-            .ok_or("Missing reference implementation")?;
+            .ok_or_else(|| "Missing reference implementation")?;
 
         Ok(Function {
-            name: g_function.name().ok_or("Missing name") ?.to_string(),
+            name: g_function.name().ok_or_else(|| "Missing name")?.to_string(),
             output_count: g_function.output_count() as usize,
             input_count: g_function.input_count() as usize,
             instance_count: g_function.instance_count() as usize,
@@ -145,10 +145,10 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
                 let gate_anon_call = g_caseinvoke.invocation_as_abstract_anon_call().unwrap();
                 let g_subcircuit = gate_anon_call
                     .subcircuit()
-                    .ok_or("Missing implementation")?;
+                    .ok_or_else(|| "Missing implementation")?;
                 let subcircuit = Gate::try_from_vector(g_subcircuit)?;
                 AbstractAnonCall(
-                    WireList::try_from(gate_anon_call.input_wires().ok_or("Missing inputs")?)?,
+                    WireList::try_from(gate_anon_call.input_wires().ok_or_else(|| "Missing inputs")?)?,
                     gate_anon_call.instance_count() as usize,
                     gate_anon_call.witness_count() as usize,
                     subcircuit,
@@ -162,8 +162,8 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
 /// CaseInvoke internal structure.
 pub fn from_gate_call(gate_call: g::AbstractGateCall) -> Result<CaseInvoke> {
     Ok(AbstractGateCall(
-        gate_call.name().ok_or("Missing function name.")?.into(),
-        WireList::try_from(gate_call.input_wires().ok_or("Missing inputs")?)?
+        gate_call.name().ok_or_else(|| "Missing function name.")?.into(),
+        WireList::try_from(gate_call.input_wires().ok_or_else(|| "Missing inputs")?)?
     ))
 }
 

@@ -46,7 +46,7 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_relation: g::Relation) -> Result<Relation> {
-        let g_gates = g_relation.directives().ok_or("Missing directives")?;
+        let g_gates = g_relation.directives().ok_or_else(|| "Missing directives")?;
         let functions = if let Some(g_functions) = g_relation.functions() {
             Function::try_from_vector(g_functions)?
         } else {
@@ -55,8 +55,8 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
         Ok(Relation {
             header: Header::try_from(g_relation.header())?,
-            gate_mask: parse_gate_set(g_relation.gateset().ok_or("Missing gateset description")?)?,
-            feat_mask: parse_feature_toggle(g_relation.features().ok_or("Missing feature toggles")?)?,
+            gate_mask: parse_gate_set(g_relation.gateset().ok_or_else(|| "Missing gateset description")?)?,
+            feat_mask: parse_feature_toggle(g_relation.features().ok_or_else(|| "Missing feature toggles")?)?,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
         })
@@ -70,7 +70,7 @@ impl<'a> TryFrom<&'a [u8]> for Relation {
         Relation::try_from(
             g::get_size_prefixed_root_as_root(&buffer)
                 .message_as_relation()
-                .ok_or("Not a Relation message.")?,
+                .ok_or_else(|| "Not a Relation message.")?,
         )
     }
 }
