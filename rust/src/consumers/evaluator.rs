@@ -15,9 +15,7 @@ use crate::structs::relation::{contains_feature, BOOL};
 ///                    instances/witnesses from the corresponding pools.
 /// see `PlaintextBackend` for an working example of an implementation.
 pub trait ZKBackend {
-    /// If this type should not be cloned, prefer using a Rc<> of your type instead, with a proper
-    /// implementation of the `Drop` trait.
-    type Wire: Clone;
+    type Wire;
     /// Usually a big Integer type.
     type FieldElement: 'static + Clone;
 
@@ -35,6 +33,9 @@ pub trait ZKBackend {
     fn minus_one(&self) -> Self::Wire;
     /// Returns a `Self::Wire` representing the constant '0' in the underlying field.
     fn zero(&self) -> Self::Wire;
+
+    // Returns a new instance of a given Wire id
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire;
 
     /// Imports a constant value into a new `Self::Wire`.
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire>;
@@ -318,7 +319,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 let should_be_zero = if let Some(w) = weight {
                     as_mul!(backend, w, inp_wire, is_boolean)?
                 } else {
-                    inp_wire.clone()
+                    backend.copy(&inp_wire)
                 };
                 if backend.assert_zero(&should_be_zero).is_err() {
                     return Err(format!("Wire_{} (may be weighted) should be 0, while it is not", *inp).into());
@@ -327,7 +328,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
             Copy(out, inp) => {
                 let in_wire = get!(*inp)?;
-                let out_wire = in_wire.clone();
+                let out_wire = backend.copy(in_wire);
                 set!(*out, out_wire)?;
             }
 
@@ -579,7 +580,8 @@ impl<B: ZKBackend> Evaluator<B> {
                             }
 
                             for wire in expanded_input.iter() {
-                                branch_scope.insert(*wire, get!(*wire)?.clone());
+                                let w = get!(*wire)?;
+                                branch_scope.insert(*wire, backend.copy(w));
                             }
                             Self::ingest_subcircuit(
                                 &function.subcircuit,
@@ -599,7 +601,8 @@ impl<B: ZKBackend> Evaluator<B> {
                         CaseInvoke::AbstractAnonCall(input_wires, _, _, subcircuit) => {
                             let expanded_input = expand_wirelist(input_wires);
                             for wire in expanded_input.iter() {
-                                branch_scope.insert(*wire, get!(*wire)?.clone());
+                                let w = get!(*wire)?;
+                                branch_scope.insert(*wire, backend.copy(w));
                             }
                             Self::ingest_subcircuit(
                                 subcircuit,
@@ -627,7 +630,7 @@ impl<B: ZKBackend> Evaluator<B> {
                     let weighted_output =
                         branches_scope.iter()
                             .zip(weights.iter())
-                            .fold(Ok(backend.zero().clone()), |accu, (branch_scope, branch_weight)| {
+                            .fold(Ok(backend.zero()), |accu, (branch_scope, branch_weight)| {
                                 let weighted_wire = as_mul!(backend, get::<B>(branch_scope, *output_wire)?, branch_weight, is_boolean)?;
                                 as_add!(backend, &accu?, &weighted_wire, is_boolean)
                             }
@@ -662,7 +665,8 @@ impl<B: ZKBackend> Evaluator<B> {
 
         // copy the inputs required by this function into the new scope, at the proper index
         for (idx, input) in input_list.iter().enumerate() {
-            set::<B>(&mut new_scope, (idx + output_list.len()) as u64, get::<B>(scope, *input)?.clone())?;
+            let i = get::<B>(scope, *input)?;
+            set::<B>(&mut new_scope, (idx + output_list.len()) as u64, backend.copy(i))?;
         }
         // evaluate the subcircuit in the new scope.
         for gate in subcircuit {
@@ -671,7 +675,8 @@ impl<B: ZKBackend> Evaluator<B> {
         // copy the outputs produced from 'new_scope', into 'scope'
 
         for (idx, output) in output_list.iter().enumerate() {
-            set::<B>(scope, *output, get::<B>(&new_scope, idx as u64)?.clone())?;
+            let w = get::<B>(&new_scope, idx as u64)?;
+            set::<B>(scope, *output, backend.copy(w))?
         }
 
         Ok(())
@@ -718,7 +723,7 @@ fn remove<I: ZKBackend>(scope: &mut HashMap<WireId, I::Wire>, id: WireId) -> Res
 /// recursively. It returns the wire holding the result.
 fn exp<I: ZKBackend>(backend: &mut I, base: &I::Wire, exponent: &BigUint, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
     if exponent.is_one() {
-        return Ok(base.clone());
+        return Ok(backend.copy(base));
     }
 
     let previous = exp(backend, base, &exponent.shr(1), modulus, is_boolean)?;
@@ -807,6 +812,8 @@ impl ZKBackend for PlaintextBackend {
     fn zero(&self) -> Self::Wire {
         self.zero.clone()
     }
+
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire { wire.clone() }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         Ok(val)
@@ -933,6 +940,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         fn one(&self) -> Self::Wire {1}
         fn minus_one(&self) -> Self::Wire {-1}
         fn zero(&self) -> Self::Wire {0}
+        fn copy(&mut self, _wire: &Self::Wire) -> Self::Wire {*_wire}
         fn constant(&mut self, _val: Self::FieldElement) -> Result<Self::Wire> {Ok(0)}
         fn assert_zero(&mut self, _wire: &Self::Wire) -> Result<()> {Ok(())}
         fn add(&mut self, _a: &Self::Wire, _b: &Self::Wire) -> Result<Self::Wire> {Ok(0)}

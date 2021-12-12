@@ -142,6 +142,8 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         self.zero
     }
 
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire { u64::clone(wire) }
+
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         let id = self.builder.allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
         self.make_assignment(id, Some(val))?;

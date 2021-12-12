@@ -45,6 +45,8 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.zero()
     }
 
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire{ wire.clone() }
+
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         self.inner.constant(val)
     }

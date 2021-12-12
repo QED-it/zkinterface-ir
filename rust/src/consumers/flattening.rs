@@ -87,6 +87,13 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.zero
     }
 
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        wire.clone()
+    }
+
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
