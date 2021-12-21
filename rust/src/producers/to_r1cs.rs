@@ -124,22 +124,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
             })?;
         }
         if degree != 1 {
-            Err("Degree higher than 1 are not supported".into())
+            Err("Degree higher than 1 is not supported".into())
         } else {
             Ok(())
         }
-    }
-
-    fn one(&self) -> Self::Wire {
-        self.one
-    }
-
-    fn minus_one(&self) -> Self::Wire {
-        self.minus_one
-    }
-
-    fn zero(&self) -> Self::Wire {
-        self.zero
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Self::Wire { u64::clone(wire) }
@@ -315,7 +303,8 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     }
 
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
-        self.add(a, &self.one())
+        let one_buff = &BigUint::one().to_bytes_le();
+        self.add_constant(a, Self::from_bytes_le(one_buff)?)
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {

@@ -59,32 +59,12 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                 field_degree: degree,
             };
             self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
+            //todo: remove
             self.zero = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![0]));
             self.one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![1]));
             self.minus_one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant((BigUint::from_bytes_le(modulus) - BigUint::one()).to_bytes_le()));
         }
         Ok(())
-    }
-
-    fn one(&self) -> Self::Wire {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.one
-    }
-
-    fn minus_one(&self) -> Self::Wire {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.minus_one
-    }
-
-    fn zero(&self) -> Self::Wire {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.zero
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Self::Wire {
