@@ -88,11 +88,10 @@ fn as_add<B: ZKBackend>(backend: &mut B, a: &B::Wire, b: &B::Wire, is_bool: bool
     }
 }
 
-//add negate
+// Computes an 'multiplication' with constant. Boolean fields are not supported.
 fn as_mulc<B: ZKBackend>(backend: &mut B, wire: &B::Wire, constant_buf: &[u8], is_bool: bool) -> Result<B::Wire> {
     if is_bool {
-        // Err("Cannot multiply by constant while using a boolean field".into())
-        unimplemented!()
+        unimplemented!("Cannot multiply by constant while using a boolean field")
     } else {
         backend.mul_constant(wire, B::from_bytes_le(constant_buf)?)
     }
