@@ -4,7 +4,6 @@ use crate::structs::relation::{SIMPLE, ARITH, BOOL};
 use crate::consumers::evaluator::{ZKBackend};
 use num_bigint::BigUint;
 use crate::producers::build_gates::BuildGate;
-use num_traits::One;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
 // Free gate when the wire is no more needed.
@@ -13,9 +12,6 @@ use num_traits::One;
 pub struct IRFlattener<S: Sink> {
     sink: Option<S>,
     b: Option<GateBuilder<S>>,
-    one: WireId,
-    zero: WireId,
-    minus_one: WireId,
 }
 
 impl<S: Sink> IRFlattener<S> {
@@ -23,9 +19,6 @@ impl<S: Sink> IRFlattener<S> {
         IRFlattener {
             sink: Some(sink),
             b: None,
-            one: 0,
-            zero: 0,
-            minus_one: 0,
         }
     }
 
@@ -59,10 +52,6 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                 field_degree: degree,
             };
             self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
-            //todo: remove
-            self.zero = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![0]));
-            self.one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![1]));
-            self.minus_one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant((BigUint::from_bytes_le(modulus) - BigUint::one()).to_bytes_le()));
         }
         Ok(())
     }

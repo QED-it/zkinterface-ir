@@ -35,7 +35,7 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.set_field(modulus, degree, is_boolean)
     }
 
-    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire{ wire.clone() }
+    fn copy(&mut self, wire: &Self::Wire) -> Self::Wire{ self.inner.copy(wire) }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         self.inner.constant(val)

@@ -118,7 +118,7 @@ struct FunctionDeclaration {
     input_count: usize,
 }
 
-/// This structure is the core of IR evaluation. It is instanciated using a ZKBackend,
+/// This structure is the core of IR evaluation. It is instantiated using a ZKBackend,
 /// and will read the IR circuit, parses it, and calls the corresponding function from the
 /// ZKBackend to evaluate each single operation.
 /// It will inline functions, unroll loops, and multiplex switches.
@@ -926,7 +926,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         type FieldElement = BigUint;
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
         fn set_field(&mut self, _modulus: &[u8], _degree: u32, _is_boolean: bool) -> Result<()> {Ok(())}
-        fn copy(&mut self, _wire: &Self::Wire) -> Self::Wire {*_wire}
+        fn copy(&mut self, wire: &Self::Wire) -> Self::Wire {*wire}
         fn constant(&mut self, _val: Self::FieldElement) -> Result<Self::Wire> {Ok(0)}
         fn assert_zero(&mut self, _wire: &Self::Wire) -> Result<()> {Ok(())}
         fn add(&mut self, _a: &Self::Wire, _b: &Self::Wire) -> Result<Self::Wire> {Ok(0)}
