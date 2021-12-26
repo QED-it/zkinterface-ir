@@ -88,21 +88,23 @@ fn as_add<B: ZKBackend>(backend: &mut B, a: &B::Wire, b: &B::Wire, is_bool: bool
     }
 }
 
-// Computes an 'multiplication' with constant. Boolean fields are not supported.
-fn as_mulc<B: ZKBackend>(backend: &mut B, wire: &B::Wire, constant_buf: &[u8], is_bool: bool) -> Result<B::Wire> {
+// Computes the 'negative' value. `minus_one_buf` must be provided and include a buffer with modulus minus one
+fn as_negate<B: ZKBackend>(backend: &mut B, wire: &B::Wire, minus_one_buf: &[u8], is_bool: bool) -> Result<B::Wire> {
     if is_bool {
-        unimplemented!("Cannot multiply by constant while using a boolean field")
+        // negation in boolean field is identity
+        Ok(backend.copy(wire))
     } else {
-        backend.mul_constant(wire, B::from_bytes_le(constant_buf)?)
+        backend.mul_constant(wire, B::from_bytes_le(minus_one_buf)?)
     }
 }
 
 // Computes an 'addition' with constant. Boolean fields are not supported.
-fn as_addc<B: ZKBackend>(backend: &mut B, wire: &B::Wire, constant_buf: &[u8], is_bool: bool) -> Result<B::Wire> {
+fn as_add_one<B: ZKBackend>(backend: &mut B, wire: &B::Wire, is_bool: bool) -> Result<B::Wire> {
     if is_bool {
-        unimplemented!("Cannot add constant while using a boolean field")
+        // adding one in boolean field is not
+        backend.not(wire)
     } else {
-        backend.add_constant(wire, B::from_bytes_le(constant_buf)?)
+        backend.add_constant(wire, B::from_bytes_le(&[1u8])?)
     }
 }
 
@@ -749,11 +751,11 @@ fn compute_weight<I: ZKBackend>(backend: &mut I, case: &[u8], condition: &I::Wir
     let p_minus_one = modulus - &BigUint::one();
     let minus_one_buf = &p_minus_one.to_bytes_le();
 
-    let minus_cond = &as_mulc(backend, condition, minus_one_buf, is_boolean)?;
+    let minus_cond = &as_negate(backend, condition, minus_one_buf, is_boolean)?;
     let base = &as_add(backend, case_wire, minus_cond, is_boolean)?;
     let base_to_exp = &exp(backend, base, &p_minus_one, modulus, is_boolean)?;
-    let right = &as_mulc(backend, base_to_exp, minus_one_buf, is_boolean)?;
-    as_addc(backend, right, &BigUint::one().to_bytes_le(), is_boolean)
+    let right = &as_negate(backend, base_to_exp, minus_one_buf, is_boolean)?;
+    as_add_one(backend, right, is_boolean)
 }
 
 /// This is the default backend, evaluating a IR circuit in plaintext, meaning that it is not meant
