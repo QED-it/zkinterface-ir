@@ -60,7 +60,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(wire.clone())
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Copy(*wire)))
     }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
