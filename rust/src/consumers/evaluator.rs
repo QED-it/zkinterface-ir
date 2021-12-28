@@ -4,7 +4,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use num_bigint::BigUint;
+use num_bigint::{BigUint};
 use std::ops::{BitAnd, BitXor, Shr};
 use crate::structs::relation::{contains_feature, BOOL};
 
@@ -26,6 +26,11 @@ pub trait ZKBackend {
     /// Set the underlying field of the running backend.
     /// If the field is not compatible with this ZKBackend, then it should return Err
     fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()>;
+
+    /// Returns a `FieldElement` representing '1' in the underlying field.
+    fn one(&self) -> Self::FieldElement;
+    /// Returns a `FieldElement` representing '-1' in the underlying field.
+    fn minus_one(&self) -> Result<Self::FieldElement>;
 
     // Returns a new instance of a given Wire id
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire>;
@@ -89,12 +94,12 @@ fn as_add<B: ZKBackend>(backend: &mut B, a: &B::Wire, b: &B::Wire, is_bool: bool
 }
 
 // Computes the 'negative' value. `minus_one_buf` must be provided and include a buffer with modulus minus one
-fn as_negate<B: ZKBackend>(backend: &mut B, wire: &B::Wire, minus_one_buf: &[u8], is_bool: bool) -> Result<B::Wire> {
+fn as_negate<B: ZKBackend>(backend: &mut B, wire: &B::Wire, minus_one: B::FieldElement, is_bool: bool) -> Result<B::Wire> {
     if is_bool {
         // negation in boolean field is identity
         backend.copy(wire)
     } else {
-        backend.mul_constant(wire, B::from_bytes_le(minus_one_buf)?)
+        backend.mul_constant(wire, minus_one)
     }
 }
 
@@ -748,13 +753,14 @@ fn exp<I: ZKBackend>(backend: &mut I, base: &I::Wire, exponent: &BigUint, modulu
 /// This function will compute '1 - (case - condition)^(p-1)' using a bunch of mul/and add/xor addc/xorc gates
 fn compute_weight<I: ZKBackend>(backend: &mut I, case: &[u8], condition: &I::Wire, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
     let case_wire = &backend.constant(I::from_bytes_le(case)?)?;
-    let p_minus_one = modulus - &BigUint::one();
-    let minus_one_buf = &p_minus_one.to_bytes_le();
+    // scalar value
+    let exponent = modulus - &BigUint::one();
+    let minus_one_fe = backend.minus_one()?;
 
-    let minus_cond = &as_negate(backend, condition, minus_one_buf, is_boolean)?;
+    let minus_cond = &as_negate(backend, condition, minus_one_fe.clone(), is_boolean)?;
     let base = &as_add(backend, case_wire, minus_cond, is_boolean)?;
-    let base_to_exp = &exp(backend, base, &p_minus_one, modulus, is_boolean)?;
-    let right = &as_negate(backend, base_to_exp, minus_one_buf, is_boolean)?;
+    let base_to_exp = &exp(backend, base, &exponent, modulus, is_boolean)?;
+    let right = &as_negate(backend, base_to_exp, minus_one_fe, is_boolean)?;
     as_add_one(backend, right, is_boolean)
 }
 
@@ -766,19 +772,13 @@ fn compute_weight<I: ZKBackend>(backend: &mut I, case: &[u8], condition: &I::Wir
 /// operations.
 /// Currently, this backend does not support 'verifier' mode, and requires witnesses to be provided.
 pub struct PlaintextBackend {
-    pub m: BigUint,
-    pub one: BigUint,
-    pub minus_one: BigUint,
-    pub zero: BigUint,
+    pub m: BigUint
 }
 
 impl Default for PlaintextBackend {
     fn default() -> Self {
         PlaintextBackend {
-            one: BigUint::one(),
-            m: BigUint::zero(),
-            minus_one: BigUint::zero(),
-            zero: BigUint::zero(),
+            m: BigUint::zero()
         }
     }
 }
@@ -798,9 +798,19 @@ impl ZKBackend for PlaintextBackend {
         } else if degree != 1 {
             Err("Field should be of degree 1".into())
         } else {
-            self.minus_one = &self.m - &self.one;
             Ok(())
         }
+    }
+
+    fn one(&self) -> Self::FieldElement {
+        BigUint::one()
+    }
+
+    fn minus_one(&self) -> Result<Self::FieldElement> {
+        if self.m.is_zero() {
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+        }
+        Ok(&self.m-self.one())
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(wire.clone()) }
@@ -924,6 +934,8 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         type FieldElement = BigUint;
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
         fn set_field(&mut self, _modulus: &[u8], _degree: u32, _is_boolean: bool) -> Result<()> {Ok(())}
+        fn one(&self) -> Self::FieldElement {BigUint::one()}
+        fn minus_one(&self) -> Result<Self::FieldElement> {Ok(BigUint::one())}
         fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {Ok(*wire)}
         fn constant(&mut self, _val: Self::FieldElement) -> Result<Self::Wire> {Ok(0)}
         fn assert_zero(&mut self, _wire: &Self::Wire) -> Result<()> {Ok(())}

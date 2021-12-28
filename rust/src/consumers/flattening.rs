@@ -3,6 +3,7 @@ use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::relation::{SIMPLE, ARITH, BOOL};
 use crate::consumers::evaluator::{ZKBackend};
 use num_bigint::BigUint;
+use num_traits::{One, Zero};
 use crate::producers::build_gates::BuildGate;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
@@ -12,6 +13,7 @@ use crate::producers::build_gates::BuildGate;
 pub struct IRFlattener<S: Sink> {
     sink: Option<S>,
     b: Option<GateBuilder<S>>,
+    modulus: BigUint,
 }
 
 impl<S: Sink> IRFlattener<S> {
@@ -19,6 +21,7 @@ impl<S: Sink> IRFlattener<S> {
         IRFlattener {
             sink: Some(sink),
             b: None,
+            modulus: BigUint::zero(),
         }
     }
 
@@ -51,9 +54,21 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                 field_characteristic: Value::from(modulus),
                 field_degree: degree,
             };
+            self.modulus = BigUint::from_bytes_le(modulus);
             self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
         }
         Ok(())
+    }
+
+    fn one(&self) -> Self::FieldElement {
+        BigUint::one()
+    }
+
+    fn minus_one(&self) -> Result<Self::FieldElement> {
+        if self.modulus.is_zero() {
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+        }
+        Ok(&self.modulus-self.one())
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
