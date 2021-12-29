@@ -1,3 +1,13 @@
+# v2.0.0, 2021-12
+
+Rust:
+- Brand New API to evaluate SIEVE IR circuits. The circuit is now evaluated using a VM, each gate evaluation is 
+delegated to a class implementing the `ZKBackend` trait.
+- IR-to-IRsimple converter
+- IR-to-R1CS converter
+- R1CS-to-IR converter
+
+
 # v1.0.0, 2021-08
 
 Schema (.fbs):
