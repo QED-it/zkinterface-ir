@@ -2,8 +2,6 @@ use crate::{Sink, Result};
 use crate::consumers::flattening::IRFlattener;
 use crate::consumers::evaluator::ZKBackend;
 use crate::structs::relation::{contains_feature, ADD, MUL, ADDC, MULC, XOR, AND, NOT};
-use num_bigint::BigUint;
-use num_traits::One;
 
 #[derive(Default)]
 pub struct ExpandDefinable<S: Sink> {
@@ -40,6 +38,8 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
     fn minus_one(&self) -> Result<Self::FieldElement> {
         self.inner.minus_one()
     }
+
+    fn zero(&self) -> Result<Self::FieldElement> { self.inner.zero() }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire>{ self.inner.copy(wire) }
 
@@ -118,8 +118,7 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
             if !contains_feature(self.gate_mask, ADD) {
                 panic!("Cannot replace NOT by ADD if ADD is not supported.");
             }
-            let one_buff = &BigUint::one().to_bytes_le();
-            self.add_constant(a, Self::from_bytes_le(one_buff)?)
+            self.add_constant(a, self.one()?)
         } else {
             self.inner.not(a)
         }

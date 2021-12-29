@@ -31,6 +31,8 @@ pub trait ZKBackend {
     fn one(&self) -> Result<Self::FieldElement>;
     /// Returns a `FieldElement` representing '-1' in the underlying field.
     fn minus_one(&self) -> Result<Self::FieldElement>;
+    /// Returns a `FieldElement` representing '0' in the underlying field.
+    fn zero(&self) -> Result<Self::FieldElement>;
 
     // Returns a new instance of a given Wire id
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire>;
@@ -644,7 +646,7 @@ impl<B: ZKBackend> Evaluator<B> {
                     let weighted_output =
                         branches_scope.iter()
                             .zip(weights.iter())
-                            .fold(backend.constant(B::from_bytes_le(&[0u8])?), |accu, (branch_scope, branch_weight)| {
+                            .fold(backend.constant(backend.zero()?), |accu, (branch_scope, branch_weight)| {
                                 let weighted_wire = as_mul(backend, get::<B>(branch_scope, *output_wire)?, branch_weight, is_boolean)?;
                                 as_add(backend, &accu?, &weighted_wire, is_boolean)
                             },
@@ -813,6 +815,10 @@ impl ZKBackend for PlaintextBackend {
         Ok(&self.m - self.one()?)
     }
 
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
+    }
+
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(wire.clone()) }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> { Ok(val) }
@@ -934,6 +940,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
         fn set_field(&mut self, _modulus: &[u8], _degree: u32, _is_boolean: bool) -> Result<()> {Ok(())}
         fn one(&self) -> Result<Self::FieldElement> {Ok(BigUint::one())}
+        fn zero(&self) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
         fn minus_one(&self) -> Result<Self::FieldElement> {Ok(BigUint::one())}
         fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {Ok(*wire)}
         fn constant(&mut self, _val: Self::FieldElement) -> Result<Self::Wire> {Ok(0)}

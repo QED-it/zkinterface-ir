@@ -71,6 +71,10 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(&self.modulus - self.one()?)
     }
 
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
+    }
+
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");

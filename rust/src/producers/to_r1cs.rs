@@ -126,6 +126,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(&self.src_modulus - self.one()?)
     }
 
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
+    }
+
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(*wire) }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -299,8 +303,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     }
 
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
-        let one_buff = &BigUint::one().to_bytes_le();
-        self.add_constant(a, Self::from_bytes_le(one_buff)?)
+        self.add_constant(a, self.one()?)
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
