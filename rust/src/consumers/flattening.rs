@@ -60,15 +60,15 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(())
     }
 
-    fn one(&self) -> Self::FieldElement {
-        BigUint::one()
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
     }
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.modulus.is_zero() {
             return Err("Modulus is not initiated, used `set_field()` before calling.".into())
         }
-        Ok(&self.modulus-self.one())
+        Ok(&self.modulus - self.one()?)
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {

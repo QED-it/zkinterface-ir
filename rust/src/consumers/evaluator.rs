@@ -28,7 +28,7 @@ pub trait ZKBackend {
     fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()>;
 
     /// Returns a `FieldElement` representing '1' in the underlying field.
-    fn one(&self) -> Self::FieldElement;
+    fn one(&self) -> Result<Self::FieldElement>;
     /// Returns a `FieldElement` representing '-1' in the underlying field.
     fn minus_one(&self) -> Result<Self::FieldElement>;
 
@@ -109,7 +109,7 @@ fn as_add_one<B: ZKBackend>(backend: &mut B, wire: &B::Wire, is_bool: bool) -> R
         // adding one in boolean field is not
         backend.not(wire)
     } else {
-        backend.add_constant(wire, B::from_bytes_le(&[1u8])?)
+        backend.add_constant(wire, backend.one()?)
     }
 }
 
@@ -751,8 +751,8 @@ fn exp<I: ZKBackend>(backend: &mut I, base: &I::Wire, exponent: &BigUint, modulu
 }
 
 /// This function will compute '1 - (case - condition)^(p-1)' using a bunch of mul/and add/xor addc/xorc gates
-fn compute_weight<I: ZKBackend>(backend: &mut I, case: &[u8], condition: &I::Wire, modulus: &BigUint, is_boolean: bool) -> Result<I::Wire> {
-    let case_wire = &backend.constant(I::from_bytes_le(case)?)?;
+fn compute_weight<B: ZKBackend>(backend: &mut B, case: &[u8], condition: &B::Wire, modulus: &BigUint, is_boolean: bool) -> Result<B::Wire> {
+    let case_wire = &backend.constant(B::from_bytes_le(case)?)?;
     // scalar value
     let exponent = modulus - &BigUint::one();
     let minus_one_fe = backend.minus_one()?;
@@ -802,15 +802,15 @@ impl ZKBackend for PlaintextBackend {
         }
     }
 
-    fn one(&self) -> Self::FieldElement {
-        BigUint::one()
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
     }
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.m.is_zero() {
             return Err("Modulus is not initiated, used `set_field()` before calling.".into())
         }
-        Ok(&self.m-self.one())
+        Ok(&self.m - self.one()?)
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(wire.clone()) }
@@ -864,6 +864,8 @@ impl ZKBackend for PlaintextBackend {
 
 #[test]
 fn test_exponentiation() -> Result<()> {
+    use itertools::izip;
+
     let mut backend = PlaintextBackend::default();
 
     let moduli = vec![
@@ -886,10 +888,7 @@ fn test_exponentiation() -> Result<()> {
         BigUint::one(),
     ];
 
-    for (((modulus, base), exponent), expected) in moduli.iter()
-        .zip(bases.iter())
-        .zip(exponents.iter())
-        .zip(expecteds.iter())
+    for (modulus, base, exponent, expected) in izip!(moduli.iter(), bases.iter(), exponents.iter(), expecteds.iter())
     {
         backend.set_field(&modulus.to_bytes_le(), 1, false)?;
         let result = exp(&mut backend, base, exponent, modulus, false)?;
@@ -934,7 +933,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         type FieldElement = BigUint;
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {Ok(BigUint::zero())}
         fn set_field(&mut self, _modulus: &[u8], _degree: u32, _is_boolean: bool) -> Result<()> {Ok(())}
-        fn one(&self) -> Self::FieldElement {BigUint::one()}
+        fn one(&self) -> Result<Self::FieldElement> {Ok(BigUint::one())}
         fn minus_one(&self) -> Result<Self::FieldElement> {Ok(BigUint::one())}
         fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {Ok(*wire)}
         fn constant(&mut self, _val: Self::FieldElement) -> Result<Self::Wire> {Ok(0)}

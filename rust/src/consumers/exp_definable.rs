@@ -35,7 +35,7 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.set_field(modulus, degree, is_boolean)
     }
 
-    fn one(&self) -> Self::FieldElement { self.inner.one() }
+    fn one(&self) -> Result<Self::FieldElement> { self.inner.one() }
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         self.inner.minus_one()

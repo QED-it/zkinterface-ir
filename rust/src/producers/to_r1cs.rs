@@ -115,15 +115,15 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         }
     }
 
-    fn one(&self) -> Self::FieldElement {
-        BigUint::one()
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
     }
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.src_modulus.is_zero() {
             return Err("Modulus is not initiated, used `set_field()` before calling.".into())
         }
-        Ok(&self.src_modulus-self.one())
+        Ok(&self.src_modulus - self.one()?)
     }
 
     fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(*wire) }
