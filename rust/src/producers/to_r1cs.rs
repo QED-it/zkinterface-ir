@@ -135,6 +135,13 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         let id = self.builder.allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
         self.make_assignment(id, Some(val))?;
+        // dummy constraint if the IR circuit defines constants never used
+        // (allowed in IR, not in R1CS)
+        self.push_constraint(BilinearConstraint {
+                linear_combination_a: make_combination(vec![id], vec![1]),
+                linear_combination_b: make_combination(vec![self.one], vec![1]),
+                linear_combination_c: make_combination(vec![id], vec![1]),
+            })?;
         Ok(id)
     }
 
@@ -502,9 +509,6 @@ fn test_tor1cs_validate_2ways_conversion_same_field() -> crate::Result<()> {
         validator.ingest_message(&message);
     }
 
-    // FromR1CSConverter defines a constant that may be used in some circuit.
-    // It's allowed in IR, but not in R1CS. So when converting back to R1CS the example circuit,
-    // we should have exaclty one violation, which states the unused variable.
     let validator_violations = validator.get_violations();
     assert_eq!(validator_violations.len(), 1);
     assert_eq!(validator_violations[0], "variable_1 was defined but not used.");
@@ -605,9 +609,6 @@ fn test_tor1cs_validate_2ways_conversion_bigger_field() -> crate::Result<()> {
         validator.ingest_message(&message);
     }
 
-    // FromR1CSConverter defines a constant that may be used in some circuit.
-    // It's allowed in IR, but not in R1CS. So when converting back to R1CS the example circuit,
-    // we should have exaclty one violation, which states the unused variable.
     let validator_violations = validator.get_violations();
     println!("{:?}", validator_violations);
     assert_eq!(validator_violations.len(), 1);
