@@ -6,6 +6,7 @@ use std::error::Error;
 
 use super::value::{build_value, try_from_value, Value};
 use crate::sieve_ir_generated::sieve_ir as g;
+use crate::structs::IR_VERSION;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Header {
@@ -26,7 +27,7 @@ impl Header {
 impl Default for Header {
     fn default() -> Self {
         Header {
-            version: "1.0.0".to_string(),
+            version: IR_VERSION.to_string(),
             field_characteristic: vec![],
             field_degree: 1,
         }
@@ -38,13 +39,13 @@ impl<'a> TryFrom<Option<g::Header<'a>>> for Header {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_header: Option<g::Header>) -> Result<Header> {
-        let g_header = g_header.ok_or("Missing header")?;
+        let g_header = g_header.ok_or_else(|| "Missing header")?;
         Ok(Header {
-            version: g_header.version().ok_or("Missing version")?.to_string(),
+            version: g_header.version().ok_or_else(|| "Missing version")?.to_string(),
             field_characteristic: try_from_value(
                 g_header
                     .field_characteristic()
-                    .ok_or("Missing field characteristic")?,
+                    .ok_or_else(|| "Missing field characteristic")?,
             )?,
             field_degree: g_header.field_degree(),
         })

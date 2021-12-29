@@ -12,14 +12,14 @@ use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Witness as zkiWitness;
 use std::collections::BTreeMap;
 
-pub struct R1CSConverter<S: Sink> {
+pub struct FromR1CSConverter<S: Sink> {
     b: GateBuilder<S>,
     // Useful to know which variable in R1CS is associated to which WireId in IR circuit.
     r1cs_to_ir_wire: BTreeMap<u64, WireId>,
     minus_one: WireId,
 }
 
-impl<S: Sink> R1CSConverter<S> {
+impl<S: Sink> FromR1CSConverter<S> {
     /// Create a new R1CSConverter instance.
     /// the Sink is used to tell where to 'write' the output circuit
     /// the ZKI CircuitHeader will be used to preallocate things
@@ -148,18 +148,13 @@ use crate::producers::sink::MemorySink;
 use crate::consumers::evaluator::Evaluator;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
+#[cfg(test)]
+use crate::consumers::evaluator::PlaintextBackend;
+
+
 
 #[cfg(test)]
-fn evaluate(conv: R1CSConverter<MemorySink> ) -> Evaluator {
-    use crate::Source;
-
-    let sink = conv.finish();
-    let source: Source = sink.into();
-    Evaluator::from_messages(source.iter_messages())
-}
-
-#[cfg(test)]
-fn stats(conv: R1CSConverter<MemorySink> ) -> Stats {
+fn stats(conv: FromR1CSConverter<MemorySink> ) -> Stats {
     use crate::Source;
 
     let sink = conv.finish();
@@ -173,6 +168,7 @@ fn test_r1cs_to_gates() -> Result<()> {
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
     use num_traits::ToPrimitive;
+    use crate::Source;
 
     let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_r1cs = zki_example_constraints();
@@ -181,23 +177,31 @@ fn test_r1cs_to_gates() -> Result<()> {
     let ir_header = zki_header_to_header(&zki_header)?;
     assert_header(&ir_header);
 
-    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
     converter.ingest_witness(&zki_witness)?;
     converter.ingest_constraints(&zki_r1cs)?;
 
-    let eval = evaluate(converter);
+    let source: Source = converter.finish().into();
+    let mut interp = PlaintextBackend::default();
+    let eval = Evaluator::from_messages(source.iter_messages(), &mut interp);
 
     // check instance
-    assert_eq!(eval.get(0).unwrap().to_u32().unwrap(), 1);
-    assert_eq!(eval.get(1).unwrap().to_u32().unwrap(), 100);
-    assert_eq!(eval.get(2).unwrap().to_u32().unwrap(), 3);
-    assert_eq!(eval.get(3).unwrap().to_u32().unwrap(), 4);
-    assert_eq!(eval.get(4).unwrap().to_u32().unwrap(), 25);
+    macro_rules! get_val {
+        ($idx:expr) => {{
+            eval.get($idx).unwrap().to_u32().unwrap()
+        }};
+    }
+
+    assert_eq!(get_val!(0), 1);
+    assert_eq!(get_val!(1), 100);
+    assert_eq!(get_val!(2), 3);
+    assert_eq!(get_val!(3), 4);
+    assert_eq!(get_val!(4), 25);
 
     // check witness
-    assert_eq!(eval.get(5).unwrap().to_u32().unwrap(), 9);
-    assert_eq!(eval.get(6).unwrap().to_u32().unwrap(), 16);
+    assert_eq!(get_val!(5), 9);
+    assert_eq!(get_val!(6), 16);
 
     assert_eq!(eval.get_violations().len(), 0 as usize);
     Ok(())
@@ -206,8 +210,9 @@ fn test_r1cs_to_gates() -> Result<()> {
 #[cfg(test)]
 fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
+    use crate::structs::IR_VERSION;
 
-    assert_eq!(header.version, "1.0.0");
+    assert_eq!(header.version, IR_VERSION);
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
     assert_eq!(fc.to_u32().unwrap(), 101);
     assert_eq!(header.field_degree, 1);
@@ -227,7 +232,7 @@ fn test_r1cs_stats() -> Result<()> {
     let ir_header = zki_header_to_header(&zki_header)?;
     assert_header(&ir_header);
 
-    let mut converter = R1CSConverter::new(MemorySink::default(), &zki_header);
+    let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
     converter.ingest_witness(&zki_witness)?;
     converter.ingest_constraints(&zki_r1cs)?;

@@ -4,13 +4,11 @@ use num_traits::identities::One;
 use std::collections::{HashSet, HashMap, BTreeSet};
 
 use regex::Regex;
-use std::cmp;
 use std::cmp::Ordering;
 use crate::structs::relation::{ARITH, BOOL, ADD, ADDC, MUL, MULC, XOR, NOT, AND};
 use crate::structs::relation::{contains_feature, FUNCTION, SWITCH, FOR};
 use crate::structs::wire::expand_wirelist;
 use crate::structs::function::{CaseInvoke, ForLoopBody};
-use crate::consumers::{TEMPORARY_WIRES_START};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -69,14 +67,12 @@ pub struct Validator {
     features: u16,
     header_version: String,
 
-    free_local_wire :WireId,
-
     field_characteristic: Field,
     field_degree: usize,
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: Rc<RefCell<HashMap<String, (usize, usize, usize, usize)>>>,
-    known_iterators: HashMap<String, u64>,
+    known_iterators: Rc<RefCell<HashMap<String, u64>>>,
 
     violations: Vec<String>,
 }
@@ -92,12 +88,10 @@ impl Default for Validator {
             gate_set: Default::default(),
             features: Default::default(),
             header_version: Default::default(),
-            // The only field set a specific value.
-            free_local_wire: TEMPORARY_WIRES_START,
             field_characteristic: Default::default(),
             field_degree: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
-            known_iterators: Default::default(),
+            known_iterators: Rc::new(RefCell::new(HashMap::default())),
             violations: Default::default(),
         }
     }
@@ -116,51 +110,18 @@ impl Validator {
         }
     }
 
-    pub fn new_as_verifier_tws(tws : Option<u64>) -> Validator {
-        if let Some(tmp_wire_start) = tws {
-            Validator {
-                free_local_wire : tmp_wire_start,
-                ..Default::default()
-            }
-        } else {
-            Validator::default()
-        }
-    }
-
-    pub fn new_as_prover_tws(tws : Option<u64>) -> Validator {
-        if let Some(tmp_wire_start) = tws {
-            Validator {
-                as_prover : true,
-                free_local_wire : tmp_wire_start,
-                ..Default::default()
-            }
-        } else {
-            Validator {
-                as_prover : true,
-                ..Default::default()
-            }
-        }
-    }
-
-    pub(crate) fn new(tws : Option<u64>) -> Validator {
+    /*
+    pub(crate) fn new_as_semantic_validator() -> Validator {
         Validator {
             // we shift by 1 to allow consuming additional instances/witnesses messages.
             // since 2^63 is large enough...
             instance_queue_len: usize::MAX >> 1,
             witness_queue_len: usize::MAX >> 1,
-            free_local_wire : tws.unwrap_or(TEMPORARY_WIRES_START),
             ..Default::default()
         }
     }
+     */
 
-    pub fn get_tws(&self) -> u64 {
-        self.free_local_wire
-    }
-    pub(crate) fn set_tws(&mut self, new_tws: Option<u64>)  {
-        if let Some(val) = new_tws {
-            self.free_local_wire = val;
-        }
-    }
     
     pub fn print_implemented_checks() {
         println!("{}", IMPLEMENTED_CHECKS);
@@ -253,7 +214,6 @@ impl Validator {
         self.witness_queue_len += witness.short_witness.len();
     }
 
-    // TODO check that once a first gate has been ingested, no new functions should be defined then.
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
@@ -307,18 +267,6 @@ impl Validator {
         }
     }
 
-    fn bump_tws(&mut self, wire : &WireId) {
-        self.free_local_wire = cmp::max(self.free_local_wire, *wire + 1);
-        // println!("Seeing {:?} make new value {:?}", wire, self.free_local_wire);
-    }
-
-    fn bump_twss(&mut self, wires : &Vec<WireId>) {
-        if let Some(n) = wires.iter().max() {
-            let m : WireId = *n;
-            self.bump_tws(&m);
-        }
-    }
-
     fn ingest_gate(&mut self, gate: &Gate) {
         use Gate::*;
 
@@ -326,7 +274,6 @@ impl Validator {
             Constant(out, value) => {
                 self.ensure_value_in_field(value, || "Gate::Constant constant".to_string());
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             AssertZero(inp) => {
@@ -336,7 +283,6 @@ impl Validator {
             Copy(out, inp) => {
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             Add(out, left, right) => {
@@ -346,8 +292,6 @@ impl Validator {
                 self.ensure_defined_and_set(*right);
 
                 self.ensure_undefined_and_set(*out);
-
-                self.bump_tws(out);
             }
 
             Mul(out, left, right) => {
@@ -357,8 +301,6 @@ impl Validator {
                 self.ensure_defined_and_set(*right);
 
                 self.ensure_undefined_and_set(*out);
-
-                self.bump_tws(out);
             }
 
             AddConstant(out, inp, constant) => {
@@ -366,7 +308,6 @@ impl Validator {
                 self.ensure_value_in_field(constant, || format!("Gate::AddConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             MulConstant(out, inp, constant) => {
@@ -374,7 +315,6 @@ impl Validator {
                 self.ensure_value_in_field(constant, || format!("Gate::MulConstant_{}", *out));
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             And(out, left, right) => {
@@ -382,7 +322,6 @@ impl Validator {
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             Xor(out, left, right) => {
@@ -391,7 +330,6 @@ impl Validator {
                 self.ensure_defined_and_set(*left);
                 self.ensure_defined_and_set(*right);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             Not(out, inp) => {
@@ -399,21 +337,18 @@ impl Validator {
 
                 self.ensure_defined_and_set(*inp);
                 self.ensure_undefined_and_set(*out);
-                self.bump_tws(out);
             }
 
             Instance(out) => {
                 self.declare(*out);
                 // Consume value.
                 self.consume_instance(1);
-                self.bump_tws(out);
             }
 
             Witness(out) => {
                 self.declare(*out);
                 // Consume value.
                 self.consume_witness(1);
-                self.bump_tws(out);
             }
 
             Free(first, last) => {
@@ -443,9 +378,6 @@ impl Validator {
                 self.consume_witness(*witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
-
-                self.bump_twss(&expanded_outputs);
-
             }
 
             Call(name, output_wires, input_wires) => {
@@ -467,8 +399,6 @@ impl Validator {
                 self.consume_witness(witness_count);
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|id| self.ensure_undefined_and_set(*id));
-
-                self.bump_twss(&expanded_outputs);
             }
 
             Switch(condition, output_wires, cases, branches) => {
@@ -504,7 +434,6 @@ impl Validator {
                 let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
 
                 let expanded_outputs = expand_wirelist(output_wires);
-                self.bump_twss(&expanded_outputs);
 
                 // 'Validate' each branch of the switch independently, and perform checks
                 for branch in branches {
@@ -547,7 +476,7 @@ impl Validator {
             ) => {
                 self.ensure_allowed_feature("@for", FOR);
 
-                if self.known_iterators.contains_key(iterator_name) {
+                if self.known_iterators.borrow().contains_key(iterator_name) {
                     self.violate("Iterator already used in this context.");
                     return;
                 }
@@ -558,13 +487,12 @@ impl Validator {
                 }
 
                 for i in *start_val..=*end_val {
-                    self.known_iterators.insert(iterator_name.clone(), i);
+                    self.known_iterators.borrow_mut().insert(iterator_name.clone(), i);
 
                     match body {
                         ForLoopBody::IterExprCall(name, outputs, inputs) => {
-                            let expanded_outputs = evaluate_iterexpr_list(outputs, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(inputs, &self.known_iterators);
-                            self.bump_twss(&expanded_outputs);
+                            let expanded_outputs = evaluate_iterexpr_list(outputs, &*self.known_iterators.borrow());
+                            let expanded_inputs = evaluate_iterexpr_list(inputs, &*self.known_iterators.borrow());
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             let (instance_count, witness_count) =
                                 self.ingest_call(name, &expanded_outputs, &expanded_inputs).unwrap_or((0, 0));
@@ -581,9 +509,8 @@ impl Validator {
                             witness_count,
                             subcircuit
                         ) => {
-                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &self.known_iterators);
-                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &self.known_iterators);
-                            self.bump_twss(&expanded_outputs);
+                            let expanded_outputs = evaluate_iterexpr_list(output_wires, &*self.known_iterators.borrow());
+                            let expanded_inputs = evaluate_iterexpr_list(input_wires, &*self.known_iterators.borrow());
                             expanded_inputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
                             self.ingest_subcircuit(
                                 subcircuit,
@@ -600,12 +527,11 @@ impl Validator {
                         }
                     }
                 }
-                self.known_iterators.remove(iterator_name);
+                self.known_iterators.borrow_mut().remove(iterator_name);
 
                 // Ensure that each global output wire has been set in one of the loops.
                 let expanded_global_outputs = expand_wirelist(global_output_list);
                 expanded_global_outputs.iter().for_each(|id| self.ensure_defined_and_set(*id));
-
             }
         }
     }
@@ -651,17 +577,23 @@ impl Validator {
         input_count: usize,
         instance_count: usize,
         witness_count: usize,
-        use_same_scope: bool,
+        use_same_scope: bool
     ) {
-        let mut current_validator = self.clone();
-        current_validator.instance_queue_len = instance_count;
-        current_validator.witness_queue_len = if self.as_prover {witness_count} else {0};
-        current_validator.live_wires = Default::default();
-        current_validator.violations = vec![];
-
-        if !use_same_scope {
-            current_validator.known_iterators = Default::default();
-        }
+        let mut current_validator = Validator {
+            as_prover: self.as_prover,
+            instance_queue_len: instance_count,
+            witness_queue_len: if self.as_prover {witness_count} else {0},
+            live_wires: Default::default(),
+            got_header: self.got_header,
+            gate_set: self.gate_set,
+            features: self.features,
+            header_version: self.header_version.clone(),
+            field_characteristic: self.field_characteristic.clone(),
+            field_degree: self.field_degree,
+            known_functions: self.known_functions.clone(),
+            known_iterators: if use_same_scope {self.known_iterators.clone()} else {Default::default()},
+            violations: vec![]
+        };
 
         // input wires should be already defined, and they are numbered from
         // output_wire, so we will artificially define them in the inner
@@ -822,6 +754,25 @@ fn test_validator() -> crate::Result<()> {
 
     validator.ingest_instance(&instance);
     validator.ingest_witness(&witness);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+
+    assert_eq!(violations, Vec::<String>::new());
+
+    Ok(())
+}
+
+#[test]
+fn test_validator_as_verifier() -> crate::Result<()> {
+    use crate::producers::examples::*;
+
+    let instance = example_instance();
+    let relation = example_relation();
+
+    let mut validator = Validator::new_as_verifier();
+
+    validator.ingest_instance(&instance);
     validator.ingest_relation(&relation);
 
     let violations = validator.get_violations();

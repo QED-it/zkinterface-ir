@@ -47,15 +47,15 @@ impl<'a> TryFrom<g::IterExprWireNumber<'a>> for IterExprWireNumber {
             g::IterExpr::IterExprName => {
                 let value = iter_expr.value_as_iter_expr_name().unwrap();
                 IterExprName(
-                    value.name().ok_or("IterExpr: No name given")?.into()
+                    value.name().ok_or_else(|| "IterExpr: No name given")?.into()
                 )
             }
             g::IterExpr::IterExprAdd => {
                 let value = iter_expr.value_as_iter_expr_add().unwrap();
 
                 IterExprAdd(
-                    Box::new(IterExprWireNumber::try_from(value.left().ok_or("Missing left operand")?)?),
-                    Box::new(IterExprWireNumber::try_from(value.right().ok_or("IterExprAdd: No right expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.left().ok_or_else(|| "Missing left operand")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.right().ok_or_else(|| "IterExprAdd: No right expression given")?)?),
                 )
             }
 
@@ -63,23 +63,23 @@ impl<'a> TryFrom<g::IterExprWireNumber<'a>> for IterExprWireNumber {
                 let value = iter_expr.value_as_iter_expr_sub().unwrap();
 
                 IterExprSub(
-                    Box::new(IterExprWireNumber::try_from(value.left().ok_or("IterExprSub: No left expression given")?)?),
-                    Box::new(IterExprWireNumber::try_from(value.right().ok_or("IterExprub: No right expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.left().ok_or_else(|| "IterExprSub: No left expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.right().ok_or_else(|| "IterExprub: No right expression given")?)?),
                 )
             }
             g::IterExpr::IterExprMul => {
                 let value = iter_expr.value_as_iter_expr_mul().unwrap();
 
                 IterExprMul(
-                    Box::new(IterExprWireNumber::try_from(value.left().ok_or("IterExprMul: No left expression given")?)?),
-                    Box::new(IterExprWireNumber::try_from(value.right().ok_or("IterExprMul: No right expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.left().ok_or_else(|| "IterExprMul: No left expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.right().ok_or_else(|| "IterExprMul: No right expression given")?)?),
                 )
             }
             g::IterExpr::IterExprDivConst => {
                 let value = iter_expr.value_as_iter_expr_div_const().unwrap();
 
                 IterExprDivConst(
-                    Box::new(IterExprWireNumber::try_from(value.numer().ok_or("IterExprDivConst: No numerator expression given")?)?),
+                    Box::new(IterExprWireNumber::try_from(value.numer().ok_or_else(|| "IterExprDivConst: No numerator expression given")?)?),
                     value.denom(),
                 )
             }
@@ -235,8 +235,8 @@ impl<'a> TryFrom<g::IterExprWireListElement<'a>> for IterExprListElement {
             IterExprWireListElementU::IterExprWireRange => {
                 let range = element.element_as_iter_expr_wire_range().unwrap();
                 Range(
-                    IterExprWireNumber::try_from(range.first().ok_or("Missing first value of range")?)?,
-                    IterExprWireNumber::try_from(range.last().ok_or("Missing last value of range")?)?,
+                    IterExprWireNumber::try_from(range.first().ok_or_else(|| "Missing first value of range")?)?,
+                    IterExprWireNumber::try_from(range.last().ok_or_else(|| "Missing last value of range")?)?,
                 )
             }
         })
@@ -290,7 +290,7 @@ impl<'a> TryFrom<g::IterExprWireList<'a>> for IterExprList {
     type Error = Box<dyn Error>;
 
     fn try_from(list: g::IterExprWireList<'a>) -> Result<Self> {
-        let fbs_vector = list.elements().ok_or("Missing wire list")?;
+        let fbs_vector = list.elements().ok_or_else(|| "Missing wire list")?;
         let mut elements = vec![];
         for i in 0..fbs_vector.len() {
             let a = fbs_vector.get(i);
@@ -324,7 +324,7 @@ pub fn evaluate_iterexpr(iter_expr: &IterExprWireNumber, known_iterators: &HashM
     Ok(match iter_expr {
         IterExprConst(val) => *val,
         IterExprName(name) => {
-            *(known_iterators.get(name).ok_or(format!("Unknown iterator name {}", &name))?)
+            *(known_iterators.get(name).ok_or_else(|| format!("Unknown iterator name {}", &name))?)
         },
         IterExprAdd(left, right) => {
             evaluate_iterexpr(&left, known_iterators)? + evaluate_iterexpr(&right, known_iterators)?

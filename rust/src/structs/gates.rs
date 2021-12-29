@@ -67,100 +67,100 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
             ds::GateConstant => {
                 let gate = gen_gate.directive_as_gate_constant().unwrap();
                 Constant(
-                    gate.output().ok_or("Missing output")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    Vec::from(gate.constant().ok_or_else(|| "Missing constant")?),
                 )
             }
 
             ds::GateAssertZero => {
                 let gate = gen_gate.directive_as_gate_assert_zero().unwrap();
-                AssertZero(gate.input().ok_or("Missing input")?.id())
+                AssertZero(gate.input().ok_or_else(|| "Missing input")?.id())
             }
 
             ds::GateCopy => {
                 let gate = gen_gate.directive_as_gate_copy().unwrap();
                 Copy(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.input().ok_or_else(|| "Missing input")?.id(),
                 )
             }
 
             ds::GateAdd => {
                 let gate = gen_gate.directive_as_gate_add().unwrap();
                 Add(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.left().ok_or_else(|| "Missing left input")?.id(),
+                    gate.right().ok_or_else(|| "Missing right input")?.id(),
                 )
             }
 
             ds::GateMul => {
                 let gate = gen_gate.directive_as_gate_mul().unwrap();
                 Mul(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.left().ok_or_else(|| "Missing left input")?.id(),
+                    gate.right().ok_or_else(|| "Missing right input")?.id(),
                 )
             }
 
             ds::GateAddConstant => {
                 let gate = gen_gate.directive_as_gate_add_constant().unwrap();
                 AddConstant(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.input().ok_or_else(|| "Missing input")?.id(),
+                    Vec::from(gate.constant().ok_or_else(|| "Missing constant")?),
                 )
             }
 
             ds::GateMulConstant => {
                 let gate = gen_gate.directive_as_gate_mul_constant().unwrap();
                 MulConstant(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id(),
-                    Vec::from(gate.constant().ok_or("Missing constant")?),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.input().ok_or_else(|| "Missing input")?.id(),
+                    Vec::from(gate.constant().ok_or_else(|| "Missing constant")?),
                 )
             }
 
             ds::GateAnd => {
                 let gate = gen_gate.directive_as_gate_and().unwrap();
                 And(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.left().ok_or_else(|| "Missing left input")?.id(),
+                    gate.right().ok_or_else(|| "Missing right input")?.id(),
                 )
             }
 
             ds::GateXor => {
                 let gate = gen_gate.directive_as_gate_xor().unwrap();
                 Xor(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.left().ok_or_else(|| "Missing left input")?.id(),
+                    gate.right().ok_or_else(|| "Missing right input")?.id(),
                 )
             }
 
             ds::GateNot => {
                 let gate = gen_gate.directive_as_gate_not().unwrap();
                 Not(
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id(),
+                    gate.output().ok_or_else(|| "Missing output")?.id(),
+                    gate.input().ok_or_else(|| "Missing input")?.id(),
                 )
             }
 
             ds::GateInstance => {
                 let gate = gen_gate.directive_as_gate_instance().unwrap();
-                Instance(gate.output().ok_or("Missing output")?.id())
+                Instance(gate.output().ok_or_else(|| "Missing output")?.id())
             }
 
             ds::GateWitness => {
                 let gate = gen_gate.directive_as_gate_witness().unwrap();
-                Witness(gate.output().ok_or("Missing output")?.id())
+                Witness(gate.output().ok_or_else(|| "Missing output")?.id())
             }
 
             ds::GateFree => {
                 let gate = gen_gate.directive_as_gate_free().unwrap();
                 Free(
-                    gate.first().ok_or("Missing first wire")?.id(),
+                    gate.first().ok_or_else(|| "Missing first wire")?.id(),
                     gate.last().map(|id| id.id()),
                 )
             }
@@ -169,23 +169,23 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
                 let gate = gen_gate.directive_as_gate_call().unwrap();
 
                 Call(
-                    gate.name().ok_or("Missing function name.")?.into(),
-                    WireList::try_from(gate.output_wires().ok_or("Missing outputs")?)?,
-                    WireList::try_from(gate.input_wires().ok_or("Missing inputs")?)?,
+                    gate.name().ok_or_else(|| "Missing function name.")?.into(),
+                    WireList::try_from(gate.output_wires().ok_or_else(|| "Missing outputs")?)?,
+                    WireList::try_from(gate.input_wires().ok_or_else(|| "Missing inputs")?)?,
                 )
             }
 
 
             ds::GateAnonCall => {
                 let gate = gen_gate.directive_as_gate_anon_call().unwrap();
-                let inner = gate.inner().ok_or("Missing inner AbstractAnonCall")?;
+                let inner = gate.inner().ok_or_else(|| "Missing inner AbstractAnonCall")?;
 
                 AnonCall(
-                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
-                    WireList::try_from(inner.input_wires().ok_or("Missing input wires")?)?,
+                    WireList::try_from(gate.output_wires().ok_or_else(|| "Missing output wires")?)?,
+                    WireList::try_from(inner.input_wires().ok_or_else(|| "Missing input wires")?)?,
                     inner.instance_count() as usize,
                     inner.witness_count() as usize,
-                    Gate::try_from_vector(inner.subcircuit().ok_or("Missing subcircuit")?)?,
+                    Gate::try_from_vector(inner.subcircuit().ok_or_else(|| "Missing subcircuit")?)?,
                 )
             }
 
@@ -193,43 +193,43 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
                 let gate = gen_gate.directive_as_gate_switch().unwrap();
 
                 let cases = try_from_values_vector(gate.cases()
-                    .ok_or("Missing cases values")?)?;
+                    .ok_or_else(|| "Missing cases values")?)?;
 
                 Switch(
-                    from_id(&gate.condition().ok_or("Missing condition wire.")?),
-                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
+                    from_id(&gate.condition().ok_or_else(|| "Missing condition wire.")?),
+                    WireList::try_from(gate.output_wires().ok_or_else(|| "Missing output wires")?)?,
                     cases,
-                    CaseInvoke::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
+                    CaseInvoke::try_from_vector(gate.branches().ok_or_else(|| "Missing branches")?)?,
                 )
             }
 
             ds::GateFor => {
                 let gate = gen_gate.directive_as_gate_for().unwrap();
-                let output_list = WireList::try_from(gate.outputs().ok_or("missing output list")?)?;
+                let output_list = WireList::try_from(gate.outputs().ok_or_else(|| "missing output list")?)?;
                 let body: ForLoopBody = match gate.body_type() {
                     g::ForLoopBody::NONE => return Err("Unknown body type".into()),
                     g::ForLoopBody::IterExprFunctionInvoke => {
                         let g_body = gate.body_as_iter_expr_function_invoke().unwrap();
                         ForLoopBody::IterExprCall(
-                            g_body.name().ok_or("Missing function in function name")?.to_string(),
-                            IterExprList::try_from(g_body.outputs().ok_or("missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or("missing input list")?)?,
+                            g_body.name().ok_or_else(|| "Missing function in function name")?.to_string(),
+                            IterExprList::try_from(g_body.outputs().ok_or_else(|| "missing output list")?)?,
+                            IterExprList::try_from(g_body.inputs().ok_or_else(|| "missing input list")?)?,
                         )
                     }
                     g::ForLoopBody::IterExprAnonFunction => {
                         let g_body = gate.body_as_iter_expr_anon_function().unwrap();
                         ForLoopBody::IterExprAnonCall(
-                            IterExprList::try_from(g_body.outputs().ok_or("missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or("missing input list")?)?,
+                            IterExprList::try_from(g_body.outputs().ok_or_else(|| "missing output list")?)?,
+                            IterExprList::try_from(g_body.inputs().ok_or_else(|| "missing input list")?)?,
                             g_body.instance_count() as usize,
                             g_body.witness_count() as usize,
-                            Gate::try_from_vector(g_body.body().ok_or("Missing body")?)?,
+                            Gate::try_from_vector(g_body.body().ok_or_else(|| "Missing body")?)?,
                         )
                     }
                 };
 
                 For(
-                    gate.iterator().ok_or("Missing iterator name")?.to_string(),
+                    gate.iterator().ok_or_else(|| "Missing iterator name")?.to_string(),
                     gate.first(),
                     gate.last(),
                     output_list,

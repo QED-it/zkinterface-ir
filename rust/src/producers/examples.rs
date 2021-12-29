@@ -46,7 +46,7 @@ pub fn example_witness_h(header: &Header) -> Witness {
     let fibonacci_22 = BigUint::from(17711 as u64) % modulus;
     Witness {
         header: header.clone(),
-        short_witness: vec![literal32(3), literal32(4), fibonacci_22.to_bytes_le()],
+        short_witness: vec![literal32(3), literal32(4), literal32(0), fibonacci_22.to_bytes_le()],
     }
 }
 
@@ -56,6 +56,7 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
         short_witness: vec![
             literal32(3),
             literal32(4 + 1), // incorrect.
+            literal32(1),
             literal32(40) // incorrect
         ],
     }
@@ -86,16 +87,19 @@ pub fn example_relation_h(header: &Header) -> Relation {
                     AbstractAnonCall (
                         // WireList, usize, usize, Vec<Gate>)
                         vec![Wire(1)],
-                        3, 2,
+                        3, 3,
                         vec![
                             Instance(0),  // In Global Namespace: Instance(0)
                             Witness(1),   // In Global Namespace: Witness(2)
                             Call("com.example::mul".to_string(), vec![Wire(2)], vec![Wire(8), Wire(8)]), // In Global Namespace: Mul(4, 1, 1)
                             Call("com.example::mul".to_string(), vec![Wire(3)], vec![Wire(1), Wire(1)]), // In Global Namespace: Mul(5, 2, 2)
                             Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                            Witness(5),
+                            Witness(9),
+                            AssertZero(9), // This witness is indeed zero, so check that in a branch.
                             Instance(6),
+                            AssertZero(6),
                             Instance(7),
+                            Witness(5),
                         ]
 
                     ),
@@ -113,6 +117,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
                             Instance(5),
                             Instance(6),
                             Witness(7),
+                            AssertZero(5), // its value is actually 0, so this assert will pass, but it's disabled.
+                            AssertZero(0), // '0' is obviously not zero in this branch, but this branch is not taken, so should be disabled.
                         ],
                     )
                 ],

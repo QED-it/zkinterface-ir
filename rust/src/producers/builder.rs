@@ -31,11 +31,8 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-    fn new(sink: S, header: Header) -> Self {
-        MessageBuilder::new_with_functionalities(sink, header, ARITH, FUNCTION|FOR|SWITCH)
-    }
 
-    fn new_with_functionalities(sink: S, header: Header, gateset: u16, features: u16) -> Self {
+    fn new(sink: S, header: Header, gateset: u16, features: u16) -> Self {
         Self {
             sink,
             instance: Instance {
@@ -153,8 +150,12 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
     pub fn new(sink: S, header: Header) -> Self {
+        Self::new_with_functionalities(sink, header, ARITH, FUNCTION|FOR|SWITCH)
+    }
+
+    pub fn new_with_functionalities(sink: S, header: Header, gateset: u16, features: u16) -> Self {
         GateBuilder {
-            msg_build: RefCell::new(MessageBuilder::new(sink, header)),
+            msg_build: RefCell::new(MessageBuilder::new(sink, header, gateset, features)),
             free_id: Cell::new(0),
         }
     }

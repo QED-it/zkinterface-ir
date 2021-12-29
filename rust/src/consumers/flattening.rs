@@ -1,613 +1,196 @@
-use std::cmp;
-use std::collections::HashMap;
-use std::cell::Cell;
-use num_bigint::{BigUint, BigInt};
-use num_traits::Zero;
-use num_integer::Integer;
-use crate::structs::subcircuit::{unrolling, unroll_gate, translate_gate};
-use crate::structs::wire::{expand_wirelist, WireListElement, WireListElement::{Wire}};
-use crate::structs::gates::Gate::*;
-use crate::structs::function::CaseInvoke;
-use crate::structs::relation::{contains_feature, get_known_functions, Relation, BOOL, ARITH, SIMPLE};
-use crate::{Gate, WireId, Value};
-use crate::consumers::validator::Validator;
+use crate::{Sink, WireId, Header, Result, Value};
+use crate::producers::builder::{GateBuilder, GateBuilderT};
+use crate::structs::relation::{SIMPLE, ARITH, BOOL};
+use crate::consumers::evaluator::{ZKBackend};
+use num_bigint::BigUint;
+use num_traits::{One, Zero};
+use crate::producers::build_gates::BuildGate;
+use crate::structs::IR_VERSION;
 
-// (output_count, input_count, instance_count, witness_count, subcircuit)
-type FunctionDeclare = (usize, usize, usize, usize, Vec<Gate>);
+// TODO instead of using WireId, use something implementing Drop, which will call the corresponding
+// Free gate when the wire is no more needed.
 
-// A struct for the arguments of the flattening function that don't change with recursive calls
-// (otherwise the calls become very heavy...)
-
-struct FlatArgs<'a> {
-    modulus    : &'a Value,
-    is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
-    one        : &'a Value, // Don't want to compute 1 and -1 at every recursive call...
-    minus_one  : &'a Value,
-    known_functions : &'a HashMap<String, FunctionDeclare>, // These are fixed throughout the traversal
-    instance_wires  : Vec<WireId>, // All instance data pulled before gate (incl. in previous switch branches)
-    witness_wires   : Vec<WireId>, // All witness data pulled before gate (incl. in previous switch branches)
-    instance_counter: Cell<u64>,   // How many instance pulls have been done before gate (excl. in previous switch branches), semantically (can be smaller than instance_wires length)
-    witness_counter : Cell<u64>,   // How many instance pulls have been done before gate (excl. in previous switch branches), semantically (can be smaller than witness_wires length)
-    output_gates    : &'a mut Vec<Gate>, // Accumulator where we have written the flattened version of the gates seen before gate, on top of which we'll push the flattened version of gate
+#[derive(Default)]
+pub struct IRFlattener<S: Sink> {
+    sink: Option<S>,
+    b: Option<GateBuilder<S>>,
+    modulus: BigUint,
 }
 
-// Getting a new temp wire id (u64).
-// Looks at a reference containing the first available wire id; bumping it by 1.
-
-pub fn tmp_wire(free_wire: &Cell<WireId>) -> u64 {
-    let new_wire = free_wire.get();
-    free_wire.set(free_wire.get() + 1);
-    new_wire
-}
-
-// Useful auxiliary functions
-
-fn minus(modulus: &Value, x : &Value) -> Value {
-    //convert little endian Vec<u8> to an integer you can subtract from
-    let modulus_bigint  = BigUint::from_bytes_le(&modulus[..]);
-    let x_bigint        = BigUint::from_bytes_le(&x[..]);
-    let modulus_minus_x =
-        if x_bigint == BigUint::zero() {
-            BigUint::zero()
-        } else {
-            modulus_bigint - x_bigint
-        };
-    //convert moudulus_minus_x to little endian
-    return modulus_minus_x.to_bytes_le()
-}
-
-
-fn add(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &mut Vec<Gate>) {
-    if is_boolean {
-        gates.push(Gate::Xor(output, lhs, rhs));
-    } else {
-        gates.push(Gate::Add(output, lhs, rhs));
-    }
-}
-
-fn add_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
-    if is_boolean {
-        let tmp = tmp_wire(free_temporary_wire);
-        gates.push(Gate::Constant(tmp, cst));
-        gates.push(Gate::Xor(output, input, tmp));
-    } else {
-        gates.push(Gate::AddConstant(output, input, cst));
-    }
-}
-
-fn mul(is_boolean : bool, output : WireId, lhs : WireId, rhs : WireId, gates : &mut Vec<Gate>) {
-    if is_boolean {
-        gates.push(Gate::And(output, lhs, rhs));
-    } else {
-        gates.push(Gate::Mul(output, lhs, rhs));
-    }
-}
-
-fn mul_c(is_boolean : bool, output : WireId, input : WireId, cst : Value, free_temporary_wire: &Cell<WireId>, gates : &mut Vec<Gate>) {
-    if is_boolean {
-        let tmp = tmp_wire(free_temporary_wire);
-        gates.push(Gate::Constant(tmp, cst));
-        gates.push(Gate::And(output, input, tmp));
-    } else {
-        gates.push(Gate::MulConstant(output, input, cst));
-    }
-}
-
-pub fn flatten_gate(
-    gate: &Gate,     // The gates to be flattened
-    known_functions : &HashMap<String, FunctionDeclare>, // defined functions
-    free_temporary_wire: &Cell<WireId>,                  // free temporary wires
-    modulus    : &Value,                                 // modulus used
-    is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
-    one        : &Value, // If 1 and -1 are given by the caller, then use them, otherwise compute them
-    minus_one  : &Value,
-) -> Vec<Gate> {
-    flatten_gates(
-        &vec![gate.clone()],
-        known_functions,
-        free_temporary_wire,
-        modulus,
-        is_boolean,
-        one,
-        minus_one,
-    )
-}
-
-pub fn flatten_gates(
-    gates: &Vec<Gate>,     // The gates to be flattened
-    known_functions : &HashMap<String, FunctionDeclare>, // defined functions
-    free_temporary_wire: &Cell<WireId>,                  // free temporary wires
-    modulus    : &Value,                                 // modulus used
-    is_boolean : bool,  // whether it's a Boolean circuit (as opposed to an arithmetic one)
-    one        : &Value, // If 1 and -1 are given by the caller, then use them, otherwise compute them
-    minus_one  : &Value,
-) -> Vec<Gate> {
-    let mut ret: Vec<Gate> = Vec::new();
-    let mut args = FlatArgs {
-        modulus,
-        is_boolean,
-        one,
-        minus_one,
-        known_functions,
-        instance_wires: vec![],
-        witness_wires: vec![],
-        instance_counter: Cell::new(0),
-        witness_counter: Cell::new(0),
-        output_gates: &mut ret,
-    };
-
-    let start_wire = free_temporary_wire.get();
-
-    for inner_gate in gates {
-        flatten_gate_internal(
-            inner_gate.clone(),
-            free_temporary_wire,
-            None,
-            &mut args,
-        );
-    }
-
-    let end_wire = free_temporary_wire.get();
-    if end_wire > start_wire {
-        args.output_gates.push(Gate::Free(start_wire, Some(end_wire - 1)));
-    }
-
-    ret
-}
-
-fn flatten_gate_internal(
-    gate: Gate,                             // The gate to be flattened
-    free_temporary_wire: &Cell<WireId>,     // Cell containing the id of the first available temp wire; acts as a global ref
-    weight: Option<WireId>,                 // Weight by which we need to multiply the wires that are tested for assertZero
-    args: &mut FlatArgs                     // The other arguments that don't change in recursive calls
-) {
-    // println!("flattening gate\n {:?}", gate);
-    match gate {
-
-        Gate::Instance(wire_id) => {
-            let ic = args.instance_counter.get() as usize;
-            if ic < args.instance_wires.len() { // The instance data we want has already been pulled and is stored in a wire; we just copy it.
-                let instance_wire = args.instance_wires[ic];
-                args.instance_counter.set(args.instance_counter.get() + 1);
-                args.output_gates.push(Gate::Copy(wire_id, instance_wire));
-            } else { // The instance data we want hasn't been pulled yet; we pull it with an Instance gate.
-                args.instance_wires.push(wire_id);
-                args.instance_counter.set(args.instance_counter.get() + 1);
-                args.output_gates.push(gate);
-            }
-        },
-
-        Gate::Witness(wire_id) => { // The witness data we want has already been pulled and is stored in a wire; we just copy it.
-            let wc = args.witness_counter.get() as usize;
-            if wc < args.witness_wires.len() {
-                let witness_wire = args.witness_wires[wc];
-                args.witness_counter.set(args.witness_counter.get() + 1);
-                args.output_gates.push(Gate::Copy(wire_id, witness_wire));
-            } else { // The witness data we want hasn't been pulled yet; we pull it with a Witness gate.
-                args.witness_wires.push(wire_id);
-                args.witness_counter.set(args.witness_counter.get() + 1);
-                args.output_gates.push(gate);
-            }
-        },
-
-        Gate::AnonCall(
-            output_wires,
-            input_wires,
-            _, _,
-            subcircuit
-        ) => {
-            let expanded_output_wires  = expand_wirelist(&output_wires);
-            let expanded_input_wires   = expand_wirelist(&input_wires);
-            let mut output_input_wires = [expanded_output_wires, expanded_input_wires].concat();
-
-            for inner_gate in unrolling(&subcircuit, &mut HashMap::new()) {
-                flatten_gate_internal(translate_gate(&inner_gate, &mut output_input_wires, free_temporary_wire), free_temporary_wire, weight, args);
-            }
+impl<S: Sink> IRFlattener<S> {
+    pub fn new(sink: S) -> Self {
+        IRFlattener {
+            sink: Some(sink),
+            b: None,
+            modulus: BigUint::zero(),
         }
+    }
 
-        Gate::Call(name, output_wires, input_wires) => {
-            if let Some(declaration) = args.known_functions.get(&name) {
-                // When a function is 'executed', then it's a completely new context, meaning
-                // that iterators defined previously, will not be forwarded to the function.
-                // This is why we set an empty (HashMap::default()) set of iterators.
-                let subcircuit = unrolling(&declaration.4, &mut HashMap::new());
-                flatten_gate_internal(
-                    AnonCall(output_wires, input_wires, declaration.2, declaration.3, subcircuit),
-                    free_temporary_wire,
-                    weight,
-                    args);
-            } else {
-                // The function is not known, so this should either panic, or return an empty vector.
-                // We will consider that this means the original circuit is not valid, while
-                // it should have been tested beforehand
-                panic!("Function {} is unknown", name);
-            }
-        }
-
-        Gate::For(_, _, _, _, _) => {
-            for inner_gate in unroll_gate(gate) {
-                flatten_gate_internal(inner_gate, free_temporary_wire, weight, args);
-            }
-        }
-
-        Gate::Switch(wire_id, output_wires, cases, branches) => {
-            let expanded_output_wires = expand_wirelist(&output_wires);
-
-            let mut global_gates = Vec::new(); // vector of vectors of gates, the inner gates of each branch
-
-            let instance_counter_at_start = args.instance_counter.get();
-            let witness_counter_at_start  = args.witness_counter.get();
-            let mut max_instance = 0; // how many instance pulls will be done by the switch
-            let mut max_witness  = 0; // how many witness pulls will be done by the switch
-            
-            // println!("Reducing {:?} <- switch {:?} [{:?}]\n", expanded_output_wires, wire_id, cases);
-            for branch in branches {
-                // println!("Initial pass rewrites\n{:?}", branch);
-                // maps inner context to outer context
-                // also computes max_instance, max_witness
-                match branch {
-                    CaseInvoke::AbstractGateCall(name, input_wires) => {
-                        if let Some(declaration) = args.known_functions.get(&name){
-                            let expanded_input_wires = expand_wirelist(&input_wires);
-                            let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
-                            max_instance = cmp::max(max_instance, declaration.2);
-                            max_witness  = cmp::max(max_witness, declaration.3);
-                            let gates
-                                = unrolling(&declaration.4, &mut HashMap::new())
-                                    .iter()
-                                    .map(|gate| translate_gate(gate, &mut output_input_wires, free_temporary_wire))
-                                .collect::<Vec<Gate>>();
-                            global_gates.push(gates);
-                        } else {
-                            panic!("Function {} is unknown", name);
-                        }
-                    },
-                    CaseInvoke::AbstractAnonCall(input_wires, instance_count, witness_count, branch) => {
-                        let expanded_input_wires = expand_wirelist(&input_wires);
-                        let mut output_input_wires = [expanded_output_wires.clone(), expanded_input_wires].concat();
-                        max_instance = cmp::max(max_instance, instance_count);
-                        max_witness  = cmp::max(max_witness, witness_count);
-                        let gates
-                            = unrolling(&branch, &mut HashMap::new())
-                                .iter()
-                                .map(|gate| translate_gate(gate, &mut output_input_wires, free_temporary_wire))
-                                .collect::<Vec<Gate>>();
-                        global_gates.push(gates);
-                    }
-                }
-            }
-
-            let mut at_least1_wire = tmp_wire(free_temporary_wire); // In this wire we add up the branches weights; at the end, this must be == 1 otherwise no case has been taken
-            args.output_gates.push(Gate::Constant(at_least1_wire, vec![0,0,0,0]));
-
-            let mut temp_maps = Vec::new();
-
-            for (i,branch_gates) in global_gates.iter().enumerate() {
-
-                /****** the first thing we do is compute the weight of the branch, ***********/
-                /* i.e. a wire assigned the value 1 - ($0 - 42)^(p-1) for a switch on $0, case value 42,
-                where p is the field's characteristic */
-
-                let minus_val = minus(&args.modulus, &cases[i]);
-
-                //compute $0 - 42, assigning it to base_wire
-                let base_wire = tmp_wire(free_temporary_wire);
-                add_c(args.is_boolean, base_wire, wire_id, minus_val, free_temporary_wire, args.output_gates);
-
-                // Now we do the exponentiation base_wire^(p - 1), where base_wire has been assigned value ($0 - 42),
-                // calling the fast exponentiation function exp, which return a bunch of gates doing the exponentiation job.
-                // By convention, exp assigns the output value to the first available temp wire at the point of call.
-                // Therefore, we remember what this wire is:
-                let exp_wire    = free_temporary_wire.get(); // We are not using this wire yet (no need to bump free_temporary_wire, exp will do it)
-                let exp_as_uint = BigUint::from_bytes_le(&args.minus_one);
-                let exp_as_int  = BigInt::from(exp_as_uint);
-                exp(args.is_boolean, base_wire, exp_as_int, free_temporary_wire, args.output_gates);
-
-                // multiply by -1 to compute (- ($0 - 42)^(p-1))
-                let neg_exp_wire = tmp_wire(free_temporary_wire);
-                mul_c(args.is_boolean, neg_exp_wire, exp_wire, args.minus_one.clone(), free_temporary_wire, args.output_gates);
-
-                // Adding 1 to compute (1 - ($0 - 42)^(p-1))
-                let weight_wire_id = tmp_wire(free_temporary_wire);
-                add_c(args.is_boolean, weight_wire_id, neg_exp_wire, args.one.clone(), free_temporary_wire, args.output_gates);
-                //********* end weight ************************/
-
-
-                // Now, after the first pass above, the new gates are using the global output wire ids to write their outputs
-                // They shouldn't: each branch is writing on them while each branch should write its outputs on temp wires,
-                // and the final outputs should be the weighted sums of these temp wires.
-                // For the branch we're in, we take as many temp wires as there are outputs for the switch, and keep a renaming map
-
-                // The following two maps keep, for each wire o in expanded_output_wires:
-                // - a temp wire to be used in the branch in stead of o; this is kept in map_branch_local
-                // - a temp wire for the weighted version of it: this is kept in map_weighted_branch_local
-                let mut map_branch_local          : HashMap<WireId,WireId> = HashMap::new();
-                let mut map_weighted_branch_local : HashMap<WireId,WireId> = HashMap::new();
-                // We store the gates that compute the weighted outputs of the branch from the non-weighted ones
-                let mut weighting_gates = Vec::new();
-                for o in &expanded_output_wires {
-                    let o_branch_local = tmp_wire(free_temporary_wire); // the temp wire to be used in the branch in stead of o
-                    let o_weighted_branch_local = tmp_wire(free_temporary_wire); // and its weighted version
-                    map_branch_local.insert(*o, o_branch_local);
-                    map_weighted_branch_local.insert(*o, o_weighted_branch_local);
-                    mul(args.is_boolean, o_weighted_branch_local, o_branch_local, weight_wire_id, &mut weighting_gates);
-                }
-
-                // println!("map {:?}", &map);
-                // Now we do the renaming in the branch, using map_branch_local
-                // and we call ourselves recursively to handle the presence of nested loops, switches and functions
-                for inner_gate in unrolling(branch_gates, &mut HashMap::new()) {
-                    let new_gate = swap_gate_outputs(inner_gate.clone(), &map_branch_local);
-                    // println!("line 265 {:?} to {:?} \n", inner_gate, new_gate);
-                    let agreg_weight =
-                        if let Some(w) = weight {
-                            let tmp = tmp_wire(free_temporary_wire);
-                            mul(args.is_boolean, tmp, w, weight_wire_id, args.output_gates);
-                            tmp
-                        } else {
-                            weight_wire_id
-                        };
-
-                    flatten_gate_internal(new_gate, free_temporary_wire, Some(agreg_weight), args);
-                }
-
-                // Now we can add the weighting gates
-                args.output_gates.extend_from_slice(&weighting_gates);
-                // We remember the map for the branch
-                temp_maps.push(map_weighted_branch_local);
-
-                // We add the weight to the sum of the weights
-                let new_temp = tmp_wire(free_temporary_wire);
-                add(args.is_boolean, new_temp, at_least1_wire, weight_wire_id, args.output_gates);
-                at_least1_wire = new_temp;
-
-                // The above may result in instance pulls and witness pulls, so we reset them for the next branch
-                args.instance_counter.set(instance_counter_at_start);
-                args.witness_counter.set(witness_counter_at_start);
-            }
-
-            // We check that 1 branch has been taken 
-            let at_least1_minus_1 = tmp_wire(free_temporary_wire);
-            add_c(args.is_boolean, at_least1_minus_1, at_least1_wire, args.minus_one.clone(), free_temporary_wire, &mut args.output_gates);
-            args.output_gates.push(Gate::AssertZero(at_least1_minus_1));
-             
-            // Now we define the real outputs of the switch as the weighted sums of the branches' outputs
-            for output in &expanded_output_wires{
-                // Weighted sum starts with 0
-                let mut sum_wire = tmp_wire(free_temporary_wire);
-                args.output_gates.push(Gate::Constant(sum_wire, vec![0,0,0,0]));
-                for map in &temp_maps {
-                    let new_temp = tmp_wire(free_temporary_wire);
-                    add(args.is_boolean, new_temp, sum_wire, get(map, *output), args.output_gates);
-                    sum_wire = new_temp;
-                }
-                args.output_gates.push(Gate::Copy(*output,sum_wire));
-            }
-            args.instance_counter.set(instance_counter_at_start + (max_instance as u64));
-            args.witness_counter.set(witness_counter_at_start + (max_witness as u64));
-            
-        },
-
-        Gate::AssertZero(wire_id) => {
-            // if it is assert_zero and we have a weight, then add a multiplication gate before it
-            if let Some(w) = weight {
-                let new_temp_wire = tmp_wire(free_temporary_wire);
-                mul(args.is_boolean, new_temp_wire, wire_id, w, args.output_gates);
-                args.output_gates.push(Gate::AssertZero(new_temp_wire));
-            } else {
-                args.output_gates.push(gate)
-            }
-        },
-
-        _ => args.output_gates.push(gate),
+    pub fn finish(mut self) -> S {
+        self.b.take().unwrap().finish()
     }
 }
 
-
-/* Example run:
-
-exponent = 7
-free_wire = Cell<12>
-
-output     <- 12
-free_wire  <- Cell<13> 
-output_rec <- 13
-exp(wire_id, 3, Cell<13>)
-output     <- 13
-free_wire  <- Cell<14>
-output_rec <- 14
-gates = exp(wire_id, 1, Cell<14>)
-return Vec<Copy(14,wire_id)>
-Gate::Mul(15, 14, 14)    // squaring
-Gate::Mul(13,wire_id,15) // 3 was odd
-Gate::Mul(16, 13, 13)    // squaring
-Gate::Mul(12,wire_id,16) // 7 was odd    
- **/
-
-fn exp(is_boolean : bool, wire_id : WireId, exponent : BigInt, free_temporary_wire : &Cell<u64>, gates : &mut Vec<Gate>) {
-    if exponent == BigInt::from(1u32) {
-        let wire = tmp_wire(free_temporary_wire);
-        gates.push(Copy(wire,wire_id));
-    } else {
-        let output      = tmp_wire(free_temporary_wire); // We reserve the first available wire for our own output
-        let output_rec  = free_temporary_wire.get(); // We remember where the recursive call will place its output
-        let big_int_div = exponent.div_floor(&BigInt::from(2u32));
-        exp(is_boolean, wire_id, big_int_div, free_temporary_wire, gates);
-
-        // Exponent was even: we just square the result of the recursive call
-        if exponent % BigInt::from(2u32) == BigInt::from(0u32) {
-            mul(is_boolean, output, output_rec, output_rec, gates);
-        }
-        else{ // Exponent was odd: we square the result of the recursive call and multiply by wire_id
-            let temp_output = tmp_wire(free_temporary_wire);
-            mul(is_boolean, temp_output, output_rec, output_rec, gates);
-            mul(is_boolean, output, wire_id, temp_output, gates);
+impl<S: Sink> Drop for IRFlattener<S> {
+    fn drop(&mut self) {
+        if self.b.is_some() {
+            self.b.take().unwrap().finish();
         }
     }
 }
 
-// Applies a map to a list of wires
-fn get(map : &HashMap<WireId,WireId>, wire : WireId) -> WireId {
-    if let Some(w) = map.get(&wire){
-        *w
-    } else {
-        wire
-    }
-}
+impl<S: Sink> ZKBackend for IRFlattener<S> {
+    type Wire = WireId;
+    type FieldElement = BigUint;
 
-// Applies a map to a list of wires
-fn swap_vec(wires: &Vec<WireListElement>,
-            map  : &HashMap<WireId,WireId>) -> Vec<WireListElement> {
-    let expanded_wires = expand_wirelist(&wires);
-    let mut new_wires  = Vec::new();
-    for wire in expanded_wires {
-        new_wires.push(Wire(get(map, wire)));
-    }
-    new_wires
-}
 
-fn swap_gate_outputs(gate : Gate, map : &HashMap<WireId,WireId>) -> Gate {
-    match gate{
-        Gate::AnonCall(output_wires,input_wires,instance_count,witness_count,subcircuit) =>
-        {
-            let new_outputs = swap_vec(&output_wires,map);
-            let new_inputs  = swap_vec(&input_wires,map);
-            Gate::AnonCall(new_outputs,new_inputs,instance_count,witness_count,subcircuit.clone())
-        },
-        Gate::Call(name,output_wires,input_wires) => {
-            let new_outputs = swap_vec(&output_wires,map);
-            let new_inputs  = swap_vec(&input_wires,map);
-            Gate::Call(name,new_outputs,new_inputs)
-        },
-        Gate::Switch(wire_id, output_wires , values, cases) => {
-            let new_outputs = swap_vec(&output_wires,map);
-            Gate::Switch(wire_id,new_outputs,values,cases)
-        },
-        Gate::For(_, _, _, _, _) => {
-            panic!("For loops should have been unrolled!")
+    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
+        Ok(BigUint::from_bytes_le(val))
+    }
+
+    fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()> {
+        if self.b.is_none() {
+            let header = Header {
+                version: IR_VERSION.parse().unwrap(),
+                field_characteristic: Value::from(modulus),
+                field_degree: degree,
+            };
+            self.modulus = BigUint::from_bytes_le(modulus);
+            self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
         }
-        Gate::Constant(wire_id,value) => {
-            Gate::Constant(get(map, wire_id),value)
-        },
-        Gate::Copy(wire_id_out, wire_id_in) => {
-            Gate::Copy(get(map, wire_id_out), get(map, wire_id_in))
-        },
-        Gate::Add(wire_id_out,wire_id1,wire_id2) => {
-            Gate::Add(get(map, wire_id_out), get(map, wire_id1), get(map, wire_id2))
-        },
-        Gate::Mul(wire_id_out,wire_id1,wire_id2) => {
-            Gate::Mul(get(map, wire_id_out), get(map, wire_id1), get(map, wire_id2))
-        },
-        Gate::AddConstant(wire_id_out, wire_id_in, value) => {
-            Gate::AddConstant(get(map, wire_id_out), get(map, wire_id_in), value)
-        },
-        Gate::MulConstant(wire_id_out, wire_id_in, value) => {
-            Gate::MulConstant(get(map, wire_id_out), get(map, wire_id_in), value)
-        },
-        Gate::And(wire_id_out,wire_id1,wire_id2) => {
-            Gate::And(get(map, wire_id_out), get(map, wire_id1), get(map, wire_id2))
-        },
-        Gate::Xor(wire_id_out, wire_id1, wire_id2) => {
-            Gate::Xor(get(map, wire_id_out), get(map, wire_id1), get(map, wire_id2))
-        },     
-        Gate::Not(wire_id_out, wire_id_in) => {
-            Gate::Not(get(map, wire_id_out), get(map, wire_id_in))
-        },
-        Gate::Instance(wire_id) => {
-            Gate::Instance(get(map, wire_id))
-        },
-        Gate::Witness(wire_id) => {
-            Gate::Witness(get(map, wire_id))
-        },
-        Gate::Free(wire_id, id_opt) => { // Not sure how to handle the ranges
-            let new_opt = // I think it's fine because the new wire ids are assigned in order
-                if let Some(id_top) = id_opt {
-                    Some(get(map, id_top))
-                } else {
-                    None
-                };
-            Gate::Free(get(map, wire_id), new_opt)
-        },
-        Gate::AssertZero(wire_id) => {
-            Gate::AssertZero(get(map, wire_id))
-        }
+        Ok(())
     }
-}
+
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
+    }
 
 
+    fn minus_one(&self) -> Result<Self::FieldElement> {
+        if self.modulus.is_zero() {
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+        }
+        Ok(&self.modulus - self.one()?)
+    }
 
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
+    }
 
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Copy(*wire)))
+    }
 
-/*
-pub fn flatten_subcircuit(
-gates: &[Gate],
-known_functions: &HashMap<String, FunctionDeclare>,
-known_iterators: &HashMap<String, u64>,
-free_temporary_wire: &Cell<WireId>
-) -> Vec<Gate> {
-    gates
-        .into_iter()
-        .flat_map(move |gate| flatten_gate(gate.clone(), known_functions, known_iterators, free_temporary_wire))
-        .collect()
-}
-*/
+    fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Constant(val.to_bytes_le())))
+    }
 
-// TODO: some functions may be defined in a previous relation, but can be used in this one,
-// so give a mutable HashMap instead as parameter.
-pub fn flatten_relation_from(relation : &Relation, tmp_wire_start : u64) -> (Relation, u64) {
+    fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b.as_ref().unwrap().create_gate(BuildGate::AssertZero(*wire));
+        Ok(())
+    }
 
-    let modulus = relation.header.field_characteristic.clone();
-    let one : Value = [1,0,0,0].to_vec(); // = True for Boolean circuits
-    let minus_one : Value = minus(&modulus, &one); // should work for Booleans too, being True as well
-    let known_functions = get_known_functions(&relation);
+    fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Add(*a, *b)))
+    }
 
-    let free_temporary_wire = Cell::new(tmp_wire_start);
-    let is_boolean = contains_feature(relation.gate_mask, BOOL);
-    
-    let flattened_gates =
-        flatten_gates(
-            &relation.gates,
-            &known_functions,      // defined functions
-            &free_temporary_wire,  // free temporary wires
-            &modulus,              // modulus used
-            is_boolean,            // whether it's a Boolean circuit (as opposed to an arithmetic one)
-            &one, // If 1 and -1 are given by the caller, then use them, otherwise compute them
-            &minus_one
-        );
+    fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Mul(*a, *b)))
+    }
 
-    (Relation {
-        header   : relation.header.clone(),
-        gate_mask: if is_boolean {BOOL} else {ARITH},
-        feat_mask: SIMPLE,
-        functions: vec![],
-        gates    : flattened_gates,
-    },
-     free_temporary_wire.get())
+    fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::AddConstant(*a, b.to_bytes_le())))
+    }
 
-}
+    fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::MulConstant(*a, b.to_bytes_le())))
+    }
 
-// TODO make this function return a (Relation, u64) instead
-pub fn flatten_relation(relation : &Relation) -> Relation {
-    let mut validator = Validator::new_as_verifier();
-    validator.ingest_relation(relation);
-    let tmp_wire_start = validator.get_tws();
-    return flatten_relation_from(relation, tmp_wire_start).0;
+    fn and(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::And(*a, *b)))
+    }
+
+    fn xor(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Xor(*a, *b)))
+    }
+
+    fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Not(*a)))
+    }
+
+    fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Instance(val.to_bytes_le())))
+    }
+
+    fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        let value = val.map(|v| v.to_bytes_le());
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Witness(value)))
+    }
 }
 
 #[test]
 fn test_validate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
+    use crate::consumers::validator::Validator;
+    use crate::producers::sink::MemorySink;
+    use crate::consumers::evaluator::Evaluator;
+    use crate::Source;
 
     let instance = example_instance();
     let witness = example_witness();
     let relation = example_relation();
 
-    let new_relation = flatten_relation(&relation);
-    let mut new_val  = Validator::new_as_prover();
-    new_val.ingest_instance(&instance);
-    new_val.ingest_witness(&witness);
-    new_val.ingest_relation(&new_relation);
-    let violations = new_val.get_violations();
+    let mut flattener = IRFlattener::new(MemorySink::default());
+    let mut evaluator = Evaluator::default();
+
+    evaluator.ingest_instance(&instance)?;
+    evaluator.ingest_witness(&witness)?;
+    evaluator.ingest_relation(&relation, &mut flattener)?;
+
+    let s: Source = flattener.finish().into();
+
+    let mut val = Validator::new_as_prover();
+    for message in s.iter_messages() {
+        val.ingest_message(&message?);
+    }
+
+    let violations = val.get_violations();
 
     assert_eq!(violations, Vec::<String>::new());
 
@@ -617,18 +200,26 @@ fn test_validate_flattening() -> crate::Result<()> {
 #[test]
 fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::producers::examples::*;
-    use crate::consumers::evaluator::Evaluator;
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::producers::sink::MemorySink;
+    use crate::Source;
+
 
     let relation = example_relation();
     let instance = example_instance();
     let witness = example_witness();
 
-    let new_relation = flatten_relation(&relation);
+    let mut flattener = IRFlattener::new(MemorySink::default());
+    let mut evaluator = Evaluator::default();
 
-    let mut new_simulator = Evaluator::default();
-    let _ = new_simulator.ingest_instance(&instance);
-    let _ = new_simulator.ingest_witness(&witness);
-    let _ = new_simulator.ingest_relation(&new_relation);
+    evaluator.ingest_instance(&instance)?;
+    evaluator.ingest_witness(&witness)?;
+    evaluator.ingest_relation(&relation, &mut flattener)?;
+
+    let s: Source = flattener.finish().into();
+
+    let mut interpreter = PlaintextBackend::default();
+    let new_simulator = Evaluator::from_messages(s.iter_messages(), &mut interpreter);
 
     assert_eq!(new_simulator.get_violations().len(), 0);
 

@@ -55,8 +55,8 @@ pub fn build_wires_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 /// Convert from Flatbuffers references to owned structure.
 pub fn from_range(g_wirerange: &g::WireRange) -> Result<(WireId, WireId)> {
     Ok((
-        g_wirerange.first().ok_or("Missing start value in range")?.id(),
-        g_wirerange.last().ok_or("Missing end value in range")?.id(),
+        g_wirerange.first().ok_or_else(|| "Missing start value in range")?.id(),
+        g_wirerange.last().ok_or_else(|| "Missing end value in range")?.id(),
     ))
 }
 
@@ -91,8 +91,8 @@ impl<'a> TryFrom<g::WireListElement<'a>> for WireListElement {
             g::WireListElementU::WireRange => {
                 let range = element.element_as_wire_range().unwrap();
                 WireRange(
-                    range.first().ok_or("Missing first value of range")?.id(),
-                    range.last().ok_or("Missing last value of range")?.id(),
+                    range.first().ok_or_else(|| "Missing first value of range")?.id(),
+                    range.last().ok_or_else(|| "Missing last value of range")?.id(),
                 )
             },
         })
@@ -132,7 +132,7 @@ impl<'a> TryFrom<g::WireList<'a>> for WireList {
     type Error = Box<dyn Error>;
 
     fn try_from(list: g::WireList<'a>) -> Result<Self> {
-        let fbs_vector = list.elements().ok_or("Missing wire list")?;
+        let fbs_vector = list.elements().ok_or_else(|| "Missing wire list")?;
         let mut elements = vec![];
         for i in 0..fbs_vector.len() {
             let a = fbs_vector.get(i);
@@ -159,7 +159,6 @@ pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
 }
 
 /// Expand a WireList into a vector of individual WireId.
-// TODO implement it using iterator exclusively
 pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
     wirelist.iter().flat_map(|wire|
         match wire {

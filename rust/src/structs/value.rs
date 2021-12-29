@@ -10,7 +10,7 @@ pub type Value = Vec<u8>;
 
 /// Convert from Flatbuffers references to owned structure.
 pub fn try_from_value(g_value: g::Value) -> Result<Value> {
-    Ok(Vec::from(g_value.value().ok_or("Missing value")?))
+    Ok(Vec::from(g_value.value().ok_or_else(|| "Missing value")?))
 }
 
 /// Convert from a Flatbuffers vector to owned structures.

@@ -71,7 +71,6 @@ impl Source {
             BufferSource::Stdin
         } else {
             paths.sort();
-            /* Alternative, sort by message type.
             paths.sort_by_key(|path| {
                 let name = path.file_name().unwrap().to_str().unwrap();
                 match () {
@@ -80,7 +79,7 @@ impl Source {
                     _ if name.contains("relation") => 3,
                     _ => 4,
                 }
-            });*/
+            });
             BufferSource::Files(paths)
         };
         Source {
