@@ -96,12 +96,12 @@ fn as_add<B: ZKBackend>(backend: &mut B, a: &B::Wire, b: &B::Wire, is_bool: bool
 }
 
 // Computes the 'negative' value. `minus_one_buf` must be provided and include a buffer with modulus minus one
-fn as_negate<B: ZKBackend>(backend: &mut B, wire: &B::Wire, minus_one: B::FieldElement, is_bool: bool) -> Result<B::Wire> {
+fn as_negate<B: ZKBackend>(backend: &mut B, wire: &B::Wire, is_bool: bool) -> Result<B::Wire> {
     if is_bool {
         // negation in boolean field is identity
         backend.copy(wire)
     } else {
-        backend.mul_constant(wire, minus_one)
+        backend.mul_constant(wire, backend.minus_one()?)
     }
 }
 
@@ -757,12 +757,11 @@ fn compute_weight<B: ZKBackend>(backend: &mut B, case: &[u8], condition: &B::Wir
     let case_wire = &backend.constant(B::from_bytes_le(case)?)?;
     // scalar value
     let exponent = modulus - &BigUint::one();
-    let minus_one_fe = backend.minus_one()?;
 
-    let minus_cond = &as_negate(backend, condition, minus_one_fe.clone(), is_boolean)?;
+    let minus_cond = &as_negate(backend, condition, is_boolean)?;
     let base = &as_add(backend, case_wire, minus_cond, is_boolean)?;
     let base_to_exp = &exp(backend, base, &exponent, modulus, is_boolean)?;
-    let right = &as_negate(backend, base_to_exp, minus_one_fe, is_boolean)?;
+    let right = &as_negate(backend, base_to_exp, is_boolean)?;
     as_add_one(backend, right, is_boolean)
 }
 
