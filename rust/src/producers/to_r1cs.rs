@@ -19,9 +19,7 @@ pub struct ToR1CSConverter<S: Sink> {
     use_correction: bool,
     src_modulus: BigUint,
     byte_len: usize,
-    minus_one: u64,
     one: u64,
-    zero: u64,
 }
 
 impl<S: Sink> ToR1CSConverter<S> {
@@ -36,9 +34,7 @@ impl<S: Sink> ToR1CSConverter<S> {
             use_correction,
             src_modulus: BigUint::zero(),
             byte_len: 0,
-            minus_one: 0,
             one: 0,
-            zero: 0,
         }
     }
 
@@ -85,6 +81,7 @@ impl<S: Sink> ToR1CSConverter<S> {
 }
 
 impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
+    // Wire id
     type Wire = u64;
     type FieldElement = BigUint;
 
@@ -92,55 +89,48 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_field(&mut self, modulus: &[u8], degree: u32, _is_boolean: bool) -> Result<()> {
+    fn set_field(&mut self, mut modulus: &[u8], degree: u32, _is_boolean: bool) -> Result<()> {
+        // This assumes that finite field elements can be zero padded in their byte reprs. For prime
+        // fields, this assumes that the byte representation is little-endian.
+        while modulus.last() == Some(&0) {
+            modulus = &modulus[0..modulus.len() - 1];
+        }
+
+        // modulus
         self.src_modulus = BigUint::from_bytes_le(modulus);
 
-        let minus_one_buf = (&self.src_modulus - BigUint::one()).to_bytes_le();
-        self.byte_len = minus_one_buf.len();
-        // Allocate constants 0 / 1 / -1
-        self.minus_one = self.builder.allocate_instance_var(&pad_le_u8_vec(minus_one_buf.clone(), self.byte_len));
-        self.make_assignment(self.minus_one, Some(Self::from_bytes_le(&minus_one_buf)?))?;
+        self.byte_len = modulus.len();
 
-        self.zero = self.builder.allocate_instance_var(&pad_le_u8_vec(vec![0], self.byte_len));
-        self.make_assignment(self.zero, Some(BigUint::zero()))?;
-
-        // self.one = self.builder.allocate_instance_var(&pad_le_u8_vec(vec![1], self.byte_len));
-        self.one = 0;
+        self.one = 0; // spec convention
         self.make_assignment(self.one, Some(BigUint::one()))?;
-        self.builder.header.field_maximum = Some(minus_one_buf);
 
-        // dummy constraints to force use -1 / 0 / 1
-        if self.use_correction {
-            self.push_constraint(BilinearConstraint {
-                linear_combination_a: make_combination(vec![self.one, self.minus_one], vec![1, 1]),
-                linear_combination_b: make_combination(vec![self.one], vec![1]),
-                linear_combination_c: make_combination(vec![self.zero, self.one], pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()])),
-            })?;
-        } else {
-            self.push_constraint(BilinearConstraint {
-                linear_combination_a: make_combination(vec![self.one, self.minus_one], vec![1, 1]),
-                linear_combination_b: make_combination(vec![self.one], vec![1]),
-                linear_combination_c: make_combination(vec![self.zero], vec![1]),
-            })?;
-        }
+        self.builder.header.field_maximum = Some(self.minus_one()?.to_bytes_le());
+
+        // (Optional) add dummy constraints to force use of newly introduced wires
+
         if degree != 1 {
-            Err("Degree higher than 1 are not supported".into())
+            Err("Degree higher than 1 is not supported".into())
         } else {
             Ok(())
         }
     }
 
-    fn one(&self) -> Self::Wire {
-        self.one
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
     }
 
-    fn minus_one(&self) -> Self::Wire {
-        self.minus_one
+    fn minus_one(&self) -> Result<Self::FieldElement> {
+        if self.src_modulus.is_zero() {
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+        }
+        Ok(&self.src_modulus - self.one()?)
     }
 
-    fn zero(&self) -> Self::Wire {
-        self.zero
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
     }
+
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(*wire) }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         let id = self.builder.allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
@@ -320,7 +310,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     }
 
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
-        self.add(a, &self.one())
+        self.add_constant(a, self.one()?)
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -389,6 +379,7 @@ use std::{
     path::PathBuf,
     collections::HashSet,
 };
+
 
 
 #[cfg(test)]
@@ -519,7 +510,8 @@ fn test_tor1cs_validate_2ways_conversion_same_field() -> crate::Result<()> {
     }
 
     let validator_violations = validator.get_violations();
-    assert_eq!(validator_violations.len(), 0);
+    assert_eq!(validator_violations.len(), 1);
+    assert_eq!(validator_violations[0], "variable_1 was defined but not used.");
 
     // Then check that the constraint system is verified
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();
@@ -619,7 +611,8 @@ fn test_tor1cs_validate_2ways_conversion_bigger_field() -> crate::Result<()> {
 
     let validator_violations = validator.get_violations();
     println!("{:?}", validator_violations);
-    assert_eq!(validator_violations.len(), 0);
+    assert_eq!(validator_violations.len(), 1);
+    assert_eq!(validator_violations[0], "variable_1 was defined but not used.");
 
     // Then check that the constraint system is verified
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();

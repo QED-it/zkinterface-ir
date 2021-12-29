@@ -33,17 +33,15 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.set_field(modulus, degree, is_boolean)
     }
 
-    fn one(&self) -> Self::Wire {
-        self.inner.one()
-    }
+    fn one(&self) -> Result<Self::FieldElement> { self.inner.one() }
 
-    fn minus_one(&self) -> Self::Wire {
+    fn minus_one(&self) -> Result<Self::FieldElement> {
         self.inner.minus_one()
     }
 
-    fn zero(&self) -> Self::Wire {
-        self.inner.zero()
-    }
+    fn zero(&self) -> Result<Self::FieldElement> { self.inner.zero() }
+
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire>{ self.inner.copy(wire) }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         self.inner.constant(val)
@@ -120,8 +118,7 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
             if !contains_feature(self.gate_mask, ADD) {
                 panic!("Cannot replace NOT by ADD if ADD is not supported.");
             }
-            let tmp = self.one();
-            self.add(a, &tmp)
+            self.add_constant(a, self.one()?)
         } else {
             self.inner.not(a)
         }

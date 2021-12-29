@@ -3,8 +3,9 @@ use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::relation::{SIMPLE, ARITH, BOOL};
 use crate::consumers::evaluator::{ZKBackend};
 use num_bigint::BigUint;
+use num_traits::{One, Zero};
 use crate::producers::build_gates::BuildGate;
-use num_traits::One;
+use crate::structs::IR_VERSION;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
 // Free gate when the wire is no more needed.
@@ -13,9 +14,7 @@ use num_traits::One;
 pub struct IRFlattener<S: Sink> {
     sink: Option<S>,
     b: Option<GateBuilder<S>>,
-    one: WireId,
-    zero: WireId,
-    minus_one: WireId,
+    modulus: BigUint,
 }
 
 impl<S: Sink> IRFlattener<S> {
@@ -23,9 +22,7 @@ impl<S: Sink> IRFlattener<S> {
         IRFlattener {
             sink: Some(sink),
             b: None,
-            one: 0,
-            zero: 0,
-            minus_one: 0,
+            modulus: BigUint::zero(),
         }
     }
 
@@ -54,37 +51,36 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()> {
         if self.b.is_none() {
             let header = Header {
-                version: "1.0.0".to_string(),
+                version: IR_VERSION.parse().unwrap(),
                 field_characteristic: Value::from(modulus),
                 field_degree: degree,
             };
+            self.modulus = BigUint::from_bytes_le(modulus);
             self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
-            self.zero = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![0]));
-            self.one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant(vec![1]));
-            self.minus_one = self.b.as_ref().unwrap().create_gate(BuildGate::Constant((BigUint::from_bytes_le(modulus) - BigUint::one()).to_bytes_le()));
         }
         Ok(())
     }
 
-    fn one(&self) -> Self::Wire {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.one
+    fn one(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::one())
     }
 
-    fn minus_one(&self) -> Self::Wire {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
+    fn minus_one(&self) -> Result<Self::FieldElement> {
+        if self.modulus.is_zero() {
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
         }
-        self.minus_one
+        Ok(&self.modulus - self.one()?)
     }
 
-    fn zero(&self) -> Self::Wire {
+    fn zero(&self) -> Result<Self::FieldElement> {
+        Ok(BigUint::zero())
+    }
+
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.zero
+        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Copy(*wire)))
     }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
