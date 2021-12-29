@@ -136,8 +136,8 @@ impl Validator {
         self.violations
     }
 
-    pub fn get_strict_violations(&self) -> Vec<String> {
-        self.violations.clone()
+    pub fn get_strict_violations(&self) -> &Vec<String> {
+        &self.violations
     }
 
     pub fn how_many_violations(&self) -> usize {

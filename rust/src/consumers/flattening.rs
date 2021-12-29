@@ -65,6 +65,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(BigUint::one())
     }
 
+
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.modulus.is_zero() {
             return Err("Modulus is not initiated, used `set_field()` before calling.".into())
