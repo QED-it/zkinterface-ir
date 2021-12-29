@@ -5,6 +5,7 @@ use crate::consumers::evaluator::{ZKBackend};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 use crate::producers::build_gates::BuildGate;
+use crate::structs::IR_VERSION;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
 // Free gate when the wire is no more needed.
@@ -50,7 +51,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()> {
         if self.b.is_none() {
             let header = Header {
-                version: "1.0.0".to_string(),
+                version: IR_VERSION.parse().unwrap(),
                 field_characteristic: Value::from(modulus),
                 field_degree: degree,
             };
