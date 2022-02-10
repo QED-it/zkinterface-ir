@@ -388,3 +388,15 @@ and will decrease the development overhead of new versions of the standard.
 ### Low-level serialization
 
 It is not necessary to use the above APIs to integrate SIEVE IR. Any implementation of FlatBuffers can be used directly instead (a custom implementation is doable because the encoding is simple, but that would be a last resort). See [google.github.io/flatbuffers/](https://google.github.io/flatbuffers/) for existing tools, in particular the code generator `flatc`. This is the recommended approach for systems written in languages other than Rust.
+
+The file `sieve\_ir\_generated.rs` could be generated with the command `make fbs` after installing flatc version 1.12.0.
+```bash
+# Install flatc version 1.12.0
+git clone https://github.com/google/flatbuffers.git.
+cd flatbuffers
+git checkout v1.12.0
+cmake -G "Unix Makefiles"
+make
+sudo ln -s $(realpath flatc) /usr/local/bin/flatc
+```
+

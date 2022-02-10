@@ -1,3 +1,8 @@
+# Unreleased
+
+Schema (.fbs):
+- Add schema compilation in Makefile (`make fbs`)
+
 # v2.0.0, 2021-12
 
 Rust:
