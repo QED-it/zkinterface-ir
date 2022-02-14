@@ -3,6 +3,9 @@
 Schema (.fbs):
 - Add schema compilation in Makefile (`make fbs`)
 
+Rust:
+- Boolean example (`zki_sieve bool-example [--incorrect]`)
+
 # v2.0.0, 2021-12
 
 Rust:

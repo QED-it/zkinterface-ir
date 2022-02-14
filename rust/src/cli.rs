@@ -21,6 +21,7 @@ use crate::producers::sink::MemorySink;
 use crate::consumers::flattening::IRFlattener;
 use zkinterface::WorkspaceSink;
 use crate::consumers::exp_definable::ExpandDefinable;
+use crate::{Instance, Relation, Witness};
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -51,7 +52,9 @@ setting(ColoredHelp)
 pub struct Options {
     /// Which tool to run.
     ///
-    /// example       Produce example statements.
+    /// example       Produce arithmetic example statements.
+    ///
+    /// bool-example  Produce Boolean example statements.
     ///
     /// to-text       Print the content in a human-readable form.
     ///
@@ -117,6 +120,7 @@ pub struct Options {
 pub fn cli(options: &Options) -> Result<()> {
     match &options.tool[..] {
         "example" => main_example(options),
+        "bool-example" => main_boolean_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "from-json" => from_json(options),
@@ -168,7 +172,26 @@ fn main_example(opts: &Options) -> Result<()> {
     } else {
         example_witness_h(&header)
     };
+    write_example(opts, &instance, &witness, &relation)?;
+    Ok(())
+}
 
+fn main_boolean_example(opts: &Options) -> Result<()> {
+    use crate::producers::boolean_examples::*;
+
+    let header = example_boolean_header();
+    let instance = example_instance_h(&header);
+    let relation = example_relation_h(&header);
+    let witness = if opts.incorrect {
+        example_witness_incorrect_h(&header)
+    } else {
+        example_witness_h(&header)
+    };
+    write_example(opts, &instance, &witness, &relation)?;
+    Ok(())
+}
+
+fn write_example(opts: &Options, instance: &Instance, witness: &Witness, relation: &Relation) -> Result<()>{
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
     }
@@ -539,12 +562,12 @@ fn print_violations(errors: &[String], which_statement: &str, what_it_is_suppose
 fn test_cli() -> Result<()> {
     use std::fs::remove_dir_all;
 
-    let workspace = PathBuf::from("local/test_cli");
-    let _ = remove_dir_all(&workspace);
+    let _ = remove_dir_all(PathBuf::from("local/test_cli"));
+    let arithmetic_workspace = PathBuf::from("local/test_cli/arithmetic_example");
 
     cli(&Options {
         tool: "example".to_string(),
-        paths: vec![workspace.clone()],
+        paths: vec![arithmetic_workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
@@ -555,7 +578,31 @@ fn test_cli() -> Result<()> {
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
-        paths: vec![workspace.clone()],
+        paths: vec![arithmetic_workspace.clone()],
+        field_order: BigUint::from(101 as u32),
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        gate_set: None,
+    })?;
+
+    let boolean_workspace = PathBuf::from("local/test_cli/boolean_example");
+
+    cli(&Options {
+        tool: "bool-example".to_string(),
+        paths: vec![boolean_workspace.clone()],
+        field_order: BigUint::from(2 as u32),
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        gate_set: None,
+    })?;
+
+    cli(&Options {
+        tool: "valid-eval-metrics".to_string(),
+        paths: vec![boolean_workspace.clone()],
         field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
