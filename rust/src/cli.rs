@@ -470,7 +470,7 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
 // Convert to R1CS zkinterface format.
 // Expects one instance, witness, and relation only.
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
-    use crate::producers::to_r1cs::ToR1CSConverter;
+    use crate::consumers::to_r1cs::ToR1CSConverter;
 
     let source  = stream_messages(opts)?;
     let mut use_witness = false;

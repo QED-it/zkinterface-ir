@@ -5,6 +5,7 @@ Schema (.fbs):
 
 Rust:
 - Boolean example (`zki_sieve bool-example [--incorrect]`)
+- Move to_r1cs converter from producers to consumers
 
 # v2.0.0, 2021-12
 
