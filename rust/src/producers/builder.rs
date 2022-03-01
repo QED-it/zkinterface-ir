@@ -8,6 +8,7 @@ use crate::structs::{value::Value, function::Function, wire::WireList, wire::Wir
 use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 use std::cell::{RefCell, Cell};
 use crate::structs::relation::{ARITH, FUNCTION, FOR, SWITCH};
+use crate::Result;
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
@@ -16,7 +17,7 @@ pub trait GateBuilderT {
 
     /// Allocates some new wire ids for the output and creates a new gate,
     /// Returns the newly allocated WireIds.
-    fn create_complex_gate(&self, gate: BuildComplexGate) -> Result<WireList, String>;
+    fn create_complex_gate(&self, gate: BuildComplexGate) -> Result<WireList>;
 }
 
 /// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
@@ -160,7 +161,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         out_id
     }
 
-    fn create_complex_gate(&self, gate: BuildComplexGate) -> Result<WireList, String> {
+    fn create_complex_gate(&self, gate: BuildComplexGate) -> Result<WireList> {
         let output_count = match gate {
             BuildComplexGate::Call(ref name, _) => self.known_function_output_count(name)?,
         };
@@ -202,9 +203,9 @@ impl<S: Sink> GateBuilder<S> {
     }
 
     /// known_function_output_count returns the output_count of the function with name `name`.
-    fn known_function_output_count(&self, name: &String) -> Result<usize, String> {
+    fn known_function_output_count(&self, name: &String) -> Result<usize> {
         match self.known_functions.borrow().get(name) {
-            None => Err(format!("Function {} does not exist !", name)),
+            None => Err(format!("Function {} does not exist !", name).into()),
             Some(v) => Ok(*v),
         }
     }
@@ -217,9 +218,9 @@ impl<S: Sink> GateBuilder<S> {
         self.msg_build.borrow_mut().push_instance_value(val);
     }
 
-    pub fn push_function(&self, function: Function) -> Result<(), String> {
+    pub fn push_function(&self, function: Function) -> Result<()> {
         if self.known_functions.borrow().contains_key(&function.name) {
-            return Err(format!("Function {} already exists !", function.name));
+            return Err(format!("Function {} already exists !", function.name).into());
         } else {
             self.known_functions.borrow_mut().insert(function.name.clone(), function.output_count);
         }
