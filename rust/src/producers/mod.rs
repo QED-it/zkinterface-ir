@@ -1,7 +1,7 @@
-/// Example statements generator.
-pub mod examples;
 /// Boolean example statements generator.
 pub mod boolean_examples;
+/// Example statements generator.
+pub mod examples;
 /// A Sink stores produced messages, e.g. in files.
 pub mod sink;
 

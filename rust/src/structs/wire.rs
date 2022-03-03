@@ -1,10 +1,10 @@
-use crate::Result;
 use crate::sieve_ir_generated::sieve_ir as g;
+use crate::Result;
 use crate::WireId;
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
-use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
-use std::error::Error;
 use std::convert::TryFrom;
+use std::error::Error;
 
 /// A WireListElement is either a single wire, or a range.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -36,7 +36,7 @@ pub fn build_wire<'bldr: 'mut_bldr, 'mut_bldr>(
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     id: WireId,
 ) -> WIPOffset<g::Wire<'bldr>> {
-    g::Wire::create(builder, &g::WireArgs {id})
+    g::Wire::create(builder, &g::WireArgs { id })
 }
 
 /// Add this structure into a Flatbuffers message builder.
@@ -48,15 +48,20 @@ pub fn build_wires_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder.create_vector(&g_wires)
 }
 
-
 // =========================================
 //              WireRange
 // =========================================
 /// Convert from Flatbuffers references to owned structure.
 pub fn from_range(g_wirerange: &g::WireRange) -> Result<(WireId, WireId)> {
     Ok((
-        g_wirerange.first().ok_or_else(|| "Missing start value in range")?.id(),
-        g_wirerange.last().ok_or_else(|| "Missing end value in range")?.id(),
+        g_wirerange
+            .first()
+            .ok_or_else(|| "Missing start value in range")?
+            .id(),
+        g_wirerange
+            .last()
+            .ok_or_else(|| "Missing end value in range")?
+            .id(),
     ))
 }
 
@@ -73,7 +78,7 @@ pub fn build_range<'bldr: 'mut_bldr, 'mut_bldr>(
         &g::WireRangeArgs {
             first: Some(fbs_first),
             last: Some(fbs_last),
-        }
+        },
     )
 }
 
@@ -91,10 +96,16 @@ impl<'a> TryFrom<g::WireListElement<'a>> for WireListElement {
             g::WireListElementU::WireRange => {
                 let range = element.element_as_wire_range().unwrap();
                 WireRange(
-                    range.first().ok_or_else(|| "Missing first value of range")?.id(),
-                    range.last().ok_or_else(|| "Missing last value of range")?.id(),
+                    range
+                        .first()
+                        .ok_or_else(|| "Missing first value of range")?
+                        .id(),
+                    range
+                        .last()
+                        .ok_or_else(|| "Missing last value of range")?
+                        .id(),
                 )
-            },
+            }
         })
     }
 }
@@ -110,19 +121,21 @@ impl WireListElement {
                 let wire = build_wire(builder, *id);
                 g::WireListElement::create(
                     builder,
-                    &g::WireListElementArgs{
+                    &g::WireListElementArgs {
                         element_type: g::WireListElementU::Wire,
-                        element: Some(wire.as_union_value())
-                })
+                        element: Some(wire.as_union_value()),
+                    },
+                )
             }
             WireRange(first, last) => {
                 let range = build_range(builder, *first, *last);
                 g::WireListElement::create(
                     builder,
-                    &g::WireListElementArgs{
+                    &g::WireListElementArgs {
                         element_type: g::WireListElementU::WireRange,
-                        element: Some(range.as_union_value())
-                })
+                        element: Some(range.as_union_value()),
+                    },
+                )
             }
         }
     }
@@ -147,25 +160,29 @@ pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
     elements: &'args [WireListElement],
 ) -> WIPOffset<g::WireList<'bldr>> {
-    let g_elements: Vec<_> = elements.iter().map(|element| element.build(builder)).collect();
+    let g_elements: Vec<_> = elements
+        .iter()
+        .map(|element| element.build(builder))
+        .collect();
     let g_vector = builder.create_vector(&g_elements);
 
     g::WireList::create(
         builder,
         &g::WireListArgs {
-            elements: Some(g_vector)
-        }
+            elements: Some(g_vector),
+        },
     )
 }
 
 /// Expand a WireList into a vector of individual WireId.
 pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
-    wirelist.iter().flat_map(|wire|
-        match wire {
+    wirelist
+        .iter()
+        .flat_map(|wire| match wire {
             WireListElement::Wire(val) => vec![*val],
-            WireListElement::WireRange(first, last) =>
-                (*first..=*last).into_iter()
-                    .map(|val| val).collect()
-        }
-    ).collect()
+            WireListElement::WireRange(first, last) => {
+                (*first..=*last).into_iter().map(|val| val).collect()
+            }
+        })
+        .collect()
 }

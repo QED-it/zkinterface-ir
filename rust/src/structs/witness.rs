@@ -23,7 +23,9 @@ impl<'a> TryFrom<g::Witness<'a>> for Witness {
         Ok(Witness {
             header: Header::try_from(g_witness.header())?,
             short_witness: try_from_values_vector(
-                g_witness.short_witness().ok_or_else(|| "Missing short_witness")?,
+                g_witness
+                    .short_witness()
+                    .ok_or_else(|| "Missing short_witness")?,
             )?,
         })
     }

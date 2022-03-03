@@ -1,11 +1,11 @@
-use crate::{Sink, WireId, Header, Result, Value};
+use crate::consumers::evaluator::ZKBackend;
+use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
-use crate::structs::relation::{SIMPLE, ARITH, BOOL};
-use crate::consumers::evaluator::{ZKBackend};
+use crate::structs::relation::{ARITH, BOOL, SIMPLE};
+use crate::structs::IR_VERSION;
+use crate::{Header, Result, Sink, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use crate::producers::build_gates::BuildGate;
-use crate::structs::IR_VERSION;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
 // Free gate when the wire is no more needed.
@@ -43,7 +43,6 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     type Wire = WireId;
     type FieldElement = BigUint;
 
-
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
         Ok(BigUint::from_bytes_le(val))
     }
@@ -56,7 +55,12 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                 field_degree: degree,
             };
             self.modulus = BigUint::from_bytes_le(modulus);
-            self.b = Some(GateBuilder::new_with_functionalities(self.sink.take().unwrap(), header, if is_boolean { BOOL } else { ARITH }, SIMPLE));
+            self.b = Some(GateBuilder::new_with_functionalities(
+                self.sink.take().unwrap(),
+                header,
+                if is_boolean { BOOL } else { ARITH },
+                SIMPLE,
+            ));
         }
         Ok(())
     }
@@ -65,10 +69,9 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(BigUint::one())
     }
 
-
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.modulus.is_zero() {
-            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into());
         }
         Ok(&self.modulus - self.one()?)
     }
@@ -88,14 +91,21 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Constant(val.to_bytes_le())))
+        Ok(self
+            .b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::Constant(val.to_bytes_le())))
     }
 
     fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b.as_ref().unwrap().create_gate(BuildGate::AssertZero(*wire));
+        self.b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::AssertZero(*wire));
         Ok(())
     }
 
@@ -117,14 +127,22 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::AddConstant(*a, b.to_bytes_le())))
+        Ok(self
+            .b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::AddConstant(*a, b.to_bytes_le())))
     }
 
     fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::MulConstant(*a, b.to_bytes_le())))
+        Ok(self
+            .b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::MulConstant(*a, b.to_bytes_le())))
     }
 
     fn and(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
@@ -152,7 +170,11 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Instance(val.to_bytes_le())))
+        Ok(self
+            .b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::Instance(val.to_bytes_le())))
     }
 
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
@@ -160,16 +182,20 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
             panic!("Builder has not been properly initialized.");
         }
         let value = val.map(|v| v.to_bytes_le());
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Witness(value)))
+        Ok(self
+            .b
+            .as_ref()
+            .unwrap()
+            .create_gate(BuildGate::Witness(value)))
     }
 }
 
 #[test]
 fn test_validate_flattening() -> crate::Result<()> {
-    use crate::producers::examples::*;
-    use crate::consumers::validator::Validator;
-    use crate::producers::sink::MemorySink;
     use crate::consumers::evaluator::Evaluator;
+    use crate::consumers::validator::Validator;
+    use crate::producers::examples::*;
+    use crate::producers::sink::MemorySink;
     use crate::Source;
 
     let instance = example_instance();
@@ -199,11 +225,10 @@ fn test_validate_flattening() -> crate::Result<()> {
 
 #[test]
 fn test_evaluate_flattening() -> crate::Result<()> {
-    use crate::producers::examples::*;
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::producers::examples::*;
     use crate::producers::sink::MemorySink;
     use crate::Source;
-
 
     let relation = example_relation();
     let instance = example_instance();
@@ -225,4 +250,3 @@ fn test_evaluate_flattening() -> crate::Result<()> {
 
     Ok(())
 }
-

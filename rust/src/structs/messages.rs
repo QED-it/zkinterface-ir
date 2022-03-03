@@ -1,6 +1,5 @@
+use crate::{Instance, Message, Relation, Witness};
 use serde::{Deserialize, Serialize};
-use crate::{Message, Instance, Witness, Relation};
-
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Messages {

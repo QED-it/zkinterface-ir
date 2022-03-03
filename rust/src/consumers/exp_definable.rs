@@ -1,7 +1,7 @@
-use crate::{Sink, Result};
-use crate::consumers::flattening::IRFlattener;
 use crate::consumers::evaluator::ZKBackend;
-use crate::structs::relation::{contains_feature, ADD, MUL, ADDC, MULC, XOR, AND, NOT};
+use crate::consumers::flattening::IRFlattener;
+use crate::structs::relation::{contains_feature, ADD, ADDC, AND, MUL, MULC, NOT, XOR};
+use crate::{Result, Sink};
 
 #[derive(Default)]
 pub struct ExpandDefinable<S: Sink> {
@@ -10,7 +10,7 @@ pub struct ExpandDefinable<S: Sink> {
 }
 
 impl<S: Sink> ExpandDefinable<S> {
-    pub fn new (sink: S, gate_mask: u16) -> Self {
+    pub fn new(sink: S, gate_mask: u16) -> Self {
         ExpandDefinable {
             inner: IRFlattener::new(sink),
             gate_mask,
@@ -33,15 +33,21 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.set_field(modulus, degree, is_boolean)
     }
 
-    fn one(&self) -> Result<Self::FieldElement> { self.inner.one() }
+    fn one(&self) -> Result<Self::FieldElement> {
+        self.inner.one()
+    }
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         self.inner.minus_one()
     }
 
-    fn zero(&self) -> Result<Self::FieldElement> { self.inner.zero() }
+    fn zero(&self) -> Result<Self::FieldElement> {
+        self.inner.zero()
+    }
 
-    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire>{ self.inner.copy(wire) }
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
+        self.inner.copy(wire)
+    }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
         self.inner.constant(val)
@@ -132,4 +138,3 @@ impl<S: Sink> ZKBackend for ExpandDefinable<S> {
         self.inner.witness(val)
     }
 }
-

@@ -1,14 +1,12 @@
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
-use serde::{Deserialize, Serialize};
 
-use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset, ForwardsUOffset};
 use crate::sieve_ir_generated::sieve_ir as g;
+use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
-use crate::{Result, Gate};
-use super::wire::{WireList, build_wire_list};
-
-
+use super::wire::{build_wire_list, WireList};
+use crate::{Gate, Result};
 
 // ******************************
 //
@@ -19,12 +17,12 @@ use super::wire::{WireList, build_wire_list};
 /// This structure handles the declaration of a function.
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Function {
-    pub name           :String,
-    pub output_count   :usize,
-    pub input_count    :usize,
-    pub instance_count :usize,
-    pub witness_count  :usize,
-    pub body           :Vec<Gate>,
+    pub name: String,
+    pub output_count: usize,
+    pub input_count: usize,
+    pub instance_count: usize,
+    pub witness_count: usize,
+    pub body: Vec<Gate>,
 }
 
 /// This function imports a FBS binary Function declaration into a Rust equivalent.
@@ -48,15 +46,14 @@ impl<'a> TryFrom<g::Function<'a>> for Function {
 }
 
 impl Function {
-
     /// Default constructor
     pub fn new(
-        name           :String,
-        output_count   :usize,
-        input_count    :usize,
-        instance_count :usize,
-        witness_count  :usize,
-        body           :Vec<Gate>,
+        name: String,
+        output_count: usize,
+        input_count: usize,
+        instance_count: usize,
+        witness_count: usize,
+        body: Vec<Gate>,
     ) -> Self {
         Function {
             name,
@@ -91,7 +88,7 @@ impl Function {
 
     /// Import a vector of binary Functions into a Rust vector of Function declarations.
     pub fn try_from_vector<'a>(
-        g_vector: Vector<'a, ForwardsUOffset<g::Function<'a>>>
+        g_vector: Vector<'a, ForwardsUOffset<g::Function<'a>>>,
     ) -> Result<Vec<Function>> {
         let mut functions = vec![];
         for i in 0..g_vector.len() {
@@ -148,7 +145,11 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
                     .ok_or_else(|| "Missing implementation")?;
                 let subcircuit = Gate::try_from_vector(g_subcircuit)?;
                 AbstractAnonCall(
-                    WireList::try_from(gate_anon_call.input_wires().ok_or_else(|| "Missing inputs")?)?,
+                    WireList::try_from(
+                        gate_anon_call
+                            .input_wires()
+                            .ok_or_else(|| "Missing inputs")?,
+                    )?,
                     gate_anon_call.instance_count() as usize,
                     gate_anon_call.witness_count() as usize,
                     subcircuit,
@@ -162,8 +163,11 @@ impl<'a> TryFrom<g::CaseInvoke<'a>> for CaseInvoke {
 /// CaseInvoke internal structure.
 pub fn from_gate_call(gate_call: g::AbstractGateCall) -> Result<CaseInvoke> {
     Ok(AbstractGateCall(
-        gate_call.name().ok_or_else(|| "Missing function name.")?.into(),
-        WireList::try_from(gate_call.input_wires().ok_or_else(|| "Missing inputs")?)?
+        gate_call
+            .name()
+            .ok_or_else(|| "Missing function name.")?
+            .into(),
+        WireList::try_from(gate_call.input_wires().ok_or_else(|| "Missing inputs")?)?,
     ))
 }
 
@@ -208,7 +212,6 @@ impl CaseInvoke {
         }
     }
 
-
     /// Convert from Flatbuffers vector of CaseInvoke into a Rust vector of CaseInvoke.
     pub fn try_from_vector<'a>(
         g_vector: Vector<'a, ForwardsUOffset<g::CaseInvoke<'a>>>,
@@ -226,12 +229,14 @@ impl CaseInvoke {
         builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
         directives: &'args [CaseInvoke],
     ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::CaseInvoke<'bldr>>>> {
-        let g_directives: Vec<_> = directives.iter().map(|directive| directive.build(builder)).collect();
+        let g_directives: Vec<_> = directives
+            .iter()
+            .map(|directive| directive.build(builder))
+            .collect();
         let g_vector = builder.create_vector(&g_directives);
         g_vector
     }
 }
-
 
 /// Dedicated helper function that exports a CaseInvoke internal structure into a
 /// FBS AbstractGateCall message.

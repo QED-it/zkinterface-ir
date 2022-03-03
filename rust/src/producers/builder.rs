@@ -1,14 +1,14 @@
-use std::mem::take;
 use std::collections::HashMap;
+use std::mem::take;
 
-pub use super::build_gates::{BuildGate, BuildComplexGate};
 use super::build_gates::NO_OUTPUT;
+pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
-use crate::structs::{value::Value, function::Function, wire::WireList, wire::WireListElement};
-use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
-use std::cell::{RefCell, Cell};
-use crate::structs::relation::{ARITH, FUNCTION, FOR, SWITCH};
+use crate::structs::relation::{ARITH, FOR, FUNCTION, SWITCH};
+use crate::structs::{function::Function, value::Value, wire::WireList, wire::WireListElement};
 use crate::Result;
+use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
+use std::cell::{Cell, RefCell};
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
@@ -37,7 +37,6 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-
     fn new(sink: S, header: Header, gateset: u16, features: u16) -> Self {
         Self {
             sink,
@@ -156,7 +155,9 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
             _ => {}
         }
 
-        self.msg_build.borrow_mut().push_gate(gate.with_output(out_id));
+        self.msg_build
+            .borrow_mut()
+            .push_gate(gate.with_output(out_id));
 
         out_id
     }
@@ -167,7 +168,9 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         };
         let output_wires = self.multiple_alloc(output_count);
 
-        self.msg_build.borrow_mut().push_gate(gate.with_output(output_wires.clone()));
+        self.msg_build
+            .borrow_mut()
+            .push_gate(gate.with_output(output_wires.clone()));
 
         Ok(output_wires)
     }
@@ -176,7 +179,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
     pub fn new(sink: S, header: Header) -> Self {
-        Self::new_with_functionalities(sink, header, ARITH, FUNCTION|FOR|SWITCH)
+        Self::new_with_functionalities(sink, header, ARITH, FUNCTION | FOR | SWITCH)
     }
 
     pub fn new_with_functionalities(sink: S, header: Header, gateset: u16, features: u16) -> Self {
@@ -199,7 +202,7 @@ impl<S: Sink> GateBuilder<S> {
         let id = self.free_id.take();
         let next: u64 = id + n as u64;
         self.free_id.set(next);
-        vec![WireListElement::WireRange(id, next-1)]
+        vec![WireListElement::WireRange(id, next - 1)]
     }
 
     /// known_function_output_count returns the output_count of the function with name `name`.
@@ -222,7 +225,9 @@ impl<S: Sink> GateBuilder<S> {
         if self.known_functions.borrow().contains_key(&function.name) {
             return Err(format!("Function {} already exists !", function.name).into());
         } else {
-            self.known_functions.borrow_mut().insert(function.name.clone(), function.output_count);
+            self.known_functions
+                .borrow_mut()
+                .insert(function.name.clone(), function.output_count);
         }
         self.msg_build.borrow_mut().push_function(function);
         Ok(())
@@ -239,12 +244,12 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 
 #[test]
 fn test_builder_with_function() {
-    use crate::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*, BuildComplexGate::*};
-    use crate::producers::{sink::MemorySink, examples};
-    use crate::structs::{gates::Gate, function::Function};
-    use crate::structs::wire::{WireListElement::*, expand_wirelist};
-    use crate::consumers::source::Source;
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::{examples, sink::MemorySink};
+    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::{function::Function, gates::Gate};
 
     let b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -258,20 +263,14 @@ fn test_builder_with_function() {
             Gate::MulConstant(6, 4, vec![100]), // *(-1)
             Gate::MulConstant(7, 5, vec![100]), // *(-1)
             Gate::Add(0, 2, 6),
-            Gate::Add(1, 3, 7)]
-     );
+            Gate::Add(1, 3, 7),
+        ],
+    );
     b.push_function(custom_sub).unwrap();
 
     // Try to push two functions with the same name
     // It should return an error
-    let custom_function= Function::new(
-        "custom_sub".to_string(),
-        0,
-        0,
-        0,
-        0,
-        vec![]
-    );
+    let custom_function = Function::new("custom_sub".to_string(), 0, 0, 0, 0, vec![]);
     assert!(b.push_function(custom_function).is_err());
 
     let id_0 = b.create_gate(Constant(vec![40]));
@@ -279,7 +278,12 @@ fn test_builder_with_function() {
     let id_2 = b.create_gate(Constant(vec![10]));
     let id_3 = b.create_gate(Constant(vec![5]));
 
-    let out = b.create_complex_gate(Call("custom_sub".to_string(), vec![Wire(id_0), Wire(id_1), Wire(id_2), Wire(id_3)])).unwrap();
+    let out = b
+        .create_complex_gate(Call(
+            "custom_sub".to_string(),
+            vec![Wire(id_0), Wire(id_1), Wire(id_2), Wire(id_3)],
+        ))
+        .unwrap();
     let out = expand_wirelist(&out);
     assert_eq!(out.len(), 2);
 
@@ -297,7 +301,9 @@ fn test_builder_with_function() {
 
     // Try to call an unknown function
     // It should return an error
-    assert!(b.create_complex_gate(Call("unknown_function".to_string(), vec![Wire(id_0)])).is_err());
+    assert!(b
+        .create_complex_gate(Call("unknown_function".to_string(), vec![Wire(id_0)]))
+        .is_err());
 
     let sink = b.finish();
 
@@ -309,12 +315,12 @@ fn test_builder_with_function() {
 
 #[test]
 fn test_builder_with_witness_instance_function() {
-    use crate::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*, BuildComplexGate::*};
-    use crate::producers::{sink::MemorySink, examples};
-    use crate::structs::{gates::Gate, function::Function};
-    use crate::structs::wire::{WireListElement::*, expand_wirelist};
-    use crate::consumers::source::Source;
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::{examples, sink::MemorySink};
+    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::{function::Function, gates::Gate};
 
     let b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -329,8 +335,9 @@ fn test_builder_with_witness_instance_function() {
             Gate::Witness(5),
             Gate::MulConstant(6, 4, vec![100]), // -instance
             Gate::MulConstant(7, 5, vec![100]), // -witness
-            Gate::Add(0, 2, 6), // input[0] - instance
-            Gate::Add(1, 3, 7)] // input[1] - witness
+            Gate::Add(0, 2, 6),                 // input[0] - instance
+            Gate::Add(1, 3, 7),
+        ], // input[1] - witness
     );
     b.push_function(sub_witness_instance).unwrap();
 
@@ -340,7 +347,12 @@ fn test_builder_with_witness_instance_function() {
     let id_0 = b.create_gate(Constant(vec![10]));
     let id_1 = b.create_gate(Constant(vec![10]));
 
-    let out = b.create_complex_gate(Call("sub_witness_instance".to_string(), vec![Wire(id_0), Wire(id_1)])).unwrap();
+    let out = b
+        .create_complex_gate(Call(
+            "sub_witness_instance".to_string(),
+            vec![Wire(id_0), Wire(id_1)],
+        ))
+        .unwrap();
     let out = expand_wirelist(&out);
     assert_eq!(out.len(), 2);
 

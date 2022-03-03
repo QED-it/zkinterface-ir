@@ -3,11 +3,14 @@ extern crate serde_json;
 
 use num_bigint::BigUint;
 use std::fs::File;
-use std::io::{copy, stdout, stdin, BufReader};
+use std::io::{copy, stdin, stdout, BufReader};
 use std::path::{Path, PathBuf};
 use structopt::clap::AppSettings::*;
 pub use structopt::StructOpt;
 
+use crate::consumers::evaluator::PlaintextBackend;
+use crate::consumers::exp_definable::ExpandDefinable;
+use crate::consumers::flattening::IRFlattener;
 use crate::consumers::{
     evaluator::Evaluator,
     source::{has_sieve_extension, list_workspace_files},
@@ -15,13 +18,10 @@ use crate::consumers::{
     validator::Validator,
 };
 use crate::producers::from_r1cs::FromR1CSConverter;
-use crate::{Messages, Result, Source, FilesSink, Sink, Message};
-use crate::consumers::evaluator::PlaintextBackend;
 use crate::producers::sink::MemorySink;
-use crate::consumers::flattening::IRFlattener;
-use zkinterface::WorkspaceSink;
-use crate::consumers::exp_definable::ExpandDefinable;
+use crate::{FilesSink, Message, Messages, Result, Sink, Source};
 use crate::{Instance, Relation, Witness};
+use zkinterface::WorkspaceSink;
 
 const ABOUT: &str = "
 This is a collection of tools to work with zero-knowledge statements encoded in SIEVE IR messages.
@@ -132,7 +132,7 @@ pub fn cli(options: &Options) -> Result<()> {
         "valid-eval-metrics" => main_valid_eval_metrics(&stream_messages(options)?),
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
-        "flatten"    => main_ir_flattening(options),
+        "flatten" => main_ir_flattening(options),
         "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
@@ -191,7 +191,12 @@ fn main_boolean_example(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-fn write_example(opts: &Options, instance: &Instance, witness: &Witness, relation: &Relation) -> Result<()>{
+fn write_example(
+    opts: &Options,
+    instance: &Instance,
+    witness: &Witness,
+    relation: &Relation,
+) -> Result<()> {
     if opts.paths.len() != 1 {
         return Err("Specify a single directory where to write examples.".into());
     }
@@ -240,13 +245,13 @@ fn main_json(messages: &Messages) -> Result<()> {
 }
 
 fn from_json(options: &Options) -> Result<()> {
-    let messages: Messages = match &options.resource [..] {
+    let messages: Messages = match &options.resource[..] {
         "-" => serde_json::from_reader(stdin())?,
         _ => {
             let file = File::open(&options.resource)?;
             let reader = BufReader::new(file);
             serde_json::from_reader(reader)?
-        },
+        }
     };
     let mut file = File::create("from_json.sieve")?;
     for instance in messages.instances {
@@ -268,13 +273,13 @@ fn main_yaml(messages: &Messages) -> Result<()> {
 }
 
 fn from_yaml(options: &Options) -> Result<()> {
-    let messages: Messages = match &options.resource [..] {
+    let messages: Messages = match &options.resource[..] {
         "-" => serde_yaml::from_reader(stdin())?,
         _ => {
             let file = File::open(&options.resource)?;
             let reader = BufReader::new(file);
             serde_yaml::from_reader(reader)?
-        },
+        }
     };
     let mut file = File::create("from_yaml.sieve")?;
     for instance in messages.instances {
@@ -358,8 +363,8 @@ fn main_valid_eval_metrics(source: &Source) -> Result<()> {
 }
 
 fn main_zkif_to_ir(opts: &Options) -> Result<()> {
-    use zkinterface::{Workspace, Message};
     use zkinterface::consumers::validator::Validator;
+    use zkinterface::{Message, Workspace};
 
     // Load and validate zkinterface input
     let workspace = Workspace::from_dirs_and_files(&opts.paths)?;
@@ -372,7 +377,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         print_violations(
             &validator.get_violations(),
             "The input statement",
-            "COMPLIANT with the zkinterface specification"
+            "COMPLIANT with the zkinterface specification",
         )?;
     }
 
@@ -386,19 +391,19 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         .find_map(|mess| match mess {
             Message::Header(head) => Some(head),
             _ => None,
-        }).ok_or_else(|| "Header not present in ZKIF workspace.")?;
+        })
+        .ok_or_else(|| "Header not present in ZKIF workspace.")?;
 
     let out_dir = &opts.out;
     if out_dir == Path::new("-") {
-        let mut converter = FromR1CSConverter::new(
-            MemorySink::default(),
-            &zki_header
-        );
+        let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
         // Ingest all non-header messages
         for message in workspace.iter_messages() {
             match message {
-                Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+                Message::ConstraintSystem(zkif_constraint) => {
+                    converter.ingest_constraints(&zkif_constraint)?
+                }
                 Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
                 _ => {}
             }
@@ -413,15 +418,15 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
         return Err("IR flattening requires a directory as output value".into());
     } else {
         // instantiate the converter
-        let mut converter = FromR1CSConverter::new(
-            FilesSink::new_clean(out_dir).unwrap(),
-            &zki_header
-        );
+        let mut converter =
+            FromR1CSConverter::new(FilesSink::new_clean(out_dir).unwrap(), &zki_header);
 
         // Ingest all non-header messages
         for message in workspace.iter_messages() {
             match message {
-                Message::ConstraintSystem(zkif_constraint) => converter.ingest_constraints(&zkif_constraint)?,
+                Message::ConstraintSystem(zkif_constraint) => {
+                    converter.ingest_constraints(&zkif_constraint)?
+                }
                 Message::Witness(zkif_witness) => converter.ingest_witness(&zkif_witness)?,
                 _ => {}
             }
@@ -435,8 +440,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
 // Flattens SIEVE IR format by removing loops functions and switches.
 // Expects a set of dirs and files and a resource, places the flattened relations into the file or dir specified by --out.
 fn main_ir_flattening(opts: &Options) -> Result<()> {
-
-    let source  = stream_messages(opts)?;
+    let source = stream_messages(opts)?;
     let out_dir = &opts.out;
 
     if out_dir == Path::new("-") {
@@ -472,15 +476,17 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     use crate::consumers::to_r1cs::ToR1CSConverter;
 
-    let source  = stream_messages(opts)?;
+    let source = stream_messages(opts)?;
     let mut use_witness = false;
 
     for m in source.iter_messages() {
         let m = m?;
         // if there is at least one witness message, then we'll convert them as well.
         match m {
-            Message::Witness(_) => {use_witness = true;}
-            _ => {/* DO NOTHING */}
+            Message::Witness(_) => {
+                use_witness = true;
+            }
+            _ => { /* DO NOTHING */ }
         }
     }
     let out_dir = &opts.out;
@@ -488,7 +494,11 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     if out_dir == Path::new("-") || has_sieve_extension(&out_dir) {
         return Err("IR->R1CS converter requires a directory as output value".into());
     } else {
-        let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(out_dir)?, use_witness, opts.modular_reduce);
+        let mut to_r1cs = ToR1CSConverter::new(
+            WorkspaceSink::new(out_dir)?,
+            use_witness,
+            opts.modular_reduce,
+        );
         let mut evaluator = Evaluator::default();
 
         for msg in source.iter_messages() {
@@ -496,19 +506,16 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
         }
         to_r1cs.finish()?;
     }
-    
+
     Ok(())
 }
-
-
-
 
 // Expand definable gates in IR1, like.
 // Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
 fn main_expand_definable(opts: &Options) -> Result<()> {
     use crate::structs::relation::parse_gate_set_string;
 
-    let source  = stream_messages(opts)?;
+    let source = stream_messages(opts)?;
     let out_dir = &opts.out;
 
     if let Some(gate_set) = opts.gate_set.clone() {
@@ -530,7 +537,8 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                 } else if has_sieve_extension(&out_dir) {
                     return Err("IR flattening requires a directory as output value".into());
                 } else {
-                    let mut expander = ExpandDefinable::new(FilesSink::new_clean(out_dir)?, gate_mask);
+                    let mut expander =
+                        ExpandDefinable::new(FilesSink::new_clean(out_dir)?, gate_mask);
                     let mut evaluator = Evaluator::default();
 
                     for msg in source.iter_messages() {
@@ -546,7 +554,11 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-fn print_violations(errors: &[String], which_statement: &str, what_it_is_supposed_to_be: &str) -> Result<()> {
+fn print_violations(
+    errors: &[String],
+    which_statement: &str,
+    what_it_is_supposed_to_be: &str,
+) -> Result<()> {
     eprintln!();
     if errors.len() > 0 {
         eprintln!("{} is NOT {}!", which_statement, what_it_is_supposed_to_be);

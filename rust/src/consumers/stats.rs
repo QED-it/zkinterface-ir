@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Gate, Header, Instance, Message, Relation, Witness, Result};
 use crate::structs::function::{CaseInvoke, ForLoopBody};
+use crate::{Gate, Header, Instance, Message, Relation, Result, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
@@ -82,13 +82,19 @@ impl Stats {
         self.gate_stats.relation_messages += 1;
 
         for f in relation.functions.iter() {
-            let (name, _, _, instance_count, witness_count, subcircuit) =
-                (f.name.clone(), f.output_count, f.input_count, f.instance_count, f.witness_count, f.body.clone());
+            let (name, _, _, instance_count, witness_count, subcircuit) = (
+                f.name.clone(),
+                f.output_count,
+                f.input_count,
+                f.instance_count,
+                f.witness_count,
+                f.body.clone(),
+            );
             // Just record the signature.
             self.gate_stats.functions_defined += 1;
             let func_stats = ingest_subcircuit(&subcircuit, &self.functions);
-            self.functions.insert(name.clone(), (func_stats, instance_count, witness_count));
-
+            self.functions
+                .insert(name.clone(), (func_stats, instance_count, witness_count));
         }
 
         for gate in &relation.gates {
@@ -102,7 +108,10 @@ impl Stats {
     }
 }
 
-fn ingest_subcircuit(subcircuit: &[Gate], known_functions: &HashMap<String, (GateStats, usize, usize)>) -> GateStats {
+fn ingest_subcircuit(
+    subcircuit: &[Gate],
+    known_functions: &HashMap<String, (GateStats, usize, usize)>,
+) -> GateStats {
     let mut local_stats = GateStats::default();
     for gate in subcircuit {
         local_stats.ingest_gate(gate, known_functions);
@@ -111,7 +120,11 @@ fn ingest_subcircuit(subcircuit: &[Gate], known_functions: &HashMap<String, (Gat
 }
 
 impl GateStats {
-    fn ingest_gate(&mut self, gate: &Gate, known_functions: &HashMap<String, (GateStats, usize, usize)>) {
+    fn ingest_gate(
+        &mut self,
+        gate: &Gate,
+        known_functions: &HashMap<String, (GateStats, usize, usize)>,
+    ) {
         use Gate::*;
 
         match gate {
@@ -173,7 +186,7 @@ impl GateStats {
                 if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
                     self.ingest_call_stats(&stats_ins_wit.0);
                     self.instance_variables += stats_ins_wit.1;
-                    self.witness_variables  += stats_ins_wit.2;
+                    self.witness_variables += stats_ins_wit.2;
                 } else {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
@@ -182,10 +195,10 @@ impl GateStats {
             AnonCall(_, _, instance_count, witness_count, subcircuit) => {
                 self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                 self.instance_variables += instance_count;
-                self.witness_variables  += witness_count;
+                self.witness_variables += witness_count;
             }
 
-            Switch(_, _,  _, branches) => {
+            Switch(_, _, _, branches) => {
                 self.switches += 1;
                 self.branches += branches.len();
                 let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
@@ -202,27 +215,26 @@ impl GateStats {
                                 (0usize, 0usize)
                             }
                         }
-                        CaseInvoke::AbstractAnonCall(_, instance_count, witness_count, subcircuit) => {
+                        CaseInvoke::AbstractAnonCall(
+                            _,
+                            instance_count,
+                            witness_count,
+                            subcircuit,
+                        ) => {
                             self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                             (*instance_count, *witness_count)
                         }
                     };
 
                     max_instance_count = std::cmp::max(max_instance_count, instance_count);
-                    max_witness_count  = std::cmp::max(max_witness_count,  witness_count);
+                    max_witness_count = std::cmp::max(max_witness_count, witness_count);
                 }
 
                 self.instance_variables += max_instance_count;
-                self.witness_variables  += max_witness_count;
+                self.witness_variables += max_witness_count;
             }
 
-            For(
-                _,
-                start_val,
-                end_val,
-                _,
-                body
-            ) => {
+            For(_, start_val, end_val, _, body) => {
                 self.for_loops += 1;
                 for _ in *start_val..=*end_val {
                     match body {
@@ -236,10 +248,12 @@ impl GateStats {
                                 eprintln!("WARNING Stats: function not defined \"{}\"", name);
                             }
                         }
-                        ForLoopBody::IterExprAnonCall(_, _,
-                                                      instance_count,
-                                                      witness_count,
-                                                      subcircuit
+                        ForLoopBody::IterExprAnonCall(
+                            _,
+                            _,
+                            instance_count,
+                            witness_count,
+                            subcircuit,
                         ) => {
                             self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
                             self.instance_variables += *instance_count;
@@ -247,7 +261,7 @@ impl GateStats {
                         }
                     }
                 }
-            },
+            }
         }
     }
 
@@ -315,10 +329,14 @@ fn test_stats() -> crate::Result<()> {
     };
     expected_stats.functions.insert(
         "com.example::mul".to_string(),
-        (GateStats {
-            mul_gates: 1,
-            ..GateStats::default()
-        }, 0, 0),
+        (
+            GateStats {
+                mul_gates: 1,
+                ..GateStats::default()
+            },
+            0,
+            0,
+        ),
     );
 
     assert_eq!(expected_stats, stats);

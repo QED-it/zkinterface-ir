@@ -23,7 +23,9 @@ impl<'a> TryFrom<g::Instance<'a>> for Instance {
         Ok(Instance {
             header: Header::try_from(g_instance.header())?,
             common_inputs: try_from_values_vector(
-                g_instance.common_inputs().ok_or_else(|| "Missing common_input")?,
+                g_instance
+                    .common_inputs()
+                    .ok_or_else(|| "Missing common_input")?,
             )?,
         })
     }

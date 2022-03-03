@@ -41,7 +41,10 @@ impl<'a> TryFrom<Option<g::Header<'a>>> for Header {
     fn try_from(g_header: Option<g::Header>) -> Result<Header> {
         let g_header = g_header.ok_or_else(|| "Missing header")?;
         Ok(Header {
-            version: g_header.version().ok_or_else(|| "Missing version")?.to_string(),
+            version: g_header
+                .version()
+                .ok_or_else(|| "Missing version")?
+                .to_string(),
             field_characteristic: try_from_value(
                 g_header
                     .field_characteristic()

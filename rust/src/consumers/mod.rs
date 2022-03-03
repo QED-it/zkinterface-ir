@@ -19,7 +19,7 @@ pub mod flattening;
 // Expand definable gates in SIEVE IR.
 pub mod exp_definable;
 
-pub const TEMPORARY_WIRES_START: u64 = 1u64<<63;
+pub const TEMPORARY_WIRES_START: u64 = 1u64 << 63;
 
 // ir to r1cs converter
 pub mod to_r1cs;

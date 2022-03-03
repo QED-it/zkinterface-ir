@@ -1,20 +1,28 @@
 fn main() {
-    #[cfg(feature = "fbs")] {
+    #[cfg(feature = "fbs")]
+    {
         use std::process::Command;
 
         // Latest flatc version: 1.12.0
-        match Command::new("flatc").args(&[
-            "--rust",
-            "--gen-object-api", "--gen-mutable", "--gen-compare",
-            "-o", "src/",
-            "../sieve_ir.fbs",
-        ]).output() {
+        match Command::new("flatc")
+            .args(&[
+                "--rust",
+                "--gen-object-api",
+                "--gen-mutable",
+                "--gen-compare",
+                "-o",
+                "src/",
+                "../sieve_ir.fbs",
+            ])
+            .output()
+        {
             Ok(flatc) => {
-                if !
-                    flatc.status.success() {
-                    panic!("\n\nFlatBuffers code generation failed.\n{}\n{}\n",
-                           String::from_utf8_lossy(&flatc.stdout),
-                           String::from_utf8_lossy(&flatc.stderr));
+                if !flatc.status.success() {
+                    panic!(
+                        "\n\nFlatBuffers code generation failed.\n{}\n{}\n",
+                        String::from_utf8_lossy(&flatc.stdout),
+                        String::from_utf8_lossy(&flatc.stderr)
+                    );
                 }
 
                 // Fix an issue in generated Rust code.

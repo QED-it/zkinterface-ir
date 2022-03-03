@@ -7,6 +7,7 @@ Rust:
 - Boolean example (`zki_sieve bool-example [--incorrect]`)
 - Move to_r1cs converter from producers to consumers
 - Add function (sub-circuit) into the builder
+- Format the entire project with rustfmt
 
 # v2.0.0, 2021-12
 

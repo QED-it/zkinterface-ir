@@ -1,9 +1,9 @@
-use crate::{Result, Value, WireId};
 use crate::consumers::evaluator::ZKBackend;
-use zkinterface::{BilinearConstraint, StatementBuilder, Sink, Variables};
+use crate::{Result, Value, WireId};
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
+use zkinterface::{BilinearConstraint, Sink, StatementBuilder, Variables};
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
@@ -29,7 +29,12 @@ impl<S: Sink> ToR1CSConverter<S> {
             constraints: zkiConstraintSystem::default(),
             constraints_per_message: 100000,
             use_witness,
-            witnesses: zkiWitness { assigned_variables: Variables { variable_ids: vec![], values: Some(vec![]) } },
+            witnesses: zkiWitness {
+                assigned_variables: Variables {
+                    variable_ids: vec![],
+                    values: Some(vec![]),
+                },
+            },
             all_assignment: Default::default(),
             use_correction,
             src_modulus: BigUint::zero(),
@@ -51,7 +56,12 @@ impl<S: Sink> ToR1CSConverter<S> {
     fn push_witness(&mut self, wire: u64, value: &BigUint) {
         if self.use_witness {
             self.witnesses.assigned_variables.variable_ids.push(wire);
-            self.witnesses.assigned_variables.values.as_mut().unwrap().append(&mut pad_le_u8_vec(value.to_bytes_le(), self.byte_len));
+            self.witnesses
+                .assigned_variables
+                .values
+                .as_mut()
+                .unwrap()
+                .append(&mut pad_le_u8_vec(value.to_bytes_le(), self.byte_len));
 
             if self.witnesses.assigned_variables.variable_ids.len() > self.constraints_per_message {
                 let wit = std::mem::replace(&mut self.witnesses, zkiWitness::default());
@@ -121,7 +131,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn minus_one(&self) -> Result<Self::FieldElement> {
         if self.src_modulus.is_zero() {
-            return Err("Modulus is not initiated, used `set_field()` before calling.".into())
+            return Err("Modulus is not initiated, used `set_field()` before calling.".into());
         }
         Ok(&self.src_modulus - self.one()?)
     }
@@ -130,10 +140,14 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(BigUint::zero())
     }
 
-    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> { Ok(*wire) }
+    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
+        Ok(*wire)
+    }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
-        let id = self.builder.allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
+        let id = self
+            .builder
+            .allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
         self.make_assignment(id, Some(val))?;
         Ok(id)
     }
@@ -148,12 +162,22 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         let out = self.builder.allocate_var();
-        let correction_wire = if self.use_correction {self.builder.allocate_var()} else {0};
+        let correction_wire = if self.use_correction {
+            self.builder.allocate_var()
+        } else {
+            0
+        };
 
         if self.use_witness {
             // in this case, compute the exact value of the 'correction' to apply.
-            let a_val = self.all_assignment.get(a).ok_or_else(|| "Add(a): Value does not exist.")?;
-            let b_val = self.all_assignment.get(b).ok_or_else(|| "Add(b): Value does not exist.")?;
+            let a_val = self
+                .all_assignment
+                .get(a)
+                .ok_or_else(|| "Add(a): Value does not exist.")?;
+            let b_val = self
+                .all_assignment
+                .get(b)
+                .ok_or_else(|| "Add(b): Value does not exist.")?;
 
             let sum = a_val + b_val;
             let correction = &sum / &self.src_modulus;
@@ -169,7 +193,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
         if self.use_correction {
             self.push_constraint(BilinearConstraint {
-                linear_combination_a: make_combination(vec![out, correction_wire], pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()])),
+                linear_combination_a: make_combination(
+                    vec![out, correction_wire],
+                    pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()]),
+                ),
                 linear_combination_b: make_combination(vec![self.one], vec![1]),
                 linear_combination_c: make_combination(vec![*a, *b], vec![1, 1]),
             })?;
@@ -185,12 +212,22 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         let out = self.builder.allocate_var();
-        let correction_wire = if self.use_correction {self.builder.allocate_var()} else {0};
+        let correction_wire = if self.use_correction {
+            self.builder.allocate_var()
+        } else {
+            0
+        };
 
         if self.use_witness {
             // in this case, compute the exact value of the 'correction' to apply.
-            let a_val = self.all_assignment.get(a).ok_or_else(|| "Multiply(a): Value does not exist.")?;
-            let b_val = self.all_assignment.get(b).ok_or_else(|| "Multiply(b): Value does not exist.")?;
+            let a_val = self
+                .all_assignment
+                .get(a)
+                .ok_or_else(|| "Multiply(a): Value does not exist.")?;
+            let b_val = self
+                .all_assignment
+                .get(b)
+                .ok_or_else(|| "Multiply(b): Value does not exist.")?;
 
             let product = a_val * b_val;
             let correction = &product / &self.src_modulus;
@@ -207,7 +244,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
             self.push_constraint(BilinearConstraint {
                 linear_combination_a: make_combination(vec![*a], vec![1]),
                 linear_combination_b: make_combination(vec![*b], vec![1]),
-                linear_combination_c: make_combination(vec![out, correction_wire], pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()])),
+                linear_combination_c: make_combination(
+                    vec![out, correction_wire],
+                    pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()]),
+                ),
             })?;
         } else {
             self.push_constraint(BilinearConstraint {
@@ -221,11 +261,18 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
         let out = self.builder.allocate_var();
-        let correction_wire = if self.use_correction {self.builder.allocate_var()} else {0};
+        let correction_wire = if self.use_correction {
+            self.builder.allocate_var()
+        } else {
+            0
+        };
 
         if self.use_witness {
             // in this case, compute the exact value of the 'correction' to apply.
-            let a_val = self.all_assignment.get(a).ok_or_else(|| "AddConstant: Value does not exist.")?;
+            let a_val = self
+                .all_assignment
+                .get(a)
+                .ok_or_else(|| "AddConstant: Value does not exist.")?;
 
             let sum = a_val + &b;
             let correction = &sum / &self.src_modulus;
@@ -241,29 +288,44 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
         if self.use_correction {
             self.push_constraint(BilinearConstraint {
-                linear_combination_a: make_combination(vec![out, correction_wire], pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()])),
+                linear_combination_a: make_combination(
+                    vec![out, correction_wire],
+                    pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()]),
+                ),
                 linear_combination_b: make_combination(vec![self.one], vec![1]),
-                linear_combination_c: make_combination(vec![*a, self.one], pad_to_max(vec![vec![1], b.to_bytes_le()])),
+                linear_combination_c: make_combination(
+                    vec![*a, self.one],
+                    pad_to_max(vec![vec![1], b.to_bytes_le()]),
+                ),
             })?;
         } else {
             self.push_constraint(BilinearConstraint {
                 linear_combination_a: make_combination(vec![out], vec![1]),
                 linear_combination_b: make_combination(vec![self.one], vec![1]),
-                linear_combination_c: make_combination(vec![*a, self.one], pad_to_max(vec![vec![1], b.to_bytes_le()])),
+                linear_combination_c: make_combination(
+                    vec![*a, self.one],
+                    pad_to_max(vec![vec![1], b.to_bytes_le()]),
+                ),
             })?;
         }
-
 
         Ok(out)
     }
 
     fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
         let out = self.builder.allocate_var();
-        let correction_wire = if self.use_correction {self.builder.allocate_var()} else {0};
+        let correction_wire = if self.use_correction {
+            self.builder.allocate_var()
+        } else {
+            0
+        };
 
         if self.use_witness {
             // in this case, compute the exact value of the 'correction' to apply.
-            let a_val = self.all_assignment.get(a).ok_or_else(|| "MulConstant: Value does not exist.")?;
+            let a_val = self
+                .all_assignment
+                .get(a)
+                .ok_or_else(|| "MulConstant: Value does not exist.")?;
 
             let product = a_val * &b;
             let correction = &product / &self.src_modulus;
@@ -280,7 +342,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
             self.push_constraint(BilinearConstraint {
                 linear_combination_a: make_combination(vec![*a], b.to_bytes_le()),
                 linear_combination_b: make_combination(vec![self.one], vec![1]),
-                linear_combination_c: make_combination(vec![out, correction_wire], pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()])),
+                linear_combination_c: make_combination(
+                    vec![out, correction_wire],
+                    pad_to_max(vec![vec![1], self.src_modulus.to_bytes_le()]),
+                ),
             })?;
         } else {
             self.push_constraint(BilinearConstraint {
@@ -289,7 +354,6 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
                 linear_combination_c: make_combination(vec![out], vec![1]),
             })?;
         }
-
 
         Ok(out)
     }
@@ -307,7 +371,9 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
-        let id = self.builder.allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
+        let id = self
+            .builder
+            .allocate_instance_var(&pad_le_u8_vec(val.to_bytes_le(), self.byte_len));
         self.make_assignment(id, Some(val))?;
         Ok(id)
     }
@@ -355,45 +421,43 @@ pub fn pad_to_max(vals: Vec<Value>) -> Vec<u8> {
         .collect::<Vec<u8>>()
 }
 
-
 #[cfg(test)]
 use crate::{
-    Source, Instance, Witness, Message,
-    producers::{sink::MemorySink, from_r1cs::FromR1CSConverter},
     consumers::evaluator::Evaluator,
+    producers::{from_r1cs::FromR1CSConverter, sink::MemorySink},
+    Instance, Message, Source, Witness,
 };
 #[cfg(test)]
-use zkinterface::{
-    CircuitHeader as zkiCircuitHeader,
-    WorkspaceSink, Workspace,
-};
+use std::{collections::HashSet, path::PathBuf};
 #[cfg(test)]
-use std::{
-    path::PathBuf,
-    collections::HashSet,
-};
-
-
+use zkinterface::{CircuitHeader as zkiCircuitHeader, Workspace, WorkspaceSink};
 
 #[cfg(test)]
-fn assert_same_io_values(instances: &[Instance], zki_headers: &[zkiCircuitHeader]) -> crate::Result<()> {
-    let zki_vals: HashSet<BigUint> = zki_headers.iter()
+fn assert_same_io_values(
+    instances: &[Instance],
+    zki_headers: &[zkiCircuitHeader],
+) -> crate::Result<()> {
+    let zki_vals: HashSet<BigUint> = zki_headers
+        .iter()
         .flat_map(|zki_header| {
-                zki_header.instance_variables
-                    .get_variables()
-                    .iter()
-                    .map(|v| BigUint::from_bytes_le(&v.value))
-                    .collect::<Vec<BigUint>>()
-            }
-        ).collect();
-    let ir_vals: HashSet<BigUint> = instances.iter()
+            zki_header
+                .instance_variables
+                .get_variables()
+                .iter()
+                .map(|v| BigUint::from_bytes_le(&v.value))
+                .collect::<Vec<BigUint>>()
+        })
+        .collect();
+    let ir_vals: HashSet<BigUint> = instances
+        .iter()
         .flat_map(|instance| {
-            instance.common_inputs
+            instance
+                .common_inputs
                 .iter()
                 .map(|v| BigUint::from_bytes_le(v))
                 .collect::<Vec<BigUint>>()
-            }
-        ).collect();
+        })
+        .collect();
 
     // zkif instances may contain more instance values that IR, since IR constants are translated
     // into ZKIF instances.
@@ -403,25 +467,32 @@ fn assert_same_io_values(instances: &[Instance], zki_headers: &[zkiCircuitHeader
 }
 
 #[cfg(test)]
-fn assert_same_witness_values(witnesses: &[Witness], zki_witness: &[zkiWitness]) -> crate::Result<()> {
-    let zki_vals: HashSet<BigUint> = zki_witness.iter()
+fn assert_same_witness_values(
+    witnesses: &[Witness],
+    zki_witness: &[zkiWitness],
+) -> crate::Result<()> {
+    let zki_vals: HashSet<BigUint> = zki_witness
+        .iter()
         .flat_map(|zki_witness| {
-            zki_witness.assigned_variables
+            zki_witness
+                .assigned_variables
                 .get_variables()
                 .iter()
                 .map(|v| BigUint::from_bytes_le(&v.value))
                 .collect::<Vec<BigUint>>()
-            }
-        ).collect();
+        })
+        .collect();
 
-    let ir_vals: HashSet<BigUint> = witnesses.iter()
+    let ir_vals: HashSet<BigUint> = witnesses
+        .iter()
         .flat_map(|witness| {
-            witness.short_witness
+            witness
+                .short_witness
                 .iter()
                 .map(|v| BigUint::from_bytes_le(v))
                 .collect::<Vec<BigUint>>()
-        }
-        ).collect();
+        })
+        .collect();
 
     // zkif witness may (likely does) contain more witness values that IR could confirm
     assert!(zki_vals.is_superset(&ir_vals));
@@ -449,7 +520,7 @@ fn test_tor1cs_check_witnesses_instances() -> crate::Result<()> {
 
     let source: Source = converter.finish().into();
     let ir_messages = source.read_all_messages()?;
-    
+
     let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(&output_directory)?, true, false);
     let evaluator = Evaluator::from_messages(source.iter_messages(), &mut to_r1cs);
     to_r1cs.finish()?;
@@ -459,7 +530,6 @@ fn test_tor1cs_check_witnesses_instances() -> crate::Result<()> {
     // now convert back into r1cs
     let workspace = Workspace::from_dir(&PathBuf::from(&output_directory))?;
     let zki_messages = workspace.read_all_messages();
-
 
     assert_same_io_values(&ir_messages.instances, &zki_messages.circuit_headers)?;
 
@@ -504,7 +574,10 @@ fn test_tor1cs_validate_2ways_conversion_same_field() -> crate::Result<()> {
 
     let validator_violations = validator.get_violations();
     assert_eq!(validator_violations.len(), 1);
-    assert_eq!(validator_violations[0], "variable_1 was defined but not used.");
+    assert_eq!(
+        validator_violations[0],
+        "variable_1 was defined but not used."
+    );
 
     // Then check that the constraint system is verified
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();
@@ -525,14 +598,17 @@ fn test_tor1cs_validate_converted_circuit_same_field() -> crate::Result<()> {
 
     let output_directory = "local/test_tor1cs_validate_converted_circuit_same_field";
 
-    let messages = vec![Ok(Message::Instance(example_instance())), Ok(Message::Witness(example_witness())), Ok(Message::Relation(example_relation()))];
+    let messages = vec![
+        Ok(Message::Instance(example_instance())),
+        Ok(Message::Witness(example_witness())),
+        Ok(Message::Relation(example_relation())),
+    ];
 
     let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(&output_directory)?, true, false);
     let evaluator = Evaluator::from_messages(messages.into_iter(), &mut to_r1cs);
     to_r1cs.finish()?;
     let r1cs_violations = evaluator.get_violations();
     assert_eq!(r1cs_violations.len(), 0);
-
 
     let workspace = Workspace::from_dir(&PathBuf::from(&output_directory))?;
 
@@ -559,8 +635,6 @@ fn test_tor1cs_validate_converted_circuit_same_field() -> crate::Result<()> {
 
     Ok(())
 }
-
-
 
 #[test]
 fn test_tor1cs_validate_2ways_conversion_bigger_field() -> crate::Result<()> {
@@ -605,7 +679,10 @@ fn test_tor1cs_validate_2ways_conversion_bigger_field() -> crate::Result<()> {
     let validator_violations = validator.get_violations();
     println!("{:?}", validator_violations);
     assert_eq!(validator_violations.len(), 1);
-    assert_eq!(validator_violations[0], "variable_1 was defined but not used.");
+    assert_eq!(
+        validator_violations[0],
+        "variable_1 was defined but not used."
+    );
 
     // Then check that the constraint system is verified
     let mut simulator = zkinterface::consumers::simulator::Simulator::default();
@@ -625,7 +702,6 @@ fn test_tor1cs_validate_2ways_conversion_bigger_field() -> crate::Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn test_tor1cs_validate_converted_circuit_bigger_field() -> crate::Result<()> {
     // This time use an example in straight IR
@@ -633,14 +709,17 @@ fn test_tor1cs_validate_converted_circuit_bigger_field() -> crate::Result<()> {
 
     let output_directory = "local/test_tor1cs_validate_converted_circuit_bigger_field";
 
-    let messages = vec![Ok(Message::Instance(example_instance())), Ok(Message::Witness(example_witness())), Ok(Message::Relation(example_relation()))];
+    let messages = vec![
+        Ok(Message::Instance(example_instance())),
+        Ok(Message::Witness(example_witness())),
+        Ok(Message::Relation(example_relation())),
+    ];
 
     let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(&output_directory)?, true, true);
     let evaluator = Evaluator::from_messages(messages.into_iter(), &mut to_r1cs);
     to_r1cs.finish()?;
     let r1cs_violations = evaluator.get_violations();
     assert_eq!(r1cs_violations.len(), 0);
-
 
     let workspace = Workspace::from_dir(&PathBuf::from(&output_directory))?;
 

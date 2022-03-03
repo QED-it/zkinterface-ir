@@ -3,14 +3,14 @@ use num_traits::One;
 use std::ops::Add;
 
 use crate::producers::builder::{BuildGate, GateBuilder, GateBuilderT};
-use crate::{Header, Result, WireId, Sink};
+use crate::{Header, Result, Sink, WireId};
 use BuildGate::*;
 
+use std::collections::BTreeMap;
 use zkinterface::consumers::reader::Variable as zkiVariable;
 use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Witness as zkiWitness;
-use std::collections::BTreeMap;
 
 pub struct FromR1CSConverter<S: Sink> {
     b: GateBuilder<S>,
@@ -36,7 +36,9 @@ impl<S: Sink> FromR1CSConverter<S> {
         conv.r1cs_to_ir_wire.insert(0, one);
 
         // allocate constant '-1'.
-        conv.minus_one = conv.b.create_gate(Constant(zki_header.field_maximum.as_ref().unwrap().clone()));
+        conv.minus_one = conv
+            .b
+            .create_gate(Constant(zki_header.field_maximum.as_ref().unwrap().clone()));
 
         // allocate all the instance variables with their respective values.
         for var in zki_header.instance_variables.get_variables().iter() {
@@ -62,12 +64,20 @@ impl<S: Sink> FromR1CSConverter<S> {
 
     fn build_term(&mut self, term: &zkiVariable) -> Result<WireId> {
         let const_0: Vec<u8> = vec![0];
-        let non_empty_term_value = if term.value.len() != 0 {term.value} else {&const_0 };
+        let non_empty_term_value = if term.value.len() != 0 {
+            term.value
+        } else {
+            &const_0
+        };
         if term.id == 0 {
-            return Ok(self.b.create_gate(Constant(Vec::from(non_empty_term_value))));
+            return Ok(self
+                .b
+                .create_gate(Constant(Vec::from(non_empty_term_value))));
         }
 
-        let val_id = self.b.create_gate(Constant(Vec::from(non_empty_term_value)));
+        let val_id = self
+            .b
+            .create_gate(Constant(Vec::from(non_empty_term_value)));
         if let Some(term_id) = self.r1cs_to_ir_wire.get(&term.id) {
             return Ok(self.b.create_gate(Mul(*term_id, val_id)));
         } else {
@@ -92,7 +102,6 @@ impl<S: Sink> FromR1CSConverter<S> {
     }
 
     pub fn ingest_constraints(&mut self, zki_r1cs: &zkiConstraintSystem) -> Result<()> {
-
         // Convert each R1CS constraint into a graph of Add/Mul/Const/AssertZero gates.
         for constraint in &zki_r1cs.constraints {
             let sum_a_id = self.add_lc(&constraint.linear_combination_a.get_variables())?;
@@ -143,18 +152,16 @@ fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
 }
 
 #[cfg(test)]
-use crate::producers::sink::MemorySink;
-#[cfg(test)]
 use crate::consumers::evaluator::Evaluator;
+#[cfg(test)]
+use crate::consumers::evaluator::PlaintextBackend;
 #[cfg(test)]
 use crate::consumers::stats::Stats;
 #[cfg(test)]
-use crate::consumers::evaluator::PlaintextBackend;
-
-
+use crate::producers::sink::MemorySink;
 
 #[cfg(test)]
-fn stats(conv: FromR1CSConverter<MemorySink> ) -> Stats {
+fn stats(conv: FromR1CSConverter<MemorySink>) -> Stats {
     use crate::Source;
 
     let sink = conv.finish();
@@ -164,11 +171,11 @@ fn stats(conv: FromR1CSConverter<MemorySink> ) -> Stats {
 
 #[test]
 fn test_r1cs_to_gates() -> Result<()> {
+    use crate::Source;
+    use num_traits::ToPrimitive;
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
-    use num_traits::ToPrimitive;
-    use crate::Source;
 
     let zki_header = zki_example_header_inputs(3, 4, 25);
     let zki_r1cs = zki_example_constraints();
@@ -209,8 +216,8 @@ fn test_r1cs_to_gates() -> Result<()> {
 
 #[cfg(test)]
 fn assert_header(header: &Header) {
-    use num_traits::ToPrimitive;
     use crate::structs::IR_VERSION;
+    use num_traits::ToPrimitive;
 
     assert_eq!(header.version, IR_VERSION);
     let fc = BigUint::from_bytes_le(&header.field_characteristic);
@@ -265,7 +272,7 @@ fn test_r1cs_stats() -> Result<()> {
             witness_messages: 1,
             relation_messages: 1,
         },
-        functions: Default::default()
+        functions: Default::default(),
     };
 
     assert_eq!(expected_stats, stats);

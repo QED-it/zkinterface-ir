@@ -1,10 +1,12 @@
-use std::io::Read;
-use flatbuffers::{read_scalar_at, SIZE_UOFFSET, UOffsetT};
 use crate::Result;
+use flatbuffers::{read_scalar_at, UOffsetT, SIZE_UOFFSET};
+use std::io::Read;
 
 // Read a flatbuffers size prefix (4 bytes, little-endian). Size including the prefix.
 pub fn read_size_prefix(buf: &[u8]) -> usize {
-    if buf.len() < SIZE_UOFFSET { return 0; }
+    if buf.len() < SIZE_UOFFSET {
+        return 0;
+    }
     let size = read_scalar_at::<UOffsetT>(buf, 0) as usize;
     SIZE_UOFFSET + size
 }
@@ -13,7 +15,9 @@ pub fn split_messages(mut buf: &[u8]) -> Vec<&[u8]> {
     let mut bufs = vec![];
     loop {
         let size = read_size_prefix(buf);
-        if size <= SIZE_UOFFSET { break; }
+        if size <= SIZE_UOFFSET {
+            break;
+        }
         bufs.push(&buf[..size]);
         buf = &buf[size..];
     }

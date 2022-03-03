@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
+use super::function::{CaseInvoke, ForLoopBody};
+use super::iterators::IterExprList;
+use super::value::{build_values_vector, try_from_values_vector};
+use super::wire::{build_wire, build_wire_list, from_id, WireList};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
 use crate::{Value, WireId};
-use super::value::{try_from_values_vector, build_values_vector};
-use super::wire::{from_id, WireList, build_wire, build_wire_list};
-use super::function::{CaseInvoke, ForLoopBody};
-use super::iterators::IterExprList;
 
 /// This one correspond to Directive in the FlatBuffers schema
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
@@ -53,8 +53,8 @@ pub enum Gate {
     For(String, u64, u64, WireList, ForLoopBody),
 }
 
-use Gate::*;
 use crate::structs::iterators::build_iterexpr_list;
+use Gate::*;
 
 impl<'a> TryFrom<g::Directive<'a>> for Gate {
     type Error = Box<dyn Error>;
@@ -175,10 +175,11 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
                 )
             }
 
-
             ds::GateAnonCall => {
                 let gate = gen_gate.directive_as_gate_anon_call().unwrap();
-                let inner = gate.inner().ok_or_else(|| "Missing inner AbstractAnonCall")?;
+                let inner = gate
+                    .inner()
+                    .ok_or_else(|| "Missing inner AbstractAnonCall")?;
 
                 AnonCall(
                     WireList::try_from(gate.output_wires().ok_or_else(|| "Missing output wires")?)?,
@@ -192,35 +193,49 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
             ds::GateSwitch => {
                 let gate = gen_gate.directive_as_gate_switch().unwrap();
 
-                let cases = try_from_values_vector(gate.cases()
-                    .ok_or_else(|| "Missing cases values")?)?;
+                let cases =
+                    try_from_values_vector(gate.cases().ok_or_else(|| "Missing cases values")?)?;
 
                 Switch(
                     from_id(&gate.condition().ok_or_else(|| "Missing condition wire.")?),
                     WireList::try_from(gate.output_wires().ok_or_else(|| "Missing output wires")?)?,
                     cases,
-                    CaseInvoke::try_from_vector(gate.branches().ok_or_else(|| "Missing branches")?)?,
+                    CaseInvoke::try_from_vector(
+                        gate.branches().ok_or_else(|| "Missing branches")?,
+                    )?,
                 )
             }
 
             ds::GateFor => {
                 let gate = gen_gate.directive_as_gate_for().unwrap();
-                let output_list = WireList::try_from(gate.outputs().ok_or_else(|| "missing output list")?)?;
+                let output_list =
+                    WireList::try_from(gate.outputs().ok_or_else(|| "missing output list")?)?;
                 let body: ForLoopBody = match gate.body_type() {
                     g::ForLoopBody::NONE => return Err("Unknown body type".into()),
                     g::ForLoopBody::IterExprFunctionInvoke => {
                         let g_body = gate.body_as_iter_expr_function_invoke().unwrap();
                         ForLoopBody::IterExprCall(
-                            g_body.name().ok_or_else(|| "Missing function in function name")?.to_string(),
-                            IterExprList::try_from(g_body.outputs().ok_or_else(|| "missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or_else(|| "missing input list")?)?,
+                            g_body
+                                .name()
+                                .ok_or_else(|| "Missing function in function name")?
+                                .to_string(),
+                            IterExprList::try_from(
+                                g_body.outputs().ok_or_else(|| "missing output list")?,
+                            )?,
+                            IterExprList::try_from(
+                                g_body.inputs().ok_or_else(|| "missing input list")?,
+                            )?,
                         )
                     }
                     g::ForLoopBody::IterExprAnonFunction => {
                         let g_body = gate.body_as_iter_expr_anon_function().unwrap();
                         ForLoopBody::IterExprAnonCall(
-                            IterExprList::try_from(g_body.outputs().ok_or_else(|| "missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or_else(|| "missing input list")?)?,
+                            IterExprList::try_from(
+                                g_body.outputs().ok_or_else(|| "missing output list")?,
+                            )?,
+                            IterExprList::try_from(
+                                g_body.inputs().ok_or_else(|| "missing input list")?,
+                            )?,
                             g_body.instance_count() as usize,
                             g_body.witness_count() as usize,
                             Gate::try_from_vector(g_body.body().ok_or_else(|| "Missing body")?)?,
@@ -229,7 +244,9 @@ impl<'a> TryFrom<g::Directive<'a>> for Gate {
                 };
 
                 For(
-                    gate.iterator().ok_or_else(|| "Missing iterator name")?.to_string(),
+                    gate.iterator()
+                        .ok_or_else(|| "Missing iterator name")?
+                        .to_string(),
                     gate.first(),
                     gate.last(),
                     output_list,
@@ -502,25 +519,19 @@ impl Gate {
                 )
             }
 
-            AnonCall(
-                output_wires,
-                input_wires,
-                instance_count,
-                witness_count,
-                subcircuit
-            ) => {
+            AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
                 let g_outputs = build_wire_list(builder, output_wires);
                 let g_inputs = build_wire_list(builder, input_wires);
                 let g_subcircuit = Gate::build_vector(builder, subcircuit);
 
-                let g_inner = g::AbstractAnonCall::create (
+                let g_inner = g::AbstractAnonCall::create(
                     builder,
                     &g::AbstractAnonCallArgs {
                         input_wires: Some(g_inputs),
                         instance_count: *instance_count as u64,
                         witness_count: *witness_count as u64,
                         subcircuit: Some(g_subcircuit),
-                    }
+                    },
                 );
 
                 let g_gate = g::GateAnonCall::create(
@@ -564,7 +575,6 @@ impl Gate {
             }
 
             Switch(condition, outputs_list, cases, branches) => {
-
                 let g_condition = build_wire(builder, *condition);
                 let g_output_wires = build_wire_list(builder, outputs_list);
                 let g_cases = build_values_vector(builder, cases);
@@ -590,7 +600,6 @@ impl Gate {
             }
 
             For(iterator_name, start_val, end_val, global_output_list, body) => {
-
                 let g_iterator_name = builder.create_string(iterator_name);
                 let g_global_output_list = build_wire_list(builder, global_output_list);
 
@@ -606,7 +615,7 @@ impl Gate {
                                 name: Some(g_name),
                                 outputs: Some(g_output_wires),
                                 inputs: Some(g_input_wires),
-                            }
+                            },
                         );
 
                         g::GateFor::create(
@@ -617,7 +626,7 @@ impl Gate {
                                 first: *start_val,
                                 last: *end_val,
                                 body_type: g::ForLoopBody::IterExprFunctionInvoke,
-                                body: Some(g_body.as_union_value())
+                                body: Some(g_body.as_union_value()),
                             },
                         )
                     }
@@ -626,7 +635,7 @@ impl Gate {
                         input_wires,
                         instance_count,
                         witness_count,
-                        subcircuit
+                        subcircuit,
                     ) => {
                         let g_subcircuit = Gate::build_vector(builder, subcircuit);
                         let g_output_wires = build_iterexpr_list(builder, output_wires);
@@ -640,7 +649,7 @@ impl Gate {
                                 instance_count: *instance_count as u64,
                                 witness_count: *witness_count as u64,
                                 body: Some(g_subcircuit),
-                            }
+                            },
                         );
 
                         g::GateFor::create(
@@ -651,7 +660,7 @@ impl Gate {
                                 first: *start_val,
                                 last: *end_val,
                                 body_type: g::ForLoopBody::IterExprAnonFunction,
-                                body: Some(g_body.as_union_value())
+                                body: Some(g_body.as_union_value()),
                             },
                         )
                     }
@@ -711,7 +720,7 @@ impl Gate {
 
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
-            Switch(_, _, _, _) =>  unimplemented!("Switch gate"),
+            Switch(_, _, _, _) => unimplemented!("Switch gate"),
             For(_, _, _, _, _) => unimplemented!("For loop"),
         }
     }

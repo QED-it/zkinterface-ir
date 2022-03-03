@@ -1,10 +1,9 @@
-use serde::{Serialize, Deserialize};
-use std::error::Error;
-use std::convert::TryFrom;
 use crate::sieve_ir_generated::sieve_ir as fb;
-use crate::{Result, Instance, Witness, Relation};
+use crate::{Instance, Relation, Result, Witness};
+use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use std::error::Error;
 use std::io::Write;
-
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Message {
@@ -32,9 +31,7 @@ impl<'a> TryFrom<&'a [u8]> for Message {
                 let fb_relation = msg.message_as_relation().unwrap();
                 Message::Relation(Relation::try_from(fb_relation)?)
             }
-            fb::Message::NONE => {
-                return Err("Invalid message type".into())
-            }
+            fb::Message::NONE => return Err("Invalid message type".into()),
         })
     }
 }
@@ -57,7 +54,7 @@ impl Message {
         match self {
             Message::Instance(instance) => instance.write_into(writer),
             Message::Witness(witness) => witness.write_into(writer),
-            Message::Relation(relation) => relation.write_into(writer)
+            Message::Relation(relation) => relation.write_into(writer),
         }
     }
 }
