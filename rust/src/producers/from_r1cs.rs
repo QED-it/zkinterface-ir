@@ -48,7 +48,7 @@ impl<S: Sink> FromR1CSConverter<S> {
                     "value for instance id:0 should be a constant 1"
                 );
             } else {
-                let wire = conv.b.create_gate(Instance(var.value.to_vec()));
+                let wire = conv.b.create_gate(Instance(Some(var.value.to_vec())));
                 conv.r1cs_to_ir_wire.insert(var.id, wire);
             }
         }

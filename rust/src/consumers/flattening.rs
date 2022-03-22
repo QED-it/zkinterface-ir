@@ -84,7 +84,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Copy(*wire)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Copy(*wire)))
     }
 
     fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -93,7 +93,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         }
         Ok(self
             .b
-            .as_ref()
+            .as_mut()
             .unwrap()
             .create_gate(BuildGate::Constant(val.to_bytes_le())))
     }
@@ -103,7 +103,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
             panic!("Builder has not been properly initialized.");
         }
         self.b
-            .as_ref()
+            .as_mut()
             .unwrap()
             .create_gate(BuildGate::AssertZero(*wire));
         Ok(())
@@ -113,14 +113,14 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Add(*a, *b)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Add(*a, *b)))
     }
 
     fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Mul(*a, *b)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Mul(*a, *b)))
     }
 
     fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
@@ -129,7 +129,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         }
         Ok(self
             .b
-            .as_ref()
+            .as_mut()
             .unwrap()
             .create_gate(BuildGate::AddConstant(*a, b.to_bytes_le())))
     }
@@ -140,7 +140,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         }
         Ok(self
             .b
-            .as_ref()
+            .as_mut()
             .unwrap()
             .create_gate(BuildGate::MulConstant(*a, b.to_bytes_le())))
     }
@@ -149,21 +149,21 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::And(*a, *b)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::And(*a, *b)))
     }
 
     fn xor(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Xor(*a, *b)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Xor(*a, *b)))
     }
 
     fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_ref().unwrap().create_gate(BuildGate::Not(*a)))
+        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Not(*a)))
     }
 
     fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
@@ -172,9 +172,9 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         }
         Ok(self
             .b
-            .as_ref()
+            .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Instance(val.to_bytes_le())))
+            .create_gate(BuildGate::Instance(Some(val.to_bytes_le()))))
     }
 
     fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
@@ -184,7 +184,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         let value = val.map(|v| v.to_bytes_le());
         Ok(self
             .b
-            .as_ref()
+            .as_mut()
             .unwrap()
             .create_gate(BuildGate::Witness(value)))
     }

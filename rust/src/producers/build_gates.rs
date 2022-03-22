@@ -17,7 +17,7 @@ pub enum BuildGate {
     And(WireId, WireId),
     Xor(WireId, WireId),
     Not(WireId),
-    Instance(Value),
+    Instance(Option<Value>),
     Witness(Option<Value>),
     Free(WireId, Option<WireId>),
 }
