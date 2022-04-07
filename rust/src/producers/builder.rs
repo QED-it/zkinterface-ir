@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use std::collections::HashMap;
 use std::mem::take;
 
@@ -5,8 +7,8 @@ use super::build_gates::NO_OUTPUT;
 pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
 use crate::structs::relation::{ARITH, FOR, FUNCTION, SWITCH};
-use crate::structs::wire::{expand_wirelist, WireList, WireListElement};
-use crate::structs::{function::Function, value::Value};
+use crate::structs::wire::{expand_wirelist, wirelist_len, WireList, WireListElement};
+use crate::structs::{function::CaseInvoke, function::Function, value::Value};
 use crate::Result;
 use crate::{Gate, Header, Instance, Relation, Sink, WireId, Witness};
 
@@ -160,6 +162,55 @@ struct FunctionParams {
     witness_count: usize,
 }
 
+impl FunctionParams {
+    fn check(
+        &self,
+        name: &String,
+        input_count: Option<usize>,
+        output_count: Option<usize>,
+        instance_count: Option<usize>,
+        witness_count: Option<usize>,
+    ) -> Result<()> {
+        if let Some(count) = input_count {
+            if count != self.input_count {
+                return Err(format!(
+                    "Function {} has {} inputs and is called with {} inputs.",
+                    name, self.input_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = output_count {
+            if count != self.output_count {
+                return Err(format!(
+                    "Function {} has {} outputs and is called with {} outputs.",
+                    name, self.output_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = instance_count {
+            if count != self.instance_count {
+                return Err(format!(
+                    "Function {} has {} instances and is called with {} instances.",
+                    name, self.instance_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = witness_count {
+            if count != self.witness_count {
+                return Err(format!(
+                    "Function {} has {} witnesses and is called with {} witnesses.",
+                    name, self.witness_count, count
+                )
+                .into());
+            }
+        }
+        Ok(())
+    }
+}
+
 /// known_function_params returns the FunctionParams of the function with name `name`.
 /// If no function with name `name` belongs to the HashMap `known_functions`, then it returns an error.
 fn known_function_params(
@@ -216,37 +267,23 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         instances: Vec<Value>,
         witnesses: Vec<Value>,
     ) -> Result<WireList> {
-        // Check inputs size and return output_count
+        // Check inputs, instances, witnesses size and return output_count
         let output_count = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
                 let input_count = expand_wirelist(input_wires).len();
-                if function_params.input_count != input_count {
-                    return Err(format!(
-                        "Function {} has {} inputs and is called with {} inputs.",
-                        name, function_params.input_count, input_count
-                    )
-                    .into());
-                }
-                if function_params.instance_count != instances.len() {
-                    return Err(format!(
-                        "Function {} has {} instances and is called with {} instances.",
-                        name,
-                        function_params.instance_count,
-                        instances.len()
-                    )
-                    .into());
-                }
-                if function_params.witness_count != witnesses.len() {
-                    return Err(format!(
-                        "Function {} has {} witnesses and is called with {} witnesses.",
-                        name,
-                        function_params.witness_count,
-                        witnesses.len()
-                    )
-                    .into());
-                }
+                function_params.check(
+                    name,
+                    Some(input_count),
+                    None,
+                    Some(instances.len()),
+                    Some(witnesses.len()),
+                )?;
                 function_params.output_count
+            }
+            BuildComplexGate::Switch(_, _, _, ref params) => {
+                params.check(None, Some(instances.len()), Some(witnesses.len()))?;
+                params.output_count
             }
         };
 
@@ -260,9 +297,9 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         }
 
         let output_wires = multiple_alloc(&mut self.free_id, output_count);
+
         self.msg_build
             .push_gate(gate.with_output(output_wires.clone()));
-
         Ok(output_wires)
     }
 }
@@ -289,13 +326,24 @@ impl<S: Sink> GateBuilder<S> {
     ) -> FunctionBuilder {
         FunctionBuilder {
             name: name,
-            output_count: output_count,
-            input_count: input_count,
+            output_count,
+            input_count,
             gates: vec![],
             instance_count: 0,
             witness_count: 0,
             known_functions: &self.known_functions,
             free_id: (output_count + input_count) as u64,
+        }
+    }
+
+    pub fn new_switch_builder(&self, output_count: usize) -> SwitchBuilder {
+        SwitchBuilder {
+            output_count,
+            cases: vec![],
+            branches: vec![],
+            instance_count: 0, // evaluated on the fly
+            witness_count: 0,  // evaluated on the fly
+            known_functions: &self.known_functions,
         }
     }
 
@@ -405,7 +453,7 @@ impl FunctionBuilder<'_> {
     /// Returns the newly allocated WireIds.
     pub fn create_complex_gate(&mut self, gate: BuildComplexGate) -> Result<WireList> {
         // Check inputs size and return function_params
-        let function_params = match gate {
+        let (output_count, instance_count, witness_count) = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
                 // Check inputs size
@@ -417,13 +465,22 @@ impl FunctionBuilder<'_> {
                     )
                     .into());
                 }
-                function_params
+                (
+                    function_params.output_count,
+                    function_params.instance_count,
+                    function_params.witness_count,
+                )
             }
+            BuildComplexGate::Switch(_, _, _, ref params) => (
+                params.output_count,
+                params.instance_count,
+                params.witness_count,
+            ),
         };
-        let output_wires = multiple_alloc(&mut self.free_id, function_params.output_count);
+        let output_wires = multiple_alloc(&mut self.free_id, output_count);
 
-        self.witness_count += function_params.witness_count;
-        self.instance_count += function_params.instance_count;
+        self.witness_count += witness_count;
+        self.instance_count += instance_count;
 
         self.gates.push(gate.with_output(output_wires.clone()));
 
@@ -455,6 +512,210 @@ impl FunctionBuilder<'_> {
             self.gates.to_vec(),
         ))
     }
+}
+
+/// SwitchBuilder builds a Switch by creating branches from defined functions.
+/// finish() must be called to obtain the switch.
+/// The number of instances and witnesses consumed by the switch are evaluated on the fly.
+///
+/// # Example
+/// ```
+/// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder, GateBuilderT, BuildGate::*};
+/// use zki_sieve::producers::sink::MemorySink;
+/// use zki_sieve::Header;
+/// use zki_sieve::structs::wire::WireListElement::Wire;
+///
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
+///
+/// let custom_sub = {
+///     let mut fb = b.new_function_builder("custom_sub".to_string(), 2, 4);
+///
+///     let input_wires = fb.input_wire_ids();
+///     let neg_input2_wire = fb.create_gate(MulConstant(input_wires[2], vec![100]));
+///     let neg_input3_wire = fb.create_gate(MulConstant(input_wires[3], vec![100]));
+///     let output0_wire = fb.create_gate(Add(input_wires[0], neg_input2_wire));
+///     let output1_wire = fb.create_gate(Add(input_wires[1], neg_input3_wire));
+///     fb.finish(vec![output0_wire, output1_wire]).unwrap()
+/// };
+/// b.push_function(custom_sub).unwrap();
+///
+/// let custom_add = {
+///     let mut fb = b.new_function_builder("custom_add".to_string(), 2, 2);
+///
+///     let input_wires = fb.input_wire_ids();
+///     let instance = fb.create_gate(Instance(None));
+///     let witness = fb.create_gate(Witness(None));
+///     let output0_wire = fb.create_gate(Add(input_wires[0], instance));
+///     let output1_wire = fb.create_gate(Add(input_wires[1], witness));
+///     fb.finish(vec![output0_wire, output1_wire]).unwrap()
+/// };
+/// b.push_function(custom_add).unwrap();
+///
+/// let branch_input_0 = b.create_gate(Constant(vec![10]));
+/// let branch_input_1 = b.create_gate(Constant(vec![15]));
+/// let branch_input_2 = b.create_gate(Instance(Some(vec![20])));
+/// let branch_input_3 = b.create_gate(Witness(Some(vec![25])));
+/// let branch_condition = b.create_gate(Constant(vec![3]));
+///
+///  let custom_switch = {
+///     let mut sb = b.new_switch_builder(2);
+///
+///     let branch0 = sb
+///         .create_branch_from(
+///             "custom_sub".to_string(),
+///             vec![Wire(branch_input_0), Wire(branch_input_1), Wire(branch_input_2), Wire(branch_input_3)],
+///         )
+///         .unwrap();
+///     sb.push_branch(branch0, vec![10]).unwrap();
+///
+///     let branch1 = sb
+///         .create_branch_from(
+///             "custom_add".to_string(),
+///             vec![Wire(branch_input_1), Wire(branch_input_0)],
+///         )
+///         .unwrap();
+///     sb.push_branch(branch1, vec![3]).unwrap();
+///     sb.finish(branch_condition).unwrap()
+///  };
+///  let branch_out = b
+///     .create_complex_gate(custom_switch, vec![vec![5]], vec![vec![15]])
+///     .unwrap();
+/// ```
+pub struct SwitchBuilder<'a> {
+    output_count: usize,
+
+    cases: Vec<Value>,
+    branches: Vec<CaseInvoke>,
+
+    instance_count: usize, // evaluated on the fly
+    witness_count: usize,  // evaluated on the fly
+    known_functions: &'a HashMap<String, FunctionParams>,
+}
+
+impl SwitchBuilder<'_> {
+    /// Creates a branch by calling the function `name` on inputs `inputs`
+    pub fn create_branch_from(&self, name: String, inputs: WireList) -> Result<BranchBuilder> {
+        // Check that the function exists
+        let function_params = known_function_params(&self.known_functions, &name)?;
+        // Check input_count
+        let input_count = wirelist_len(&inputs);
+        function_params.check(&name, Some(input_count), None, None, None)?;
+        Ok(BranchBuilder {
+            branch: CaseInvoke::AbstractGateCall(name, inputs),
+            params: function_params,
+        })
+    }
+
+    pub fn push_branch(&mut self, branch: BranchBuilder, case: Value) -> Result<()> {
+        // Check output_count
+        if self.output_count != branch.params.output_count {
+            return Err(format!(
+                "The switch has {} outputs and the branch has {} outputs.",
+                self.output_count, branch.params.output_count
+            )
+            .into());
+        }
+
+        // Check that the case value does not already exist
+        for value in &self.cases {
+            if *value == case {
+                return Err(format!(
+                    "You cannot create a switch with two cases with the same value.",
+                )
+                .into());
+            }
+        }
+
+        // Update instance_count and witness_count
+        if self.instance_count < branch.params.instance_count {
+            self.instance_count = branch.params.instance_count;
+        }
+        if self.witness_count < branch.params.witness_count {
+            self.witness_count = branch.params.witness_count;
+        }
+
+        // Add the branch and the case in the SwitchBuilder
+        self.cases.push(case);
+        self.branches.push(branch.branch);
+
+        Ok(())
+    }
+
+    pub fn finish(self, condition: WireId) -> Result<BuildComplexGate> {
+        if self.branches.len() != self.cases.len() {
+            return Err(format!(
+                "The switch has {} branches and {} cases.",
+                self.branches.len(),
+                self.cases.len()
+            )
+            .into());
+        }
+        if self.branches.len() == 0 {
+            return Err(format!("Cannot create an empty switch !").into());
+        }
+        let params = SwitchParams {
+            output_count: self.output_count,
+            instance_count: self.instance_count,
+            witness_count: self.witness_count,
+        };
+        Ok(BuildComplexGate::Switch(
+            condition,
+            self.cases,
+            self.branches,
+            params,
+        ))
+    }
+}
+
+/// SwitchParams contains the number of inputs, instances and witnesses of a switch.
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
+pub struct SwitchParams {
+    output_count: usize,
+    instance_count: usize,
+    witness_count: usize,
+}
+
+impl SwitchParams {
+    fn check(
+        &self,
+        output_count: Option<usize>,
+        instance_count: Option<usize>,
+        witness_count: Option<usize>,
+    ) -> Result<()> {
+        if let Some(count) = output_count {
+            if count != self.output_count {
+                return Err(format!(
+                    "Switch has {} outputs and is called with {} outputs.",
+                    self.output_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = instance_count {
+            if count != self.instance_count {
+                return Err(format!(
+                    "Switch has {} instances and is called with {} instances.",
+                    self.instance_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = witness_count {
+            if count != self.witness_count {
+                return Err(format!(
+                    "Switch has {} witnesses and is called with {} witnesses.",
+                    self.instance_count, count
+                )
+                .into());
+            }
+        }
+        Ok(())
+    }
+}
+
+pub struct BranchBuilder {
+    branch: CaseInvoke,
+    params: FunctionParams,
 }
 
 #[test]
@@ -613,6 +874,275 @@ fn test_builder_with_several_functions() {
     assert_eq!(out.len(), 1);
 
     b.create_gate(AssertZero(out[0]));
+
+    let sink = b.finish();
+
+    let mut zkbackend = PlaintextBackend::default();
+    let source: Source = sink.into();
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkbackend);
+    assert_eq!(evaluator.get_violations().len(), 0);
+}
+
+#[test]
+fn test_switch_builder() {
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::{examples, sink::MemorySink};
+    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+
+    let custom_sub = {
+        let mut fb = b.new_function_builder("custom_sub".to_string(), 2, 2);
+
+        let input_wires = fb.input_wire_ids();
+        let instance = fb.create_gate(Instance(None));
+        let witness = fb.create_gate(Witness(None));
+        let neg_instance = fb.create_gate(MulConstant(instance, vec![100]));
+        let neg_witness = fb.create_gate(MulConstant(witness, vec![100]));
+        let output0_wire = fb.create_gate(Add(input_wires[0], neg_instance));
+        let output1_wire = fb.create_gate(Add(input_wires[1], neg_witness));
+        fb.finish(vec![output0_wire, output1_wire]).unwrap()
+    };
+    b.push_function(custom_sub).unwrap();
+
+    let custum_add = {
+        let mut fb = b.new_function_builder("custom_add".to_string(), 2, 2);
+        let input_wires = fb.input_wire_ids();
+        let instance = fb.create_gate(Instance(None));
+        let witness = fb.create_gate(Witness(None));
+        let out0 = fb.create_gate(Add(input_wires[0], instance));
+        let out1 = fb.create_gate(Add(input_wires[1], witness));
+        let witness2 = fb.create_gate(Witness(None));
+        fb.create_gate(AssertZero(witness2));
+        fb.finish(vec![out0, out1]).unwrap()
+    };
+    b.push_function(custum_add).unwrap();
+
+    let assert_equal_witness = {
+        let mut fb = b.new_function_builder("assert_equal_witness".to_string(), 0, 1);
+        let input_wires = fb.input_wire_ids();
+        let witness = fb.create_gate(Witness(None));
+        let neg_witness = fb.create_gate(MulConstant(witness, vec![100]));
+        let add_result = fb.create_gate(Add(input_wires[0], neg_witness));
+        fb.create_gate(AssertZero(add_result));
+        fb.finish(vec![]).unwrap()
+    };
+    b.push_function(assert_equal_witness).unwrap();
+
+    let branch_input_0 = b.create_gate(Constant(vec![10]));
+    let branch_input_1 = b.create_gate(Constant(vec![15]));
+    let branch_condition = b.create_gate(Constant(vec![1]));
+
+    let switch = {
+        let mut sb = b.new_switch_builder(2);
+        // Try to create a call branch with an unknown function
+        // Should return an error
+        let branch_test = sb.create_branch_from(
+            "unknown_function".to_string(),
+            vec![Wire(branch_input_0), Wire(branch_input_1)],
+        );
+        assert!(branch_test.is_err());
+
+        let branch0 = sb
+            .create_branch_from(
+                "custom_sub".to_string(),
+                vec![Wire(branch_input_0), Wire(branch_input_1)],
+            )
+            .unwrap();
+        sb.push_branch(branch0, vec![0]).unwrap();
+
+        // Create a branch with the same case value as the previous branch
+        // Should return an error
+        let branch1 = sb
+            .create_branch_from(
+                "custom_add".to_string(),
+                vec![Wire(branch_input_0), Wire(branch_input_1)],
+            )
+            .unwrap();
+        let test = sb.push_branch(branch1, vec![0]);
+        assert!(test.is_err());
+
+        let branch1 = sb
+            .create_branch_from(
+                "custom_add".to_string(),
+                vec![Wire(branch_input_0), Wire(branch_input_1)],
+            )
+            .unwrap();
+        sb.push_branch(branch1, vec![1]).unwrap();
+        sb.finish(branch_condition).unwrap()
+    };
+    let branch_out = b
+        .create_complex_gate(switch, vec![vec![5]], vec![vec![15], vec![0]])
+        .unwrap();
+    let branch_out = expand_wirelist(&branch_out);
+    b.create_complex_gate(
+        Call(
+            "assert_equal_witness".to_string(),
+            vec![Wire(branch_out[0])],
+        ),
+        vec![],
+        vec![vec![15]],
+    )
+    .unwrap();
+    b.create_complex_gate(
+        Call(
+            "assert_equal_witness".to_string(),
+            vec![Wire(branch_out[1])],
+        ),
+        vec![],
+        vec![vec![30]],
+    )
+    .unwrap();
+
+    // Try to create a switch without branch
+    // Should return an error
+    let sb = b.new_switch_builder(0);
+    let switch = sb.finish(branch_condition);
+    assert!(switch.is_err());
+
+    let value_55 = b.create_gate(Constant(vec![55]));
+    let condition = b.create_gate(Constant(vec![60]));
+
+    // Try to create a switch with only one branch (should succeed)
+    let switch = {
+        let mut sb = b.new_switch_builder(0);
+        let branch = sb
+            .create_branch_from("assert_equal_witness".to_string(), vec![Wire(value_55)])
+            .unwrap();
+        sb.push_branch(branch, vec![60]).unwrap();
+        sb.finish(condition).unwrap()
+    };
+    b.create_complex_gate(switch, vec![], vec![vec![55]])
+        .unwrap();
+
+    // Try to call a switch with a wrong number of instances or witnesses
+    // Should return an error
+    let switch = {
+        let mut sb = b.new_switch_builder(0);
+        let branch = sb
+            .create_branch_from("assert_equal_witness".to_string(), vec![Wire(value_55)])
+            .unwrap();
+        sb.push_branch(branch, vec![60]).unwrap();
+        sb.finish(condition).unwrap()
+    };
+    let result = b.create_complex_gate(switch, vec![], vec![]);
+    assert!(result.is_err());
+
+    let sink = b.finish();
+
+    let mut zkbackend = PlaintextBackend::default();
+    let source: Source = sink.into();
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkbackend);
+    assert_eq!(evaluator.get_violations().len(), 0);
+}
+
+#[test]
+fn test_switch_nested_in_function() {
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::{examples, sink::MemorySink};
+    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+
+    let custom_sub = {
+        let mut fb = b.new_function_builder("custom_sub".to_string(), 2, 2);
+
+        let input_wires = fb.input_wire_ids();
+        let instance = fb.create_gate(Instance(None));
+        let witness = fb.create_gate(Witness(None));
+        let neg_instance = fb.create_gate(MulConstant(instance, vec![100]));
+        let neg_witness = fb.create_gate(MulConstant(witness, vec![100]));
+        let output0_wire = fb.create_gate(Add(input_wires[0], neg_instance));
+        let output1_wire = fb.create_gate(Add(input_wires[1], neg_witness));
+        fb.finish(vec![output0_wire, output1_wire]).unwrap()
+    };
+    b.push_function(custom_sub).unwrap();
+
+    let custum_add = {
+        let mut fb = b.new_function_builder("custom_add".to_string(), 2, 2);
+        let input_wires = fb.input_wire_ids();
+        let instance = fb.create_gate(Instance(None));
+        let witness = fb.create_gate(Witness(None));
+        let out0 = fb.create_gate(Add(input_wires[0], instance));
+        let out1 = fb.create_gate(Add(input_wires[1], witness));
+        fb.finish(vec![out0, out1]).unwrap()
+    };
+    b.push_function(custum_add).unwrap();
+
+    let id_0 = b.create_gate(Constant(vec![40]));
+    let id_1 = b.create_gate(Constant(vec![30]));
+    let condition = b.create_gate(Constant(vec![1]));
+
+    let function_with_switch = {
+        let mut fb = b.new_function_builder("function_with_switch".to_string(), 2, 3);
+        let input_wires = fb.input_wire_ids();
+
+        let switch = {
+            let mut sb = b.new_switch_builder(2);
+            let branch0 = sb
+                .create_branch_from(
+                    "custom_sub".to_string(),
+                    vec![Wire(input_wires[0]), Wire(input_wires[1])],
+                )
+                .unwrap();
+            sb.push_branch(branch0, vec![0]).unwrap();
+
+            let branch1 = sb
+                .create_branch_from(
+                    "custom_add".to_string(),
+                    vec![Wire(input_wires[0]), Wire(input_wires[1])],
+                )
+                .unwrap();
+            sb.push_branch(branch1, vec![1]).unwrap();
+
+            sb.finish(input_wires[2]).unwrap()
+        };
+        let out = fb.create_complex_gate(switch).unwrap();
+        let out = expand_wirelist(&out);
+        fb.finish(out).unwrap()
+    };
+
+    b.push_function(function_with_switch).unwrap();
+
+    let out = b
+        .create_complex_gate(
+            Call(
+                "function_with_switch".to_string(),
+                vec![Wire(id_0), Wire(id_1), Wire(condition)],
+            ),
+            vec![vec![10]],
+            vec![vec![5]],
+        )
+        .unwrap();
+    let out = expand_wirelist(&out);
+
+    let assert_equal_witness = {
+        let mut fb = b.new_function_builder("assert_equal_witness".to_string(), 0, 1);
+        let input_wires = fb.input_wire_ids();
+        let witness = fb.create_gate(Witness(None));
+        let neg_witness = fb.create_gate(MulConstant(witness, vec![100]));
+        let add_result = fb.create_gate(Add(input_wires[0], neg_witness));
+        fb.create_gate(AssertZero(add_result));
+        fb.finish(vec![]).unwrap()
+    };
+    b.push_function(assert_equal_witness).unwrap();
+
+    b.create_complex_gate(
+        Call("assert_equal_witness".to_string(), vec![Wire(out[0])]),
+        vec![],
+        vec![vec![50]],
+    )
+    .unwrap();
+    b.create_complex_gate(
+        Call("assert_equal_witness".to_string(), vec![Wire(out[1])]),
+        vec![],
+        vec![vec![35]],
+    )
+    .unwrap();
 
     let sink = b.finish();
 

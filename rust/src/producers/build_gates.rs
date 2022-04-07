@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::structs::wire::WireList;
+use crate::producers::builder::SwitchParams;
+use crate::structs::{function::CaseInvoke, wire::WireList};
 use crate::{Gate, Value, WireId};
 
 /// BuildGate is similar to Gate but without output wires.
@@ -65,8 +66,10 @@ impl BuildGate {
 /// Useful in combination with GateBuilder.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum BuildComplexGate {
-    /// Call(name, input_wires)
+    // Call(name, input_wires)
     Call(String, WireList),
+    // Switch(condition, cases, branches, params)
+    Switch(WireId, Vec<Value>, Vec<CaseInvoke>, SwitchParams),
 }
 
 use BuildComplexGate::*;
@@ -75,6 +78,9 @@ impl BuildComplexGate {
     pub fn with_output(self, output: WireList) -> Gate {
         match self {
             Call(name, input_wires) => Gate::Call(name, output, input_wires),
+            Switch(condition, cases, branches, _) => {
+                Gate::Switch(condition, output, cases, branches)
+            }
         }
     }
 }

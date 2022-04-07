@@ -186,3 +186,13 @@ pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
         })
         .collect()
 }
+
+pub fn wirelist_len(wirelist: &WireList) -> usize {
+    wirelist
+        .iter()
+        .map(|wire| match wire {
+            WireListElement::Wire(_) => 1,
+            WireListElement::WireRange(first, last) => (*last as usize) - (*first as usize) + 1,
+        })
+        .sum()
+}
