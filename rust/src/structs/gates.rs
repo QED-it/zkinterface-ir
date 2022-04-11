@@ -10,6 +10,7 @@ use super::value::{build_values_vector, try_from_values_vector};
 use super::wire::{build_wire, build_wire_list, from_id, WireList};
 use crate::sieve_ir_generated::sieve_ir as g;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
+use crate::structs::wire::{replace_wire, replace_wire_in_wirelist};
 use crate::{Value, WireId};
 
 /// This one correspond to Directive in the FlatBuffers schema
@@ -724,4 +725,266 @@ impl Gate {
             For(_, _, _, _, _) => unimplemented!("For loop"),
         }
     }
+}
+
+/// replace_output_wires goes through all gates in `gates` and `replace output_wires[i]` by `i` if it is
+/// easily doable. Otherwise, replace_output_wires adds Copy gates `Copy(i, output_wires[i])` at the
+/// end of `gates`.
+///
+/// If a `For` gate belongs to `gates`, it is not easily doable to replace output wires (especially
+/// in IterExpr). Therefor, `replace_output_wires` will add the Copy gates `Copy(i, output_wires[i])`
+/// at the end of `gates`.
+///
+/// If there is no For gate in `gates`, `replace_output_wires` will replace all `output_wires[i]`
+/// by `i` in all gates in `gates`.
+///
+/// If a `Free` gate contains a output wire, `replace_output_wires` will return an error.
+pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &Vec<WireId>) -> Result<()> {
+    // It is not easily doable to replace a WireId in a For gate (especially in IterExpr).
+    // Therefor, if one gate is a For gate, we will add Copy gates and not modify any WireId.
+    for gate in gates.into_iter() {
+        if let For(_, _, _, _, _) = gate {
+            for i in 0..output_wires.len() {
+                gates.push(Gate::Copy(i as u64, output_wires[i]));
+            }
+            return Ok(());
+        }
+    }
+
+    // gates does not have a For gate.
+    for i in 0..output_wires.len() {
+        let old_wire = output_wires[i];
+        let new_wire = i as u64;
+        for gate in &mut *gates {
+            match gate {
+                Constant(ref mut output, _) => {
+                    replace_wire(output, old_wire, new_wire);
+                }
+                Copy(ref mut output, ref mut input) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(input, old_wire, new_wire);
+                }
+                Add(ref mut output, ref mut left, ref mut right) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(left, old_wire, new_wire);
+                    replace_wire(right, old_wire, new_wire);
+                }
+                Mul(ref mut output, ref mut left, ref mut right) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(left, old_wire, new_wire);
+                    replace_wire(right, old_wire, new_wire);
+                }
+                AddConstant(ref mut output, ref mut input, _) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(input, old_wire, new_wire);
+                }
+                MulConstant(ref mut output, ref mut input, _) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(input, old_wire, new_wire);
+                }
+                And(ref mut output, ref mut left, ref mut right) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(left, old_wire, new_wire);
+                    replace_wire(right, old_wire, new_wire);
+                }
+                Xor(ref mut output, ref mut left, ref mut right) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(left, old_wire, new_wire);
+                    replace_wire(right, old_wire, new_wire);
+                }
+                Not(ref mut output, ref mut input) => {
+                    replace_wire(output, old_wire, new_wire);
+                    replace_wire(input, old_wire, new_wire);
+                }
+                Instance(ref mut output) => {
+                    replace_wire(output, old_wire, new_wire);
+                }
+                Witness(ref mut output) => {
+                    replace_wire(output, old_wire, new_wire);
+                }
+                AssertZero(ref mut wire) => {
+                    replace_wire(wire, old_wire, new_wire);
+                }
+                Free(ref mut first, ref mut option_last) => match option_last {
+                    Some(last) => {
+                        if *first <= old_wire && *last >= old_wire {
+                            return Err(format!("It is forbidden to free an output wire !").into());
+                        }
+                    }
+                    None => {
+                        if *first == old_wire {
+                            return Err(format!("It is forbidden to free an output wire !").into());
+                        }
+                    }
+                },
+                AnonCall(ref mut outputs, ref mut inputs, _, _, _) => {
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
+                    replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                }
+                Call(_, ref mut outputs, ref mut inputs) => {
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
+                    replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                }
+                Switch(ref mut condition, ref mut outputs, _, ref mut branches) => {
+                    if *condition == old_wire {
+                        *condition = new_wire;
+                    }
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
+                    for branch in branches {
+                        match *branch {
+                            CaseInvoke::AbstractAnonCall(ref mut inputs, _, _, _) => {
+                                replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                            }
+                            CaseInvoke::AbstractGateCall(_, ref mut inputs) => {
+                                replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                            }
+                        };
+                    }
+                }
+                For(_, _, _, _, _) => {
+                    // At the beginning of this method, we check if there is at least one For gate.
+                    // If it is the case, we add Copy gates and return
+                    // Therefor, this case is unreachable !!!
+                    panic!("Unreachable case in replace_output_wires method.")
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn test_replace_output_wires() {
+    use crate::structs::function::CaseInvoke;
+    use crate::structs::wire::WireListElement::*;
+
+    let mut gates = vec![
+        Instance(4),
+        Witness(5),
+        Constant(6, vec![15]),
+        Add(7, 4, 5),
+        Free(4, Some(5)),
+        Mul(8, 6, 7),
+        Call(
+            "custom".to_string(),
+            vec![WireRange(9, 12)],
+            vec![WireRange(6, 8)],
+        ),
+        AssertZero(12),
+        Switch(
+            6,
+            vec![Wire(13), Wire(14), Wire(15)],
+            vec![vec![2], vec![5]],
+            vec![
+                CaseInvoke::AbstractGateCall("function_branch0".to_string(), vec![WireRange(6, 8)]),
+                CaseInvoke::AbstractGateCall("function_branch1".to_string(), vec![Wire(10)]),
+            ],
+        ),
+    ];
+    let output_wires = vec![6, 11, 12, 15];
+    replace_output_wires(&mut gates, &output_wires).unwrap();
+    let correct_gates = vec![
+        Instance(4),
+        Witness(5),
+        Constant(0, vec![15]),
+        Add(7, 4, 5),
+        Free(4, Some(5)),
+        Mul(8, 0, 7),
+        Call(
+            "custom".to_string(),
+            vec![Wire(9), Wire(10), Wire(1), Wire(2)],
+            vec![Wire(0), Wire(7), Wire(8)],
+        ),
+        AssertZero(2),
+        Switch(
+            0,
+            vec![Wire(13), Wire(14), Wire(3)],
+            vec![vec![2], vec![5]],
+            vec![
+                CaseInvoke::AbstractGateCall(
+                    "function_branch0".to_string(),
+                    vec![Wire(0), Wire(7), Wire(8)],
+                ),
+                CaseInvoke::AbstractGateCall("function_branch1".to_string(), vec![Wire(10)]),
+            ],
+        ),
+    ];
+    assert_eq!(gates, correct_gates);
+}
+
+#[test]
+fn test_replace_output_wires_with_for() {
+    use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
+    use crate::structs::wire::WireListElement::*;
+
+    let mut gates = vec![
+        For(
+            "i".into(),
+            10,
+            12,
+            vec![WireRange(10, 12)],
+            ForLoopBody::IterExprAnonCall(
+                vec![Single(IterExprName("i".into()))],
+                vec![],
+                0,
+                1,
+                vec![Witness(0)],
+            ),
+        ),
+        Xor(13, 10, 11),
+        AssertZero(13),
+    ];
+    let output_wires = vec![10, 11, 12, 13];
+    replace_output_wires(&mut gates, &output_wires).unwrap();
+    let correct_gates = vec![
+        For(
+            "i".into(),
+            10,
+            12,
+            vec![WireRange(10, 12)],
+            ForLoopBody::IterExprAnonCall(
+                vec![Single(IterExprName("i".into()))],
+                vec![],
+                0,
+                1,
+                vec![Witness(0)],
+            ),
+        ),
+        Xor(13, 10, 11),
+        AssertZero(13),
+        Copy(0, 10),
+        Copy(1, 11),
+        Copy(2, 12),
+        Copy(3, 13),
+    ];
+    assert_eq!(gates, correct_gates);
+}
+
+#[test]
+fn test_replace_output_wires_with_forbidden_free() {
+    let mut gates = vec![
+        Xor(2, 4, 6),
+        And(7, 4, 6),
+        Xor(8, 3, 5),
+        Xor(9, 7, 8),
+        And(10, 3, 5),
+        Not(11, 10),
+        Free(7, Some(9)),
+    ];
+    let output_wires = vec![8, 4];
+    let test = replace_output_wires(&mut gates, &output_wires);
+    assert!(test.is_err());
+
+    let mut gates = vec![
+        Xor(2, 4, 6),
+        And(7, 4, 6),
+        Free(4, None),
+        Xor(8, 3, 5),
+        Xor(9, 7, 8),
+        And(10, 3, 5),
+        Not(11, 10),
+    ];
+    let output_wires = vec![8, 4];
+    let test = replace_output_wires(&mut gates, &output_wires);
+    assert!(test.is_err());
 }

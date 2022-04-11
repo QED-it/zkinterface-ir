@@ -15,6 +15,7 @@ pub enum WireListElement {
 use WireListElement::*;
 
 /// A WireList is simply a vector of WireListElement
+/// #[derive(Clone)]
 pub type WireList = Vec<WireListElement>;
 
 // =========================================
@@ -195,4 +196,57 @@ pub fn wirelist_len(wirelist: &WireList) -> usize {
             WireListElement::WireRange(first, last) => (*last as usize) - (*first as usize) + 1,
         })
         .sum()
+}
+
+/// Go through `wirelist` and replace `old_wire` by `new_wire`
+/// Do not modify wirelist if old_wire does not belong to it (do not unroll WireRange)
+pub(crate) fn replace_wire_in_wirelist(
+    wirelist: &mut WireList,
+    old_wire: WireId,
+    new_wire: WireId,
+) {
+    let mut wires = expand_wirelist(wirelist);
+    let mut updated = false;
+    for wire in wires.iter_mut() {
+        if *wire == old_wire {
+            *wire = new_wire;
+            updated = true;
+        }
+    }
+    if updated {
+        *wirelist = wires.iter().map(|w| Wire(*w)).collect()
+    }
+}
+
+#[test]
+fn test_replace_wire_in_wirelist() {
+    let mut wirelist = vec![WireRange(0, 2), Wire(5)];
+    replace_wire_in_wirelist(&mut wirelist, 4, 14);
+    let correct_wirelist = vec![WireRange(0, 2), Wire(5)];
+    assert_eq!(wirelist, correct_wirelist);
+
+    replace_wire_in_wirelist(&mut wirelist, 5, 15);
+    let correct_wirelist = vec![Wire(0), Wire(1), Wire(2), Wire(15)];
+    assert_eq!(wirelist, correct_wirelist);
+
+    let mut wirelist = vec![WireRange(0, 2), Wire(5)];
+    replace_wire_in_wirelist(&mut wirelist, 1, 14);
+    let correct_wirelist = vec![Wire(0), Wire(14), Wire(2), Wire(5)];
+    assert_eq!(wirelist, correct_wirelist);
+}
+
+/// Replace `wire` by `new_wire` if `wire` was equal to `old_wire`
+pub(crate) fn replace_wire(wire: &mut WireId, old_wire: WireId, new_wire: WireId) {
+    if *wire == old_wire {
+        *wire = new_wire;
+    }
+}
+
+#[test]
+fn test_replace_wire() {
+    let mut wire = 5;
+    replace_wire(&mut wire, 3, 5);
+    assert_eq!(wire, 5);
+    replace_wire(&mut wire, 5, 8);
+    assert_eq!(wire, 8);
 }

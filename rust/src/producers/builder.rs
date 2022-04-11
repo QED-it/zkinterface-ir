@@ -6,6 +6,7 @@ use std::mem::take;
 use super::build_gates::NO_OUTPUT;
 pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
+use crate::structs::gates::replace_output_wires;
 use crate::structs::relation::{ARITH, FOR, FUNCTION, SWITCH};
 use crate::structs::wire::{expand_wirelist, wirelist_len, WireList, WireListElement};
 use crate::structs::{function::CaseInvoke, function::Function, value::Value};
@@ -498,10 +499,8 @@ impl FunctionBuilder<'_> {
             )
             .into());
         }
-        // Could we avoid to copy output wires ?
-        for i in 0..output_wires.len() {
-            self.gates.push(Gate::Copy(i as u64, output_wires[i]));
-        }
+
+        replace_output_wires(&mut self.gates, &output_wires)?;
 
         Ok(Function::new(
             self.name.clone(),
