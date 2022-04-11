@@ -71,7 +71,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
     use crate::structs::function::CaseInvoke::*;
     use crate::structs::function::Function;
     use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
-    use crate::structs::wire::WireListElement::*;
+    use crate::structs::wire::{WireListElement, WireListElement::*};
+    use crate::wirelist;
     use crate::Gate::*;
 
     Relation {
@@ -202,7 +203,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Witness(25),
             Switch(
                 24,                     // condition
-                vec![Wire(26)],         // outputs
+                wirelist![26],          // outputs
                 vec![vec![1], vec![0]], //cases
                 vec![
                     // branches

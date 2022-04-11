@@ -45,3 +45,37 @@ pub use structs::{
 
 /// Common definition of Result with generic errors.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+/// Creates a `WireList` containing the WireIds.
+///
+/// `wirelist!` allows `WireList` to be defined with the same syntax as array expressions.
+/// There are two forms of this macro:
+///
+/// - Create a `WireList` containing a given list of WireIds:
+///
+/// ```
+/// use zki_sieve::structs::wire::WireListElement;
+/// use zki_sieve::wirelist;
+/// let v = wirelist![1, 2, 3];
+/// assert_eq!(v[0], WireListElement::Wire(1));
+/// assert_eq!(v[1], WireListElement::Wire(2));
+/// assert_eq!(v[2], WireListElement::Wire(3));
+/// ```
+///
+/// - Create a `WireList` from a given WireId and size:
+///
+/// ```
+/// use zki_sieve::structs::wire::WireListElement;
+/// use zki_sieve::wirelist;
+/// let v = wirelist![1; 3];
+/// assert_eq!(v, [WireListElement::Wire(1), WireListElement::Wire(1), WireListElement::Wire(1)]);
+/// ```
+#[macro_export]
+macro_rules! wirelist {
+    ($elem:expr; $n:expr) => (
+        vec![WireListElement::Wire($elem); $n]
+    );
+    ( $( $x:expr ),*) => (
+        vec![$(WireListElement::Wire($x)),*]
+    );
+}

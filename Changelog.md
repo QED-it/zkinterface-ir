@@ -10,6 +10,7 @@ Rust:
 - Format the entire project with rustfmt
 - Add SwitchBuilder
 - When declaring a function, limit the use of Copy gates
+- Add wirelist macro
 
 # v2.0.0, 2021-12
 

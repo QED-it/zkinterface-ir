@@ -522,7 +522,8 @@ impl FunctionBuilder<'_> {
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder, GateBuilderT, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::Header;
-/// use zki_sieve::structs::wire::WireListElement::Wire;
+/// use zki_sieve::structs::wire::WireListElement;
+/// use zki_sieve::wirelist;
 ///
 /// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
@@ -562,7 +563,7 @@ impl FunctionBuilder<'_> {
 ///     let branch0 = sb
 ///         .create_branch_from(
 ///             "custom_sub".to_string(),
-///             vec![Wire(branch_input_0), Wire(branch_input_1), Wire(branch_input_2), Wire(branch_input_3)],
+///             wirelist![branch_input_0, branch_input_1, branch_input_2, branch_input_3],
 ///         )
 ///         .unwrap();
 ///     sb.push_branch(branch0, vec![10]).unwrap();
@@ -570,7 +571,7 @@ impl FunctionBuilder<'_> {
 ///     let branch1 = sb
 ///         .create_branch_from(
 ///             "custom_add".to_string(),
-///             vec![Wire(branch_input_1), Wire(branch_input_0)],
+///             wirelist![branch_input_1, branch_input_0],
 ///         )
 ///         .unwrap();
 ///     sb.push_branch(branch1, vec![3]).unwrap();
@@ -723,7 +724,8 @@ fn test_builder_with_function() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::wire::expand_wirelist;
+    use crate::wirelist;
 
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -753,10 +755,7 @@ fn test_builder_with_function() {
 
     let out = b
         .create_complex_gate(
-            Call(
-                "custom_sub".to_string(),
-                vec![Wire(id_0), Wire(id_1), Wire(id_2), Wire(id_3)],
-            ),
+            Call("custom_sub".to_string(), wirelist![id_0, id_1, id_2, id_3]),
             vec![],
             vec![],
         )
@@ -780,7 +779,7 @@ fn test_builder_with_function() {
     // It should return an error
     assert!(b
         .create_complex_gate(
-            Call("unknown_function".to_string(), vec![Wire(id_0)]),
+            Call("unknown_function".to_string(), wirelist![id_0]),
             vec![],
             vec![]
         )
@@ -800,7 +799,8 @@ fn test_builder_with_several_functions() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::wire::expand_wirelist;
+    use crate::wirelist;
 
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -820,15 +820,13 @@ fn test_builder_with_several_functions() {
 
         // Try to call a function with a wrong number of inputs
         // Should return an error
-        let test = fb.create_complex_gate(Call(
-            "witness_square".to_string(),
-            vec![Wire(instance_wire)],
-        ));
+        let test =
+            fb.create_complex_gate(Call("witness_square".to_string(), wirelist![instance_wire]));
         assert!(test.is_err());
 
         // Try to Call a not defined function
         // Should return an error
-        let test = fb.create_complex_gate(Call("test".to_string(), vec![Wire(instance_wire)]));
+        let test = fb.create_complex_gate(Call("test".to_string(), wirelist![instance_wire]));
         assert!(test.is_err());
 
         let witness_square_wires = fb
@@ -888,7 +886,8 @@ fn test_switch_builder() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::wire::expand_wirelist;
+    use crate::wirelist;
 
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -940,14 +939,14 @@ fn test_switch_builder() {
         // Should return an error
         let branch_test = sb.create_branch_from(
             "unknown_function".to_string(),
-            vec![Wire(branch_input_0), Wire(branch_input_1)],
+            wirelist![branch_input_0, branch_input_1],
         );
         assert!(branch_test.is_err());
 
         let branch0 = sb
             .create_branch_from(
                 "custom_sub".to_string(),
-                vec![Wire(branch_input_0), Wire(branch_input_1)],
+                wirelist![branch_input_0, branch_input_1],
             )
             .unwrap();
         sb.push_branch(branch0, vec![0]).unwrap();
@@ -957,7 +956,7 @@ fn test_switch_builder() {
         let branch1 = sb
             .create_branch_from(
                 "custom_add".to_string(),
-                vec![Wire(branch_input_0), Wire(branch_input_1)],
+                wirelist![branch_input_0, branch_input_1],
             )
             .unwrap();
         let test = sb.push_branch(branch1, vec![0]);
@@ -966,7 +965,7 @@ fn test_switch_builder() {
         let branch1 = sb
             .create_branch_from(
                 "custom_add".to_string(),
-                vec![Wire(branch_input_0), Wire(branch_input_1)],
+                wirelist![branch_input_0, branch_input_1],
             )
             .unwrap();
         sb.push_branch(branch1, vec![1]).unwrap();
@@ -977,19 +976,13 @@ fn test_switch_builder() {
         .unwrap();
     let branch_out = expand_wirelist(&branch_out);
     b.create_complex_gate(
-        Call(
-            "assert_equal_witness".to_string(),
-            vec![Wire(branch_out[0])],
-        ),
+        Call("assert_equal_witness".to_string(), wirelist![branch_out[0]]),
         vec![],
         vec![vec![15]],
     )
     .unwrap();
     b.create_complex_gate(
-        Call(
-            "assert_equal_witness".to_string(),
-            vec![Wire(branch_out[1])],
-        ),
+        Call("assert_equal_witness".to_string(), wirelist![branch_out[1]]),
         vec![],
         vec![vec![30]],
     )
@@ -1008,7 +1001,7 @@ fn test_switch_builder() {
     let switch = {
         let mut sb = b.new_switch_builder(0);
         let branch = sb
-            .create_branch_from("assert_equal_witness".to_string(), vec![Wire(value_55)])
+            .create_branch_from("assert_equal_witness".to_string(), wirelist![value_55])
             .unwrap();
         sb.push_branch(branch, vec![60]).unwrap();
         sb.finish(condition).unwrap()
@@ -1021,7 +1014,7 @@ fn test_switch_builder() {
     let switch = {
         let mut sb = b.new_switch_builder(0);
         let branch = sb
-            .create_branch_from("assert_equal_witness".to_string(), vec![Wire(value_55)])
+            .create_branch_from("assert_equal_witness".to_string(), wirelist![value_55])
             .unwrap();
         sb.push_branch(branch, vec![60]).unwrap();
         sb.finish(condition).unwrap()
@@ -1043,7 +1036,8 @@ fn test_switch_nested_in_function() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::wire::{expand_wirelist, WireListElement::*};
+    use crate::structs::wire::expand_wirelist;
+    use crate::wirelist;
 
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
@@ -1085,7 +1079,7 @@ fn test_switch_nested_in_function() {
             let branch0 = sb
                 .create_branch_from(
                     "custom_sub".to_string(),
-                    vec![Wire(input_wires[0]), Wire(input_wires[1])],
+                    wirelist![input_wires[0], input_wires[1]],
                 )
                 .unwrap();
             sb.push_branch(branch0, vec![0]).unwrap();
@@ -1093,7 +1087,7 @@ fn test_switch_nested_in_function() {
             let branch1 = sb
                 .create_branch_from(
                     "custom_add".to_string(),
-                    vec![Wire(input_wires[0]), Wire(input_wires[1])],
+                    wirelist![input_wires[0], input_wires[1]],
                 )
                 .unwrap();
             sb.push_branch(branch1, vec![1]).unwrap();
@@ -1111,7 +1105,7 @@ fn test_switch_nested_in_function() {
         .create_complex_gate(
             Call(
                 "function_with_switch".to_string(),
-                vec![Wire(id_0), Wire(id_1), Wire(condition)],
+                wirelist![id_0, id_1, condition],
             ),
             vec![vec![10]],
             vec![vec![5]],
@@ -1131,13 +1125,13 @@ fn test_switch_nested_in_function() {
     b.push_function(assert_equal_witness).unwrap();
 
     b.create_complex_gate(
-        Call("assert_equal_witness".to_string(), vec![Wire(out[0])]),
+        Call("assert_equal_witness".to_string(), wirelist![out[0]]),
         vec![],
         vec![vec![50]],
     )
     .unwrap();
     b.create_complex_gate(
-        Call("assert_equal_witness".to_string(), vec![Wire(out[1])]),
+        Call("assert_equal_witness".to_string(), wirelist![out[1]]),
         vec![],
         vec![vec![35]],
     )

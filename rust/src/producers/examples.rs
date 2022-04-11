@@ -4,6 +4,8 @@ use std::mem::size_of;
 
 use crate::structs::function::ForLoopBody;
 use crate::structs::relation::{ADD, FOR, FUNCTION, MUL, MULC, SWITCH};
+use crate::structs::wire::WireListElement;
+use crate::wirelist;
 use crate::{Header, Instance, Relation, Witness};
 
 pub fn example_header() -> Header {
@@ -89,14 +91,14 @@ pub fn example_relation_h(header: &Header) -> Relation {
         gates: vec![
             Witness(1),
             Switch(
-                1,                                                         // condition
-                vec![Wire(0), Wire(2), WireRange(4, 6), WireRange(9, 11)], // output wires
-                vec![vec![3], vec![5]],                                    // cases
+                1,                                   // condition
+                wirelist![0, 2, 4, 5, 6, 9, 10, 11], // output wires
+                vec![vec![3], vec![5]],              // cases
                 vec![
                     // branches
                     AbstractAnonCall(
                         // WireList, usize, usize, Vec<Gate>)
-                        vec![Wire(1)],
+                        wirelist![1],
                         3,
                         3,
                         vec![
@@ -104,13 +106,13 @@ pub fn example_relation_h(header: &Header) -> Relation {
                             Witness(1),  // In Global Namespace: Witness(2)
                             Call(
                                 "com.example::mul".to_string(),
-                                vec![Wire(2)],
-                                vec![Wire(8), Wire(8)],
+                                wirelist![2],
+                                wirelist![8; 2],
                             ), // In Global Namespace: Mul(4, 1, 1)
                             Call(
                                 "com.example::mul".to_string(),
-                                vec![Wire(3)],
-                                vec![Wire(1), Wire(1)],
+                                wirelist![3],
+                                wirelist![1; 2],
                             ), // In Global Namespace: Mul(5, 2, 2)
                             Add(4, 2, 3), // In Global Namespace: Add(6, 4, 5)
                             Witness(9),
@@ -124,15 +126,15 @@ pub fn example_relation_h(header: &Header) -> Relation {
                     // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
                     AbstractAnonCall(
                         // WireList, usize, usize, Vec<Gate>)
-                        vec![Wire(1)],
+                        wirelist![1],
                         3,
                         2,
                         vec![
                             Instance(0),
                             Call(
                                 "com.example::mul".to_string(),
-                                vec![Wire(1)],
-                                vec![Wire(8), Wire(0)],
+                                wirelist![1],
+                                wirelist![8, 0],
                             ),
                             Witness(2),
                             Mul(3, 1, 2),
@@ -149,8 +151,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
             Constant(3, encode_negative_one(&header)), // -1
             Call(
                 "com.example::mul".to_string(),
-                vec![Wire(7)],
-                vec![Wire(3), Wire(0)],
+                wirelist![7],
+                wirelist![3, 0],
             ), // - instance_0
             Add(8, 6, 7),                              // sum - instance_0
             Free(0, Some(7)),                          // Free all previous wires
