@@ -1,5 +1,7 @@
 # Unreleased
 
+# v3.0.0, 2022-04
+
 Schema (.fbs):
 - Add schema compilation in Makefile (`make fbs`)
 
