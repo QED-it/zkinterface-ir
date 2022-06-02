@@ -1,5 +1,8 @@
 # Unreleased
 
+Rust:
+- gateset and features are now mandatory when creating a GateBuilder with new method (breaking change)
+
 # v3.0.0, 2022-04
 
 Schema (.fbs):

@@ -55,7 +55,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                 field_degree: degree,
             };
             self.modulus = BigUint::from_bytes_le(modulus);
-            self.b = Some(GateBuilder::new_with_functionalities(
+            self.b = Some(GateBuilder::new(
                 self.sink.take().unwrap(),
                 header,
                 if is_boolean { BOOL } else { ARITH },
