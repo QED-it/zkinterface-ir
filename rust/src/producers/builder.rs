@@ -234,10 +234,16 @@ fn alloc(free_id: &mut WireId) -> WireId {
 
 /// alloc allocates n wire IDs.
 fn multiple_alloc(free_id: &mut WireId, n: usize) -> WireList {
-    let id = free_id.clone();
-    let next: u64 = id + n as u64;
-    *free_id = next;
-    vec![WireListElement::WireRange(id, next - 1)]
+    match n {
+        0 => vec![],
+        1 => vec![WireListElement::Wire(alloc(free_id))],
+        _ => {
+            let id = free_id.clone();
+            let next: u64 = id + n as u64;
+            *free_id = next;
+            vec![WireListElement::WireRange(id, next - 1)]
+        }
+    }
 }
 
 impl<S: Sink> GateBuilderT for GateBuilder<S> {
@@ -273,7 +279,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         let output_count = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
-                let input_count = expand_wirelist(input_wires).len();
+                let input_count = expand_wirelist(input_wires)?.len();
                 function_params.check(
                     name,
                     Some(input_count),
@@ -456,7 +462,7 @@ impl FunctionBuilder<'_> {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
                 // Check inputs size
-                let input_count = expand_wirelist(input_wires).len();
+                let input_count = expand_wirelist(input_wires)?.len();
                 if function_params.input_count != input_count {
                     return Err(format!(
                         "Function {} has {} inputs and is called with {} inputs.",
@@ -765,7 +771,7 @@ fn test_builder_with_function() {
             vec![],
         )
         .unwrap();
-    let out = expand_wirelist(&out);
+    let out = expand_wirelist(&out).unwrap();
     assert_eq!(out.len(), 2);
 
     let witness_0 = b.create_gate(Witness(Some(vec![30])));
@@ -843,7 +849,7 @@ fn test_builder_with_several_functions() {
         let witness_square_wires = fb
             .create_complex_gate(Call("witness_square".to_string(), vec![]))
             .unwrap();
-        let witness_square_wires = expand_wirelist(&witness_square_wires);
+        let witness_square_wires = expand_wirelist(&witness_square_wires).unwrap();
         let neg_witness_square_wire =
             fb.create_gate(MulConstant(witness_square_wires[0], vec![100]));
         let output_wire = fb.create_gate(Add(instance_wire, neg_witness_square_wire));
@@ -878,7 +884,7 @@ fn test_builder_with_several_functions() {
             vec![vec![5]],
         )
         .unwrap();
-    let out = expand_wirelist(&out);
+    let out = expand_wirelist(&out).unwrap();
     assert_eq!(out.len(), 1);
 
     b.create_gate(AssertZero(out[0]));
@@ -991,7 +997,7 @@ fn test_switch_builder() {
     let branch_out = b
         .create_complex_gate(switch, vec![vec![5]], vec![vec![15], vec![0]])
         .unwrap();
-    let branch_out = expand_wirelist(&branch_out);
+    let branch_out = expand_wirelist(&branch_out).unwrap();
     b.create_complex_gate(
         Call("assert_equal_witness".to_string(), wirelist![branch_out[0]]),
         vec![],
@@ -1118,7 +1124,7 @@ fn test_switch_nested_in_function() {
             sb.finish(input_wires[2]).unwrap()
         };
         let out = fb.create_complex_gate(switch).unwrap();
-        let out = expand_wirelist(&out);
+        let out = expand_wirelist(&out).unwrap();
         fb.finish(out).unwrap()
     };
 
@@ -1134,7 +1140,7 @@ fn test_switch_nested_in_function() {
             vec![vec![5]],
         )
         .unwrap();
-    let out = expand_wirelist(&out);
+    let out = expand_wirelist(&out).unwrap();
 
     let assert_equal_witness = {
         let mut fb = b.new_function_builder("assert_equal_witness".to_string(), 0, 1);

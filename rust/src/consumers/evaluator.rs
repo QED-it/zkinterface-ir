@@ -442,8 +442,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 let function = known_functions
                     .get(name)
                     .ok_or_else(|| "Unknown function")?;
-                let expanded_output = expand_wirelist(output_wires);
-                let expanded_input = expand_wirelist(input_wires);
+                let expanded_output = expand_wirelist(output_wires)?;
+                let expanded_input = expand_wirelist(input_wires)?;
 
                 // simple checks.
                 if expanded_output.len() != function.output_count {
@@ -471,8 +471,8 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             AnonCall(output_wires, input_wires, _, _, subcircuit) => {
-                let expanded_output = expand_wirelist(output_wires);
-                let expanded_input = expand_wirelist(input_wires);
+                let expanded_output = expand_wirelist(output_wires)?;
+                let expanded_input = expand_wirelist(input_wires)?;
                 // in the case of an anoncall, iterators *ARE* forwarded into inner bodies.
                 Self::ingest_subcircuit(
                     subcircuit,
@@ -594,7 +594,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 // be combined using their respective weight.
                 let mut branches_scope = Vec::new();
 
-                let expanded_output = expand_wirelist(output_wires);
+                let expanded_output = expand_wirelist(output_wires)?;
                 let mut weights = Vec::new();
 
                 for (case, branch) in cases.iter().zip(branches.iter()) {
@@ -613,7 +613,7 @@ impl<B: ZKBackend> Evaluator<B> {
                             let function = known_functions
                                 .get(name)
                                 .ok_or_else(|| format!("Unknown function: {}", name))?;
-                            let expanded_input = expand_wirelist(input_wires);
+                            let expanded_input = expand_wirelist(input_wires)?;
 
                             // simple checks.
                             if expanded_output.len() != function.output_count {
@@ -643,7 +643,7 @@ impl<B: ZKBackend> Evaluator<B> {
                             )?;
                         }
                         CaseInvoke::AbstractAnonCall(input_wires, _, _, subcircuit) => {
-                            let expanded_input = expand_wirelist(input_wires);
+                            let expanded_input = expand_wirelist(input_wires)?;
                             for wire in expanded_input.iter() {
                                 let w = get!(*wire)?;
                                 branch_scope.insert(*wire, backend.copy(w)?);

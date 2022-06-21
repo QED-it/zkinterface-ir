@@ -818,25 +818,25 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &Vec<WireId>) -
                     }
                 },
                 AnonCall(ref mut outputs, ref mut inputs, _, _, _) => {
-                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
-                    replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(inputs, old_wire, new_wire)?;
                 }
                 Call(_, ref mut outputs, ref mut inputs) => {
-                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
-                    replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(inputs, old_wire, new_wire)?;
                 }
                 Switch(ref mut condition, ref mut outputs, _, ref mut branches) => {
                     if *condition == old_wire {
                         *condition = new_wire;
                     }
-                    replace_wire_in_wirelist(outputs, old_wire, new_wire);
+                    replace_wire_in_wirelist(outputs, old_wire, new_wire)?;
                     for branch in branches {
                         match *branch {
                             CaseInvoke::AbstractAnonCall(ref mut inputs, _, _, _) => {
-                                replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                                replace_wire_in_wirelist(inputs, old_wire, new_wire)?;
                             }
                             CaseInvoke::AbstractGateCall(_, ref mut inputs) => {
-                                replace_wire_in_wirelist(inputs, old_wire, new_wire);
+                                replace_wire_in_wirelist(inputs, old_wire, new_wire)?;
                             }
                         };
                     }

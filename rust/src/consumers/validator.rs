@@ -7,6 +7,7 @@ use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::relation::{contains_feature, FOR, FUNCTION, SWITCH};
 use crate::structs::relation::{ADD, ADDC, AND, ARITH, BOOL, MUL, MULC, NOT, XOR};
+use crate::structs::value::is_probably_prime;
 use crate::structs::wire::expand_wirelist;
 use regex::Regex;
 use std::cell::RefCell;
@@ -18,7 +19,7 @@ type Field = BigUint;
 // Tips: to write regex, use the following website (and select Python as the type of REGEX
 //    https://regex101.com/r/V3ROjH/1
 
-/// Used to chack the validity of the version.
+/// Used to check the validity of the version.
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
 /// Used to check the validity of names of functions / iterators
 const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
@@ -27,6 +28,7 @@ Here is the list of implemented semantic/syntactic checks:
 
 Header Validation
  - Ensure that the characteristic is strictly greater than 1.
+ - Ensure that the characteristic is a prime.
  - Ensure that the field degree is exactly 1.
  - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”).
  - Ensure header messages are coherent.
@@ -52,6 +54,11 @@ Gates Validation
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
  - Ensure that @function/@for/@switch are indeed allowed if they are encountered in the circuit.
+ - Ensure that for Free gates of the format @free(first, last), we have (last > first).
+ - Ensure that start (first) and stop (last) conditions in loop verify that (last > first).
+
+WireRange Validation
+ - Ensure that for WireRange(first, last) that (last > first).
 ";
 
 #[derive(Clone)]
@@ -171,7 +178,10 @@ impl Validator {
             if self.field_characteristic.cmp(&One::one()) != Ordering::Greater {
                 self.violate("The field_characteristic should be > 1");
             }
-            // TODO: check if prime, or in a list of pre-defined primes.
+
+            if !is_probably_prime(&header.field_characteristic) {
+                self.violate("The field_characteristic should be a prime.")
+            }
 
             self.field_degree = header.field_degree as usize;
             if self.field_degree != 1 {
@@ -362,6 +372,15 @@ impl Validator {
             }
 
             Free(first, last) => {
+                // first < last
+                if let Some(last_id) = last {
+                    if last_id <= first {
+                        self.violate(format!(
+                            "For Free gates, last WireId ({}) must be strictly greater than first WireId ({}).",
+                            last_id, first
+                        ));
+                    }
+                }
                 // all wires between first and last INCLUSIVE
                 for wire_id in *first..=last.unwrap_or(*first) {
                     self.ensure_defined_and_set(wire_id);
@@ -371,8 +390,14 @@ impl Validator {
 
             AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
                 self.ensure_allowed_feature("@anoncall", FUNCTION);
-                let expanded_outputs = expand_wirelist(output_wires);
-                let expanded_inputs = expand_wirelist(input_wires);
+                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
+                    self.violate(err.to_string());
+                    vec![]
+                });
+                let expanded_inputs = expand_wirelist(input_wires).unwrap_or_else(|err| {
+                    self.violate(err.to_string());
+                    vec![]
+                });
 
                 expanded_inputs
                     .iter()
@@ -402,8 +427,14 @@ impl Validator {
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
                 // - consume witness.
-                let expanded_outputs = expand_wirelist(output_wires);
-                let expanded_inputs = expand_wirelist(input_wires);
+                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
+                    self.violate(err.to_string());
+                    vec![]
+                });
+                let expanded_inputs = expand_wirelist(input_wires).unwrap_or_else(|err| {
+                    self.violate(err.to_string());
+                    vec![]
+                });
 
                 expanded_inputs
                     .iter()
@@ -456,13 +487,19 @@ impl Validator {
 
                 let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
 
-                let expanded_outputs = expand_wirelist(output_wires);
+                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
+                    self.violate(err.to_string());
+                    vec![]
+                });
 
                 // 'Validate' each branch of the switch independently, and perform checks
                 for branch in branches {
                     let (instance_count, witness_count) = match branch {
                         CaseInvoke::AbstractGateCall(name, inputs) => {
-                            let expanded_inputs = expand_wirelist(inputs);
+                            let expanded_inputs = expand_wirelist(inputs).unwrap_or_else(|err| {
+                                self.violate(err.to_string());
+                                vec![]
+                            });
                             expanded_inputs
                                 .iter()
                                 .for_each(|id| self.ensure_defined_and_set(*id));
@@ -475,7 +512,10 @@ impl Validator {
                             witness_count,
                             subcircuit,
                         ) => {
-                            let expanded_inputs = expand_wirelist(inputs);
+                            let expanded_inputs = expand_wirelist(inputs).unwrap_or_else(|err| {
+                                self.violate(err.to_string());
+                                vec![]
+                            });
                             expanded_inputs
                                 .iter()
                                 .for_each(|id| self.ensure_defined_and_set(*id));
@@ -506,6 +546,11 @@ impl Validator {
 
             For(iterator_name, start_val, end_val, global_output_list, body) => {
                 self.ensure_allowed_feature("@for", FOR);
+
+                if *end_val < *start_val {
+                    self.violate(format!("In a For loop, the end value ({}) must be strictly greater than the start value ({}).", *end_val, *start_val));
+                    return;
+                }
 
                 if self.known_iterators.borrow().contains_key(iterator_name) {
                     self.violate("Iterator already used in this context.");
@@ -584,7 +629,11 @@ impl Validator {
                 self.known_iterators.borrow_mut().remove(iterator_name);
 
                 // Ensure that each global output wire has been set in one of the loops.
-                let expanded_global_outputs = expand_wirelist(global_output_list);
+                let expanded_global_outputs =
+                    expand_wirelist(global_output_list).unwrap_or_else(|err| {
+                        self.violate(err.to_string());
+                        vec![]
+                    });
                 expanded_global_outputs
                     .iter()
                     .for_each(|id| self.ensure_defined_and_set(*id));

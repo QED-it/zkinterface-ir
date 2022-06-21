@@ -175,17 +175,47 @@ pub fn build_wire_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
     )
 }
 
-/// Expand a WireList into a vector of individual WireId.
-pub fn expand_wirelist(wirelist: &WireList) -> Vec<WireId> {
-    wirelist
-        .iter()
-        .flat_map(|wire| match wire {
-            WireListElement::Wire(val) => vec![*val],
-            WireListElement::WireRange(first, last) => {
-                (*first..=*last).into_iter().map(|val| val).collect()
+/// Expand a WireListElement into a vector of Result<WireId>.
+pub fn expand_wirelistelement(wire: &WireListElement) -> Vec<Result<WireId>> {
+    match wire {
+        WireListElement::Wire(val) => vec![Ok(*val)],
+        WireListElement::WireRange(first, last) => {
+            if last <= first {
+                vec![Err(format!(
+                    "In WireRange, last WireId ({}) must be strictly greater than first WireId ({}).",
+                    last, first
+                )
+                    .into())]
+            } else {
+                (*first..=*last).map(|item| Ok(item)).collect()
             }
-        })
-        .collect()
+        }
+    }
+}
+
+/// Expand a WireList into a vector of individual WireId.
+pub fn expand_wirelist(wirelist: &WireList) -> Result<Vec<WireId>> {
+    let res = wirelist
+        .iter()
+        .flat_map(|wire| expand_wirelistelement(wire))
+        .collect::<Result<Vec<WireId>>>()?;
+    Ok(res)
+}
+
+#[test]
+fn test_expand_wirelist() {
+    let wirelist = vec![WireRange(0, 2), Wire(5)];
+    let new_wirelist = expand_wirelist(&wirelist).unwrap();
+    let correct_wirelist: Vec<WireId> = vec![0, 1, 2, 5];
+    assert_eq!(new_wirelist, correct_wirelist);
+
+    let wirelist = vec![WireRange(0, 1), WireRange(2, 2), Wire(5)];
+    let new_wirelist = expand_wirelist(&wirelist);
+    assert!(new_wirelist.is_err());
+
+    let wirelist = vec![WireRange(0, 1), WireRange(4, 2), Wire(5)];
+    let new_wirelist = expand_wirelist(&wirelist);
+    assert!(new_wirelist.is_err());
 }
 
 pub fn wirelist_len(wirelist: &WireList) -> usize {
@@ -204,8 +234,8 @@ pub(crate) fn replace_wire_in_wirelist(
     wirelist: &mut WireList,
     old_wire: WireId,
     new_wire: WireId,
-) {
-    let mut wires = expand_wirelist(wirelist);
+) -> Result<()> {
+    let mut wires = expand_wirelist(wirelist)?;
     let mut updated = false;
     for wire in wires.iter_mut() {
         if *wire == old_wire {
@@ -216,21 +246,22 @@ pub(crate) fn replace_wire_in_wirelist(
     if updated {
         *wirelist = wires.iter().map(|w| Wire(*w)).collect()
     }
+    Ok(())
 }
 
 #[test]
 fn test_replace_wire_in_wirelist() {
     let mut wirelist = vec![WireRange(0, 2), Wire(5)];
-    replace_wire_in_wirelist(&mut wirelist, 4, 14);
+    replace_wire_in_wirelist(&mut wirelist, 4, 14).unwrap();
     let correct_wirelist = vec![WireRange(0, 2), Wire(5)];
     assert_eq!(wirelist, correct_wirelist);
 
-    replace_wire_in_wirelist(&mut wirelist, 5, 15);
+    replace_wire_in_wirelist(&mut wirelist, 5, 15).unwrap();
     let correct_wirelist = vec![Wire(0), Wire(1), Wire(2), Wire(15)];
     assert_eq!(wirelist, correct_wirelist);
 
     let mut wirelist = vec![WireRange(0, 2), Wire(5)];
-    replace_wire_in_wirelist(&mut wirelist, 1, 14);
+    replace_wire_in_wirelist(&mut wirelist, 1, 14).unwrap();
     let correct_wirelist = vec![Wire(0), Wire(14), Wire(2), Wire(5)];
     assert_eq!(wirelist, correct_wirelist);
 }

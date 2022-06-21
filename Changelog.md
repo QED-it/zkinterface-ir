@@ -2,6 +2,7 @@
 
 Rust:
 - gateset and features are now mandatory when creating a GateBuilder with new method (breaking change)
+- add some checks for the validator to be in accordance with IR v1.0.1
 
 # v3.0.0, 2022-04
 
