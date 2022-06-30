@@ -37,8 +37,8 @@ without storage are also supported.
 ### Install
 
 ```bash
-git clone git@github.mit.edu:sieve-all/zkinterface-sieve.git
-cd zkinterface-sieve/rust/
+git clone git@github.com:QED-it/zkinterface-ir.git
+cd zkinterface-ir/rust/
 cargo install --path .
 
 zki_sieve help
@@ -60,7 +60,7 @@ The command below generates an example statement. It stores it into files in the
 
 ### A consumer: validator and evaluator
 
-The `Validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
+The `validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
 
 The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
@@ -303,7 +303,7 @@ The command below reads the statement and prints a textual representation of it.
 This repository includes a converter that reads a statement encoded in the R1CS profile and produces an equivalent 
 statement in the arithmetic circuit profile.
 
-To convert from R1CS (a zkInterface owned structure), follow the ~~white rabbit~~ example:
+To convert from R1CS (a zkInterface owned structure), follow the following example:
 
 ```rust
 
@@ -326,7 +326,7 @@ $ zki_sieve zkif-to-ir [oter options]
 
 ### A producer: IR to IR-simple converter
 
-The converter in `consumers/flattening.rs` ) allows to convert any IR circuit into 
+The converter in `consumers/flattening.rs` allows to convert any IR circuit into 
 an equivalent circuit that make use of only simple gates (i.e. `GateFor`/`GateSwitch`
 `Functions` are unrolled/multiplexed/inlined). This operation (conversion from IR to
 IR simple) is sometimes called 'flattening'. 
@@ -389,7 +389,7 @@ and will decrease the development overhead of new versions of the standard.
 
 It is not necessary to use the above APIs to integrate SIEVE IR. Any implementation of FlatBuffers can be used directly instead (a custom implementation is doable because the encoding is simple, but that would be a last resort). See [google.github.io/flatbuffers/](https://google.github.io/flatbuffers/) for existing tools, in particular the code generator `flatc`. This is the recommended approach for systems written in languages other than Rust.
 
-The file `sieve\_ir\_generated.rs` could be generated with the command `make fbs` after installing flatc version 1.12.0.
+The file `sieve_ir_generated.rs` could be generated with the command `make fbs` after installing flatc version 1.12.0.
 ```bash
 # Install flatc version 1.12.0
 git clone https://github.com/google/flatbuffers.git.
@@ -400,3 +400,7 @@ make
 sudo ln -s $(realpath flatc) /usr/local/bin/flatc
 ```
 
+## Acknowledgments
+This material is based upon work supported by the Defense Advanced Research Projects Agency
+(DARPA) under Contract No. HR001120C0085. Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the
+views of the Defense Advanced Research Projects Agency (DARPA).
