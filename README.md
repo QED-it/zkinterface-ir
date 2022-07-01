@@ -1,18 +1,23 @@
-# Getting Started with the SIEVE IR toolbox
+# zkInterface IR, a toolbox for zero-knowledge interoperability
 
-This user guide is aimed at implementors of zero-knowledge systems and details how to integrate their systems using the 
-zkInterface SIEVE IR toolbox. For details on the zkInterface framework see 
-[the original spec](https://github.com/QED-it/zkinterface/blob/master/zkInterface.pdf), and for details on the SIEVE IR 
-format, see the 
-[standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
-
-This guide uses the zkInterface SIEVE IR supporting library for the Rust programming language, and its companion 
-command-line interface (CLI). It focuses on a circuit-and-gates format. For R1CS systems, see similar content in 
-[github.com/QED-it/zkinterface](https://github.com/QED-it/zkinterface).
-
-zkInterface SIEVE IR is a method to communicate a zero-knowledge statement from a statement generator to a proving 
-system. In this guide, we first generate example SIEVE IR statements, and we then consume them. These steps can serve 
+This user guide is aimed at implementors of zero-knowledge systems and details how to integrate their systems using the zkInterface SIEVE IR toolbox
+(see the [standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf)).
+In this guide, we first generate example SIEVE IR statements, and we then consume them. These steps can serve 
 as a starting point for a new implementation in a statement generator, or in a proving system, respectively.
+
+## Introduction
+
+The zkInterface SIEVE IR is an Intermediate Representation to communicate a zero-knwoledge statement
+from a statement generator called a frontend to a proving system called a backend.
+The frontend transforms high level statements into the IR.
+The backend is the consumer of the IR: it is an interaction between a Prover and a Verifier,
+when the Prover wishes to prove a statement to the Verifier, without revealing a secret component of the proof.
+For details on this zkInterface SIEVE IR, see the
+[standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
+This IR focuses on a circuit-and-gates format.
+It is possible to convert between IR and R1CS with `zkif-to-ir` and `ir-to-zkif` commands.
+For R1CS systems, there exists a similar toolbox in 
+[github.com/QED-it/zkinterface](https://github.com/QED-it/zkinterface).
 
 ## Information Flow
 
@@ -401,6 +406,7 @@ sudo ln -s $(realpath flatc) /usr/local/bin/flatc
 ```
 
 ## Acknowledgments
+
 This material is based upon work supported by the Defense Advanced Research Projects Agency
 (DARPA) under Contract No. HR001120C0085. Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the
 views of the Defense Advanced Research Projects Agency (DARPA).
