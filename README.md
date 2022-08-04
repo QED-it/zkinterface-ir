@@ -1,7 +1,7 @@
 # zkInterface IR, a toolbox for zero-knowledge interoperability
 
 This user guide is aimed at implementors of zero-knowledge systems and details how to integrate their systems using the zkInterface SIEVE IR toolbox
-(see the [standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf)).
+(see the [standard specification](https://github.com/sieve-zk/ir)).
 In this guide, we first generate example SIEVE IR statements, and we then consume them. These steps can serve 
 as a starting point for a new implementation in a statement generator, or in a proving system, respectively.
 
@@ -13,7 +13,7 @@ The frontend transforms high level statements into the IR.
 The backend is the consumer of the IR: it is an interaction between a Prover and a Verifier,
 when the Prover wishes to prove a statement to the Verifier, without revealing a secret component of the proof.
 For details on this zkInterface SIEVE IR, see the
-[standard specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
+[standard specification](https://github.com/sieve-zk/ir).
 This IR focuses on a circuit-and-gates format.
 It is possible to convert between IR and R1CS with `zkif-to-ir` and `ir-to-zkif` commands.
 For R1CS systems, there exists a similar toolbox in 
@@ -65,7 +65,7 @@ The command below generates an example statement. It stores it into files in the
 
 ### A consumer: validator and evaluator
 
-The `validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.mit.edu/sieve-all/collaboration/blob/master/ir/proposals/IR0%20Proposed%20Specification%20Draft.pdf).
+The `validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.com/sieve-zk/ir).
 
 The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
 
@@ -410,3 +410,4 @@ sudo ln -s $(realpath flatc) /usr/local/bin/flatc
 This material is based upon work supported by the Defense Advanced Research Projects Agency
 (DARPA) under Contract No. HR001120C0085. Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the
 views of the Defense Advanced Research Projects Agency (DARPA).
+Approved for Public Release, Distribution Unlimited.
