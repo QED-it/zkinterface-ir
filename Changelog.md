@@ -9,6 +9,7 @@ Rust:
 - remove ExpandDefinable
 - remove gate_set and features from Relation struct
 - remove Boolean gates (and, xor, not)
+- remove Switch
 
 # SIEVE IR v1.0.1, 2022-08
 

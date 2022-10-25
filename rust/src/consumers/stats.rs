@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::structs::function::{CaseInvoke, ForLoopBody};
+use crate::structs::function::ForLoopBody;
 use crate::{Gate, Header, Instance, Message, Relation, Result, Value, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -27,8 +27,6 @@ pub struct GateStats {
     pub functions_called: usize,
 
     pub convert_gates: usize,
-    pub switches: usize,
-    pub branches: usize,
 
     pub for_loops: usize,
 
@@ -188,45 +186,6 @@ impl GateStats {
                 self.witness_variables += witness_count.values().sum::<u64>();
             }
 
-            Switch(_, _, _, _, branches) => {
-                self.switches += 1;
-                self.branches += branches.len();
-                let (mut max_instance_count, mut max_witness_count) = (0u64, 0u64);
-
-                for branch in branches {
-                    let (instance_count, witness_count) = match branch {
-                        CaseInvoke::AbstractGateCall(name, _) => {
-                            self.functions_called += 1;
-                            if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
-                                self.ingest_call_stats(&stats_ins_wit.0);
-                                (stats_ins_wit.1, stats_ins_wit.2)
-                            } else {
-                                eprintln!("WARNING Stats: function not defined \"{}\"", name);
-                                (0u64, 0u64)
-                            }
-                        }
-                        CaseInvoke::AbstractAnonCall(
-                            _,
-                            instance_count,
-                            witness_count,
-                            subcircuit,
-                        ) => {
-                            self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                            (
-                                instance_count.values().sum::<u64>(),
-                                witness_count.values().sum::<u64>(),
-                            )
-                        }
-                    };
-
-                    max_instance_count = std::cmp::max(max_instance_count, instance_count);
-                    max_witness_count = std::cmp::max(max_witness_count, witness_count);
-                }
-
-                self.instance_variables += max_instance_count;
-                self.witness_variables += max_witness_count;
-            }
-
             For(_, start_val, end_val, _, body) => {
                 self.for_loops += 1;
                 for _ in *start_val..=*end_val {
@@ -271,8 +230,6 @@ impl GateStats {
         self.variables_freed += other.variables_freed;
 
         self.convert_gates += other.convert_gates;
-        self.switches += other.switches;
-        self.branches += other.branches;
         self.for_loops += other.for_loops;
         self.functions_called += other.functions_called;
     }
@@ -297,18 +254,16 @@ fn test_stats() -> Result<()> {
             instance_variables: 3,
             witness_variables: 4,
             constants_gates: 1,
-            assert_zero_gates: 6,
+            assert_zero_gates: 4,
             copy_gates: 0,
-            add_gates: 25,
-            mul_gates: 21,
+            add_gates: 24,
+            mul_gates: 19,
             add_constant_gates: 0,
             mul_constant_gates: 1,
             variables_freed: 51,
             functions_defined: 1,
-            functions_called: 20,
+            functions_called: 19,
             convert_gates: 0,
-            switches: 1,
-            branches: 2,
             for_loops: 2,
             instance_messages: 1,
             witness_messages: 1,

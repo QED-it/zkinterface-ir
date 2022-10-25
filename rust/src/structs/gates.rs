@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
-use super::function::{CaseInvoke, ForLoopBody};
+use super::function::ForLoopBody;
 use super::iterators::IterExprList;
-use super::value::{build_values_vector, try_from_values_vector};
 use super::wire::WireList;
 use super::wire::{build_field_id, build_wire_id, build_wire_list};
 use crate::sieve_ir_generated::sieve_ir as generated;
@@ -47,8 +46,6 @@ pub enum Gate {
     AnonCall(WireList, WireList, CountList, CountList, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
     Call(String, WireList, WireList),
-    /// GateSwitch(condition_field_id, condition_wire, output_wires, cases, branches)
-    Switch(FieldId, WireId, WireList, Vec<Value>, Vec<CaseInvoke>),
     /// GateFor(iterator_name, start_val, end_val, global_output_list, body)
     For(String, u64, u64, WireList, ForLoopBody),
 }
@@ -183,24 +180,6 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                     CountList::try_from(inner.instance_count().ok_or("Missing instance count")?)?,
                     CountList::try_from(inner.witness_count().ok_or("Missing witness count")?)?,
                     Gate::try_from_vector(inner.subcircuit().ok_or("Missing subcircuit")?)?,
-                )
-            }
-
-            ds::GateSwitch => {
-                let gate = gen_gate.directive_as_gate_switch().unwrap();
-
-                let cases = try_from_values_vector(gate.cases().ok_or("Missing cases values")?)?;
-
-                Switch(
-                    gate.condition_field()
-                        .ok_or("Missing condition field id")?
-                        .id(),
-                    gate.condition_wire()
-                        .ok_or("Missing condition wire id.")?
-                        .id(),
-                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
-                    cases,
-                    CaseInvoke::try_from_vector(gate.branches().ok_or("Missing branches")?)?,
                 )
             }
 
@@ -548,33 +527,6 @@ impl Gate {
                 )
             }
 
-            Switch(condition_field_id, condition_wire, outputs_list, cases, branches) => {
-                let g_condition_field_id = build_field_id(builder, *condition_field_id);
-                let g_condition_wire = build_wire_id(builder, *condition_wire);
-                let g_output_wires = build_wire_list(builder, outputs_list);
-                let g_cases = build_values_vector(builder, cases);
-                let g_branches = CaseInvoke::build_vector(builder, branches);
-
-                let gate = generated::GateSwitch::create(
-                    builder,
-                    &generated::GateSwitchArgs {
-                        condition_field: Some(g_condition_field_id),
-                        condition_wire: Some(g_condition_wire),
-                        output_wires: Some(g_output_wires),
-                        cases: Some(g_cases),
-                        branches: Some(g_branches),
-                    },
-                );
-
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateSwitch,
-                        directive: Some(gate.as_union_value()),
-                    },
-                )
-            }
-
             For(iterator_name, start_val, end_val, global_output_list, body) => {
                 let g_iterator_name = builder.create_string(iterator_name);
                 let g_global_output_list = build_wire_list(builder, global_output_list);
@@ -700,7 +652,6 @@ impl Gate {
             Convert(_, _) => unimplemented!("Convert gate"),
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
-            Switch(_, _, _, _, _) => unimplemented!("Switch gate"),
             For(_, _, _, _, _) => unimplemented!("For loop"),
         }
     }
@@ -801,28 +752,6 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                     replace_wire_in_wirelist(outputs, old_field_id, old_wire, new_wire)?;
                     replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
                 }
-                Switch(
-                    ref condition_field,
-                    ref mut condition_wire,
-                    ref mut outputs,
-                    _,
-                    ref mut branches,
-                ) => {
-                    if (*condition_wire == old_wire) && (*condition_field == old_field_id) {
-                        *condition_wire = new_wire;
-                    }
-                    replace_wire_in_wirelist(outputs, old_field_id, old_wire, new_wire)?;
-                    for branch in branches {
-                        match *branch {
-                            CaseInvoke::AbstractAnonCall(ref mut inputs, _, _, _) => {
-                                replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
-                            }
-                            CaseInvoke::AbstractGateCall(_, ref mut inputs) => {
-                                replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
-                            }
-                        };
-                    }
-                }
                 For(_, _, _, _, _) => {
                     // At the beginning of this method, we check if there is at least one For gate.
                     // If it is the case, we add Copy gates and return
@@ -837,7 +766,6 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
 
 #[test]
 fn test_replace_output_wires() {
-    use crate::structs::function::CaseInvoke;
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
@@ -854,19 +782,6 @@ fn test_replace_output_wires() {
             vec![WireRange(0, 6, 8)],
         ),
         AssertZero(0, 12),
-        Switch(
-            0,
-            6,
-            vec![Wire(0, 13), Wire(0, 14), Wire(0, 15)],
-            vec![vec![2], vec![5]],
-            vec![
-                CaseInvoke::AbstractGateCall(
-                    "function_branch0".to_string(),
-                    vec![WireRange(0, 6, 8), Wire(1, 12)],
-                ),
-                CaseInvoke::AbstractGateCall("function_branch1".to_string(), vec![Wire(0, 10)]),
-            ],
-        ),
     ];
     let output_wires = vec![Wire(0, 6), WireRange(0, 11, 12), Wire(0, 15)];
     replace_output_wires(&mut gates, &output_wires).unwrap();
@@ -884,19 +799,6 @@ fn test_replace_output_wires() {
             vec![Wire(0, 0), Wire(0, 7), Wire(0, 8)],
         ),
         AssertZero(0, 2),
-        Switch(
-            0,
-            0,
-            vec![Wire(0, 13), Wire(0, 14), Wire(0, 3)],
-            vec![vec![2], vec![5]],
-            vec![
-                CaseInvoke::AbstractGateCall(
-                    "function_branch0".to_string(),
-                    vec![Wire(0, 0), Wire(0, 7), Wire(0, 8), Wire(1, 12)],
-                ),
-                CaseInvoke::AbstractGateCall("function_branch1".to_string(), vec![Wire(0, 10)]),
-            ],
-        ),
     ];
     assert_eq!(gates, correct_gates);
 }

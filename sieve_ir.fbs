@@ -191,7 +191,7 @@ table GateAnonCall {
 }
 
 /// The two Abstract types cannot exist by themselves in a circuit,
-/// they MUST be included in another gate (For / Switch / Call / ...)
+/// they MUST be included in another gate (For / Call / ...)
 /// because they don't specify output wires, which should be specified in the
 /// encompassing structure itself.
 table AbstractGateCall {
@@ -204,25 +204,6 @@ table AbstractAnonCall {
     instance_count  :CountList;
     witness_count   :CountList;
     subcircuit      :[Directive];
-}
-
-// This is the 'invocation' equivalent
-// Ref. SIEVE-IR spec (3.7)
-union CaseInvokeU {
-    AbstractGateCall,
-    AbstractAnonCall,
-}
-// Workaround to flatc limitation in Rust which disallows 'vector of unions'
-table CaseInvoke {
-    invocation  :CaseInvokeU;
-}
-// Ref. SIEVE-IR spec (3.7)
-table GateSwitch {
-	condition_field   :FieldId;
-    condition_wire    :WireId;
-    output_wires      :WireList;
-    cases             :[Value];
-    branches          :[CaseInvoke];
 }
 
 /* ========== For loop related stuff  ========== */
@@ -319,7 +300,6 @@ union DirectiveSet {
    GateConvert,
    GateCall,
    GateAnonCall,
-   GateSwitch,
    GateFor,
 }
 

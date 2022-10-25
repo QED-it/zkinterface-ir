@@ -74,7 +74,6 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
 }
 
 pub fn example_relation_h(header: &Header) -> Relation {
-    use crate::structs::function::CaseInvoke::*;
     use crate::structs::function::Function;
     use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
     use crate::structs::wire::WireListElement::*;
@@ -94,63 +93,31 @@ pub fn example_relation_h(header: &Header) -> Relation {
         )],
         gates: vec![
             Witness(field_id, 1),
-            Switch(
-                field_id,
-                1,                                            // condition
-                wirelist![field_id;0, 2, 4, 5, 6, 9, 10, 11], // output wires
-                vec![vec![3], vec![5]],                       // cases
+            AnonCall(
+                wirelist![field_id;0, 2, 4, 5, 6, 9, 10, 11], // output
+                wirelist![field_id;1],                        // input
+                HashMap::from([(field_id, 3)]),               // instance count
+                HashMap::from([(field_id, 3)]),               // witness count
                 vec![
-                    // branches
-                    AbstractAnonCall(
-                        // FieldId, WireList, usize, usize, Vec<Gate>
-                        wirelist![field_id;1],
-                        HashMap::from([(field_id, 3)]),
-                        HashMap::from([(field_id, 3)]),
-                        vec![
-                            Instance(field_id, 0), // In Global Namespace: Instance(0)
-                            Witness(field_id, 1),  // In Global Namespace: Witness(2)
-                            Call(
-                                "com.example::mul".to_string(),
-                                wirelist![field_id;2],
-                                wirelist![field_id;8; 2],
-                            ), // In Global Namespace: Mul(4, 1, 1)
-                            Call(
-                                "com.example::mul".to_string(),
-                                wirelist![field_id;3],
-                                wirelist![field_id;1; 2],
-                            ), // In Global Namespace: Mul(5, 2, 2)
-                            Add(field_id, 4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                            Witness(field_id, 9),
-                            AssertZero(field_id, 9), // This witness is indeed zero, so check that in a branch.
-                            Instance(field_id, 6),
-                            AssertZero(field_id, 6),
-                            Instance(field_id, 7),
-                            Witness(field_id, 5),
-                        ],
-                    ),
-                    // remapping local-to-global namespaces: [0, 2, 4, 5, 6] || [1] = [0, 2, 4, 5, 6, 1]
-                    AbstractAnonCall(
-                        // FieldId, WireList, usize, usize, Vec<Gate>
-                        wirelist![field_id;1],
-                        HashMap::from([(field_id, 3)]),
-                        HashMap::from([(field_id, 2)]),
-                        vec![
-                            Instance(field_id, 0),
-                            Call(
-                                "com.example::mul".to_string(),
-                                wirelist![field_id;1],
-                                wirelist![field_id;8, 0],
-                            ),
-                            Witness(field_id, 2),
-                            Mul(field_id, 3, 1, 2),
-                            Add(field_id, 4, 2, 3),
-                            Instance(field_id, 5),
-                            Instance(field_id, 6),
-                            Witness(field_id, 7),
-                            AssertZero(field_id, 5), // its value is actually 0, so this assert will pass, but it's disabled.
-                            AssertZero(field_id, 0), // '0' is obviously not zero in this branch, but this branch is not taken, so should be disabled.
-                        ],
-                    ),
+                    Instance(field_id, 0), // In Global Namespace: Instance(0)
+                    Witness(field_id, 1),  // In Global Namespace: Witness(2)
+                    Call(
+                        "com.example::mul".to_string(),
+                        wirelist![field_id;2],
+                        wirelist![field_id;8; 2],
+                    ), // In Global Namespace: Mul(4, 1, 1)
+                    Call(
+                        "com.example::mul".to_string(),
+                        wirelist![field_id;3],
+                        wirelist![field_id;1; 2],
+                    ), // In Global Namespace: Mul(5, 2, 2)
+                    Add(field_id, 4, 2, 3), // In Global Namespace: Add(6, 4, 5)
+                    Witness(field_id, 9),
+                    AssertZero(field_id, 9), // This witness is indeed zero, so check that in a branch.
+                    Instance(field_id, 6),
+                    AssertZero(field_id, 6),
+                    Instance(field_id, 7),
+                    Witness(field_id, 5),
                 ],
             ),
             Constant(field_id, 3, encode_negative_one(&header.fields[0])), // -1

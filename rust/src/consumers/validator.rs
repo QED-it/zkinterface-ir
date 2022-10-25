@@ -1,11 +1,11 @@
 use crate::{FieldId, Gate, Header, Instance, Message, Relation, Result, WireId, Witness};
 use num_bigint::BigUint;
 use num_traits::identities::One;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::consumers::evaluator::get_field;
-use crate::structs::count::{count_list_max, wirelist_to_count_list, CountList};
-use crate::structs::function::{CaseInvoke, ForLoopBody};
+use crate::structs::count::{wirelist_to_count_list, CountList};
+use crate::structs::function::ForLoopBody;
 use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::value::is_probably_prime;
 use crate::structs::wire::{
@@ -445,103 +445,6 @@ impl Validator {
                 // Now, consume instances and witnesses from self.
                 self.consume_instance_count(&instance_count);
                 self.consume_witness_count(&witness_count);
-
-                // set the output wires as defined, since we checked they were in each branch.
-                expanded_outputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_undefined_and_set(field_id, *wire_id)
-                });
-            }
-
-            Switch(condition_field, condition_wire, output_wires, cases, branches) => {
-                self.ensure_defined_and_set(condition_field, *condition_wire);
-
-                // Ensure that the number of cases value match the number of subcircuits.
-                if cases.len() != branches.len() {
-                    self.violate("Gate::Switch: The number of cases value does not match the number of branches.");
-                }
-
-                // If there is no branch, just return.
-                // If the list of output wires is not empty, then it's an issue.
-                if cases.is_empty() {
-                    if !output_wires.is_empty() {
-                        self.violate("Switch: no case given while non-empty list of output wires.");
-                    }
-                    return;
-                }
-
-                // Ensure each value of cases are in the proper field.
-                let mut cases_set = HashSet::new();
-                for case in cases {
-                    self.ensure_value_in_field(condition_field, case, || {
-                        format!(
-                            "Gate::Switch case value: ({}: {})",
-                            *condition_field,
-                            Field::from_bytes_le(case)
-                        )
-                    });
-                    cases_set.insert(Field::from_bytes_le(case));
-                }
-
-                // ensure that there is no duplicate in cases.
-                if cases_set.len() != cases.len() {
-                    self.violate("Gate::Switch: The cases values contain duplicates.");
-                }
-
-                let (mut max_instance_count, mut max_witness_count) =
-                    (HashMap::new(), HashMap::new());
-
-                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
-
-                // 'Validate' each branch of the switch independently, and perform checks
-                for branch in branches {
-                    let (instance_count, witness_count) = match branch {
-                        CaseInvoke::AbstractGateCall(name, inputs) => {
-                            let expanded_inputs = expand_wirelist(inputs).unwrap_or_else(|err| {
-                                self.violate(err.to_string());
-                                vec![]
-                            });
-                            expanded_inputs.iter().for_each(|(field_id, wire_id)| {
-                                self.ensure_defined_and_set(field_id, *wire_id)
-                            });
-                            self.ingest_call(name, output_wires, inputs)
-                                .unwrap_or((HashMap::new(), HashMap::new()))
-                        }
-                        CaseInvoke::AbstractAnonCall(
-                            inputs,
-                            instance_count,
-                            witness_count,
-                            subcircuit,
-                        ) => {
-                            let expanded_inputs = expand_wirelist(inputs).unwrap_or_else(|err| {
-                                self.violate(err.to_string());
-                                vec![]
-                            });
-                            expanded_inputs.iter().for_each(|(field_id, wire_id)| {
-                                self.ensure_defined_and_set(field_id, *wire_id)
-                            });
-
-                            self.ingest_subcircuit(
-                                subcircuit,
-                                &wirelist_to_count_list(output_wires),
-                                &wirelist_to_count_list(inputs),
-                                instance_count,
-                                witness_count,
-                                true,
-                            );
-                            (instance_count.clone(), witness_count.clone())
-                        }
-                    };
-
-                    count_list_max(&mut max_instance_count, &instance_count);
-                    count_list_max(&mut max_witness_count, &witness_count);
-                }
-
-                // Now, consume instances and witnesses from self.
-                self.consume_instance_count(&max_instance_count);
-                self.consume_witness_count(&max_witness_count);
 
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|(field_id, wire_id)| {
