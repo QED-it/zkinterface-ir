@@ -6,6 +6,7 @@ Rust:
     - Instances/witnesses contains now one list of values per field
     - Add field id into gates and WireListElement
     - Add convert gate
+- remove ExpandDefinable
 
 # SIEVE IR v1.0.1, 2022-08
 

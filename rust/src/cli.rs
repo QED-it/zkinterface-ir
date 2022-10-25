@@ -8,7 +8,6 @@ use structopt::clap::AppSettings::*;
 pub use structopt::StructOpt;
 
 use crate::consumers::evaluator::PlaintextBackend;
-use crate::consumers::exp_definable::ExpandDefinable;
 use crate::consumers::flattening::IRFlattener;
 use crate::consumers::{
     evaluator::Evaluator,
@@ -77,8 +76,6 @@ pub struct Options {
     ///
     /// flatten       Flatten a SIEVE IR circuit (takes files and directories, output resulting circuit in stdout or directory specified by --out).
     ///
-    /// expand-definable       Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
-    ///
     /// list-validations       Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
@@ -105,13 +102,9 @@ pub struct Options {
     #[structopt(long)]
     pub modular_reduce: bool,
 
-    /// Which output file or directory to use when flattening circuits, expanding their definable gates, or producing zkif (R1CS). "-" means stdout.
+    /// Which output file or directory to use when flattening circuits, or producing zkif (R1CS). "-" means stdout.
     #[structopt(short, long, default_value = "-")]
     pub out: PathBuf,
-
-    /// Target gate set for expanding definable gates.
-    #[structopt(long)]
-    pub gate_set: Option<String>,
 }
 
 pub fn cli(options: &Options) -> Result<()> {
@@ -131,7 +124,6 @@ pub fn cli(options: &Options) -> Result<()> {
         "zkif-to-ir" => main_zkif_to_ir(options),
         "ir-to-zkif" => main_ir_to_r1cs(options),
         "flatten" => main_ir_flattening(options),
-        "expand-definable" => main_expand_definable(options),
         "list-validations" => main_list_validations(),
         "cat" => main_cat(options),
         "simulate" => Err("`simulate` was renamed to `evaluate`".into()),
@@ -539,63 +531,6 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-// Expand definable gates in IR1, like.
-// Expects a set of dirs and files, places the expanded relations into the file or dir specified by --out.
-fn main_expand_definable(opts: &Options) -> Result<()> {
-    use crate::structs::relation::parse_gate_set_string;
-
-    let source = stream_messages(opts)?;
-    let out_dir = &opts.out;
-
-    if let Some(gate_set) = opts.gate_set.clone() {
-        match parse_gate_set_string(gate_set) {
-            Ok(gate_mask) => {
-                if out_dir == Path::new("-") {
-                    let mut expander = ExpandDefinable::new(MemorySink::default(), gate_mask);
-                    let mut evaluator = Evaluator::default();
-
-                    for msg in source.iter_messages() {
-                        evaluator.ingest_message(&msg?, &mut expander);
-                    }
-
-                    print_violations(
-                        &evaluator.get_violations(),
-                        "The input statement",
-                        "compatible with expand definable",
-                    )?;
-
-                    let s: Source = expander.finish().into();
-                    for msg in s.iter_messages() {
-                        let msg = msg?;
-                        msg.write_into(&mut stdout())?;
-                    }
-                } else if has_sieve_extension(out_dir) {
-                    return Err("IR flattening requires a directory as output value".into());
-                } else {
-                    let mut expander =
-                        ExpandDefinable::new(FilesSink::new_clean(out_dir)?, gate_mask);
-                    let mut evaluator = Evaluator::default();
-
-                    for msg in source.iter_messages() {
-                        evaluator.ingest_message(&msg?, &mut expander);
-                    }
-
-                    print_violations(
-                        &evaluator.get_violations(),
-                        "The input statement",
-                        "compatible with expand definable",
-                    )?;
-
-                    expander.finish();
-                }
-            }
-            Err(a) => return Err(a),
-        }
-    }
-
-    Ok(())
-}
-
 fn print_violations(
     errors: &[String],
     which_statement: &str,
@@ -626,7 +561,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     cli(&Options {
@@ -636,7 +570,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     let boolean_workspace = PathBuf::from("local/test_cli/boolean_example");
@@ -648,7 +581,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     cli(&Options {
@@ -658,7 +590,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     let several_fields_workspace = PathBuf::from("local/test_cli/several_fields_example");
@@ -670,7 +601,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     cli(&Options {
@@ -680,7 +610,6 @@ fn test_cli() -> Result<()> {
         resource: "-".to_string(),
         modular_reduce: false,
         out: PathBuf::from("-"),
-        gate_set: None,
     })?;
 
     Ok(())
