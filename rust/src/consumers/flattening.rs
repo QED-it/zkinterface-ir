@@ -158,36 +158,6 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
             .create_gate(BuildGate::MulConstant(*field_id, *a, b.to_bytes_le()))
     }
 
-    fn and(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.b
-            .as_mut()
-            .unwrap()
-            .create_gate(BuildGate::And(*field_id, *a, *b))
-    }
-
-    fn xor(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.b
-            .as_mut()
-            .unwrap()
-            .create_gate(BuildGate::Xor(*field_id, *a, *b))
-    }
-
-    fn not(&mut self, field_id: &FieldId, a: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        self.b
-            .as_mut()
-            .unwrap()
-            .create_gate(BuildGate::Not(*field_id, *a))
-    }
-
     fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");

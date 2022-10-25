@@ -33,12 +33,6 @@ pub enum Gate {
     AddConstant(FieldId, WireId, WireId, Value),
     /// MulConstant(field_id, output, input, constant)
     MulConstant(FieldId, WireId, WireId, Value),
-    /// And(field_id, output, input, input)
-    And(FieldId, WireId, WireId, WireId),
-    /// Xor(field_id, output, input, input)
-    Xor(FieldId, WireId, WireId, WireId),
-    /// Not(field_id, output, input)
-    Not(FieldId, WireId, WireId),
     /// Instance(field_id, output)
     Instance(FieldId, WireId),
     /// Witness(field_id, output)
@@ -133,35 +127,6 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
                     Vec::from(gate.constant().ok_or("Missing constant")?),
-                )
-            }
-
-            ds::GateAnd => {
-                let gate = gen_gate.directive_as_gate_and().unwrap();
-                And(
-                    gate.field_id().ok_or("Missing field id")?.id(),
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
-                )
-            }
-
-            ds::GateXor => {
-                let gate = gen_gate.directive_as_gate_xor().unwrap();
-                Xor(
-                    gate.field_id().ok_or("Missing field id")?.id(),
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.left().ok_or("Missing left input")?.id(),
-                    gate.right().ok_or("Missing right input")?.id(),
-                )
-            }
-
-            ds::GateNot => {
-                let gate = gen_gate.directive_as_gate_not().unwrap();
-                Not(
-                    gate.field_id().ok_or("Missing field id")?.id(),
-                    gate.output().ok_or("Missing output")?.id(),
-                    gate.input().ok_or("Missing input")?.id(),
                 )
             }
 
@@ -441,73 +406,6 @@ impl Gate {
                     builder,
                     &generated::DirectiveArgs {
                         directive_type: ds::GateMulConstant,
-                        directive: Some(gate.as_union_value()),
-                    },
-                )
-            }
-
-            And(field_id, output, left, right) => {
-                let g_field_id = build_field_id(builder, *field_id);
-                let g_left = build_wire_id(builder, *left);
-                let g_right = build_wire_id(builder, *right);
-                let g_output = build_wire_id(builder, *output);
-                let gate = generated::GateAnd::create(
-                    builder,
-                    &generated::GateAndArgs {
-                        field_id: Some(g_field_id),
-                        output: Some(g_output),
-                        left: Some(g_left),
-                        right: Some(g_right),
-                    },
-                );
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateAnd,
-                        directive: Some(gate.as_union_value()),
-                    },
-                )
-            }
-
-            Xor(field_id, output, left, right) => {
-                let g_field_id = build_field_id(builder, *field_id);
-                let g_left = build_wire_id(builder, *left);
-                let g_right = build_wire_id(builder, *right);
-                let g_output = build_wire_id(builder, *output);
-                let gate = generated::GateXor::create(
-                    builder,
-                    &generated::GateXorArgs {
-                        field_id: Some(g_field_id),
-                        output: Some(g_output),
-                        left: Some(g_left),
-                        right: Some(g_right),
-                    },
-                );
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateXor,
-                        directive: Some(gate.as_union_value()),
-                    },
-                )
-            }
-
-            Not(field_id, output, input) => {
-                let g_field_id = build_field_id(builder, *field_id);
-                let g_input = build_wire_id(builder, *input);
-                let g_output = build_wire_id(builder, *output);
-                let gate = generated::GateNot::create(
-                    builder,
-                    &generated::GateNotArgs {
-                        field_id: Some(g_field_id),
-                        output: Some(g_output),
-                        input: Some(g_input),
-                    },
-                );
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateNot,
                         directive: Some(gate.as_union_value()),
                     },
                 )
@@ -793,9 +691,6 @@ impl Gate {
             Mul(_, w, _, _) => Some(w),
             AddConstant(_, w, _, _) => Some(w),
             MulConstant(_, w, _, _) => Some(w),
-            And(_, w, _, _) => Some(w),
-            Xor(_, w, _, _) => Some(w),
-            Not(_, w, _) => Some(w),
             Instance(_, w) => Some(w),
             Witness(_, w) => Some(w),
 
@@ -869,20 +764,6 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                     replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
                 }
                 MulConstant(ref field_id, ref mut output, ref mut input, _) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
-                }
-                And(ref field_id, ref mut output, ref mut left, ref mut right) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, left, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, right, old_wire, new_wire);
-                }
-                Xor(ref field_id, ref mut output, ref mut left, ref mut right) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, left, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, right, old_wire, new_wire);
-                }
-                Not(ref field_id, ref mut output, ref mut input) => {
                     replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
                     replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
                 }
@@ -1040,7 +921,7 @@ fn test_replace_output_wires_with_for() {
                 vec![Witness(0, 0)],
             ),
         ),
-        Xor(0, 13, 10, 11),
+        Add(0, 13, 10, 11),
         AssertZero(0, 13),
     ];
     let output_wires = vec![WireRange(0, 10, 13)];
@@ -1060,7 +941,7 @@ fn test_replace_output_wires_with_for() {
                 vec![Witness(0, 0)],
             ),
         ),
-        Xor(0, 13, 10, 11),
+        Add(0, 13, 10, 11),
         AssertZero(0, 13),
         Copy(0, 0, 10),
         Copy(0, 1, 11),
@@ -1075,12 +956,12 @@ fn test_replace_output_wires_with_forbidden_free() {
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
-        Xor(0, 2, 4, 6),
-        And(0, 7, 4, 6),
-        Xor(0, 8, 3, 5),
-        Xor(0, 9, 7, 8),
-        And(0, 10, 3, 5),
-        Not(0, 11, 10),
+        Add(0, 2, 4, 6),
+        Mul(0, 7, 4, 6),
+        Add(0, 8, 3, 5),
+        Add(0, 9, 7, 8),
+        Mul(0, 10, 3, 5),
+        AddConstant(0, 11, 10, vec![1]),
         Free(0, 7, Some(9)),
     ];
     let output_wires = vec![Wire(0, 8), Wire(0, 4)];
@@ -1088,13 +969,13 @@ fn test_replace_output_wires_with_forbidden_free() {
     assert!(test.is_err());
 
     let mut gates = vec![
-        Xor(0, 2, 4, 6),
-        And(0, 7, 4, 6),
+        Add(0, 2, 4, 6),
+        Mul(0, 7, 4, 6),
         Free(0, 4, None),
-        Xor(0, 8, 3, 5),
-        Xor(0, 9, 7, 8),
-        And(0, 10, 3, 5),
-        Not(0, 11, 10),
+        Add(0, 8, 3, 5),
+        Add(0, 9, 7, 8),
+        Mul(0, 10, 3, 5),
+        AddConstant(0, 11, 10, vec![1]),
     ];
     let output_wires = vec![Wire(0, 8), Wire(0, 4)];
     let test = replace_output_wires(&mut gates, &output_wires);

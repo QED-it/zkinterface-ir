@@ -138,26 +138,6 @@ table GateMulConstant {
    constant    :[ubyte];
 }
 
-table GateAnd {
-   field_id    :FieldId;
-   output      :WireId;
-   left        :WireId;
-   right       :WireId;
-}
-
-table GateXor {
-   field_id    :FieldId;
-   output      :WireId;
-   left        :WireId;
-   right       :WireId;
-}
-
-table GateNot {
-   field_id    :FieldId;
-   output      :WireId;
-   input       :WireId;
-}
-
 table GateInstance {
    field_id    :FieldId;
    output      :WireId;
@@ -333,9 +313,6 @@ union DirectiveSet {
    GateMul,
    GateAddConstant,
    GateMulConstant,
-   GateAnd,
-   GateXor,
-   GateNot,
    GateInstance,
    GateWitness,
    GateFree,

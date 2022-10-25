@@ -325,23 +325,6 @@ impl Validator {
                 self.ensure_undefined_and_set(field_id, *out);
             }
 
-            And(field_id, out, left, right) => {
-                self.ensure_defined_and_set(field_id, *left);
-                self.ensure_defined_and_set(field_id, *right);
-                self.ensure_undefined_and_set(field_id, *out);
-            }
-
-            Xor(field_id, out, left, right) => {
-                self.ensure_defined_and_set(field_id, *left);
-                self.ensure_defined_and_set(field_id, *right);
-                self.ensure_undefined_and_set(field_id, *out);
-            }
-
-            Not(field_id, out, inp) => {
-                self.ensure_defined_and_set(field_id, *inp);
-                self.ensure_undefined_and_set(field_id, *out);
-            }
-
             Instance(field_id, out) => {
                 self.declare(field_id, *out);
                 // Consume value.

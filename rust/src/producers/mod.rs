@@ -1,5 +1,3 @@
-/// Boolean example statements generator.
-pub mod boolean_examples;
 /// Example statements generator.
 pub mod examples;
 /// Example statements generator with several fields.

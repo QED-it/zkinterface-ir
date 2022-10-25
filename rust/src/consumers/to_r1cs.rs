@@ -399,27 +399,6 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(out)
     }
 
-    fn and(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
-        }
-        self.multiply(field_id, a, b)
-    }
-
-    fn xor(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
-        }
-        self.add(field_id, a, b)
-    }
-
-    fn not(&mut self, field_id: &FieldId, a: &Self::Wire) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
-        }
-        self.add_constant(field_id, a, self.one()?)
-    }
-
     fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         if *field_id != 0 {
             return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());

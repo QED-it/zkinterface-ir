@@ -428,22 +428,19 @@ pub enum DirectiveSet {
   GateMul = 5,
   GateAddConstant = 6,
   GateMulConstant = 7,
-  GateAnd = 8,
-  GateXor = 9,
-  GateNot = 10,
-  GateInstance = 11,
-  GateWitness = 12,
-  GateFree = 13,
-  GateConvert = 14,
-  GateCall = 15,
-  GateAnonCall = 16,
-  GateSwitch = 17,
-  GateFor = 18,
+  GateInstance = 8,
+  GateWitness = 9,
+  GateFree = 10,
+  GateConvert = 11,
+  GateCall = 12,
+  GateAnonCall = 13,
+  GateSwitch = 14,
+  GateFor = 15,
 
 }
 
 pub const ENUM_MIN_DIRECTIVE_SET: u8 = 0;
-pub const ENUM_MAX_DIRECTIVE_SET: u8 = 18;
+pub const ENUM_MAX_DIRECTIVE_SET: u8 = 15;
 
 impl<'a> flatbuffers::Follow<'a> for DirectiveSet {
   type Inner = Self;
@@ -477,7 +474,7 @@ impl flatbuffers::Push for DirectiveSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 19] = [
+pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 16] = [
   DirectiveSet::NONE,
   DirectiveSet::GateConstant,
   DirectiveSet::GateAssertZero,
@@ -486,9 +483,6 @@ pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 19] = [
   DirectiveSet::GateMul,
   DirectiveSet::GateAddConstant,
   DirectiveSet::GateMulConstant,
-  DirectiveSet::GateAnd,
-  DirectiveSet::GateXor,
-  DirectiveSet::GateNot,
   DirectiveSet::GateInstance,
   DirectiveSet::GateWitness,
   DirectiveSet::GateFree,
@@ -500,7 +494,7 @@ pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 19] = [
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 19] = [
+pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 16] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -509,9 +503,6 @@ pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 19] = [
     "GateMul",
     "GateAddConstant",
     "GateMulConstant",
-    "GateAnd",
-    "GateXor",
-    "GateNot",
     "GateInstance",
     "GateWitness",
     "GateFree",
@@ -2463,330 +2454,6 @@ impl<'a: 'b, 'b> GateMulConstantBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<GateMulConstant<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum GateAndOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GateAnd<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GateAnd<'a> {
-    type Inner = GateAnd<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GateAnd<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GateAnd {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateAndArgs<'args>) -> flatbuffers::WIPOffset<GateAnd<'bldr>> {
-      let mut builder = GateAndBuilder::new(_fbb);
-      if let Some(x) = args.right { builder.add_right(x); }
-      if let Some(x) = args.left { builder.add_left(x); }
-      if let Some(x) = args.output { builder.add_output(x); }
-      if let Some(x) = args.field_id { builder.add_field_id(x); }
-      builder.finish()
-    }
-
-    pub const VT_FIELD_ID: flatbuffers::VOffsetT = 4;
-    pub const VT_OUTPUT: flatbuffers::VOffsetT = 6;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 8;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
-
-  #[inline]
-  pub fn field_id(&self) -> Option<FieldId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<FieldId<'a>>>(GateAnd::VT_FIELD_ID, None)
-  }
-  #[inline]
-  pub fn output(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateAnd::VT_OUTPUT, None)
-  }
-  #[inline]
-  pub fn left(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateAnd::VT_LEFT, None)
-  }
-  #[inline]
-  pub fn right(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateAnd::VT_RIGHT, None)
-  }
-}
-
-pub struct GateAndArgs<'a> {
-    pub field_id: Option<flatbuffers::WIPOffset<FieldId<'a >>>,
-    pub output: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-    pub left: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-    pub right: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-}
-impl<'a> Default for GateAndArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GateAndArgs {
-            field_id: None,
-            output: None,
-            left: None,
-            right: None,
-        }
-    }
-}
-pub struct GateAndBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GateAndBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_field_id(&mut self, field_id: flatbuffers::WIPOffset<FieldId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<FieldId>>(GateAnd::VT_FIELD_ID, field_id);
-  }
-  #[inline]
-  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateAnd::VT_OUTPUT, output);
-  }
-  #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateAnd::VT_LEFT, left);
-  }
-  #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateAnd::VT_RIGHT, right);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAndBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GateAndBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GateAnd<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum GateXorOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GateXor<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GateXor<'a> {
-    type Inner = GateXor<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GateXor<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GateXor {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateXorArgs<'args>) -> flatbuffers::WIPOffset<GateXor<'bldr>> {
-      let mut builder = GateXorBuilder::new(_fbb);
-      if let Some(x) = args.right { builder.add_right(x); }
-      if let Some(x) = args.left { builder.add_left(x); }
-      if let Some(x) = args.output { builder.add_output(x); }
-      if let Some(x) = args.field_id { builder.add_field_id(x); }
-      builder.finish()
-    }
-
-    pub const VT_FIELD_ID: flatbuffers::VOffsetT = 4;
-    pub const VT_OUTPUT: flatbuffers::VOffsetT = 6;
-    pub const VT_LEFT: flatbuffers::VOffsetT = 8;
-    pub const VT_RIGHT: flatbuffers::VOffsetT = 10;
-
-  #[inline]
-  pub fn field_id(&self) -> Option<FieldId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<FieldId<'a>>>(GateXor::VT_FIELD_ID, None)
-  }
-  #[inline]
-  pub fn output(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateXor::VT_OUTPUT, None)
-  }
-  #[inline]
-  pub fn left(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateXor::VT_LEFT, None)
-  }
-  #[inline]
-  pub fn right(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateXor::VT_RIGHT, None)
-  }
-}
-
-pub struct GateXorArgs<'a> {
-    pub field_id: Option<flatbuffers::WIPOffset<FieldId<'a >>>,
-    pub output: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-    pub left: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-    pub right: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-}
-impl<'a> Default for GateXorArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GateXorArgs {
-            field_id: None,
-            output: None,
-            left: None,
-            right: None,
-        }
-    }
-}
-pub struct GateXorBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GateXorBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_field_id(&mut self, field_id: flatbuffers::WIPOffset<FieldId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<FieldId>>(GateXor::VT_FIELD_ID, field_id);
-  }
-  #[inline]
-  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateXor::VT_OUTPUT, output);
-  }
-  #[inline]
-  pub fn add_left(&mut self, left: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateXor::VT_LEFT, left);
-  }
-  #[inline]
-  pub fn add_right(&mut self, right: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateXor::VT_RIGHT, right);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateXorBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GateXorBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GateXor<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum GateNotOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GateNot<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GateNot<'a> {
-    type Inner = GateNot<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GateNot<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GateNot {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateNotArgs<'args>) -> flatbuffers::WIPOffset<GateNot<'bldr>> {
-      let mut builder = GateNotBuilder::new(_fbb);
-      if let Some(x) = args.input { builder.add_input(x); }
-      if let Some(x) = args.output { builder.add_output(x); }
-      if let Some(x) = args.field_id { builder.add_field_id(x); }
-      builder.finish()
-    }
-
-    pub const VT_FIELD_ID: flatbuffers::VOffsetT = 4;
-    pub const VT_OUTPUT: flatbuffers::VOffsetT = 6;
-    pub const VT_INPUT: flatbuffers::VOffsetT = 8;
-
-  #[inline]
-  pub fn field_id(&self) -> Option<FieldId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<FieldId<'a>>>(GateNot::VT_FIELD_ID, None)
-  }
-  #[inline]
-  pub fn output(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateNot::VT_OUTPUT, None)
-  }
-  #[inline]
-  pub fn input(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateNot::VT_INPUT, None)
-  }
-}
-
-pub struct GateNotArgs<'a> {
-    pub field_id: Option<flatbuffers::WIPOffset<FieldId<'a >>>,
-    pub output: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-    pub input: Option<flatbuffers::WIPOffset<WireId<'a >>>,
-}
-impl<'a> Default for GateNotArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GateNotArgs {
-            field_id: None,
-            output: None,
-            input: None,
-        }
-    }
-}
-pub struct GateNotBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GateNotBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_field_id(&mut self, field_id: flatbuffers::WIPOffset<FieldId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<FieldId>>(GateNot::VT_FIELD_ID, field_id);
-  }
-  #[inline]
-  pub fn add_output(&mut self, output: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateNot::VT_OUTPUT, output);
-  }
-  #[inline]
-  pub fn add_input(&mut self, input: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateNot::VT_INPUT, input);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateNotBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GateNotBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GateNot<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -5354,36 +5021,6 @@ impl<'a> Directive<'a> {
   pub fn directive_as_gate_mul_constant(&self) -> Option<GateMulConstant<'a>> {
     if self.directive_type() == DirectiveSet::GateMulConstant {
       self.directive().map(|u| GateMulConstant::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn directive_as_gate_and(&self) -> Option<GateAnd<'a>> {
-    if self.directive_type() == DirectiveSet::GateAnd {
-      self.directive().map(|u| GateAnd::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn directive_as_gate_xor(&self) -> Option<GateXor<'a>> {
-    if self.directive_type() == DirectiveSet::GateXor {
-      self.directive().map(|u| GateXor::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn directive_as_gate_not(&self) -> Option<GateNot<'a>> {
-    if self.directive_type() == DirectiveSet::GateNot {
-      self.directive().map(|u| GateNot::init_from_table(u))
     } else {
       None
     }

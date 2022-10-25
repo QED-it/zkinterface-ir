@@ -52,8 +52,6 @@ pub struct Options {
     ///
     /// example       Produce arithmetic example statements.
     ///
-    /// bool-example  Produce Boolean example statements.
-    ///
     /// several-fields-example Produce example statements with several fields.
     ///
     /// to-text       Print the content in a human-readable form.
@@ -110,7 +108,6 @@ pub struct Options {
 pub fn cli(options: &Options) -> Result<()> {
     match &options.tool[..] {
         "example" => main_example(options),
-        "bool-example" => main_boolean_example(options),
         "several-fields-example" => main_several_fields_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
@@ -155,21 +152,6 @@ fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
 
     let header = example_header();
-    let instance = example_instance_h(&header);
-    let relation = example_relation_h(&header);
-    let witness = if opts.incorrect {
-        example_witness_incorrect_h(&header)
-    } else {
-        example_witness_h(&header)
-    };
-    write_example(opts, &instance, &witness, &relation)?;
-    Ok(())
-}
-
-fn main_boolean_example(opts: &Options) -> Result<()> {
-    use crate::producers::boolean_examples::*;
-
-    let header = example_boolean_header();
     let instance = example_instance_h(&header);
     let relation = example_relation_h(&header);
     let witness = if opts.incorrect {
@@ -566,26 +548,6 @@ fn test_cli() -> Result<()> {
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
         paths: vec![arithmetic_workspace],
-        incorrect: false,
-        resource: "-".to_string(),
-        modular_reduce: false,
-        out: PathBuf::from("-"),
-    })?;
-
-    let boolean_workspace = PathBuf::from("local/test_cli/boolean_example");
-
-    cli(&Options {
-        tool: "bool-example".to_string(),
-        paths: vec![boolean_workspace.clone()],
-        incorrect: false,
-        resource: "-".to_string(),
-        modular_reduce: false,
-        out: PathBuf::from("-"),
-    })?;
-
-    cli(&Options {
-        tool: "valid-eval-metrics".to_string(),
-        paths: vec![boolean_workspace],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,

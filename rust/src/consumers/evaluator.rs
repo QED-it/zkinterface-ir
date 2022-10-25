@@ -8,7 +8,7 @@ use crate::{FieldId, Gate, Header, Instance, Message, Relation, Result, Value, W
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
-use std::ops::{BitAnd, BitXor, Shr};
+use std::ops::{BitAnd, Shr};
 
 /// The `ZKBackend` trait should be implemented by any backend that wants to evaluate SIEVE IR circuits.
 /// It has to define 2 types:
@@ -70,13 +70,6 @@ pub trait ZKBackend {
         a: &Self::Wire,
         b: Self::FieldElement,
     ) -> Result<Self::Wire>;
-
-    /// Performs a boolean `and` between two wires. The result is stored in a new wire.
-    fn and(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
-    /// Performs a boolean `xor` between two wires. The result is stored in a new wire.
-    fn xor(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
-    /// Performs a boolean `not` on a given wire. The result is stored in a new wire.
-    fn not(&mut self, field_id: &FieldId, a: &Self::Wire) -> Result<Self::Wire>;
 
     /// This functions declares a new instance variable owning the value given as parameter,
     /// which should be stored in a new wire.
@@ -390,26 +383,6 @@ impl<B: ZKBackend> Evaluator<B> {
                 let r = B::from_bytes_le(constant)?;
                 let prod = backend.mul_constant(field_id, l, r)?;
                 set!(*field_id, *out, prod)?;
-            }
-
-            And(field_id, out, left, right) => {
-                let l = get!(*field_id, *left)?;
-                let r = get!(*field_id, *right)?;
-                let and = backend.and(field_id, l, r)?;
-                set!(*field_id, *out, and)?;
-            }
-
-            Xor(field_id, out, left, right) => {
-                let l = get!(*field_id, *left)?;
-                let r = get!(*field_id, *right)?;
-                let xor = backend.xor(field_id, l, r)?;
-                set!(*field_id, *out, xor)?;
-            }
-
-            Not(field_id, out, inp) => {
-                let val = get!(*field_id, *inp)?;
-                let not = backend.not(field_id, val)?;
-                set!(*field_id, *out, not)?;
             }
 
             Instance(field_id, out) => {
@@ -1052,24 +1025,6 @@ impl ZKBackend for PlaintextBackend {
         Ok((a * b) % field)
     }
 
-    fn and(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a.bitand(b)) % field)
-    }
-
-    fn xor(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a.bitxor(b)) % field)
-    }
-
-    fn not(&mut self, _field_id: &FieldId, a: &Self::Wire) -> Result<Self::Wire> {
-        Ok(if a.is_zero() {
-            BigUint::one()
-        } else {
-            BigUint::zero()
-        })
-    }
-
     fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         self.constant(field_id, val)
     }
@@ -1245,25 +1200,6 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
             _a: &Self::Wire,
             _b: Self::FieldElement,
         ) -> Result<Self::Wire> {
-            Ok(0)
-        }
-        fn and(
-            &mut self,
-            _field_id: &FieldId,
-            _a: &Self::Wire,
-            _b: &Self::Wire,
-        ) -> Result<Self::Wire> {
-            Ok(0)
-        }
-        fn xor(
-            &mut self,
-            _field_id: &FieldId,
-            _a: &Self::Wire,
-            _b: &Self::Wire,
-        ) -> Result<Self::Wire> {
-            Ok(0)
-        }
-        fn not(&mut self, _field_id: &FieldId, _a: &Self::Wire) -> Result<Self::Wire> {
             Ok(0)
         }
         fn instance(

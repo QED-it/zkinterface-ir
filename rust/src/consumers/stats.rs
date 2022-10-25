@@ -21,9 +21,6 @@ pub struct GateStats {
     pub mul_gates: usize,
     pub add_constant_gates: usize,
     pub mul_constant_gates: usize,
-    pub and_gates: usize,
-    pub xor_gates: usize,
-    pub not_gates: usize,
     pub variables_freed: u64,
 
     pub functions_defined: usize,
@@ -157,18 +154,6 @@ impl GateStats {
                 self.mul_constant_gates += 1;
             }
 
-            And(_field_id, _out, _left, _right) => {
-                self.and_gates += 1;
-            }
-
-            Xor(_field_id, _out, _left, _right) => {
-                self.xor_gates += 1;
-            }
-
-            Not(_field_id, _out, _inp) => {
-                self.not_gates += 1;
-            }
-
             Instance(_field_id, _out) => {
                 self.instance_variables += 1;
             }
@@ -283,9 +268,6 @@ impl GateStats {
         self.mul_gates += other.mul_gates;
         self.add_constant_gates += other.add_constant_gates;
         self.mul_constant_gates += other.mul_constant_gates;
-        self.and_gates += other.and_gates;
-        self.xor_gates += other.xor_gates;
-        self.not_gates += other.not_gates;
         self.variables_freed += other.variables_freed;
 
         self.convert_gates += other.convert_gates;
@@ -321,9 +303,6 @@ fn test_stats() -> Result<()> {
             mul_gates: 21,
             add_constant_gates: 0,
             mul_constant_gates: 1,
-            and_gates: 0,
-            xor_gates: 0,
-            not_gates: 0,
             variables_freed: 51,
             functions_defined: 1,
             functions_called: 20,
