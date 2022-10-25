@@ -5,7 +5,6 @@ use std::mem::size_of;
 
 use crate::structs::function::ForLoopBody;
 use crate::structs::inputs::Inputs;
-use crate::structs::relation::{ADD, FOR, FUNCTION, MUL, MULC, SWITCH};
 use crate::structs::wire::WireListElement;
 use crate::wirelist;
 use crate::{FieldId, Header, Instance, Relation, Witness};
@@ -85,8 +84,6 @@ pub fn example_relation_h(header: &Header) -> Relation {
 
     Relation {
         header: header.clone(),
-        gate_mask: ADD | MUL | MULC,
-        feat_mask: FUNCTION | SWITCH | FOR,
         functions: vec![Function::new(
             "com.example::mul".to_string(),
             HashMap::from([(field_id, 1)]),

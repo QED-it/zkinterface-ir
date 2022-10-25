@@ -1,7 +1,6 @@
 use crate::structs::count::{count_list_max, wirelist_to_count_list, CountList};
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use crate::structs::relation::{contains_feature, BOOL};
 use crate::structs::wire::{
     expand_wirelist, is_one_field_wirelist, wire_ids_to_wirelist, wirelist_len, WireList,
 };
@@ -28,7 +27,7 @@ pub trait ZKBackend {
     fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
     /// Set the underlying field of the running backend.
     /// If the field is not compatible with this ZKBackend, then it should return Err
-    fn set_fields(&mut self, moduli: &[Value], is_boolean: bool) -> Result<()>;
+    fn set_fields(&mut self, moduli: &[Value]) -> Result<()>;
 
     /// Returns a `FieldElement` representing '1' in the underlying field.
     fn one(&self) -> Result<Self::FieldElement>;
@@ -108,67 +107,6 @@ pub trait ZKBackend {
     ) -> Result<Vec<Self::Wire>>;
 }
 
-/// Used to evaluate a 'multiplication' in either the arithmetic case or the boolean,
-/// where it's replaced by an AND operation.
-fn as_mul<B: ZKBackend>(
-    backend: &mut B,
-    field_id: &FieldId,
-    a: &B::Wire,
-    b: &B::Wire,
-    is_bool: bool,
-) -> Result<B::Wire> {
-    if is_bool {
-        backend.and(field_id, a, b)
-    } else {
-        backend.multiply(field_id, a, b)
-    }
-}
-
-/// Used to evaluate an 'addition' in either the arithmetic case or the boolean,
-/// where it's replaced by an XOR operation.
-fn as_add<B: ZKBackend>(
-    backend: &mut B,
-    field_id: &FieldId,
-    a: &B::Wire,
-    b: &B::Wire,
-    is_bool: bool,
-) -> Result<B::Wire> {
-    if is_bool {
-        backend.xor(field_id, a, b)
-    } else {
-        backend.add(field_id, a, b)
-    }
-}
-// Computes the 'negative' value. `minus_one_buf` must be provided and include a buffer with modulus minus one
-fn as_negate<B: ZKBackend>(
-    backend: &mut B,
-    field_id: &FieldId,
-    wire: &B::Wire,
-    is_bool: bool,
-) -> Result<B::Wire> {
-    if is_bool {
-        // negation in boolean field is identity
-        backend.copy(field_id, wire)
-    } else {
-        backend.mul_constant(field_id, wire, backend.minus_one(field_id)?)
-    }
-}
-
-// Computes an 'addition' with constant. Boolean fields are not supported.
-fn as_add_one<B: ZKBackend>(
-    backend: &mut B,
-    field_id: &FieldId,
-    wire: &B::Wire,
-    is_bool: bool,
-) -> Result<B::Wire> {
-    if is_bool {
-        // adding one in boolean field is not
-        backend.not(field_id, wire)
-    } else {
-        backend.add_constant(field_id, wire, backend.one()?)
-    }
-}
-
 /// This structure defines a function as defined in the circuit, but without the name.
 /// It's mainly used to retrieve information from the name.
 struct FunctionDeclaration {
@@ -204,7 +142,6 @@ pub struct Evaluator<B: ZKBackend> {
     moduli: Vec<BigUint>,
     instance_queue: Vec<VecDeque<B::FieldElement>>,
     witness_queue: Vec<VecDeque<B::FieldElement>>,
-    is_boolean: bool,
 
     // name => (subcircuit, instance_count, witness_count, output_count, input_count)
     known_functions: HashMap<String, FunctionDeclaration>,
@@ -220,7 +157,6 @@ impl<B: ZKBackend> Default for Evaluator<B> {
             moduli: vec![],
             instance_queue: vec![],
             witness_queue: vec![],
-            is_boolean: false,
             known_functions: Default::default(),
             verified_at_least_one_gate: false,
             found_error: None,
@@ -323,8 +259,7 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `Relation` message
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
         self.ingest_header(&relation.header)?;
-        self.is_boolean = contains_feature(relation.gate_mask, BOOL);
-        backend.set_fields(&relation.header.fields, self.is_boolean)?;
+        backend.set_fields(&relation.header.fields)?;
 
         if !relation.gates.is_empty() {
             self.verified_at_least_one_gate = true;
@@ -353,7 +288,6 @@ impl<B: ZKBackend> Evaluator<B> {
                 &self.known_functions,
                 &mut known_iterators,
                 &self.moduli,
-                self.is_boolean,
                 &mut self.instance_queue,
                 &mut self.witness_queue,
                 None,
@@ -372,7 +306,7 @@ impl<B: ZKBackend> Evaluator<B> {
     /// - `known_functions` is the map of functions defined in previous or current `Relation` message
     /// - `known_iterators` is the map of defined iterators. It will be temporarily updated if the
     ///    current gate is a `GateFor`
-    /// - `moduli` and `is_boolean` are used mainly in switches to compute the weight of each branch.
+    /// - `moduli` is used mainly in switches to compute the weight of each branch.
     /// - `instances` and `witnesses` are the instances and witnesses pools, implemented as Queues.
     ///    They will be consumed whenever necessary.
     fn ingest_gate(
@@ -382,7 +316,6 @@ impl<B: ZKBackend> Evaluator<B> {
         known_functions: &HashMap<String, FunctionDeclaration>,
         known_iterators: &mut HashMap<String, u64>,
         moduli: &[BigUint],
-        is_boolean: bool,
         instances: &mut Vec<VecDeque<B::FieldElement>>,
         witnesses: &mut Vec<VecDeque<B::FieldElement>>,
         weight: Option<&B::Wire>,
@@ -412,7 +345,7 @@ impl<B: ZKBackend> Evaluator<B> {
             AssertZero(field_id, inp) => {
                 let inp_wire = get!(*field_id, *inp)?;
                 let should_be_zero = if let Some(w) = weight {
-                    as_mul(backend, field_id, w, inp_wire, is_boolean)?
+                    backend.multiply(field_id, w, inp_wire)?
                 } else {
                     backend.copy(field_id, inp_wire)?
                 };
@@ -576,7 +509,6 @@ impl<B: ZKBackend> Evaluator<B> {
                     known_functions,
                     &mut HashMap::new(),
                     moduli,
-                    is_boolean,
                     instances,
                     witnesses,
                     weight,
@@ -594,7 +526,6 @@ impl<B: ZKBackend> Evaluator<B> {
                     known_functions,
                     known_iterators,
                     moduli,
-                    is_boolean,
                     instances,
                     witnesses,
                     weight,
@@ -634,7 +565,6 @@ impl<B: ZKBackend> Evaluator<B> {
                                 known_functions,
                                 &mut HashMap::new(),
                                 moduli,
-                                is_boolean,
                                 instances,
                                 witnesses,
                                 weight,
@@ -662,7 +592,6 @@ impl<B: ZKBackend> Evaluator<B> {
                                 known_functions,
                                 known_iterators,
                                 moduli,
-                                is_boolean,
                                 instances,
                                 witnesses,
                                 weight,
@@ -743,10 +672,9 @@ impl<B: ZKBackend> Evaluator<B> {
                         condition_field_id,
                         get!(*condition_field_id, *condition_wire_id)?,
                         moduli,
-                        is_boolean,
                     )?;
                     let weighted_branch_weight = if let Some(w) = weight {
-                        as_mul(backend, condition_field_id, w, &branch_weight, is_boolean)?
+                        backend.multiply(condition_field_id, w, &branch_weight)?
                     } else {
                         branch_weight
                     };
@@ -785,7 +713,6 @@ impl<B: ZKBackend> Evaluator<B> {
                                 known_functions,
                                 &mut HashMap::new(),
                                 moduli,
-                                is_boolean,
                                 &mut new_instances.clone(),
                                 &mut new_witnesses.clone(),
                                 Some(&weighted_branch_weight),
@@ -809,7 +736,6 @@ impl<B: ZKBackend> Evaluator<B> {
                                 known_functions,
                                 known_iterators,
                                 moduli,
-                                is_boolean,
                                 &mut new_instances.clone(),
                                 &mut new_witnesses.clone(),
                                 Some(&weighted_branch_weight),
@@ -826,14 +752,12 @@ impl<B: ZKBackend> Evaluator<B> {
                     let weighted_output = branches_scope.iter().zip(weights.iter()).fold(
                         backend.constant(output_field, backend.zero()?),
                         |accu, (branch_scope, branch_weight)| {
-                            let weighted_wire = as_mul(
-                                backend,
+                            let weighted_wire = backend.multiply(
                                 output_field,
                                 get::<B>(branch_scope, *output_field, *output_wire)?,
                                 branch_weight,
-                                is_boolean,
                             )?;
-                            as_add(backend, output_field, &accu?, &weighted_wire, is_boolean)
+                            backend.add(output_field, &accu?, &weighted_wire)
                         },
                     )?;
                     set!(*output_field, *output_wire, weighted_output)?;
@@ -857,7 +781,6 @@ impl<B: ZKBackend> Evaluator<B> {
         known_functions: &HashMap<String, FunctionDeclaration>,
         known_iterators: &mut HashMap<String, u64>,
         moduli: &[BigUint],
-        is_boolean: bool,
         instances: &mut Vec<VecDeque<B::FieldElement>>,
         witnesses: &mut Vec<VecDeque<B::FieldElement>>,
         weight: Option<&B::Wire>,
@@ -887,7 +810,6 @@ impl<B: ZKBackend> Evaluator<B> {
                 known_functions,
                 known_iterators,
                 moduli,
-                is_boolean,
                 instances,
                 witnesses,
                 weight,
@@ -985,17 +907,16 @@ fn exp<I: ZKBackend>(
     base: &I::Wire,
     exponent: &BigUint,
     field: &BigUint,
-    is_boolean: bool,
 ) -> Result<I::Wire> {
     if exponent.is_one() {
         return backend.copy(field_id, base);
     }
 
-    let previous = exp(backend, field_id, base, &exponent.shr(1), field, is_boolean)?;
+    let previous = exp(backend, field_id, base, &exponent.shr(1), field)?;
 
-    let ret = as_mul(backend, field_id, &previous, &previous, is_boolean);
+    let ret = backend.multiply(field_id, &previous, &previous);
     if exponent.bitand(BigUint::one()).is_one() {
-        as_mul(backend, field_id, &ret?, base, is_boolean)
+        backend.multiply(field_id, &ret?, base)
     } else {
         ret
     }
@@ -1008,18 +929,17 @@ fn compute_weight<B: ZKBackend>(
     field_id: &FieldId,
     condition: &B::Wire,
     moduli: &[BigUint],
-    is_boolean: bool,
 ) -> Result<B::Wire> {
     let field = get_field(field_id, moduli)?;
     let case_wire = &backend.constant(field_id, B::from_bytes_le(case)?)?;
     // scalar value
     let exponent = field - &BigUint::one();
 
-    let minus_cond = &as_negate(backend, field_id, condition, is_boolean)?;
-    let base = &as_add(backend, field_id, case_wire, minus_cond, is_boolean)?;
-    let base_to_exp = &exp(backend, field_id, base, &exponent, field, is_boolean)?;
-    let right = &as_negate(backend, field_id, base_to_exp, is_boolean)?;
-    as_add_one(backend, field_id, right, is_boolean)
+    let minus_cond = &backend.mul_constant(field_id, condition, backend.minus_one(field_id)?)?;
+    let base = &backend.add(field_id, case_wire, minus_cond)?;
+    let base_to_exp = &exp(backend, field_id, base, &exponent, field)?;
+    let right = &backend.mul_constant(field_id, base_to_exp, backend.minus_one(field_id)?)?;
+    backend.add_constant(field_id, right, backend.one()?)
 }
 
 pub fn get_field<'a>(field_id: &'a FieldId, moduli: &'a [BigUint]) -> Result<&'a BigUint> {
@@ -1051,7 +971,7 @@ impl ZKBackend for PlaintextBackend {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value], _is_boolean: bool) -> Result<()> {
+    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
         if !self.m.is_empty() {
             self.m = vec![];
         }
@@ -1225,8 +1145,8 @@ fn test_exponentiation() -> Result<()> {
         expecteds.iter()
     ) {
         let mut backend = PlaintextBackend::default();
-        backend.set_fields(&[modulus.to_bytes_le()], false)?;
-        let result = exp(&mut backend, &0, base, exponent, modulus, false)?;
+        backend.set_fields(&[modulus.to_bytes_le()])?;
+        let result = exp(&mut backend, &0, base, exponent, modulus)?;
         assert_eq!(result, *expected);
     }
 
@@ -1270,7 +1190,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {
             Ok(BigUint::zero())
         }
-        fn set_fields(&mut self, _moduli: &[Value], _is_boolean: bool) -> Result<()> {
+        fn set_fields(&mut self, _moduli: &[Value]) -> Result<()> {
             Ok(())
         }
         fn one(&self) -> Result<Self::FieldElement> {

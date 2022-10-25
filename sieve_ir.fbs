@@ -19,17 +19,8 @@ table Header {
    fields               :[Value];
 }
 
-// The 'gateset' field should be a string, either 'arithmetic' (resp. 'boolean') to allow all
-//    arithmetic (resp. boolean) gates. Or a concatenated string, comma-separated, of the individual gates
-//    @add/@addc/@mul/@mulc (resp. @and/@xor/@and)
-// The 'features' field should be a concatenated string, comma-separated, of the following features
-//    @function/@for/@switch. If none of this features is required for the following Relation, then it should be
-//    the string 'simple'
-// Ref. SIEVE-IR spec (3.3)
 table Relation {
    header               :Header;
-   gateset              :string;
-   features             :string;
    functions            :[Function];
    directives           :[Directive];
 }

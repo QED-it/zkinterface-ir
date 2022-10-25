@@ -7,6 +7,7 @@ Rust:
     - Add field id into gates and WireListElement
     - Add convert gate
 - remove ExpandDefinable
+- remove gate_set and features from Relation struct
 
 # SIEVE IR v1.0.1, 2022-08
 

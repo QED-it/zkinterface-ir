@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::producers::examples::literal32;
 use crate::structs::function::ForLoopBody;
 use crate::structs::inputs::Inputs;
-use crate::structs::relation::{ADD, ADDC, FOR, FUNCTION, MUL, MULC, SWITCH};
 use crate::structs::wire::WireListElement;
 use crate::wirelist;
 use crate::{Header, Instance, Relation, Witness};
@@ -75,8 +74,6 @@ pub fn example_relation_with_several_fields() -> Relation {
     let field_id_7: u8 = 1;
     Relation {
         header: example_header_with_several_fields(),
-        gate_mask: ADD | MUL | ADDC | MULC,
-        feat_mask: FUNCTION | SWITCH | FOR,
         functions: vec![Function::new(
             "com.example::mul".to_string(),
             HashMap::from([(field_id_101, 1)]),
@@ -327,7 +324,6 @@ fn test_validator_with_several_fields() -> crate::Result<()> {
 #[test]
 fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     use crate::consumers::validator::Validator;
-    use crate::structs::relation::SIMPLE;
     use crate::Gate::*;
 
     let instance = example_instance_with_several_fields();
@@ -337,8 +333,6 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     let field_id_7: u8 = 1;
     let relation = Relation {
         header: example_header_with_several_fields(),
-        gate_mask: ADD | MUL | ADDC | MULC,
-        feat_mask: SIMPLE,
         functions: vec![],
         gates: vec![
             Instance(field_id_101, 0),
@@ -411,7 +405,6 @@ fn test_evaluator_with_several_fields() -> crate::Result<()> {
 #[test]
 fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
-    use crate::structs::relation::SIMPLE;
     use crate::Gate::*;
 
     let instance = example_instance_with_several_fields();
@@ -423,8 +416,6 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     // 1st test: impossible conversion
     let relation = Relation {
         header: example_header_with_several_fields(),
-        gate_mask: ADD | MUL | ADDC | MULC,
-        feat_mask: SIMPLE,
         functions: vec![],
         gates: vec![
             Instance(field_id_101, 0), // 25
@@ -451,8 +442,6 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     // 2nd test: all input wires do not belong to the same field
     let relation = Relation {
         header: example_header_with_several_fields(),
-        gate_mask: ADD | MUL | ADDC | MULC,
-        feat_mask: SIMPLE,
         functions: vec![],
         gates: vec![
             Instance(field_id_101, 0), // 25

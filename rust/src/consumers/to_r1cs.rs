@@ -99,7 +99,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value], _is_boolean: bool) -> Result<()> {
+    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
         if moduli.len() != 1 {
             return Err("One field must be defined to convert to R1CS.".into());
         }

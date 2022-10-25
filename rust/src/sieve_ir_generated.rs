@@ -647,29 +647,17 @@ impl<'a> Relation<'a> {
       let mut builder = RelationBuilder::new(_fbb);
       if let Some(x) = args.directives { builder.add_directives(x); }
       if let Some(x) = args.functions { builder.add_functions(x); }
-      if let Some(x) = args.features { builder.add_features(x); }
-      if let Some(x) = args.gateset { builder.add_gateset(x); }
       if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
     pub const VT_HEADER: flatbuffers::VOffsetT = 4;
-    pub const VT_GATESET: flatbuffers::VOffsetT = 6;
-    pub const VT_FEATURES: flatbuffers::VOffsetT = 8;
-    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 10;
-    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 12;
+    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 6;
+    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 8;
 
   #[inline]
   pub fn header(&self) -> Option<Header<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Relation::VT_HEADER, None)
-  }
-  #[inline]
-  pub fn gateset(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_GATESET, None)
-  }
-  #[inline]
-  pub fn features(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_FEATURES, None)
   }
   #[inline]
   pub fn functions(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Function<'a>>>> {
@@ -683,8 +671,6 @@ impl<'a> Relation<'a> {
 
 pub struct RelationArgs<'a> {
     pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
-    pub gateset: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub features: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub functions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Function<'a >>>>>,
     pub directives: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
@@ -693,8 +679,6 @@ impl<'a> Default for RelationArgs<'a> {
     fn default() -> Self {
         RelationArgs {
             header: None,
-            gateset: None,
-            features: None,
             functions: None,
             directives: None,
         }
@@ -708,14 +692,6 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
   #[inline]
   pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Relation::VT_HEADER, header);
-  }
-  #[inline]
-  pub fn add_gateset(&mut self, gateset: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_GATESET, gateset);
-  }
-  #[inline]
-  pub fn add_features(&mut self, features: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_FEATURES, features);
   }
   #[inline]
   pub fn add_functions(&mut self, functions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Function<'b >>>>) {

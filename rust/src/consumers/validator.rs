@@ -7,8 +7,6 @@ use crate::consumers::evaluator::get_field;
 use crate::structs::count::{count_list_max, wirelist_to_count_list, CountList};
 use crate::structs::function::{CaseInvoke, ForLoopBody};
 use crate::structs::iterators::evaluate_iterexpr_list;
-use crate::structs::relation::{contains_feature, FOR, FUNCTION, SWITCH};
-use crate::structs::relation::{ADD, ADDC, AND, ARITH, BOOL, MUL, MULC, NOT, XOR};
 use crate::structs::value::is_probably_prime;
 use crate::structs::wire::{
     expand_wirelist, is_one_field_wirelist, wire_ids_to_wirelist, WireList,
@@ -74,8 +72,6 @@ pub struct Validator {
     live_wires: BTreeSet<(FieldId, WireId)>,
 
     got_header: bool,
-    gate_set: u16,
-    features: u16,
     header_version: String,
 
     fields: Vec<Field>,
@@ -95,8 +91,6 @@ impl Default for Validator {
             witness_queue_len: Default::default(),
             live_wires: Default::default(),
             got_header: Default::default(),
-            gate_set: Default::default(),
-            features: Default::default(),
             header_version: Default::default(),
             fields: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
@@ -229,16 +223,7 @@ impl Validator {
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
-        self.gate_set = relation.gate_mask;
-        if contains_feature(self.gate_set, BOOL) && contains_feature(self.gate_set, ARITH) {
-            self.violate("Cannot mix arithmetic and boolean gates");
-        }
-
-        self.features = relation.feat_mask;
-
         for f in relation.functions.iter() {
-            self.ensure_allowed_feature("@function", FUNCTION);
-
             let (name, output_count, input_count, instance_count, witness_count) = (
                 f.name.clone(),
                 f.output_count.clone(),
@@ -311,8 +296,6 @@ impl Validator {
             }
 
             Add(field_id, out, left, right) => {
-                self.ensure_allowed_gate("@add", ADD);
-
                 self.ensure_defined_and_set(field_id, *left);
                 self.ensure_defined_and_set(field_id, *right);
 
@@ -320,8 +303,6 @@ impl Validator {
             }
 
             Mul(field_id, out, left, right) => {
-                self.ensure_allowed_gate("@mul", MUL);
-
                 self.ensure_defined_and_set(field_id, *left);
                 self.ensure_defined_and_set(field_id, *right);
 
@@ -329,7 +310,6 @@ impl Validator {
             }
 
             AddConstant(field_id, out, inp, constant) => {
-                self.ensure_allowed_gate("@addc", ADDC);
                 self.ensure_value_in_field(field_id, constant, || {
                     format!("Gate::AddConstant_{}", *out)
                 });
@@ -338,7 +318,6 @@ impl Validator {
             }
 
             MulConstant(field_id, out, inp, constant) => {
-                self.ensure_allowed_gate("@mulc", MULC);
                 self.ensure_value_in_field(field_id, constant, || {
                     format!("Gate::MulConstant_{}", *out)
                 });
@@ -347,23 +326,18 @@ impl Validator {
             }
 
             And(field_id, out, left, right) => {
-                self.ensure_allowed_gate("@and", AND);
                 self.ensure_defined_and_set(field_id, *left);
                 self.ensure_defined_and_set(field_id, *right);
                 self.ensure_undefined_and_set(field_id, *out);
             }
 
             Xor(field_id, out, left, right) => {
-                self.ensure_allowed_gate("@xor", XOR);
-
                 self.ensure_defined_and_set(field_id, *left);
                 self.ensure_defined_and_set(field_id, *right);
                 self.ensure_undefined_and_set(field_id, *out);
             }
 
             Not(field_id, out, inp) => {
-                self.ensure_allowed_gate("@not", NOT);
-
                 self.ensure_defined_and_set(field_id, *inp);
                 self.ensure_undefined_and_set(field_id, *out);
             }
@@ -430,7 +404,6 @@ impl Validator {
             }
 
             AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
-                self.ensure_allowed_feature("@anoncall", FUNCTION);
                 let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
                     self.violate(err.to_string());
                     vec![]
@@ -465,7 +438,6 @@ impl Validator {
             }
 
             Call(name, output_wires, input_wires) => {
-                self.ensure_allowed_feature("@call", FUNCTION);
                 // - Check exists
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
@@ -498,7 +470,6 @@ impl Validator {
             }
 
             Switch(condition_field, condition_wire, output_wires, cases, branches) => {
-                self.ensure_allowed_feature("@switch", SWITCH);
                 self.ensure_defined_and_set(condition_field, *condition_wire);
 
                 // Ensure that the number of cases value match the number of subcircuits.
@@ -596,8 +567,6 @@ impl Validator {
             }
 
             For(iterator_name, start_val, end_val, global_output_list, body) => {
-                self.ensure_allowed_feature("@for", FOR);
-
                 if *end_val < *start_val {
                     self.violate(format!("In a For loop, the end value ({}) must be strictly greater than the start value ({}).", *end_val, *start_val));
                     return;
@@ -758,8 +727,6 @@ impl Validator {
             },
             live_wires: Default::default(),
             got_header: self.got_header,
-            gate_set: self.gate_set,
-            features: self.features,
             header_version: self.header_version.clone(),
             fields: self.fields.clone(),
             known_functions: self.known_functions.clone(),
@@ -926,24 +893,6 @@ impl Validator {
                 field
             );
             self.violate(msg);
-        }
-    }
-
-    fn ensure_allowed_gate(&mut self, gate_name: impl Into<String>, gate_mask: u16) {
-        if !contains_feature(self.gate_set, gate_mask) {
-            self.violate(format!(
-                "The gate {} is not allowed in this circuit.",
-                &gate_name.into()[..]
-            ));
-        }
-    }
-
-    fn ensure_allowed_feature(&mut self, gate_name: impl Into<String>, feature_mask: u16) {
-        if !contains_feature(self.features, feature_mask) {
-            self.violate(format!(
-                "The feature {} is not allowed in this circuit.",
-                &gate_name.into()[..]
-            ));
         }
     }
 

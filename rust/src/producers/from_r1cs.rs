@@ -3,7 +3,6 @@ use num_traits::One;
 use std::ops::Add;
 
 use crate::producers::builder::{BuildGate, GateBuilder, GateBuilderT};
-use crate::structs::relation::{ARITH, SIMPLE};
 use crate::{Header, Result, Sink, WireId};
 use BuildGate::*;
 
@@ -28,12 +27,7 @@ impl<S: Sink> FromR1CSConverter<S> {
     /// the ZKI CircuitHeader will be used to preallocate things
     pub fn new(sink: S, zki_header: &zkiCircuitHeader) -> Self {
         let mut conv = Self {
-            b: GateBuilder::new(
-                sink,
-                zki_header_to_header(zki_header).unwrap(),
-                ARITH,
-                SIMPLE,
-            ),
+            b: GateBuilder::new(sink, zki_header_to_header(zki_header).unwrap()),
             r1cs_to_ir_wire: Default::default(),
             minus_one: 0,
         };

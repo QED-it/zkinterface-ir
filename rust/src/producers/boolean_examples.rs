@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::structs::function::ForLoopBody;
 use crate::structs::inputs::Inputs;
-use crate::structs::relation::{AND, FOR, FUNCTION, NOT, SWITCH, XOR};
 use crate::{Header, Instance, Relation, Witness};
 
 pub fn example_instance() -> Instance {
@@ -85,8 +84,6 @@ pub fn example_relation_h(header: &Header) -> Relation {
 
     Relation {
         header: header.clone(),
-        gate_mask: AND | XOR | NOT,
-        feat_mask: FUNCTION | SWITCH | FOR,
         functions: vec![
             // output: [W0, W1, W2] // one integer on 3 bits
             // input: I0=[W3, W4] and I1=[W5, W6] // two integers on 2 bits

@@ -11,7 +11,6 @@ use crate::structs::count::{
 };
 use crate::structs::gates::replace_output_wires;
 use crate::structs::inputs::Inputs;
-use crate::structs::relation::{ARITH, SIMPLE};
 use crate::structs::wire::{WireList, WireListElement};
 use crate::structs::{function::CaseInvoke, function::Function, value::Value};
 use crate::Result;
@@ -54,7 +53,7 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-    fn new(sink: S, header: Header, gateset: u16, features: u16) -> Self {
+    fn new(sink: S, header: Header) -> Self {
         let common_inputs = vec![Inputs { inputs: vec![] }; header.fields.len()];
         let short_witness = vec![Inputs { inputs: vec![] }; header.fields.len()];
         Self {
@@ -69,8 +68,6 @@ impl<S: Sink> MessageBuilder<S> {
             },
             relation: Relation {
                 header,
-                gate_mask: gateset,
-                feat_mask: features,
                 functions: vec![],
                 gates: vec![],
             },
@@ -173,10 +170,9 @@ impl<S: Sink> MessageBuilder<S> {
 /// ```
 /// use zki_sieve::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
-/// use zki_sieve::structs::relation::{BOOL, SIMPLE};
 /// use zki_sieve::Header;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), Header::default(), BOOL, SIMPLE);
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
 /// let field_id = 0;
 /// let my_id = b.create_gate(Constant(field_id, vec![0])).unwrap();
@@ -384,9 +380,9 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
-    pub fn new(sink: S, header: Header, gateset: u16, features: u16) -> Self {
+    pub fn new(sink: S, header: Header) -> Self {
         GateBuilder {
-            msg_build: MessageBuilder::new(sink, header, gateset, features),
+            msg_build: MessageBuilder::new(sink, header),
             known_functions: HashMap::new(),
             free_id: HashMap::new(),
         }
@@ -461,7 +457,7 @@ impl<S: Sink> GateBuilder<S> {
 }
 
 pub fn new_example_builder() -> GateBuilder<MemorySink> {
-    GateBuilder::new(MemorySink::default(), Header::default(), ARITH, SIMPLE)
+    GateBuilder::new(MemorySink::default(), Header::default())
 }
 
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
@@ -473,12 +469,11 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 /// use std::collections::HashMap;
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder,  BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
-/// use zki_sieve::structs::relation::{ARITH, FUNCTION};
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
 /// use zki_sieve::Header;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), Header::default(), ARITH, FUNCTION);
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
 ///  let witness_square = {
 ///     let mut fb = b.new_function_builder("witness_square".to_string(), HashMap::from([(0,1)]), HashMap::new());
@@ -634,11 +629,10 @@ impl FunctionBuilder<'_> {
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder, GateBuilderT, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::Header;
-/// use zki_sieve::structs::relation::{ARITH, FOR_FUNCTION_SWITCH};
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), Header::default(), ARITH, FOR_FUNCTION_SWITCH);
+/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
 /// let custom_sub = {
 ///     let mut fb = b.new_function_builder("custom_sub".to_string(), HashMap::from([(0,2)]), HashMap::from([(0,4)]));
@@ -844,16 +838,10 @@ fn test_builder_with_function() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::relation::FOR_FUNCTION_SWITCH;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
-    let mut b = GateBuilder::new(
-        MemorySink::default(),
-        examples::example_header(),
-        ARITH,
-        FOR_FUNCTION_SWITCH,
-    );
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
     let custom_sub = {
         let mut fb = b.new_function_builder(
@@ -939,18 +927,12 @@ fn test_builder_with_several_functions() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::relation::FOR_FUNCTION_SWITCH;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
     let field_id: FieldId = 0;
 
-    let mut b = GateBuilder::new(
-        MemorySink::default(),
-        examples::example_header(),
-        ARITH,
-        FOR_FUNCTION_SWITCH,
-    );
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
     let witness_square = {
         let mut fb = b.new_function_builder(
@@ -1044,16 +1026,10 @@ fn test_switch_builder() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::relation::FOR_FUNCTION_SWITCH;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
-    let mut b = GateBuilder::new(
-        MemorySink::default(),
-        examples::example_header(),
-        ARITH,
-        FOR_FUNCTION_SWITCH,
-    );
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
     let custom_sub = {
         let mut fb = b.new_function_builder(
@@ -1218,16 +1194,10 @@ fn test_switch_nested_in_function() {
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
-    use crate::structs::relation::FOR_FUNCTION_SWITCH;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
-    let mut b = GateBuilder::new(
-        MemorySink::default(),
-        examples::example_header(),
-        ARITH,
-        FOR_FUNCTION_SWITCH,
-    );
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
     let custom_sub = {
         let mut fb = b.new_function_builder(

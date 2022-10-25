@@ -1,7 +1,6 @@
 use crate::consumers::evaluator::{get_field, ZKBackend};
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
-use crate::structs::relation::{ARITH, BOOL, SIMPLE};
 use crate::{FieldId, Header, Result, Sink, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
@@ -46,18 +45,13 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value], is_boolean: bool) -> Result<()> {
+    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
         if self.b.is_none() {
             let header = Header::new(moduli);
             for modulus in moduli {
                 self.moduli.push(BigUint::from_bytes_le(modulus));
             }
-            self.b = Some(GateBuilder::new(
-                self.sink.take().unwrap(),
-                header,
-                if is_boolean { BOOL } else { ARITH },
-                SIMPLE,
-            ));
+            self.b = Some(GateBuilder::new(self.sink.take().unwrap(), header));
         }
         Ok(())
     }
