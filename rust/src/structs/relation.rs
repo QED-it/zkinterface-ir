@@ -1,14 +1,13 @@
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
 
 use super::gates::Gate;
 use super::header::Header;
-use crate::sieve_ir_generated::sieve_ir as g;
+use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::function::Function;
 
 // Masks to handle Arithmetic Gates internally
@@ -40,14 +39,12 @@ pub struct Relation {
     pub gates: Vec<Gate>,
 }
 
-impl<'a> TryFrom<g::Relation<'a>> for Relation {
+impl<'a> TryFrom<generated::Relation<'a>> for Relation {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(g_relation: g::Relation) -> Result<Relation> {
-        let g_gates = g_relation
-            .directives()
-            .ok_or_else(|| "Missing directives")?;
+    fn try_from(g_relation: generated::Relation) -> Result<Relation> {
+        let g_gates = g_relation.directives().ok_or("Missing directives")?;
         let functions = if let Some(g_functions) = g_relation.functions() {
             Function::try_from_vector(g_functions)?
         } else {
@@ -56,15 +53,9 @@ impl<'a> TryFrom<g::Relation<'a>> for Relation {
 
         Ok(Relation {
             header: Header::try_from(g_relation.header())?,
-            gate_mask: parse_gate_set(
-                g_relation
-                    .gateset()
-                    .ok_or_else(|| "Missing gateset description")?,
-            )?,
+            gate_mask: parse_gate_set(g_relation.gateset().ok_or("Missing gateset description")?)?,
             feat_mask: parse_feature_toggle(
-                g_relation
-                    .features()
-                    .ok_or_else(|| "Missing feature toggles")?,
+                g_relation.features().ok_or("Missing feature toggles")?,
             )?,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
@@ -77,19 +68,19 @@ impl<'a> TryFrom<&'a [u8]> for Relation {
 
     fn try_from(buffer: &'a [u8]) -> Result<Relation> {
         Relation::try_from(
-            g::get_size_prefixed_root_as_root(&buffer)
+            generated::get_size_prefixed_root_as_root(buffer)
                 .message_as_relation()
-                .ok_or_else(|| "Not a Relation message.")?,
+                .ok_or("Not a Relation message.")?,
         )
     }
 }
 
 impl Relation {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Root<'bldr>> {
+    pub fn build<'bldr>(
+        &self,
+        builder: &mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<generated::Root<'bldr>> {
         let header = Some(self.header.build(builder));
         let directives = Gate::build_vector(builder, &self.gates);
         let functions = Function::build_vector(builder, &self.functions);
@@ -97,9 +88,9 @@ impl Relation {
         let gateset = build_gate_set(self.gate_mask, builder);
         let features = build_feature_toggle(self.feat_mask, builder);
 
-        let relation = g::Relation::create(
+        let relation = generated::Relation::create(
             builder,
-            &g::RelationArgs {
+            &generated::RelationArgs {
                 header,
                 gateset: Some(gateset),
                 features: Some(features),
@@ -108,10 +99,10 @@ impl Relation {
             },
         );
 
-        g::Root::create(
+        generated::Root::create(
             builder,
-            &g::RootArgs {
-                message_type: g::Message::Relation,
+            &generated::RootArgs {
+                message_type: generated::Message::Relation,
                 message: Some(relation.as_union_value()),
             },
         )
@@ -133,7 +124,7 @@ impl Relation {
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
         let message = self.build(&mut builder);
-        g::finish_size_prefixed_root_buffer(&mut builder, message);
+        generated::finish_size_prefixed_root_buffer(&mut builder, message);
         writer.write_all(builder.finished_data())?;
         Ok(())
     }
@@ -145,7 +136,7 @@ pub fn parse_gate_set_string(gateset: String) -> Result<u16> {
     let mut ret: u16 = 0x0000;
     // for substr in gateset.into().split(',') {
     for substr in gateset.split(',') {
-        match &substr.replace(" ", "")[..] {
+        match &substr.replace(' ', "")[..] {
             "arithmetic" => return Ok(ARITH),
             "@add" => ret |= ADD,
             "@addc" => ret |= ADDC,
@@ -171,10 +162,10 @@ pub fn parse_gate_set(gateset: impl Into<String> + Copy) -> Result<u16> {
 }
 
 /// This functions exports a Relation::gateset string into a FBS binary message.
-fn build_gate_set<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+fn build_gate_set<'bldr>(
     gateset: u16,
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-) -> WIPOffset<&'args str> {
+    builder: &mut FlatBufferBuilder<'bldr>,
+) -> WIPOffset<&'bldr str> {
     builder.create_string(&create_gateset_string(gateset))
 }
 
@@ -229,7 +220,7 @@ fn create_gateset_string(gateset: u16) -> String {
 fn parse_feature_toggle(features: impl Into<String>) -> Result<u16> {
     let mut ret: u16 = 0x0000;
     for substr in features.into().split(',') {
-        match &substr.replace(" ", "")[..] {
+        match &substr.replace(' ', "")[..] {
             "@function" => ret |= FUNCTION,
             "@for" => ret |= FOR,
             "@switch" => ret |= SWITCH,
@@ -243,10 +234,10 @@ fn parse_feature_toggle(features: impl Into<String>) -> Result<u16> {
     Ok(ret)
 }
 /// This functions exports a Relation::features string into a FBS binary message.
-fn build_feature_toggle<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+fn build_feature_toggle<'bldr>(
     features: u16,
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-) -> WIPOffset<&'args str> {
+    builder: &mut FlatBufferBuilder<'bldr>,
+) -> WIPOffset<&'bldr str> {
     builder.create_string(&create_feature_string(features))
 }
 
@@ -283,26 +274,6 @@ fn create_feature_string(features: u16) -> String {
 /// It's done by checking that "(feature_set & feature) == feature".
 pub fn contains_feature(feature_set: u16, feature: u16) -> bool {
     (feature_set & feature) == feature
-}
-
-/// Get the known functions
-pub fn get_known_functions(
-    relation: &Relation,
-) -> HashMap<String, (usize, usize, usize, usize, Vec<Gate>)> {
-    let mut map = HashMap::new();
-    for f in relation.functions.iter() {
-        map.insert(
-            f.name.clone(),
-            (
-                f.output_count,
-                f.input_count,
-                f.instance_count,
-                f.witness_count,
-                f.body.clone(),
-            ),
-        );
-    }
-    map
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use crate::sieve_ir_generated::sieve_ir as g;
+use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::{Result, WireId};
 use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
@@ -32,80 +32,77 @@ pub enum IterExprWireNumber {
 use crate::sieve_ir_generated::sieve_ir::{IterExprWireListElementArgs, IterExprWireListElementU};
 use IterExprWireNumber::*;
 
-impl<'a> TryFrom<g::IterExprWireNumber<'a>> for IterExprWireNumber {
+impl<'a> TryFrom<generated::IterExprWireNumber<'a>> for IterExprWireNumber {
     type Error = Box<dyn Error>;
 
-    fn try_from(iter_expr: g::IterExprWireNumber) -> Result<IterExprWireNumber> {
+    fn try_from(iter_expr: generated::IterExprWireNumber) -> Result<IterExprWireNumber> {
         Ok(match iter_expr.value_type() {
-            g::IterExpr::NONE => return Err("Unknown Iterator Expression type".into()),
-            g::IterExpr::IterExprConst => {
+            generated::IterExpr::NONE => return Err("Unknown Iterator Expression type".into()),
+            generated::IterExpr::IterExprConst => {
                 let value = iter_expr.value_as_iter_expr_const().unwrap();
                 IterExprConst(value.value())
             }
 
-            g::IterExpr::IterExprName => {
+            generated::IterExpr::IterExprName => {
                 let value = iter_expr.value_as_iter_expr_name().unwrap();
-                IterExprName(
-                    value
-                        .name()
-                        .ok_or_else(|| "IterExpr: No name given")?
-                        .into(),
-                )
+                IterExprName(value.name().ok_or("IterExpr: No name given")?.into())
             }
-            g::IterExpr::IterExprAdd => {
+            generated::IterExpr::IterExprAdd => {
                 let value = iter_expr.value_as_iter_expr_add().unwrap();
 
                 IterExprAdd(
                     Box::new(IterExprWireNumber::try_from(
-                        value.left().ok_or_else(|| "Missing left operand")?,
+                        value.left().ok_or("Missing left operand")?,
                     )?),
                     Box::new(IterExprWireNumber::try_from(
                         value
                             .right()
-                            .ok_or_else(|| "IterExprAdd: No right expression given")?,
+                            .ok_or("IterExprAdd: No right expression given")?,
                     )?),
                 )
             }
 
-            g::IterExpr::IterExprSub => {
+            generated::IterExpr::IterExprSub => {
                 let value = iter_expr.value_as_iter_expr_sub().unwrap();
 
                 IterExprSub(
                     Box::new(IterExprWireNumber::try_from(
                         value
                             .left()
-                            .ok_or_else(|| "IterExprSub: No left expression given")?,
+                            .ok_or("IterExprSub: No left expression given")?,
                     )?),
                     Box::new(IterExprWireNumber::try_from(
                         value
                             .right()
-                            .ok_or_else(|| "IterExprub: No right expression given")?,
+                            .ok_or("IterExprub: No right expression given")?,
                     )?),
                 )
             }
-            g::IterExpr::IterExprMul => {
+            generated::IterExpr::IterExprMul => {
                 let value = iter_expr.value_as_iter_expr_mul().unwrap();
 
                 IterExprMul(
                     Box::new(IterExprWireNumber::try_from(
                         value
                             .left()
-                            .ok_or_else(|| "IterExprMul: No left expression given")?,
+                            .ok_or("IterExprMul: No left expression given")?,
                     )?),
                     Box::new(IterExprWireNumber::try_from(
                         value
                             .right()
-                            .ok_or_else(|| "IterExprMul: No right expression given")?,
+                            .ok_or("IterExprMul: No right expression given")?,
                     )?),
                 )
             }
-            g::IterExpr::IterExprDivConst => {
+            generated::IterExpr::IterExprDivConst => {
                 let value = iter_expr.value_as_iter_expr_div_const().unwrap();
 
                 IterExprDivConst(
-                    Box::new(IterExprWireNumber::try_from(value.numer().ok_or_else(
-                        || "IterExprDivConst: No numerator expression given",
-                    )?)?),
+                    Box::new(IterExprWireNumber::try_from(
+                        value
+                            .numer()
+                            .ok_or("IterExprDivConst: No numerator expression given")?,
+                    )?),
                     value.denom(),
                 )
             }
@@ -114,19 +111,21 @@ impl<'a> TryFrom<g::IterExprWireNumber<'a>> for IterExprWireNumber {
 }
 
 impl IterExprWireNumber {
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::IterExprWireNumber<'bldr>> {
+    pub fn build<'bldr>(
+        &self,
+        builder: &mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<generated::IterExprWireNumber<'bldr>> {
         match self {
             IterExprConst(val) => {
-                let g_ite_const =
-                    g::IterExprConst::create(builder, &g::IterExprConstArgs { value: *val });
-
-                g::IterExprWireNumber::create(
+                let g_ite_const = generated::IterExprConst::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprConst,
+                    &generated::IterExprConstArgs { value: *val },
+                );
+
+                generated::IterExprWireNumber::create(
+                    builder,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprConst,
                         value: Some(g_ite_const.as_union_value()),
                     },
                 )
@@ -134,13 +133,15 @@ impl IterExprWireNumber {
 
             IterExprName(name) => {
                 let g_name = builder.create_string(name);
-                let g_ite_name =
-                    g::IterExprName::create(builder, &g::IterExprNameArgs { name: Some(g_name) });
-
-                g::IterExprWireNumber::create(
+                let g_ite_name = generated::IterExprName::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprName,
+                    &generated::IterExprNameArgs { name: Some(g_name) },
+                );
+
+                generated::IterExprWireNumber::create(
+                    builder,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprName,
                         value: Some(g_ite_name.as_union_value()),
                     },
                 )
@@ -149,18 +150,18 @@ impl IterExprWireNumber {
             IterExprAdd(left, right) => {
                 let g_ite_left = left.build(builder);
                 let g_ite_right = right.build(builder);
-                let g_ite_add = g::IterExprAdd::create(
+                let g_ite_add = generated::IterExprAdd::create(
                     builder,
-                    &g::IterExprAddArgs {
+                    &generated::IterExprAddArgs {
                         left: Some(g_ite_left),
                         right: Some(g_ite_right),
                     },
                 );
 
-                g::IterExprWireNumber::create(
+                generated::IterExprWireNumber::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprAdd,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprAdd,
                         value: Some(g_ite_add.as_union_value()),
                     },
                 )
@@ -169,18 +170,18 @@ impl IterExprWireNumber {
             IterExprSub(left, right) => {
                 let g_ite_left = left.build(builder);
                 let g_ite_right = right.build(builder);
-                let g_ite_sub = g::IterExprSub::create(
+                let g_ite_sub = generated::IterExprSub::create(
                     builder,
-                    &g::IterExprSubArgs {
+                    &generated::IterExprSubArgs {
                         left: Some(g_ite_left),
                         right: Some(g_ite_right),
                     },
                 );
 
-                g::IterExprWireNumber::create(
+                generated::IterExprWireNumber::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprSub,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprSub,
                         value: Some(g_ite_sub.as_union_value()),
                     },
                 )
@@ -189,36 +190,36 @@ impl IterExprWireNumber {
             IterExprMul(left, right) => {
                 let g_ite_left = left.build(builder);
                 let g_ite_right = right.build(builder);
-                let g_ite_mul = g::IterExprMul::create(
+                let g_ite_mul = generated::IterExprMul::create(
                     builder,
-                    &g::IterExprMulArgs {
+                    &generated::IterExprMulArgs {
                         left: Some(g_ite_left),
                         right: Some(g_ite_right),
                     },
                 );
 
-                g::IterExprWireNumber::create(
+                generated::IterExprWireNumber::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprMul,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprMul,
                         value: Some(g_ite_mul.as_union_value()),
                     },
                 )
             }
             IterExprDivConst(numer, denom) => {
                 let g_ite_numer = numer.build(builder);
-                let g_ite_divc = g::IterExprDivConst::create(
+                let g_ite_divc = generated::IterExprDivConst::create(
                     builder,
-                    &g::IterExprDivConstArgs {
+                    &generated::IterExprDivConstArgs {
                         numer: Some(g_ite_numer),
                         denom: *denom,
                     },
                 );
 
-                g::IterExprWireNumber::create(
+                generated::IterExprWireNumber::create(
                     builder,
-                    &g::IterExprWireNumberArgs {
-                        value_type: g::IterExpr::IterExprDivConst,
+                    &generated::IterExprWireNumberArgs {
+                        value_type: generated::IterExpr::IterExprDivConst,
                         value: Some(g_ite_divc.as_union_value()),
                     },
                 )
@@ -241,10 +242,10 @@ use IterExprListElement::*;
 
 pub type IterExprList = Vec<IterExprListElement>;
 
-impl<'a> TryFrom<g::IterExprWireListElement<'a>> for IterExprListElement {
+impl<'a> TryFrom<generated::IterExprWireListElement<'a>> for IterExprListElement {
     type Error = Box<dyn Error>;
 
-    fn try_from(element: g::IterExprWireListElement<'a>) -> Result<Self> {
+    fn try_from(element: generated::IterExprWireListElement<'a>) -> Result<Self> {
         Ok(match element.element_type() {
             IterExprWireListElementU::NONE => {
                 return Err("Unknown type in IterExprWireListElement".into())
@@ -256,12 +257,10 @@ impl<'a> TryFrom<g::IterExprWireListElement<'a>> for IterExprListElement {
                 let range = element.element_as_iter_expr_wire_range().unwrap();
                 Range(
                     IterExprWireNumber::try_from(
-                        range
-                            .first()
-                            .ok_or_else(|| "Missing first value of range")?,
+                        range.first().ok_or("Missing first value of range")?,
                     )?,
                     IterExprWireNumber::try_from(
-                        range.last().ok_or_else(|| "Missing last value of range")?,
+                        range.last().ok_or("Missing last value of range")?,
                     )?,
                 )
             }
@@ -271,15 +270,15 @@ impl<'a> TryFrom<g::IterExprWireListElement<'a>> for IterExprListElement {
 
 impl IterExprListElement {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::IterExprWireListElement<'bldr>> {
+    pub fn build<'bldr>(
+        &self,
+        builder: &mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<generated::IterExprWireListElement<'bldr>> {
         match self {
             Single(iter_expr) => {
                 let g_iter_expr = iter_expr.build(builder);
 
-                g::IterExprWireListElement::create(
+                generated::IterExprWireListElement::create(
                     builder,
                     &IterExprWireListElementArgs {
                         element_type: IterExprWireListElementU::IterExprWireNumber,
@@ -291,15 +290,15 @@ impl IterExprListElement {
                 let g_first = first.build(builder);
                 let g_last = last.build(builder);
 
-                let g_range = g::IterExprWireRange::create(
+                let g_range = generated::IterExprWireRange::create(
                     builder,
-                    &g::IterExprWireRangeArgs {
+                    &generated::IterExprWireRangeArgs {
                         first: Some(g_first),
                         last: Some(g_last),
                     },
                 );
 
-                g::IterExprWireListElement::create(
+                generated::IterExprWireListElement::create(
                     builder,
                     &IterExprWireListElementArgs {
                         element_type: IterExprWireListElementU::IterExprWireRange,
@@ -311,34 +310,34 @@ impl IterExprListElement {
     }
 }
 
-impl<'a> TryFrom<g::IterExprWireList<'a>> for IterExprList {
+impl<'a> TryFrom<generated::IterExprWireList<'a>> for IterExprList {
     type Error = Box<dyn Error>;
 
-    fn try_from(list: g::IterExprWireList<'a>) -> Result<Self> {
-        let fbs_vector = list.elements().ok_or_else(|| "Missing wire list")?;
+    fn try_from(list: generated::IterExprWireList<'a>) -> Result<Self> {
+        let fbs_vector = list.elements().ok_or("Missing wire list")?;
         let mut elements = vec![];
         for i in 0..fbs_vector.len() {
             let a = fbs_vector.get(i);
             elements.push(IterExprListElement::try_from(a)?);
         }
-        Ok(IterExprList::from(elements))
+        Ok(elements)
     }
 }
 
 /// Add a vector of this structure into a Flatbuffers message builder.
-pub fn build_iterexpr_list<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    elements: &'args [IterExprListElement],
-) -> WIPOffset<g::IterExprWireList<'bldr>> {
+pub fn build_iterexpr_list<'bldr>(
+    builder: &mut FlatBufferBuilder<'bldr>,
+    elements: &[IterExprListElement],
+) -> WIPOffset<generated::IterExprWireList<'bldr>> {
     let g_elements: Vec<_> = elements
         .iter()
         .map(|element| element.build(builder))
         .collect();
     let g_vector = builder.create_vector(&g_elements);
 
-    g::IterExprWireList::create(
+    generated::IterExprWireList::create(
         builder,
-        &g::IterExprWireListArgs {
+        &generated::IterExprWireListArgs {
             elements: Some(g_vector),
         },
     )
@@ -355,18 +354,18 @@ pub fn evaluate_iterexpr(
         IterExprName(name) => {
             *(known_iterators
                 .get(name)
-                .ok_or_else(|| format!("Unknown iterator name {}", &name))?)
+                .ok_or(format!("Unknown iterator name {}", &name))?)
         }
         IterExprAdd(left, right) => {
-            evaluate_iterexpr(&left, known_iterators)? + evaluate_iterexpr(&right, known_iterators)?
+            evaluate_iterexpr(left, known_iterators)? + evaluate_iterexpr(right, known_iterators)?
         }
         IterExprSub(left, right) => {
-            evaluate_iterexpr(&left, known_iterators)? - evaluate_iterexpr(&right, known_iterators)?
+            evaluate_iterexpr(left, known_iterators)? - evaluate_iterexpr(right, known_iterators)?
         }
         IterExprMul(left, right) => {
-            evaluate_iterexpr(&left, known_iterators)? * evaluate_iterexpr(&right, known_iterators)?
+            evaluate_iterexpr(left, known_iterators)? * evaluate_iterexpr(right, known_iterators)?
         }
-        IterExprDivConst(numer, denom) => evaluate_iterexpr(&numer, known_iterators)? / denom,
+        IterExprDivConst(numer, denom) => evaluate_iterexpr(numer, known_iterators)? / denom,
     })
 }
 

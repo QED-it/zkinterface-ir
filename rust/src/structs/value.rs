@@ -1,4 +1,4 @@
-use crate::sieve_ir_generated::sieve_ir as g;
+use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use num_bigint_dig;
@@ -11,13 +11,13 @@ use num_bigint_dig::prime::probably_prime;
 pub type Value = Vec<u8>;
 
 /// Convert from Flatbuffers references to owned structure.
-pub fn try_from_value(g_value: g::Value) -> Result<Value> {
-    Ok(Vec::from(g_value.value().ok_or_else(|| "Missing value")?))
+pub fn try_from_value(g_value: generated::Value) -> Result<Value> {
+    Ok(Vec::from(g_value.value().ok_or("Missing value")?))
 }
 
 /// Convert from a Flatbuffers vector to owned structures.
 pub fn try_from_values_vector<'a>(
-    g_vector: Vector<'a, ForwardsUOffset<g::Value<'a>>>,
+    g_vector: Vector<'a, ForwardsUOffset<generated::Value<'a>>>,
 ) -> Result<Vec<Value>> {
     let mut values = vec![];
     for i in 0..g_vector.len() {
@@ -28,19 +28,19 @@ pub fn try_from_values_vector<'a>(
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_value<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    value: &'args Value,
-) -> WIPOffset<g::Value<'bldr>> {
+pub fn build_value<'bldr>(
+    builder: &mut FlatBufferBuilder<'bldr>,
+    value: &Value,
+) -> WIPOffset<generated::Value<'bldr>> {
     let value = builder.create_vector(&value[..]);
-    g::Value::create(builder, &g::ValueArgs { value: Some(value) })
+    generated::Value::create(builder, &generated::ValueArgs { value: Some(value) })
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_values_vector<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-    builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    values: &'args [Value],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<g::Value<'bldr>>>> {
+pub fn build_values_vector<'bldr>(
+    builder: &mut FlatBufferBuilder<'bldr>,
+    values: &[Value],
+) -> WIPOffset<Vector<'bldr, ForwardsUOffset<generated::Value<'bldr>>>> {
     let g_values: Vec<_> = values
         .iter()
         .map(|g_value| build_value(builder, g_value))

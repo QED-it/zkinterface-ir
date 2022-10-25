@@ -1,7 +1,6 @@
 extern crate serde;
 extern crate serde_json;
 
-use num_bigint::BigUint;
 use std::fs::File;
 use std::io::{copy, stdin, stdout, BufReader};
 use std::path::{Path, PathBuf};
@@ -56,6 +55,8 @@ pub struct Options {
     ///
     /// bool-example  Produce Boolean example statements.
     ///
+    /// several-fields-example Produce example statements with several fields.
+    ///
     /// to-text       Print the content in a human-readable form.
     ///
     /// to-json       Convert to JSON on a single line.
@@ -68,7 +69,7 @@ pub struct Options {
     ///
     /// metrics       Calculate statistics about the circuit.
     ///
-    /// valid-eval-metrics    Combined validate, evaluate, and metrics.
+    /// valid-eval-metrics     Combined validate, evaluate, and metrics.
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
     ///
@@ -76,9 +77,9 @@ pub struct Options {
     ///
     /// flatten       Flatten a SIEVE IR circuit (takes files and directories, output resulting circuit in stdout or directory specified by --out).
     ///
-    /// expand-definable    Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
+    /// expand-definable       Expand definable gates in SIEVE IR relation (e.g. addConstant, mulConstant, or convert between And/Xor and Mul/Add).
     ///
-    /// list-validations    Lists all the checks performed by the validator.
+    /// list-validations       Lists all the checks performed by the validator.
     ///
     /// cat           Concatenate .sieve files to stdout to pipe to another program.
     #[structopt(default_value = "help")]
@@ -91,10 +92,6 @@ pub struct Options {
     /// The dash - means either write to stdout or read from stdin.
     #[structopt(default_value = ".")]
     pub paths: Vec<PathBuf>,
-
-    /// Which field to use when generating circuits.
-    #[structopt(short, long, default_value = "101")]
-    pub field_order: BigUint,
 
     /// `example --incorrect` will generate an incorrect witness useful for negative tests.
     #[structopt(long)]
@@ -121,6 +118,7 @@ pub fn cli(options: &Options) -> Result<()> {
     match &options.tool[..] {
         "example" => main_example(options),
         "bool-example" => main_boolean_example(options),
+        "several-fields-example" => main_several_fields_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "from-json" => from_json(options),
@@ -164,7 +162,7 @@ fn stream_messages(opts: &Options) -> Result<Source> {
 fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
 
-    let header = example_header_in_field(opts.field_order.to_bytes_le());
+    let header = example_header();
     let instance = example_instance_h(&header);
     let relation = example_relation_h(&header);
     let witness = if opts.incorrect {
@@ -186,6 +184,20 @@ fn main_boolean_example(opts: &Options) -> Result<()> {
         example_witness_incorrect_h(&header)
     } else {
         example_witness_h(&header)
+    };
+    write_example(opts, &instance, &witness, &relation)?;
+    Ok(())
+}
+
+fn main_several_fields_example(opts: &Options) -> Result<()> {
+    use crate::producers::examples_with_several_fields::*;
+
+    let instance = example_instance_with_several_fields();
+    let relation = example_relation_with_several_fields();
+    let witness = if opts.incorrect {
+        example_incorrect_witness_with_several_fields()
+    } else {
+        example_witness_with_several_fields()
     };
     write_example(opts, &instance, &witness, &relation)?;
     Ok(())
@@ -218,9 +230,9 @@ fn write_example(
     } else {
         let mut sink = FilesSink::new_clean(out_dir)?;
         sink.print_filenames();
-        sink.push_instance_message(&instance)?;
-        sink.push_witness_message(&witness)?;
-        sink.push_relation_message(&relation)?;
+        sink.push_instance_message(instance)?;
+        sink.push_witness_message(witness)?;
+        sink.push_relation_message(relation)?;
     }
     Ok(())
 }
@@ -392,7 +404,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
             Message::Header(head) => Some(head),
             _ => None,
         })
-        .ok_or_else(|| "Header not present in ZKIF workspace.")?;
+        .ok_or("Header not present in ZKIF workspace.")?;
 
     let out_dir = &opts.out;
     if out_dir == Path::new("-") {
@@ -414,7 +426,7 @@ fn main_zkif_to_ir(opts: &Options) -> Result<()> {
             let msg = msg?;
             msg.write_into(&mut stdout())?;
         }
-    } else if has_sieve_extension(&out_dir) {
+    } else if has_sieve_extension(out_dir) {
         return Err("IR flattening requires a directory as output value".into());
     } else {
         // instantiate the converter
@@ -451,12 +463,18 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
             evaluator.ingest_message(&msg?, &mut flattener);
         }
 
+        print_violations(
+            &evaluator.get_violations(),
+            "The input statement",
+            "flattenable",
+        )?;
+
         let s: Source = flattener.finish().into();
         for msg in s.iter_messages() {
             let msg = msg?;
             msg.write_into(&mut stdout())?;
         }
-    } else if has_sieve_extension(&out_dir) {
+    } else if has_sieve_extension(out_dir) {
         return Err("IR flattening requires a directory as output value".into());
     } else {
         let mut flattener = IRFlattener::new(FilesSink::new_clean(out_dir)?);
@@ -465,6 +483,13 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
         for msg in source.iter_messages() {
             evaluator.ingest_message(&msg?, &mut flattener);
         }
+
+        print_violations(
+            &evaluator.get_violations(),
+            "The input statement",
+            "flattenable",
+        )?;
+
         flattener.finish();
     }
 
@@ -482,16 +507,13 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     for m in source.iter_messages() {
         let m = m?;
         // if there is at least one witness message, then we'll convert them as well.
-        match m {
-            Message::Witness(_) => {
-                use_witness = true;
-            }
-            _ => { /* DO NOTHING */ }
+        if let Message::Witness(_) = m {
+            use_witness = true;
         }
     }
     let out_dir = &opts.out;
 
-    if out_dir == Path::new("-") || has_sieve_extension(&out_dir) {
+    if out_dir == Path::new("-") || has_sieve_extension(out_dir) {
         return Err("IR->R1CS converter requires a directory as output value".into());
     } else {
         let mut to_r1cs = ToR1CSConverter::new(
@@ -504,6 +526,13 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
         for msg in source.iter_messages() {
             evaluator.ingest_message(&msg?, &mut to_r1cs);
         }
+
+        print_violations(
+            &evaluator.get_violations(),
+            "The input statement",
+            "convertible into R1CS",
+        )?;
+
         to_r1cs.finish()?;
     }
 
@@ -529,12 +558,18 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                         evaluator.ingest_message(&msg?, &mut expander);
                     }
 
+                    print_violations(
+                        &evaluator.get_violations(),
+                        "The input statement",
+                        "compatible with expand definable",
+                    )?;
+
                     let s: Source = expander.finish().into();
                     for msg in s.iter_messages() {
                         let msg = msg?;
                         msg.write_into(&mut stdout())?;
                     }
-                } else if has_sieve_extension(&out_dir) {
+                } else if has_sieve_extension(out_dir) {
                     return Err("IR flattening requires a directory as output value".into());
                 } else {
                     let mut expander =
@@ -544,6 +579,13 @@ fn main_expand_definable(opts: &Options) -> Result<()> {
                     for msg in source.iter_messages() {
                         evaluator.ingest_message(&msg?, &mut expander);
                     }
+
+                    print_violations(
+                        &evaluator.get_violations(),
+                        "The input statement",
+                        "compatible with expand definable",
+                    )?;
+
                     expander.finish();
                 }
             }
@@ -560,7 +602,7 @@ fn print_violations(
     what_it_is_supposed_to_be: &str,
 ) -> Result<()> {
     eprintln!();
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         eprintln!("{} is NOT {}!", which_statement, what_it_is_supposed_to_be);
         eprintln!("Violations:\n- {}\n", errors.join("\n- "));
         Err(format!("Found {} violations.", errors.len()).into())
@@ -580,7 +622,6 @@ fn test_cli() -> Result<()> {
     cli(&Options {
         tool: "example".to_string(),
         paths: vec![arithmetic_workspace.clone()],
-        field_order: BigUint::from(101 as u32),
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
@@ -590,8 +631,7 @@ fn test_cli() -> Result<()> {
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
-        paths: vec![arithmetic_workspace.clone()],
-        field_order: BigUint::from(101 as u32),
+        paths: vec![arithmetic_workspace],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
@@ -604,7 +644,6 @@ fn test_cli() -> Result<()> {
     cli(&Options {
         tool: "bool-example".to_string(),
         paths: vec![boolean_workspace.clone()],
-        field_order: BigUint::from(2 as u32),
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
@@ -614,8 +653,29 @@ fn test_cli() -> Result<()> {
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
-        paths: vec![boolean_workspace.clone()],
-        field_order: BigUint::from(101 as u32),
+        paths: vec![boolean_workspace],
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        gate_set: None,
+    })?;
+
+    let several_fields_workspace = PathBuf::from("local/test_cli/several_fields_example");
+
+    cli(&Options {
+        tool: "several-fields-example".to_string(),
+        paths: vec![several_fields_workspace.clone()],
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+        gate_set: None,
+    })?;
+
+    cli(&Options {
+        tool: "valid-eval-metrics".to_string(),
+        paths: vec![several_fields_workspace],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,

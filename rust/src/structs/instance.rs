@@ -6,27 +6,28 @@ use std::error::Error;
 use std::io::Write;
 
 use super::header::Header;
-use crate::sieve_ir_generated::sieve_ir as g;
-use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
+use crate::sieve_ir_generated::sieve_ir as generated;
+use crate::structs::inputs::Inputs;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Instance {
     pub header: Header,
-    pub common_inputs: Vec<Value>,
+    pub common_inputs: Vec<Inputs>,
 }
 
-impl<'a> TryFrom<g::Instance<'a>> for Instance {
+impl<'a> TryFrom<generated::Instance<'a>> for Instance {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(g_instance: g::Instance) -> Result<Instance> {
+    fn try_from(g_instance: generated::Instance) -> Result<Instance> {
+        let fbs_vector = g_instance.common_inputs().ok_or("Missing common_inputs")?;
+        let mut common_inputs: Vec<Inputs> = vec![];
+        for g_inputs in fbs_vector {
+            common_inputs.push(Inputs::try_from(g_inputs)?);
+        }
         Ok(Instance {
             header: Header::try_from(g_instance.header())?,
-            common_inputs: try_from_values_vector(
-                g_instance
-                    .common_inputs()
-                    .ok_or_else(|| "Missing common_input")?,
-            )?,
+            common_inputs,
         })
     }
 }
@@ -36,34 +37,39 @@ impl<'a> TryFrom<&'a [u8]> for Instance {
 
     fn try_from(buffer: &'a [u8]) -> Result<Instance> {
         Instance::try_from(
-            g::get_size_prefixed_root_as_root(&buffer)
+            generated::get_size_prefixed_root_as_root(buffer)
                 .message_as_instance()
-                .ok_or_else(|| "Not a Instance message.")?,
+                .ok_or("Not a Instance message.")?,
         )
     }
 }
 
 impl Instance {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Root<'bldr>> {
+    pub fn build<'bldr>(
+        &self,
+        builder: &mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<generated::Root<'bldr>> {
         let header = Some(self.header.build(builder));
-        let common_inputs = Some(build_values_vector(builder, &self.common_inputs));
+        let g_inputs: Vec<_> = self
+            .common_inputs
+            .iter()
+            .map(|inputs| inputs.build(builder))
+            .collect();
+        let g_vector = builder.create_vector(&g_inputs);
 
-        let instance = g::Instance::create(
+        let instance = generated::Instance::create(
             builder,
-            &g::InstanceArgs {
+            &generated::InstanceArgs {
                 header,
-                common_inputs,
+                common_inputs: Some(g_vector),
             },
         );
 
-        g::Root::create(
+        generated::Root::create(
             builder,
-            &g::RootArgs {
-                message_type: g::Message::Instance,
+            &generated::RootArgs {
+                message_type: generated::Message::Instance,
                 message: Some(instance.as_union_value()),
             },
         )
@@ -85,8 +91,15 @@ impl Instance {
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
         let message = self.build(&mut builder);
-        g::finish_size_prefixed_root_buffer(&mut builder, message);
+        generated::finish_size_prefixed_root_buffer(&mut builder, message);
         writer.write_all(builder.finished_data())?;
         Ok(())
+    }
+
+    pub fn get_instance_len(&self) -> usize {
+        self.common_inputs
+            .iter()
+            .map(|inputs| inputs.inputs.len())
+            .sum()
     }
 }

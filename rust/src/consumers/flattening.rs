@@ -1,9 +1,8 @@
-use crate::consumers::evaluator::ZKBackend;
+use crate::consumers::evaluator::{get_field, ZKBackend};
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::relation::{ARITH, BOOL, SIMPLE};
-use crate::structs::IR_VERSION;
-use crate::{Header, Result, Sink, Value, WireId};
+use crate::{FieldId, Header, Result, Sink, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
@@ -14,7 +13,7 @@ use num_traits::{One, Zero};
 pub struct IRFlattener<S: Sink> {
     sink: Option<S>,
     b: Option<GateBuilder<S>>,
-    modulus: BigUint,
+    moduli: Vec<BigUint>,
 }
 
 impl<S: Sink> IRFlattener<S> {
@@ -22,7 +21,7 @@ impl<S: Sink> IRFlattener<S> {
         IRFlattener {
             sink: Some(sink),
             b: None,
-            modulus: BigUint::zero(),
+            moduli: vec![],
         }
     }
 
@@ -47,14 +46,12 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_field(&mut self, modulus: &[u8], degree: u32, is_boolean: bool) -> Result<()> {
+    fn set_fields(&mut self, moduli: &[Value], is_boolean: bool) -> Result<()> {
         if self.b.is_none() {
-            let header = Header {
-                version: IR_VERSION.parse().unwrap(),
-                field_characteristic: Value::from(modulus),
-                field_degree: degree,
-            };
-            self.modulus = BigUint::from_bytes_le(modulus);
+            let header = Header::new(moduli);
+            for modulus in moduli {
+                self.moduli.push(BigUint::from_bytes_le(modulus));
+            }
             self.b = Some(GateBuilder::new(
                 self.sink.take().unwrap(),
                 header,
@@ -69,124 +66,167 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(BigUint::one())
     }
 
-    fn minus_one(&self) -> Result<Self::FieldElement> {
-        if self.modulus.is_zero() {
-            return Err("Modulus is not initiated, used `set_field()` before calling.".into());
+    fn minus_one(&self, field_id: &FieldId) -> Result<Self::FieldElement> {
+        if self.moduli.is_empty() {
+            return Err("Moduli is not initiated, used `set_fields()` before calling.".into());
         }
-        Ok(&self.modulus - self.one()?)
+        let field = get_field(field_id, &self.moduli)?;
+        Ok(field - self.one()?)
     }
 
     fn zero(&self) -> Result<Self::FieldElement> {
         Ok(BigUint::zero())
     }
 
-    fn copy(&mut self, wire: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Copy(*wire)))
-    }
-
-    fn constant(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self
-            .b
-            .as_mut()
-            .unwrap()
-            .create_gate(BuildGate::Constant(val.to_bytes_le())))
-    }
-
-    fn assert_zero(&mut self, wire: &Self::Wire) -> Result<()> {
+    fn copy(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::AssertZero(*wire));
+            .create_gate(BuildGate::Copy(*field_id, *wire))
+    }
+
+    fn constant(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::Constant(*field_id, val.to_bytes_le()))
+    }
+
+    fn assert_zero(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<()> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::AssertZero(*field_id, *wire))?;
         Ok(())
     }
 
-    fn add(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+    fn add(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Add(*a, *b)))
-    }
-
-    fn multiply(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Mul(*a, *b)))
-    }
-
-    fn add_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self
-            .b
+        self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::AddConstant(*a, b.to_bytes_le())))
+            .create_gate(BuildGate::Add(*field_id, *a, *b))
     }
 
-    fn mul_constant(&mut self, a: &Self::Wire, b: Self::FieldElement) -> Result<Self::Wire> {
+    fn multiply(
+        &mut self,
+        field_id: &FieldId,
+        a: &Self::Wire,
+        b: &Self::Wire,
+    ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self
-            .b
+        self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::MulConstant(*a, b.to_bytes_le())))
+            .create_gate(BuildGate::Mul(*field_id, *a, *b))
     }
 
-    fn and(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+    fn add_constant(
+        &mut self,
+        field_id: &FieldId,
+        a: &Self::Wire,
+        b: Self::FieldElement,
+    ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::And(*a, *b)))
-    }
-
-    fn xor(&mut self, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Xor(*a, *b)))
-    }
-
-    fn not(&mut self, a: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self.b.as_mut().unwrap().create_gate(BuildGate::Not(*a)))
-    }
-
-    fn instance(&mut self, val: Self::FieldElement) -> Result<Self::Wire> {
-        if self.b.is_none() {
-            panic!("Builder has not been properly initialized.");
-        }
-        Ok(self
-            .b
+        self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Instance(Some(val.to_bytes_le()))))
+            .create_gate(BuildGate::AddConstant(*field_id, *a, b.to_bytes_le()))
     }
 
-    fn witness(&mut self, val: Option<Self::FieldElement>) -> Result<Self::Wire> {
+    fn mul_constant(
+        &mut self,
+        field_id: &FieldId,
+        a: &Self::Wire,
+        b: Self::FieldElement,
+    ) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::MulConstant(*field_id, *a, b.to_bytes_le()))
+    }
+
+    fn and(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::And(*field_id, *a, *b))
+    }
+
+    fn xor(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::Xor(*field_id, *a, *b))
+    }
+
+    fn not(&mut self, field_id: &FieldId, a: &Self::Wire) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::Not(*field_id, *a))
+    }
+
+    fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+        if self.b.is_none() {
+            panic!("Builder has not been properly initialized.");
+        }
+        self.b
+            .as_mut()
+            .unwrap()
+            .create_gate(BuildGate::Instance(*field_id, Some(val.to_bytes_le())))
+    }
+
+    fn witness(
+        &mut self,
+        field_id: &FieldId,
+        val: Option<Self::FieldElement>,
+    ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         let value = val.map(|v| v.to_bytes_le());
-        Ok(self
-            .b
+        self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Witness(value)))
+            .create_gate(BuildGate::Witness(*field_id, value))
+    }
+
+    fn convert(
+        &mut self,
+        _output_field: &FieldId,
+        _output_wire_count: u64,
+        _input_field: &FieldId,
+        _inputs: &[&Self::Wire],
+    ) -> Result<Vec<Self::Wire>> {
+        Err("Not possible to flatten circuit containing convert gates".into())
     }
 }
 
@@ -216,9 +256,7 @@ fn test_validate_flattening() -> crate::Result<()> {
         val.ingest_message(&message?);
     }
 
-    let violations = val.get_violations();
-
-    assert_eq!(violations, Vec::<String>::new());
+    assert_eq!(val.get_violations(), Vec::<String>::new());
 
     Ok(())
 }
@@ -246,7 +284,7 @@ fn test_evaluate_flattening() -> crate::Result<()> {
     let mut interpreter = PlaintextBackend::default();
     let new_simulator = Evaluator::from_messages(s.iter_messages(), &mut interpreter);
 
-    assert_eq!(new_simulator.get_violations().len(), 0);
+    assert_eq!(new_simulator.get_violations(), Vec::<String>::new());
 
     Ok(())
 }

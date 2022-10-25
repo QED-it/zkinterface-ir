@@ -40,7 +40,7 @@ pub use producers::sink::{clean_workspace, FilesSink, Sink};
 pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
 pub use structs::{
     gates::Gate, header::Header, instance::Instance, message::Message, messages::Messages,
-    relation::Relation, value::Value, witness::Witness, WireId,
+    relation::Relation, value::Value, witness::Witness, FieldId, WireId,
 };
 
 /// Common definition of Result with generic errors.
@@ -56,10 +56,10 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// ```
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
-/// let v = wirelist![1, 2, 3];
-/// assert_eq!(v[0], WireListElement::Wire(1));
-/// assert_eq!(v[1], WireListElement::Wire(2));
-/// assert_eq!(v[2], WireListElement::Wire(3));
+/// let v = wirelist![5; 1, 2, 3];
+/// assert_eq!(v[0], WireListElement::Wire(5, 1));
+/// assert_eq!(v[1], WireListElement::Wire(5, 2));
+/// assert_eq!(v[2], WireListElement::Wire(5, 3));
 /// ```
 ///
 /// - Create a `WireList` from a given WireId and size:
@@ -67,15 +67,15 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// ```
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
-/// let v = wirelist![1; 3];
-/// assert_eq!(v, [WireListElement::Wire(1), WireListElement::Wire(1), WireListElement::Wire(1)]);
+/// let v = wirelist![2; 1; 3];
+/// assert_eq!(v, [WireListElement::Wire(2, 1), WireListElement::Wire(2, 1), WireListElement::Wire(2, 1)]);
 /// ```
 #[macro_export]
 macro_rules! wirelist {
-    ($elem:expr; $n:expr) => (
-        vec![WireListElement::Wire($elem); $n]
+    ($field_id:expr; $elem:expr; $n:expr) => (
+        vec![WireListElement::Wire($field_id, $elem); $n]
     );
-    ( $( $x:expr ),*) => (
-        vec![$(WireListElement::Wire($x)),*]
+    ($field_id:expr;  $( $x:expr ),*) => (
+        vec![$(WireListElement::Wire($field_id, $x)),*]
     );
 }

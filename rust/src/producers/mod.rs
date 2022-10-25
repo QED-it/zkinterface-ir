@@ -2,6 +2,9 @@
 pub mod boolean_examples;
 /// Example statements generator.
 pub mod examples;
+/// Example statements generator with several fields.
+pub mod examples_with_several_fields;
+
 /// A Sink stores produced messages, e.g. in files.
 pub mod sink;
 

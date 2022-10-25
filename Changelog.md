@@ -1,6 +1,15 @@
 # Unreleased
 
 Rust:
+- add field switching (breaking change)
+    - Header contains now a list of fields
+    - Instances/witnesses contains now one list of values per field
+    - Add field id into gates and WireListElement
+    - Add convert gate
+
+# SIEVE IR v1.0.1, 2022-08
+
+Rust:
 - gateset and features are now mandatory when creating a GateBuilder with new method (breaking change)
 - add some checks for the validator to be in accordance with IR v1.0.1
 

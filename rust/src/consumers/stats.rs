@@ -6,13 +6,13 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::structs::function::{CaseInvoke, ForLoopBody};
-use crate::{Gate, Header, Instance, Message, Relation, Result, Witness};
+use crate::{Gate, Header, Instance, Message, Relation, Result, Value, Witness};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
     // Inputs.
-    pub instance_variables: usize,
-    pub witness_variables: usize,
+    pub instance_variables: u64,
+    pub witness_variables: u64,
     // Gates.
     pub constants_gates: usize,
     pub assert_zero_gates: usize,
@@ -24,11 +24,12 @@ pub struct GateStats {
     pub and_gates: usize,
     pub xor_gates: usize,
     pub not_gates: usize,
-    pub variables_freed: usize,
+    pub variables_freed: u64,
 
     pub functions_defined: usize,
     pub functions_called: usize,
 
+    pub convert_gates: usize,
     pub switches: usize,
     pub branches: usize,
 
@@ -43,13 +44,12 @@ pub struct GateStats {
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
     // Header.
-    pub field_characteristic: Vec<u8>,
-    pub field_degree: u32,
+    pub moduli: Vec<Value>,
 
     pub gate_stats: GateStats,
 
     // Function definitions => stats / instance_count / witness_count
-    pub functions: HashMap<String, (GateStats, usize, usize)>,
+    pub functions: HashMap<String, (GateStats, u64, u64)>,
 }
 
 impl Stats {
@@ -61,9 +61,9 @@ impl Stats {
 
     pub fn ingest_message(&mut self, msg: &Message) {
         match msg {
-            Message::Instance(i) => self.ingest_instance(&i),
-            Message::Witness(w) => self.ingest_witness(&w),
-            Message::Relation(r) => self.ingest_relation(&r),
+            Message::Instance(i) => self.ingest_instance(i),
+            Message::Witness(w) => self.ingest_witness(w),
+            Message::Relation(r) => self.ingest_relation(r),
         }
     }
 
@@ -82,14 +82,11 @@ impl Stats {
         self.gate_stats.relation_messages += 1;
 
         for f in relation.functions.iter() {
-            let (name, _, _, instance_count, witness_count, subcircuit) = (
-                f.name.clone(),
-                f.output_count,
-                f.input_count,
-                f.instance_count,
-                f.witness_count,
-                f.body.clone(),
-            );
+            let name = f.name.clone();
+            let instance_count = f.instance_count.values().sum::<u64>();
+            let witness_count = f.witness_count.values().sum::<u64>();
+            let subcircuit = f.body.clone();
+
             // Just record the signature.
             self.gate_stats.functions_defined += 1;
             let func_stats = ingest_subcircuit(&subcircuit, &self.functions);
@@ -103,14 +100,18 @@ impl Stats {
     }
 
     fn ingest_header(&mut self, header: &Header) {
-        self.field_characteristic = header.field_characteristic.clone();
-        self.field_degree = header.field_degree;
+        if self.moduli.is_empty() {
+            // Header has not yet been ingested
+            for field in &header.fields {
+                self.moduli.push(field.clone());
+            }
+        }
     }
 }
 
 fn ingest_subcircuit(
     subcircuit: &[Gate],
-    known_functions: &HashMap<String, (GateStats, usize, usize)>,
+    known_functions: &HashMap<String, (GateStats, u64, u64)>,
 ) -> GateStats {
     let mut local_stats = GateStats::default();
     for gate in subcircuit {
@@ -123,62 +124,66 @@ impl GateStats {
     fn ingest_gate(
         &mut self,
         gate: &Gate,
-        known_functions: &HashMap<String, (GateStats, usize, usize)>,
+        known_functions: &HashMap<String, (GateStats, u64, u64)>,
     ) {
         use Gate::*;
 
         match gate {
-            Constant(_out, _value) => {
+            Constant(_field_id, _out, _value) => {
                 self.constants_gates += 1;
             }
 
-            AssertZero(_inp) => {
+            AssertZero(_field_id, _inp) => {
                 self.assert_zero_gates += 1;
             }
 
-            Copy(_out, _inp) => {
+            Copy(_field_id, _out, _inp) => {
                 self.copy_gates += 1;
             }
 
-            Add(_out, _left, _right) => {
+            Add(_field_id, _out, _left, _right) => {
                 self.add_gates += 1;
             }
 
-            Mul(_out, _left, _right) => {
+            Mul(_field_id, _out, _left, _right) => {
                 self.mul_gates += 1;
             }
 
-            AddConstant(_out, _inp, _constant) => {
+            AddConstant(_field_id, _out, _inp, _constant) => {
                 self.add_constant_gates += 1;
             }
 
-            MulConstant(_out, _inp, _constant) => {
+            MulConstant(_field_id, _out, _inp, _constant) => {
                 self.mul_constant_gates += 1;
             }
 
-            And(_out, _left, _right) => {
+            And(_field_id, _out, _left, _right) => {
                 self.and_gates += 1;
             }
 
-            Xor(_out, _left, _right) => {
+            Xor(_field_id, _out, _left, _right) => {
                 self.xor_gates += 1;
             }
 
-            Not(_out, _inp) => {
+            Not(_field_id, _out, _inp) => {
                 self.not_gates += 1;
             }
 
-            Instance(_out) => {
+            Instance(_field_id, _out) => {
                 self.instance_variables += 1;
             }
 
-            Witness(_out) => {
+            Witness(_field_id, _out) => {
                 self.witness_variables += 1;
             }
 
-            Free(first, last) => {
+            Free(_field_id, first, last) => {
                 let last_one = last.unwrap_or(*first);
-                self.variables_freed += (last_one - *first + 1) as usize;
+                self.variables_freed += last_one - *first + 1;
+            }
+
+            Convert(_, _) => {
+                self.convert_gates += 1;
             }
 
             Call(name, _, _) => {
@@ -194,14 +199,14 @@ impl GateStats {
 
             AnonCall(_, _, instance_count, witness_count, subcircuit) => {
                 self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                self.instance_variables += instance_count;
-                self.witness_variables += witness_count;
+                self.instance_variables += instance_count.values().sum::<u64>();
+                self.witness_variables += witness_count.values().sum::<u64>();
             }
 
-            Switch(_, _, _, branches) => {
+            Switch(_, _, _, _, branches) => {
                 self.switches += 1;
                 self.branches += branches.len();
-                let (mut max_instance_count, mut max_witness_count) = (0usize, 0usize);
+                let (mut max_instance_count, mut max_witness_count) = (0u64, 0u64);
 
                 for branch in branches {
                     let (instance_count, witness_count) = match branch {
@@ -212,7 +217,7 @@ impl GateStats {
                                 (stats_ins_wit.1, stats_ins_wit.2)
                             } else {
                                 eprintln!("WARNING Stats: function not defined \"{}\"", name);
-                                (0usize, 0usize)
+                                (0u64, 0u64)
                             }
                         }
                         CaseInvoke::AbstractAnonCall(
@@ -222,7 +227,10 @@ impl GateStats {
                             subcircuit,
                         ) => {
                             self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                            (*instance_count, *witness_count)
+                            (
+                                instance_count.values().sum::<u64>(),
+                                witness_count.values().sum::<u64>(),
+                            )
                         }
                     };
 
@@ -238,7 +246,7 @@ impl GateStats {
                 self.for_loops += 1;
                 for _ in *start_val..=*end_val {
                     match body {
-                        ForLoopBody::IterExprCall(name, _, _) => {
+                        ForLoopBody::IterExprCall(name, _, _, _) => {
                             self.functions_called += 1;
                             if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
                                 self.ingest_call_stats(&stats_ins_wit.0);
@@ -251,13 +259,14 @@ impl GateStats {
                         ForLoopBody::IterExprAnonCall(
                             _,
                             _,
+                            _,
                             instance_count,
                             witness_count,
                             subcircuit,
                         ) => {
                             self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                            self.instance_variables += *instance_count;
-                            self.witness_variables += *witness_count;
+                            self.instance_variables += instance_count.values().sum::<u64>();
+                            self.witness_variables += witness_count.values().sum::<u64>();
                         }
                     }
                 }
@@ -279,6 +288,7 @@ impl GateStats {
         self.not_gates += other.not_gates;
         self.variables_freed += other.variables_freed;
 
+        self.convert_gates += other.convert_gates;
         self.switches += other.switches;
         self.branches += other.branches;
         self.for_loops += other.for_loops;
@@ -287,7 +297,7 @@ impl GateStats {
 }
 
 #[test]
-fn test_stats() -> crate::Result<()> {
+fn test_stats() -> Result<()> {
     use crate::producers::examples::*;
 
     let instance = example_instance();
@@ -300,8 +310,7 @@ fn test_stats() -> crate::Result<()> {
     stats.ingest_relation(&relation);
 
     let mut expected_stats = Stats {
-        field_characteristic: literal(EXAMPLE_MODULUS),
-        field_degree: 1,
+        moduli: vec![literal(EXAMPLE_MODULUS)],
         gate_stats: GateStats {
             instance_variables: 3,
             witness_variables: 4,
@@ -318,6 +327,7 @@ fn test_stats() -> crate::Result<()> {
             variables_freed: 51,
             functions_defined: 1,
             functions_called: 20,
+            convert_gates: 0,
             switches: 1,
             branches: 2,
             for_loops: 2,

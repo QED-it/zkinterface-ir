@@ -45,12 +45,12 @@ impl Sink for MemorySink {
     }
 }
 
-impl Into<Source> for MemorySink {
-    fn into(self) -> Source {
+impl From<MemorySink> for Source {
+    fn from(mem: MemorySink) -> Source {
         Source::from_buffers(vec![
-            self.instance_buffer,
-            self.witness_buffer,
-            self.relation_buffer,
+            mem.instance_buffer,
+            mem.witness_buffer,
+            mem.relation_buffer,
         ])
     }
 }
@@ -122,9 +122,9 @@ impl Sink for FilesSink {
     }
 }
 
-impl Into<Source> for FilesSink {
-    fn into(self) -> Source {
-        Source::from_directory(&self.workspace).unwrap()
+impl From<FilesSink> for Source {
+    fn from(files_sink: FilesSink) -> Source {
+        Source::from_directory(&files_sink.workspace).unwrap()
     }
 }
 

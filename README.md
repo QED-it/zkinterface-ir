@@ -107,149 +107,255 @@ The command below reads the statement and prints a textual representation of it.
     instances:
       - header:
           version: 1.0.0
-          field_characteristic:
-            - 101
-          field_degree: 1
+          fields:
+            - - 101
+              - 0
+              - 0
+              - 0
+            - - 7
+              - 0
+              - 0
+              - 0
         common_inputs:
-          - - 25
-            - 0
-            - 0
-            - 0
-          - - 0
-            - 0
-            - 0
-            - 0
-          - - 1
-            - 0
-            - 0
-            - 0
+          - inputs:
+              - - 25
+              - - 0
+              - - 1
+          - inputs:
+              - - 6
+              - - 1
+              - - 0
     witnesses:
       - header:
           version: 1.0.0
-          field_characteristic:
-            - 101
-          field_degree: 1
+          fields:
+            - - 101
+              - 0
+              - 0
+              - 0
+            - - 7
+              - 0
+              - 0
+              - 0
         short_witness:
-          - - 3
-            - 0
-            - 0
-            - 0
-          - - 4
-            - 0
-            - 0
-            - 0
-          - - 0
-            - 0
-            - 0
-            - 0
-          - - 36
+          - inputs:
+              - - 3
+              - - 4
+              - - 0
+              - - 36
+                - 0
+                - 0
+                - 0
+          - inputs:
+              - - 4
+              - - 2
+              - - 3
     relations:
       - header:
           version: 1.0.0
-          field_characteristic:
-            - 101
-          field_degree: 1
-        gate_mask: 13
+          fields:
+            - - 101
+              - 0
+              - 0
+              - 0
+            - - 7
+              - 0
+              - 0
+              - 0
+        gate_mask: 15
         feat_mask: 28672
         functions:
           - name: "com.example::mul"
-            output_count: 1
-            input_count: 2
-            instance_count: 0
-            witness_count: 0
+            output_count:
+              0: 1
+            input_count:
+              0: 2
+            instance_count: {}
+            witness_count: {}
             body:
               - Mul:
+                  - 0
                   - 0
                   - 1
                   - 2
         gates:
-          - Witness: 1
-          - Switch:
+          - Witness:
+              - 0
               - 1
-              - - Wire: 0
-                - Wire: 2
-                - WireRange:
+          - Switch:
+              - 0
+              - 1
+              - - Wire:
+                    - 0
+                    - 0
+                - Wire:
+                    - 0
+                    - 2
+                - Wire:
+                    - 0
                     - 4
+                - Wire:
+                    - 0
+                    - 5
+                - Wire:
+                    - 0
                     - 6
-                - WireRange:
+                - Wire:
+                    - 0
                     - 9
+                - Wire:
+                    - 0
+                    - 10
+                - Wire:
+                    - 0
                     - 11
               - - - 3
                 - - 5
               - - AbstractAnonCall:
-                    - - Wire: 1
-                    - 3
-                    - 3
-                    - - Instance: 0
-                      - Witness: 1
+                    - - Wire:
+                          - 0
+                          - 1
+                    - 0: 3
+                    - 0: 3
+                    - - Instance:
+                          - 0
+                          - 0
+                      - Witness:
+                          - 0
+                          - 1
                       - Call:
                           - "com.example::mul"
-                          - - Wire: 2
-                          - - Wire: 8
-                            - Wire: 8
+                          - - Wire:
+                                - 0
+                                - 2
+                          - - Wire:
+                                - 0
+                                - 8
+                            - Wire:
+                                - 0
+                                - 8
                       - Call:
                           - "com.example::mul"
-                          - - Wire: 3
-                          - - Wire: 1
-                            - Wire: 1
+                          - - Wire:
+                                - 0
+                                - 3
+                          - - Wire:
+                                - 0
+                                - 1
+                            - Wire:
+                                - 0
+                                - 1
                       - Add:
+                          - 0
                           - 4
                           - 2
                           - 3
-                      - Witness: 9
-                      - AssertZero: 9
-                      - Instance: 6
-                      - AssertZero: 6
-                      - Instance: 7
-                      - Witness: 5
+                      - Witness:
+                          - 0
+                          - 9
+                      - AssertZero:
+                          - 0
+                          - 9
+                      - Instance:
+                          - 0
+                          - 6
+                      - AssertZero:
+                          - 0
+                          - 6
+                      - Instance:
+                          - 0
+                          - 7
+                      - Witness:
+                          - 0
+                          - 5
                 - AbstractAnonCall:
-                    - - Wire: 1
-                    - 3
-                    - 2
-                    - - Instance: 0
+                    - - Wire:
+                          - 0
+                          - 1
+                    - 0: 3
+                    - 0: 2
+                    - - Instance:
+                          - 0
+                          - 0
                       - Call:
                           - "com.example::mul"
-                          - - Wire: 1
-                          - - Wire: 8
-                            - Wire: 0
-                      - Witness: 2
+                          - - Wire:
+                                - 0
+                                - 1
+                          - - Wire:
+                                - 0
+                                - 8
+                            - Wire:
+                                - 0
+                                - 0
+                      - Witness:
+                          - 0
+                          - 2
                       - Mul:
+                          - 0
                           - 3
                           - 1
                           - 2
                       - Add:
+                          - 0
                           - 4
                           - 2
                           - 3
-                      - Instance: 5
-                      - Instance: 6
-                      - Witness: 7
-                      - AssertZero: 5
-                      - AssertZero: 0
+                      - Instance:
+                          - 0
+                          - 5
+                      - Instance:
+                          - 0
+                          - 6
+                      - Witness:
+                          - 0
+                          - 7
+                      - AssertZero:
+                          - 0
+                          - 5
+                      - AssertZero:
+                          - 0
+                          - 0
           - Constant:
+              - 0
               - 3
               - - 100
+                - 0
+                - 0
+                - 0
           - Call:
               - "com.example::mul"
-              - - Wire: 7
-              - - Wire: 3
-                - Wire: 0
+              - - Wire:
+                    - 0
+                    - 7
+              - - Wire:
+                    - 0
+                    - 3
+                - Wire:
+                    - 0
+                    - 0
           - Add:
+              - 0
               - 8
               - 6
               - 7
           - Free:
               - 0
+              - 0
               - 7
-          - AssertZero: 8
+          - AssertZero:
+              - 0
+              - 8
           - For:
               - i
               - 0
               - 20
               - - WireRange:
+                    - 0
                     - 12
                     - 32
               - IterExprAnonCall:
+                  - 0
                   - - Single:
                         IterExprAdd:
                           - IterExprName: i
@@ -262,30 +368,40 @@ The command below reads the statement and prints a textual representation of it.
                         IterExprAdd:
                           - IterExprName: i
                           - IterExprConst: 11
-                  - 0
-                  - 0
+                  - {}
+                  - {}
                   - - Add:
+                        - 0
                         - 0
                         - 1
                         - 2
           - MulConstant:
+              - 0
               - 33
               - 32
               - - 100
+                - 0
+                - 0
+                - 0
           - Add:
+              - 0
               - 34
               - 9
               - 33
-          - AssertZero: 34
+          - AssertZero:
+              - 0
+              - 34
           - For:
               - i
               - 35
               - 50
               - - WireRange:
+                    - 0
                     - 35
                     - 50
               - IterExprCall:
                   - "com.example::mul"
+                  - 0
                   - - Single:
                         IterExprName: i
                   - - Single:
@@ -297,10 +413,165 @@ The command below reads the statement and prints a textual representation of it.
                           - IterExprName: i
                           - IterExprConst: 2
           - Free:
+              - 0
               - 8
               - 50
-    
-
+          - For:
+              - i
+              - 0
+              - 2
+              - - WireRange:
+                    - 1
+                    - 0
+                    - 2
+              - IterExprAnonCall:
+                  - 1
+                  - - Single:
+                        IterExprName: i
+                  - []
+                  - 1: 1
+                  - {}
+                  - - Instance:
+                        - 1
+                        - 0
+          - For:
+              - i
+              - 3
+              - 5
+              - - WireRange:
+                    - 1
+                    - 3
+                    - 5
+              - IterExprAnonCall:
+                  - 1
+                  - - Single:
+                        IterExprName: i
+                  - []
+                  - {}
+                  - 1: 1
+                  - - Witness:
+                        - 1
+                        - 0
+          - Add:
+              - 1
+              - 6
+              - 0
+              - 3
+          - Mul:
+              - 1
+              - 7
+              - 1
+              - 4
+          - Mul:
+              - 1
+              - 8
+              - 2
+              - 5
+          - AssertZero:
+              - 1
+              - 8
+          - Free:
+              - 1
+              - 0
+              - 5
+          - Mul:
+              - 1
+              - 9
+              - 6
+              - 7
+          - AddConstant:
+              - 1
+              - 10
+              - 9
+              - - 1
+                - 0
+                - 0
+                - 0
+          - AssertZero:
+              - 1
+              - 10
+          - Convert:
+              - - Wire:
+                    - 0
+                    - 51
+                - Wire:
+                    - 0
+                    - 52
+              - - Wire:
+                    - 1
+                    - 8
+                - Wire:
+                    - 1
+                    - 7
+                - Wire:
+                    - 1
+                    - 6
+          - AddConstant:
+              - 0
+              - 53
+              - 52
+              - - 84
+                - 0
+                - 0
+                - 0
+          - AssertZero:
+              - 0
+              - 53
+          - AssertZero:
+              - 0
+              - 51
+          - Free:
+              - 1
+              - 6
+              - 10
+          - Free:
+              - 0
+              - 51
+              - 53
+          - Constant:
+              - 0
+              - 54
+              - - 9
+          - Convert:
+              - - Wire:
+                    - 1
+                    - 11
+                - Wire:
+                    - 1
+                    - 12
+                - Wire:
+                    - 1
+                    - 13
+              - - Wire:
+                    - 0
+                    - 54
+          - AddConstant:
+              - 1
+              - 14
+              - 13
+              - - 5
+          - AddConstant:
+              - 1
+              - 15
+              - 12
+              - - 6
+          - AssertZero:
+              - 1
+              - 11
+          - AssertZero:
+              - 1
+              - 14
+          - AssertZero:
+              - 1
+              - 15
+          - Free:
+              - 0
+              - 54
+              - ~
+          - Free:
+              - 1
+              - 11
+              - 15
 
 
 ### A producer: converter from R1CS

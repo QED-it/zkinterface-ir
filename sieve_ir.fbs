@@ -16,8 +16,7 @@ union Message {
 // Ref. SIEVE-IR spec (3.1)
 table Header {
    version              :string;
-   field_characteristic :Value;
-   field_degree         :uint32;
+   fields               :[Value];
 }
 
 // The 'gateset' field should be a string, either 'arithmetic' (resp. 'boolean') to allow all
@@ -37,19 +36,26 @@ table Relation {
 // Ref. SIEVE-IR spec (3.2)
 table Instance {
    header               :Header;
-   common_inputs        :[Value];
+   common_inputs        :[Inputs];
 }
 // Ref. SIEVE-IR spec (3.2)
 table Witness {
    header               :Header;
-   short_witness        :[Value];
+   short_witness        :[Inputs];
 }
 
+table Inputs {
+	inputs              :[Value];
+}
 
 // ==== Helper types ====
 
-table Wire {
-    id          :uint64;
+table WireId {
+	id     :uint64;
+}
+
+table FieldId {
+	id     :ubyte;
 }
 
 // Field element is encoded in a vector of bytes in little-endian order.
@@ -57,11 +63,27 @@ table Wire {
 table Value {
     value        :[ubyte];
 }
+
+table Count {
+	field_id    :FieldId;
+	count       :uint64;
+}
+
+table CountList {
+	elements    :[Count];
+}
+
+table Wire {
+	field_id    :FieldId;
+    wire_id     :WireId;
+}
+
 // first/last are inclusive
 // Ref. SIEVE-IR spec (3.4)
 table WireRange {
-    first      :Wire;
-    last       :Wire;
+	field_id   :FieldId;
+    first      :WireId;
+    last       :WireId;
 }
 
 union WireListElementU {
@@ -81,73 +103,91 @@ table WireList {
 // ==== Gate types ====
 
 table GateConstant {
-   output      :Wire;
+   field_id    :FieldId;
+   output      :WireId;
    constant    :[ubyte];
 }
 
 table GateAssertZero {
-   input       :Wire;
+   field_id    :FieldId;
+   input       :WireId;
 }
 
 table GateCopy {
-   output      :Wire;
-   input       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   input       :WireId;
 }
 
 table GateAdd {
-   output      :Wire;
-   left        :Wire;
-   right       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   left        :WireId;
+   right       :WireId;
 }
 
 table GateMul {
-   output      :Wire;
-   left        :Wire;
-   right       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   left        :WireId;
+   right       :WireId;
 }
 
 table GateAddConstant {
-   output      :Wire;
-   input       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   input       :WireId;
    constant    :[ubyte];
 }
 
 table GateMulConstant {
-   output      :Wire;
-   input       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   input       :WireId;
    constant    :[ubyte];
 }
 
 table GateAnd {
-   output      :Wire;
-   left        :Wire;
-   right       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   left        :WireId;
+   right       :WireId;
 }
 
 table GateXor {
-   output      :Wire;
-   left        :Wire;
-   right       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   left        :WireId;
+   right       :WireId;
 }
 
 table GateNot {
-   output      :Wire;
-   input       :Wire;
+   field_id    :FieldId;
+   output      :WireId;
+   input       :WireId;
 }
 
 table GateInstance {
-   output      :Wire;
+   field_id    :FieldId;
+   output      :WireId;
 }
 
 table GateWitness {
-   output      :Wire;
+   field_id    :FieldId;
+   output      :WireId;
 }
 
 table GateFree {
+   field_id    :FieldId;
    // First wire ID to free.
-   first       :Wire;
+   first       :WireId;
    // Last wire ID is optional. Free the range [first; last] inclusive.
-   last        :Wire;
+   last        :WireId;
+}
+
+table GateConvert {
+	output    :WireList;
+	input     :WireList;
 }
 
 // Function declaration. The 'name' field is string matching the following pattern
@@ -160,10 +200,10 @@ table GateFree {
 table Function {
     // Declare a Function gate as a custom computation
     name            :string;
-    output_count    :uint64;
-    input_count     :uint64;
-    instance_count  :uint64;
-    witness_count   :uint64;
+    output_count    :CountList;
+    input_count     :CountList;
+    instance_count  :CountList;
+    witness_count   :CountList;
     body            :[Directive];
 }
 // Invokes a previously defined Function gate
@@ -190,8 +230,8 @@ table AbstractGateCall {
 }
 table AbstractAnonCall {
     input_wires     :WireList;
-    instance_count  :uint64;
-    witness_count   :uint64;
+    instance_count  :CountList;
+    witness_count   :CountList;
     subcircuit      :[Directive];
 }
 
@@ -207,7 +247,8 @@ table CaseInvoke {
 }
 // Ref. SIEVE-IR spec (3.7)
 table GateSwitch {
-    condition         :Wire;
+	condition_field   :FieldId;
+    condition_wire    :WireId;
     output_wires      :WireList;
     cases             :[Value];
     branches          :[CaseInvoke];
@@ -256,15 +297,17 @@ table IterExprWireList {
 
 table IterExprFunctionInvoke {
   name     :string;
+  field_id :FieldId;
   outputs  :IterExprWireList;
   inputs   :IterExprWireList;
 }
 
 table IterExprAnonFunction {
+  field_id         :FieldId;
   outputs          :IterExprWireList;
   inputs           :IterExprWireList;
-  instance_count   :uint64;
-  witness_count    :uint64;
+  instance_count   :CountList;
+  witness_count    :CountList;
   body             :[Directive];
 }
 
@@ -305,6 +348,7 @@ union DirectiveSet {
    GateInstance,
    GateWitness,
    GateFree,
+   GateConvert,
    GateCall,
    GateAnonCall,
    GateSwitch,

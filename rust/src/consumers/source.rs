@@ -103,7 +103,7 @@ impl Source {
         }
     }
 
-    pub fn iter_messages<'w>(&'w self) -> impl Iterator<Item = Result<Message>> + 'w {
+    pub fn iter_messages(&self) -> impl Iterator<Item = Result<Message>> + '_ {
         self.iter_buffers()
             .map(|buffer| Message::try_from(&buffer[..]))
     }
@@ -117,7 +117,7 @@ impl Source {
     }
 }
 
-pub fn iterate_files<'w>(paths: &'w [PathBuf], print: bool) -> impl Iterator<Item = Vec<u8>> + 'w {
+pub fn iterate_files(paths: &[PathBuf], print: bool) -> impl Iterator<Item = Vec<u8>> + '_ {
     paths.iter().flat_map(move |path| {
         if print {
             eprintln!("Reading {}", path.display());
@@ -136,7 +136,7 @@ pub fn iterate_file(path: &Path) -> Box<dyn Iterator<Item = Vec<u8>>> {
     }
 }
 
-pub fn iterate_buffers<'w>(buffers: &'w [Vec<u8>]) -> impl Iterator<Item = Vec<u8>> + 'w {
+pub fn iterate_buffers(buffers: &[Vec<u8>]) -> impl Iterator<Item = Vec<u8>> + '_ {
     buffers
         .iter()
         .flat_map(|buffer| iterate_stream(&buffer[..]))
@@ -149,7 +149,7 @@ pub fn iterate_stream<'s>(mut stream: impl Read + 's) -> impl Iterator<Item = Ve
             None
         }
         Ok(buffer) => {
-            if buffer.len() == 0 {
+            if buffer.is_empty() {
                 None
             } else {
                 Some(buffer)

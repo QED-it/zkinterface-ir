@@ -6,27 +6,28 @@ use std::error::Error;
 use std::io::Write;
 
 use super::header::Header;
-use crate::sieve_ir_generated::sieve_ir as g;
-use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
+use crate::sieve_ir_generated::sieve_ir as generated;
+use crate::structs::inputs::Inputs;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Witness {
     pub header: Header,
-    pub short_witness: Vec<Value>,
+    pub short_witness: Vec<Inputs>,
 }
 
-impl<'a> TryFrom<g::Witness<'a>> for Witness {
+impl<'a> TryFrom<generated::Witness<'a>> for Witness {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(g_witness: g::Witness) -> Result<Witness> {
+    fn try_from(g_witness: generated::Witness) -> Result<Witness> {
+        let fbs_vector = g_witness.short_witness().ok_or("Missing short_witness")?;
+        let mut short_witness: Vec<Inputs> = vec![];
+        for g_inputs in fbs_vector {
+            short_witness.push(Inputs::try_from(g_inputs)?);
+        }
         Ok(Witness {
             header: Header::try_from(g_witness.header())?,
-            short_witness: try_from_values_vector(
-                g_witness
-                    .short_witness()
-                    .ok_or_else(|| "Missing short_witness")?,
-            )?,
+            short_witness,
         })
     }
 }
@@ -36,34 +37,38 @@ impl<'a> TryFrom<&'a [u8]> for Witness {
 
     fn try_from(buffer: &'a [u8]) -> Result<Witness> {
         Witness::try_from(
-            g::get_size_prefixed_root_as_root(&buffer)
+            generated::get_size_prefixed_root_as_root(buffer)
                 .message_as_witness()
-                .ok_or_else(|| "Not a Witness message.")?,
+                .ok_or("Not a Witness message.")?,
         )
     }
 }
 
 impl Witness {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        &'args self,
-        builder: &'mut_bldr mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<g::Root<'bldr>> {
+    pub fn build<'bldr>(
+        &self,
+        builder: &mut FlatBufferBuilder<'bldr>,
+    ) -> WIPOffset<generated::Root<'bldr>> {
         let header = Some(self.header.build(builder));
-        let short_witness = Some(build_values_vector(builder, &self.short_witness));
-
-        let witness = g::Witness::create(
+        let g_inputs: Vec<_> = self
+            .short_witness
+            .iter()
+            .map(|inputs| inputs.build(builder))
+            .collect();
+        let g_vector = builder.create_vector(&g_inputs);
+        let witness = generated::Witness::create(
             builder,
-            &g::WitnessArgs {
+            &generated::WitnessArgs {
                 header,
-                short_witness,
+                short_witness: Some(g_vector),
             },
         );
 
-        g::Root::create(
+        generated::Root::create(
             builder,
-            &g::RootArgs {
-                message_type: g::Message::Witness,
+            &generated::RootArgs {
+                message_type: generated::Message::Witness,
                 message: Some(witness.as_union_value()),
             },
         )
@@ -85,8 +90,15 @@ impl Witness {
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
         let message = self.build(&mut builder);
-        g::finish_size_prefixed_root_buffer(&mut builder, message);
+        generated::finish_size_prefixed_root_buffer(&mut builder, message);
         writer.write_all(builder.finished_data())?;
         Ok(())
+    }
+
+    pub fn get_witness_len(&self) -> usize {
+        self.short_witness
+            .iter()
+            .map(|inputs| inputs.inputs.len())
+            .sum()
     }
 }
