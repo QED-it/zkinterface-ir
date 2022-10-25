@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
-use super::function::ForLoopBody;
-use super::iterators::IterExprList;
 use super::wire::WireList;
 use super::wire::{build_field_id, build_wire_id, build_wire_list};
 use crate::sieve_ir_generated::sieve_ir as generated;
@@ -46,11 +44,8 @@ pub enum Gate {
     AnonCall(WireList, WireList, CountList, CountList, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
     Call(String, WireList, WireList),
-    /// GateFor(iterator_name, start_val, end_val, global_output_list, body)
-    For(String, u64, u64, WireList, ForLoopBody),
 }
 
-use crate::structs::iterators::build_iterexpr_list;
 use Gate::*;
 
 impl<'a> TryFrom<generated::Directive<'a>> for Gate {
@@ -180,49 +175,6 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                     CountList::try_from(inner.instance_count().ok_or("Missing instance count")?)?,
                     CountList::try_from(inner.witness_count().ok_or("Missing witness count")?)?,
                     Gate::try_from_vector(inner.subcircuit().ok_or("Missing subcircuit")?)?,
-                )
-            }
-
-            ds::GateFor => {
-                let gate = gen_gate.directive_as_gate_for().unwrap();
-                let output_list = WireList::try_from(gate.outputs().ok_or("missing output list")?)?;
-                let body: ForLoopBody = match gate.body_type() {
-                    generated::ForLoopBody::NONE => return Err("Unknown body type".into()),
-                    generated::ForLoopBody::IterExprFunctionInvoke => {
-                        let g_body = gate.body_as_iter_expr_function_invoke().unwrap();
-                        ForLoopBody::IterExprCall(
-                            g_body
-                                .name()
-                                .ok_or("Missing function in function name")?
-                                .to_string(),
-                            g_body.field_id().ok_or("Missing field id.")?.id(),
-                            IterExprList::try_from(g_body.outputs().ok_or("Missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or("Missing input list")?)?,
-                        )
-                    }
-                    generated::ForLoopBody::IterExprAnonFunction => {
-                        let g_body = gate.body_as_iter_expr_anon_function().unwrap();
-                        ForLoopBody::IterExprAnonCall(
-                            g_body.field_id().ok_or("Missing field id.")?.id(),
-                            IterExprList::try_from(g_body.outputs().ok_or("Missing output list")?)?,
-                            IterExprList::try_from(g_body.inputs().ok_or("Missing input list")?)?,
-                            CountList::try_from(
-                                g_body.instance_count().ok_or("Missing instance count")?,
-                            )?,
-                            CountList::try_from(
-                                g_body.witness_count().ok_or("Missing witness count")?,
-                            )?,
-                            Gate::try_from_vector(g_body.body().ok_or("Missing body")?)?,
-                        )
-                    }
-                };
-
-                For(
-                    gate.iterator().ok_or("Missing iterator name")?.to_string(),
-                    gate.first(),
-                    gate.last(),
-                    output_list,
-                    body,
                 )
             }
         })
@@ -526,89 +478,6 @@ impl Gate {
                     },
                 )
             }
-
-            For(iterator_name, start_val, end_val, global_output_list, body) => {
-                let g_iterator_name = builder.create_string(iterator_name);
-                let g_global_output_list = build_wire_list(builder, global_output_list);
-
-                let gate = match body {
-                    ForLoopBody::IterExprCall(name, field_id, output_wires, input_wires) => {
-                        let g_name = builder.create_string(name);
-                        let g_output_wires = build_iterexpr_list(builder, output_wires);
-                        let g_input_wires = build_iterexpr_list(builder, input_wires);
-                        let g_field_id = build_field_id(builder, *field_id);
-
-                        let g_body = generated::IterExprFunctionInvoke::create(
-                            builder,
-                            &generated::IterExprFunctionInvokeArgs {
-                                name: Some(g_name),
-                                field_id: Some(g_field_id),
-                                outputs: Some(g_output_wires),
-                                inputs: Some(g_input_wires),
-                            },
-                        );
-
-                        generated::GateFor::create(
-                            builder,
-                            &generated::GateForArgs {
-                                outputs: Some(g_global_output_list),
-                                iterator: Some(g_iterator_name),
-                                first: *start_val,
-                                last: *end_val,
-                                body_type: generated::ForLoopBody::IterExprFunctionInvoke,
-                                body: Some(g_body.as_union_value()),
-                            },
-                        )
-                    }
-                    ForLoopBody::IterExprAnonCall(
-                        field_id,
-                        output_wires,
-                        input_wires,
-                        instance_count,
-                        witness_count,
-                        subcircuit,
-                    ) => {
-                        let g_subcircuit = Gate::build_vector(builder, subcircuit);
-                        let g_output_wires = build_iterexpr_list(builder, output_wires);
-                        let g_input_wires = build_iterexpr_list(builder, input_wires);
-                        let g_instance_count = build_count_list(builder, instance_count);
-                        let g_witness_count = build_count_list(builder, witness_count);
-                        let g_field_id = build_field_id(builder, *field_id);
-
-                        let g_body = generated::IterExprAnonFunction::create(
-                            builder,
-                            &generated::IterExprAnonFunctionArgs {
-                                field_id: Some(g_field_id),
-                                outputs: Some(g_output_wires),
-                                inputs: Some(g_input_wires),
-                                instance_count: Some(g_instance_count),
-                                witness_count: Some(g_witness_count),
-                                body: Some(g_subcircuit),
-                            },
-                        );
-
-                        generated::GateFor::create(
-                            builder,
-                            &generated::GateForArgs {
-                                outputs: Some(g_global_output_list),
-                                iterator: Some(g_iterator_name),
-                                first: *start_val,
-                                last: *end_val,
-                                body_type: generated::ForLoopBody::IterExprAnonFunction,
-                                body: Some(g_body.as_union_value()),
-                            },
-                        )
-                    }
-                };
-
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateFor,
-                        directive: Some(gate.as_union_value()),
-                    },
-                )
-            }
         }
     }
 
@@ -652,39 +521,16 @@ impl Gate {
             Convert(_, _) => unimplemented!("Convert gate"),
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
-            For(_, _, _, _, _) => unimplemented!("For loop"),
         }
     }
 }
 
-/// replace_output_wires goes through all gates in `gates` and `replace output_wires[i]` by `i` if it is
-/// easily doable. Otherwise, replace_output_wires adds Copy gates `Copy(i, output_wires[i])` at the
-/// end of `gates`.
-///
-/// If a `For` gate belongs to `gates`, it is not easily doable to replace output wires (especially
-/// in IterExpr). Therefor, `replace_output_wires` will add the Copy gates `Copy(i, output_wires[i])`
-/// at the end of `gates`.
-///
-/// If there is no For gate in `gates`, `replace_output_wires` will replace all `output_wires[i]`
-/// by `i` in all gates in `gates`.
+/// replace_output_wires goes through all gates in `gates` and `replace output_wires[i]` by `i`.
 ///
 /// If a `Free` gate contains an output wire, `replace_output_wires` will return an error.
 pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> Result<()> {
     let expanded_output_wires = expand_wirelist(output_wires)?;
     let mut map: HashMap<FieldId, WireId> = HashMap::new();
-
-    // It is not easily doable to replace a WireId in a For gate (especially in IterExpr).
-    // Therefor, if one gate is a For gate, we will add Copy gates and not modify any WireId.
-    for gate in gates.iter_mut() {
-        if let For(_, _, _, _, _) = gate {
-            for (field_id, wire_id) in expanded_output_wires {
-                let count = map.entry(field_id).or_insert(0);
-                gates.push(Copy(field_id, *count, wire_id));
-                *count += 1;
-            }
-            return Ok(());
-        }
-    }
 
     // gates does not have a For gate.
     for (old_field_id, old_wire) in expanded_output_wires {
@@ -752,12 +598,6 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                     replace_wire_in_wirelist(outputs, old_field_id, old_wire, new_wire)?;
                     replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
                 }
-                For(_, _, _, _, _) => {
-                    // At the beginning of this method, we check if there is at least one For gate.
-                    // If it is the case, we add Copy gates and return
-                    // Therefor, this case is unreachable !!!
-                    panic!("Unreachable case in replace_output_wires method.")
-                }
             }
         }
     }
@@ -799,56 +639,6 @@ fn test_replace_output_wires() {
             vec![Wire(0, 0), Wire(0, 7), Wire(0, 8)],
         ),
         AssertZero(0, 2),
-    ];
-    assert_eq!(gates, correct_gates);
-}
-
-#[test]
-fn test_replace_output_wires_with_for() {
-    use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
-    use crate::structs::wire::WireListElement::*;
-
-    let mut gates = vec![
-        For(
-            "i".into(),
-            10,
-            12,
-            vec![WireRange(0, 10, 12)],
-            ForLoopBody::IterExprAnonCall(
-                0,
-                vec![Single(IterExprName("i".into()))],
-                vec![],
-                HashMap::new(),
-                HashMap::from([(0, 1)]),
-                vec![Witness(0, 0)],
-            ),
-        ),
-        Add(0, 13, 10, 11),
-        AssertZero(0, 13),
-    ];
-    let output_wires = vec![WireRange(0, 10, 13)];
-    replace_output_wires(&mut gates, &output_wires).unwrap();
-    let correct_gates = vec![
-        For(
-            "i".into(),
-            10,
-            12,
-            vec![WireRange(0, 10, 12)],
-            ForLoopBody::IterExprAnonCall(
-                0,
-                vec![Single(IterExprName("i".into()))],
-                vec![],
-                HashMap::new(),
-                HashMap::from([(0, 1)]),
-                vec![Witness(0, 0)],
-            ),
-        ),
-        Add(0, 13, 10, 11),
-        AssertZero(0, 13),
-        Copy(0, 0, 10),
-        Copy(0, 1, 11),
-        Copy(0, 2, 12),
-        Copy(0, 3, 13),
     ];
     assert_eq!(gates, correct_gates);
 }

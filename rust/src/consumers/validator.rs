@@ -5,12 +5,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::consumers::evaluator::get_field;
 use crate::structs::count::{wirelist_to_count_list, CountList};
-use crate::structs::function::ForLoopBody;
-use crate::structs::iterators::evaluate_iterexpr_list;
 use crate::structs::value::is_probably_prime;
-use crate::structs::wire::{
-    expand_wirelist, is_one_field_wirelist, wire_ids_to_wirelist, WireList,
-};
+use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, WireList};
 use regex::Regex;
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -49,15 +45,10 @@ Inputs Validation (Instances / Witnesses)
    For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
 
 Gates Validation
- - Ensure that gates used are coherent with the profile.
-   - @not/@and/@xor are not allowed with 'arithmetic'.
-   - @add/@addc/@mul/@mulc are not allowed with 'boolean'.
  - Ensure constants given in @addc/@mulc are actual field elements.
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
- - Ensure that @function/@for/@switch are indeed allowed if they are encountered in the circuit.
  - Ensure that for Free gates of the format @free(first, last), we have (last > first).
- - Ensure that start (first) and stop (last) conditions in loop verify that (last > first).
 
 WireRange Validation
  - Ensure that for WireRange(first, last) that (last > first).
@@ -78,7 +69,6 @@ pub struct Validator {
 
     // name => (output_count, input_count, instance_count, witness_count, subcircuit)
     known_functions: Rc<RefCell<HashMap<String, (CountList, CountList, CountList, CountList)>>>,
-    known_iterators: Rc<RefCell<HashMap<String, u64>>>,
 
     violations: Vec<String>,
 }
@@ -94,7 +84,6 @@ impl Default for Validator {
             header_version: Default::default(),
             fields: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
-            known_iterators: Rc::new(RefCell::new(HashMap::default())),
             violations: Default::default(),
         }
     }
@@ -266,7 +255,6 @@ impl Validator {
                 &input_count,
                 &instance_count,
                 &witness_count,
-                false,
             );
         }
 
@@ -407,7 +395,6 @@ impl Validator {
                     &wirelist_to_count_list(input_wires),
                     instance_count,
                     witness_count,
-                    true,
                 );
 
                 // Now, consume instances and witnesses from self.
@@ -450,107 +437,6 @@ impl Validator {
                 expanded_outputs.iter().for_each(|(field_id, wire_id)| {
                     self.ensure_undefined_and_set(field_id, *wire_id)
                 });
-            }
-
-            For(iterator_name, start_val, end_val, global_output_list, body) => {
-                if *end_val < *start_val {
-                    self.violate(format!("In a For loop, the end value ({}) must be strictly greater than the start value ({}).", *end_val, *start_val));
-                    return;
-                }
-
-                if self.known_iterators.borrow().contains_key(iterator_name) {
-                    self.violate("Iterator already used in this context.");
-                    return;
-                }
-
-                let re = Regex::new(NAMES_REGEX).unwrap();
-                if !re.is_match(iterator_name) {
-                    self.violate(format!(
-                        "The iterator name ({}) should match the following format ({}).",
-                        iterator_name, NAMES_REGEX
-                    ));
-                }
-
-                for i in *start_val..=*end_val {
-                    self.known_iterators
-                        .borrow_mut()
-                        .insert(iterator_name.clone(), i);
-
-                    match body {
-                        ForLoopBody::IterExprCall(name, field_id, outputs, inputs) => {
-                            let expanded_outputs =
-                                evaluate_iterexpr_list(outputs, &*self.known_iterators.borrow());
-                            let expanded_inputs =
-                                evaluate_iterexpr_list(inputs, &*self.known_iterators.borrow());
-                            expanded_inputs
-                                .iter()
-                                .for_each(|id| self.ensure_defined_and_set(field_id, *id));
-                            let (instance_count, witness_count) = self
-                                .ingest_call(
-                                    name,
-                                    &wire_ids_to_wirelist(field_id, &expanded_outputs),
-                                    &wire_ids_to_wirelist(field_id, &expanded_inputs),
-                                )
-                                .unwrap_or((HashMap::new(), HashMap::new()));
-
-                            // Now, consume instances and witnesses from self, and set the output wires
-                            expanded_outputs
-                                .iter()
-                                .for_each(|id| self.ensure_undefined_and_set(field_id, *id));
-                            self.consume_instance_count(&instance_count);
-                            self.consume_witness_count(&witness_count);
-                        }
-                        ForLoopBody::IterExprAnonCall(
-                            field_id,
-                            output_wires,
-                            input_wires,
-                            instance_count,
-                            witness_count,
-                            subcircuit,
-                        ) => {
-                            let expanded_outputs = evaluate_iterexpr_list(
-                                output_wires,
-                                &*self.known_iterators.borrow(),
-                            );
-                            let expanded_inputs = evaluate_iterexpr_list(
-                                input_wires,
-                                &*self.known_iterators.borrow(),
-                            );
-                            expanded_inputs
-                                .iter()
-                                .for_each(|id| self.ensure_defined_and_set(field_id, *id));
-
-                            self.ingest_subcircuit(
-                                subcircuit,
-                                &HashMap::from([(*field_id, expanded_outputs.len() as u64)]),
-                                &HashMap::from([(*field_id, expanded_inputs.len() as u64)]),
-                                instance_count,
-                                witness_count,
-                                true,
-                            );
-
-                            // Now, consume instances and witnesses from self, and set the output wires
-                            expanded_outputs
-                                .iter()
-                                .for_each(|id| self.ensure_undefined_and_set(field_id, *id));
-                            self.consume_instance_count(instance_count);
-                            self.consume_witness_count(witness_count);
-                        }
-                    }
-                }
-                self.known_iterators.borrow_mut().remove(iterator_name);
-
-                // Ensure that each global output wire has been set in one of the loops.
-                let expanded_global_outputs =
-                    expand_wirelist(global_output_list).unwrap_or_else(|err| {
-                        self.violate(err.to_string());
-                        vec![]
-                    });
-                expanded_global_outputs
-                    .iter()
-                    .for_each(|(field_id, wire_id)| {
-                        self.ensure_defined_and_set(field_id, *wire_id)
-                    });
             }
         }
     }
@@ -601,7 +487,6 @@ impl Validator {
         input_count: &CountList,
         instance_count: &CountList,
         witness_count: &CountList,
-        use_same_scope: bool,
     ) {
         let mut current_validator = Validator {
             as_prover: self.as_prover,
@@ -616,11 +501,6 @@ impl Validator {
             header_version: self.header_version.clone(),
             fields: self.fields.clone(),
             known_functions: self.known_functions.clone(),
-            known_iterators: if use_same_scope {
-                self.known_iterators.clone()
-            } else {
-                Default::default()
-            },
             violations: vec![],
         };
 

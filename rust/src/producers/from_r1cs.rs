@@ -269,7 +269,6 @@ fn test_r1cs_stats() -> Result<()> {
             functions_defined: 0,
             functions_called: 0,
             convert_gates: 0,
-            for_loops: 0,
             instance_messages: 1,
             witness_messages: 1,
             relation_messages: 1,

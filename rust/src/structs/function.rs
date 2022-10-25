@@ -6,7 +6,7 @@ use crate::sieve_ir_generated::sieve_ir as generated;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
 use crate::structs::count::{build_count_list, CountList};
-use crate::{FieldId, Gate, Result};
+use crate::{Gate, Result};
 
 // ******************************
 //
@@ -130,28 +130,4 @@ impl Function {
         let g_functions: Vec<_> = functions.iter().map(|gate| gate.build(builder)).collect();
         builder.create_vector(&g_functions)
     }
-}
-
-// ******************************
-//
-//   ForLoopBody (used in ..)
-//
-// ******************************
-use crate::structs::iterators::IterExprList;
-
-/// This is the 'invocation' equivalent in the spec.
-/// Ref. SIEVE-IR spec (3.7)
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub enum ForLoopBody {
-    /// IterExprCall(name, field_id, output_wires, input_wires)
-    IterExprCall(String, FieldId, IterExprList, IterExprList),
-    /// IterExprAnonCall(field_id, output_wires, input_wires, instance_count, witness_count, subcircuit)
-    IterExprAnonCall(
-        FieldId,
-        IterExprList,
-        IterExprList,
-        CountList,
-        CountList,
-        Vec<Gate>,
-    ),
 }

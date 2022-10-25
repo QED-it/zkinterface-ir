@@ -34,8 +34,6 @@ pub mod count;
 
 /// Handles the AnonGate stuff
 pub mod function;
-/// Handles For loops related stuff (mainly because of iterator expression).
-pub mod iterators;
 
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;

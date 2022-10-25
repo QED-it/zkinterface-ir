@@ -1,9 +1,5 @@
 use crate::structs::count::{wirelist_to_count_list, CountList};
-use crate::structs::function::ForLoopBody;
-use crate::structs::iterators::evaluate_iterexpr_list;
-use crate::structs::wire::{
-    expand_wirelist, is_one_field_wirelist, wire_ids_to_wirelist, wirelist_len, WireList,
-};
+use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, wirelist_len, WireList};
 use crate::{FieldId, Gate, Header, Instance, Message, Relation, Result, Value, WireId, Witness};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
@@ -110,7 +106,7 @@ struct FunctionDeclaration {
 /// This structure is the core of IR evaluation. It is instantiated using a ZKBackend,
 /// and will read the IR circuit, parses it, and calls the corresponding function from the
 /// ZKBackend to evaluate each single operation.
-/// It will inline functions, and unroll loops.
+/// It will inline functions.
 ///
 /// # Example
 /// ```
@@ -266,15 +262,12 @@ impl<B: ZKBackend> Evaluator<B> {
             );
         }
 
-        let mut known_iterators = HashMap::new();
-
         for gate in &relation.gates {
             Self::ingest_gate(
                 gate,
                 backend,
                 &mut self.values,
                 &self.known_functions,
-                &mut known_iterators,
                 &self.moduli,
                 &mut self.instance_queue,
                 &mut self.witness_queue,
@@ -287,7 +280,6 @@ impl<B: ZKBackend> Evaluator<B> {
     /// - `scope` contains the list of existing wires with their respective value. It will be
     ///    augmented if this gate produces outputs, or reduced if this is a `GateFree`
     /// - `known_functions` is the map of functions defined in previous or current `Relation` message
-    /// - `known_iterators` is the map of defined iterators. It will be temporarily updated if the
     ///    current gate is a `GateFor`
     /// - `moduli` is used mainly in convert gates.
     /// - `instances` and `witnesses` are the instances and witnesses pools, implemented as Queues.
@@ -297,7 +289,6 @@ impl<B: ZKBackend> Evaluator<B> {
         backend: &mut B,
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
         known_functions: &HashMap<String, FunctionDeclaration>,
-        known_iterators: &mut HashMap<String, u64>,
         moduli: &[BigUint],
         instances: &mut Vec<VecDeque<B::FieldElement>>,
         witnesses: &mut Vec<VecDeque<B::FieldElement>>,
@@ -454,7 +445,6 @@ impl<B: ZKBackend> Evaluator<B> {
                     return Err(format!("Wrong number of input variables in call to function {} (Expected {:?} / Got {:?}).", name, function.input_count, input_count).into());
                 }
 
-                // in the case of an named call, iterators *ARE NOT* forwarded into inner bodies.
                 Self::ingest_subcircuit(
                     &function.subcircuit,
                     backend,
@@ -462,7 +452,6 @@ impl<B: ZKBackend> Evaluator<B> {
                     input_wires,
                     scope,
                     known_functions,
-                    &mut HashMap::new(),
                     moduli,
                     instances,
                     witnesses,
@@ -470,7 +459,6 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             AnonCall(output_wires, input_wires, _, _, subcircuit) => {
-                // in the case of an anoncall, iterators *ARE* forwarded into inner bodies.
                 Self::ingest_subcircuit(
                     subcircuit,
                     backend,
@@ -478,79 +466,10 @@ impl<B: ZKBackend> Evaluator<B> {
                     input_wires,
                     scope,
                     known_functions,
-                    known_iterators,
                     moduli,
                     instances,
                     witnesses,
                 )?;
-            }
-
-            // For loops are unrolled. The body is called as many times (NB: the loop bounds are
-            // inclusive), and iterator expressions are evaluated for each.
-            For(iterator_name, start_val, end_val, _, body) => {
-                for i in *start_val..=*end_val {
-                    known_iterators.insert(iterator_name.clone(), i);
-
-                    match body {
-                        ForLoopBody::IterExprCall(name, field_id, outputs, inputs) => {
-                            let function = known_functions.get(name).ok_or("Unknown function")?;
-                            let expanded_output = evaluate_iterexpr_list(outputs, known_iterators);
-                            let expanded_input = evaluate_iterexpr_list(inputs, known_iterators);
-
-                            // simple checks.
-                            let call_output_count =
-                                HashMap::from([(*field_id, expanded_output.len() as u64)]);
-                            if call_output_count != function.output_count {
-                                return Err(format!("Wrong number of output variables in call to function {} (Expected {:?} / Got {:?}).", name, function.output_count, call_output_count).into());
-                            }
-                            let call_input_count =
-                                HashMap::from([(*field_id, expanded_input.len() as u64)]);
-                            if call_input_count != function.input_count {
-                                return Err(format!("Wrong number of input variables in call to function {} (Expected {:?} / Got {:?}).", name, function.input_count, call_input_count).into());
-                            }
-
-                            Self::ingest_subcircuit(
-                                &function.subcircuit,
-                                backend,
-                                &wire_ids_to_wirelist(field_id, &expanded_output),
-                                &wire_ids_to_wirelist(field_id, &expanded_input),
-                                scope,
-                                known_functions,
-                                &mut HashMap::new(),
-                                moduli,
-                                instances,
-                                witnesses,
-                            )?;
-                        }
-                        ForLoopBody::IterExprAnonCall(
-                            field_id,
-                            output_wires,
-                            input_wires,
-                            _,
-                            _,
-                            subcircuit,
-                        ) => {
-                            let expanded_output =
-                                evaluate_iterexpr_list(output_wires, known_iterators);
-                            let expanded_input =
-                                evaluate_iterexpr_list(input_wires, known_iterators);
-
-                            Self::ingest_subcircuit(
-                                subcircuit,
-                                backend,
-                                &wire_ids_to_wirelist(field_id, &expanded_output),
-                                &wire_ids_to_wirelist(field_id, &expanded_input),
-                                scope,
-                                known_functions,
-                                known_iterators,
-                                moduli,
-                                instances,
-                                witnesses,
-                            )?;
-                        }
-                    }
-                }
-                known_iterators.remove(iterator_name);
             }
         }
         Ok(())
@@ -568,7 +487,6 @@ impl<B: ZKBackend> Evaluator<B> {
         input_list: &WireList,
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
         known_functions: &HashMap<String, FunctionDeclaration>,
-        known_iterators: &mut HashMap<String, u64>,
         moduli: &[BigUint],
         instances: &mut Vec<VecDeque<B::FieldElement>>,
         witnesses: &mut Vec<VecDeque<B::FieldElement>>,
@@ -596,7 +514,6 @@ impl<B: ZKBackend> Evaluator<B> {
                 backend,
                 &mut new_scope,
                 known_functions,
-                known_iterators,
                 moduli,
                 instances,
                 witnesses,
@@ -989,7 +906,7 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
 
     assert!(should_be_err.is_err());
     assert_eq!(
-        "Wire (0: 9) should be 0, while it is not",
+        "Wire (0: 8) should be 0, while it is not",
         should_be_err.err().unwrap().to_string()
     );
 

@@ -206,86 +206,6 @@ table AbstractAnonCall {
     subcircuit      :[Directive];
 }
 
-/* ========== For loop related stuff  ========== */
-// Ref. SIEVE-IR spec (3.6)
-union IterExpr {
-    IterExprConst,
-    IterExprName,
-    IterExprAdd,
-    IterExprSub,
-    IterExprMul,
-    IterExprDivConst,
-}
-
-table IterExprWireNumber { value :IterExpr;}
-
-// Constant value in an expression
-table IterExprConst { value :uint64; }
-// Named loop-iteration
-table IterExprName { name : string; }
-// Sum of two expressions
-table IterExprAdd { left :IterExprWireNumber; right :IterExprWireNumber; }
-// Difference of two expressions
-table IterExprSub { left :IterExprWireNumber; right :IterExprWireNumber; }
-// Product of two expressions
-table IterExprMul { left :IterExprWireNumber; right :IterExprWireNumber; }
-// Division of an expression by a constant
-table IterExprDivConst { numer :IterExprWireNumber; denom :uint64; }
-
-table IterExprWireRange {
-    first :IterExprWireNumber;
-    last  :IterExprWireNumber;
-}
-
-union IterExprWireListElementU {
-    IterExprWireNumber,
-    IterExprWireRange,
-}
-table IterExprWireListElement { element: IterExprWireListElementU; }
-
-table IterExprWireList {
-    elements :[IterExprWireListElement];
-}
-
-table IterExprFunctionInvoke {
-  name     :string;
-  field_id :FieldId;
-  outputs  :IterExprWireList;
-  inputs   :IterExprWireList;
-}
-
-table IterExprAnonFunction {
-  field_id         :FieldId;
-  outputs          :IterExprWireList;
-  inputs           :IterExprWireList;
-  instance_count   :CountList;
-  witness_count    :CountList;
-  body             :[Directive];
-}
-
-union ForLoopBody {
-  IterExprFunctionInvoke,
-  IterExprAnonFunction
-}
-
-// Currently, the spec says that an iterator is identified by a string. Scoping of iterators is not explicitly detailed.
-//  Issue: if a For loop uses “i” as index, and in its body, calls a function using a For loop with index “i” too,
-//         things may go wrong, as during evaluation, the inner value may replace the outer one and lead to wrong
-//         computation
-//  Solution: Currently, For loop body is either an AnonCall, or a named Call. AnonCall can be viewed as a block,
-//         where variables are inherited from outer scope, while Call can be viewed as an independent execution.
-//         Therefore, the already defined indices will propagate to inner loops in case of AnonCall, but not in case
-//         of a Call.
-table GateFor {
-  outputs     :WireList;
-  iterator    :string;
-  first       :uint64;
-  last        :uint64;
-  body        :ForLoopBody;
-}
-
-/* ========== For loop related stuff  ========== */
-
 union DirectiveSet {
    GateConstant,
    GateAssertZero,
@@ -300,7 +220,6 @@ union DirectiveSet {
    GateConvert,
    GateCall,
    GateAnonCall,
-   GateFor,
 }
 
 table Directive {

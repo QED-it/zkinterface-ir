@@ -1,9 +1,7 @@
 use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
-use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::mem::size_of;
 
-use crate::structs::function::ForLoopBody;
 use crate::structs::inputs::Inputs;
 use crate::structs::wire::WireListElement;
 use crate::wirelist;
@@ -44,17 +42,10 @@ pub fn example_instance_h(header: &Header) -> Instance {
 }
 
 pub fn example_witness_h(header: &Header) -> Witness {
-    let modulus = BigUint::from_bytes_le(&header.fields[0]);
-    let fibonacci_22 = BigUint::from(17711_u64) % modulus;
     Witness {
         header: header.clone(),
         short_witness: vec![Inputs {
-            inputs: vec![
-                literal32(3),
-                literal32(4),
-                literal32(0),
-                fibonacci_22.to_bytes_le(),
-            ],
+            inputs: vec![literal32(3), literal32(4), literal32(0)],
         }],
     }
 }
@@ -67,7 +58,6 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
                 literal32(3),
                 literal32(4 + 1), // incorrect.
                 literal32(1),
-                literal32(40), // incorrect
             ],
         }],
     }
@@ -75,8 +65,6 @@ pub fn example_witness_incorrect_h(header: &Header) -> Witness {
 
 pub fn example_relation_h(header: &Header) -> Relation {
     use crate::structs::function::Function;
-    use crate::structs::iterators::{IterExprListElement::*, IterExprWireNumber::*};
-    use crate::structs::wire::WireListElement::*;
     use crate::Gate::*;
 
     let field_id: FieldId = 0;
@@ -94,30 +82,29 @@ pub fn example_relation_h(header: &Header) -> Relation {
         gates: vec![
             Witness(field_id, 1),
             AnonCall(
-                wirelist![field_id;0, 2, 4, 5, 6, 9, 10, 11], // output
-                wirelist![field_id;1],                        // input
-                HashMap::from([(field_id, 3)]),               // instance count
-                HashMap::from([(field_id, 3)]),               // witness count
+                wirelist![field_id;0, 2, 4, 5, 6, 9, 10], // output
+                wirelist![field_id;1],                    // input
+                HashMap::from([(field_id, 3)]),           // instance count
+                HashMap::from([(field_id, 2)]),           // witness count
                 vec![
-                    Instance(field_id, 0), // In Global Namespace: Instance(0)
-                    Witness(field_id, 1),  // In Global Namespace: Witness(2)
+                    Instance(field_id, 0),
+                    Witness(field_id, 1),
                     Call(
                         "com.example::mul".to_string(),
                         wirelist![field_id;2],
-                        wirelist![field_id;8; 2],
-                    ), // In Global Namespace: Mul(4, 1, 1)
+                        wirelist![field_id;7; 2],
+                    ),
                     Call(
                         "com.example::mul".to_string(),
                         wirelist![field_id;3],
                         wirelist![field_id;1; 2],
-                    ), // In Global Namespace: Mul(5, 2, 2)
-                    Add(field_id, 4, 2, 3), // In Global Namespace: Add(6, 4, 5)
-                    Witness(field_id, 9),
-                    AssertZero(field_id, 9), // This witness is indeed zero, so check that in a branch.
+                    ),
+                    Add(field_id, 4, 2, 3),
+                    Witness(field_id, 8),
+                    AssertZero(field_id, 8),
+                    Instance(field_id, 5),
+                    AssertZero(field_id, 5),
                     Instance(field_id, 6),
-                    AssertZero(field_id, 6),
-                    Instance(field_id, 7),
-                    Witness(field_id, 5),
                 ],
             ),
             Constant(field_id, 3, encode_negative_one(&header.fields[0])), // -1
@@ -126,61 +113,11 @@ pub fn example_relation_h(header: &Header) -> Relation {
                 wirelist![field_id;7],
                 wirelist![field_id;3, 0],
             ), // - instance_0
-            Add(field_id, 8, 6, 7),                                        // sum - instance_0
-            Free(field_id, 0, Some(7)), // Free all previous wires
-            AssertZero(field_id, 8),    // difference == 0
-            For(
-                "i".into(),
-                0,
-                20,
-                vec![WireRange(field_id, 12, 32)],
-                ForLoopBody::IterExprAnonCall(
-                    field_id,
-                    vec![Single(IterExprAdd(
-                        Box::new(IterExprName("i".into())),
-                        Box::new(IterExprConst(12)),
-                    ))], // i + 12
-                    vec![
-                        Single(IterExprAdd(
-                            Box::new(IterExprName("i".into())),
-                            Box::new(IterExprConst(10)),
-                        )),
-                        Single(IterExprAdd(
-                            Box::new(IterExprName("i".into())),
-                            Box::new(IterExprConst(11)),
-                        )),
-                    ],
-                    HashMap::new(),
-                    HashMap::new(),
-                    vec![Add(field_id, 0, 1, 2)],
-                ),
-            ),
-            MulConstant(field_id, 33, 32, encode_negative_one(&header.fields[0])), // multiply by -1
-            Add(field_id, 34, 9, 33),
-            AssertZero(field_id, 34),
-            // second useless loop that uses the same loop iterator
-            For(
-                "i".into(),
-                35,
-                50,
-                vec![WireRange(field_id, 35, 50)],
-                ForLoopBody::IterExprCall(
-                    "com.example::mul".to_string(),
-                    field_id,
-                    vec![Single(IterExprName("i".into()))], // i
-                    vec![
-                        Single(IterExprSub(
-                            Box::new(IterExprName("i".into())),
-                            Box::new(IterExprConst(1)),
-                        )),
-                        Single(IterExprSub(
-                            Box::new(IterExprName("i".into())),
-                            Box::new(IterExprConst(2)),
-                        )),
-                    ],
-                ),
-            ),
-            Free(field_id, 8, Some(50)),
+            Add(field_id, 8, 6, 7),
+            Free(field_id, 0, Some(7)),
+            Mul(field_id, 11, 8, 10),
+            AssertZero(field_id, 11),
+            Free(field_id, 8, Some(11)),
         ],
     }
 }
