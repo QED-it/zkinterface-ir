@@ -1,4 +1,4 @@
-/// A common structure for inputs (used in witness and instance).
+/// A common structure for inputs (used in public and private inputs).
 pub mod inputs;
 
 /// A structure representing a message of type PublicInputs.
@@ -29,7 +29,7 @@ pub mod value;
 pub mod wire;
 
 /// CountList are used to defined a list of (field_id, count)
-/// It is used for all instance/witness count and for inputs/outputs count in function declarations
+/// It is used for all public/private count and for inputs/outputs count in function declarations
 pub mod count;
 
 /// Handles the AnonGate stuff

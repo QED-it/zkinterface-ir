@@ -556,12 +556,12 @@ fn assert_same_witness_values(
 }
 
 #[test]
-fn test_to_r1cs_check_witnesses_instances() -> Result<()> {
+fn test_to_r1cs_check_public_private_inputs() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
 
-    let output_directory = "local/test_to_r1cs_check_witnesses_instances";
+    let output_directory = "local/test_to_r1cs_check_public_private_inputs";
 
     // begin tests as with from_r1cs
 

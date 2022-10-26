@@ -27,12 +27,12 @@ To communicate a statement, three types of information are transmitted:
 
 - A description of computation as a circuit of gates connected through wires, called the _Relation_.
 
-- A witness used as input to the circuit by the prover side of the proving system, called the _Witness_.
+- A list of values used as input to the circuit by the prover side of the proving system, called the _PrivateInputs_.
 
-- An instance used as input to the circuit both by the prover and the verifier, called the _Instance_.
+- A list of values used as input to the circuit both by the prover and the verifier, called the _PublicInputs_.
 
 The exact structure of this information is specified in a FlatBuffers schema called `sieve_ir.fbs` in this repository, 
-along with inline documentation. See the respective structures: Header, Relation, Instance, Witness.
+along with inline documentation. See the respective structures: Header, Relation, PublicInputs, PrivateInputs.
 
 In this guide, the structures are stored in intermediary files for ease and clarity. However, streaming implementations 
 without storage are also supported.
@@ -53,13 +53,13 @@ This will print a list of available commands (your mileage may vary depending on
 
 ### A producer: example generator
 
-The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki_sieve help`). The profile AC (Arithmetic Circuit) was selected.
+The command below generates an example statement. It stores it into files in the working directory (customizable, see `zki_sieve help`).
 
     zki_sieve example
 
     …
-    Writing ./000_instance.sieve
-    Writing ./001_witness.sieve
+    Writing ./000_public_inputs.sieve
+    Writing ./001_private_inputs.sieve
     Writing ./002_relation.sieve
 
 
@@ -67,13 +67,13 @@ The command below generates an example statement. It stores it into files in the
 
 The `validate` command validates that the statement is properly formatted in compliance with the selected profile, as specified by the semantics and syntax of Section 5 of the [SIEVE IR specification](https://github.com/sieve-zk/ir).
 
-The `Evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the witness satisfies the circuit.
+The `evaluate` command acts as a simulator in place of a proving system, and reports whether a prover could convince a verifier that the statement is true. That is, it performs the computation described by the circuit and checks whether the private inputs satisfy the circuit.
 
     $ zki_sieve validate
     
     
-    Reading ./000_instance.sieve
-    Reading ./001_witness.sieve
+    Reading ./000_public_inputs.sieve
+    Reading ./001_private_inputs.sieve
     Reading ./002_relation.sieve
 
     The statement is COMPLIANT with the specification!
@@ -83,8 +83,8 @@ The `Evaluate` command acts as a simulator in place of a proving system, and rep
     $ zki_sieve evaluate
     
     …
-    Reading ./000_instance.sieve
-    Reading ./001_witness.sieve
+    Reading ./000_public_inputs.sieve
+    Reading ./001_private_inputs.sieve
     Reading ./002_relation.sieve
 
     The statement is TRUE!
@@ -100,11 +100,11 @@ The command below reads the statement and prints a textual representation of it.
     $ zki_sieve to-yaml
     # Or zki_sieve to-json
 
-    Reading ./000_instance.sieve
-    Reading ./001_witness.sieve
+    Reading ./000_public_inputs.sieve
+    Reading ./001_private_inputs.sieve
     Reading ./002_relation.sieve
     ---
-    instances:
+    public_inputs:
       - header:
           version: 1.0.0
           fields:
@@ -116,16 +116,16 @@ The command below reads the statement and prints a textual representation of it.
               - 0
               - 0
               - 0
-        common_inputs:
-          - inputs:
+        inputs:
+          - values:
               - - 25
               - - 0
               - - 1
-          - inputs:
+          - values:
               - - 6
               - - 1
               - - 0
-    witnesses:
+    private_inputs:
       - header:
           version: 1.0.0
           fields:
@@ -137,16 +137,12 @@ The command below reads the statement and prints a textual representation of it.
               - 0
               - 0
               - 0
-        short_witness:
-          - inputs:
+        inputs:
+          - values:
               - - 3
               - - 4
               - - 0
-              - - 36
-                - 0
-                - 0
-                - 0
-          - inputs:
+          - values:
               - - 4
               - - 2
               - - 3
@@ -162,16 +158,14 @@ The command below reads the statement and prints a textual representation of it.
               - 0
               - 0
               - 0
-        gate_mask: 15
-        feat_mask: 28672
         functions:
           - name: "com.example::mul"
             output_count:
               0: 1
             input_count:
               0: 2
-            instance_count: {}
-            witness_count: {}
+            public_count: {}
+            private_count: {}
             body:
               - Mul:
                   - 0
@@ -179,12 +173,10 @@ The command below reads the statement and prints a textual representation of it.
                   - 1
                   - 2
         gates:
-          - Witness:
+          - PrivateInput:
               - 0
               - 1
-          - Switch:
-              - 0
-              - 1
+          - AnonCall:
               - - Wire:
                     - 0
                     - 0
@@ -206,116 +198,59 @@ The command below reads the statement and prints a textual representation of it.
                 - Wire:
                     - 0
                     - 10
-                - Wire:
+              - - Wire:
                     - 0
-                    - 11
-              - - - 3
-                - - 5
-              - - AbstractAnonCall:
+                    - 1
+              - 0: 3
+              - 0: 2
+              - - PublicInput:
+                    - 0
+                    - 0
+                - PrivateInput:
+                    - 0
+                    - 1
+                - Call:
+                    - "com.example::mul"
+                    - - Wire:
+                          - 0
+                          - 2
+                    - - Wire:
+                          - 0
+                          - 7
+                      - Wire:
+                          - 0
+                          - 7
+                - Call:
+                    - "com.example::mul"
+                    - - Wire:
+                          - 0
+                          - 3
                     - - Wire:
                           - 0
                           - 1
-                    - 0: 3
-                    - 0: 3
-                    - - Instance:
-                          - 0
-                          - 0
-                      - Witness:
+                      - Wire:
                           - 0
                           - 1
-                      - Call:
-                          - "com.example::mul"
-                          - - Wire:
-                                - 0
-                                - 2
-                          - - Wire:
-                                - 0
-                                - 8
-                            - Wire:
-                                - 0
-                                - 8
-                      - Call:
-                          - "com.example::mul"
-                          - - Wire:
-                                - 0
-                                - 3
-                          - - Wire:
-                                - 0
-                                - 1
-                            - Wire:
-                                - 0
-                                - 1
-                      - Add:
-                          - 0
-                          - 4
-                          - 2
-                          - 3
-                      - Witness:
-                          - 0
-                          - 9
-                      - AssertZero:
-                          - 0
-                          - 9
-                      - Instance:
-                          - 0
-                          - 6
-                      - AssertZero:
-                          - 0
-                          - 6
-                      - Instance:
-                          - 0
-                          - 7
-                      - Witness:
-                          - 0
-                          - 5
-                - AbstractAnonCall:
-                    - - Wire:
-                          - 0
-                          - 1
-                    - 0: 3
-                    - 0: 2
-                    - - Instance:
-                          - 0
-                          - 0
-                      - Call:
-                          - "com.example::mul"
-                          - - Wire:
-                                - 0
-                                - 1
-                          - - Wire:
-                                - 0
-                                - 8
-                            - Wire:
-                                - 0
-                                - 0
-                      - Witness:
-                          - 0
-                          - 2
-                      - Mul:
-                          - 0
-                          - 3
-                          - 1
-                          - 2
-                      - Add:
-                          - 0
-                          - 4
-                          - 2
-                          - 3
-                      - Instance:
-                          - 0
-                          - 5
-                      - Instance:
-                          - 0
-                          - 6
-                      - Witness:
-                          - 0
-                          - 7
-                      - AssertZero:
-                          - 0
-                          - 5
-                      - AssertZero:
-                          - 0
-                          - 0
+                - Add:
+                    - 0
+                    - 4
+                    - 2
+                    - 3
+                - PrivateInput:
+                    - 0
+                    - 8
+                - AssertZero:
+                    - 0
+                    - 8
+                - PublicInput:
+                    - 0
+                    - 5
+                - AssertZero:
+                    - 0
+                    - 5
+                - PublicInput:
+                    - 0
+                    - 6
           - Constant:
               - 0
               - 3
@@ -343,115 +278,36 @@ The command below reads the statement and prints a textual representation of it.
               - 0
               - 0
               - 7
-          - AssertZero:
+          - Mul:
               - 0
+              - 11
               - 8
-          - For:
-              - i
-              - 0
-              - 20
-              - - WireRange:
-                    - 0
-                    - 12
-                    - 32
-              - IterExprAnonCall:
-                  - 0
-                  - - Single:
-                        IterExprAdd:
-                          - IterExprName: i
-                          - IterExprConst: 12
-                  - - Single:
-                        IterExprAdd:
-                          - IterExprName: i
-                          - IterExprConst: 10
-                    - Single:
-                        IterExprAdd:
-                          - IterExprName: i
-                          - IterExprConst: 11
-                  - {}
-                  - {}
-                  - - Add:
-                        - 0
-                        - 0
-                        - 1
-                        - 2
-          - MulConstant:
-              - 0
-              - 33
-              - 32
-              - - 100
-                - 0
-                - 0
-                - 0
-          - Add:
-              - 0
-              - 34
-              - 9
-              - 33
+              - 10
           - AssertZero:
               - 0
-              - 34
-          - For:
-              - i
-              - 35
-              - 50
-              - - WireRange:
-                    - 0
-                    - 35
-                    - 50
-              - IterExprCall:
-                  - "com.example::mul"
-                  - 0
-                  - - Single:
-                        IterExprName: i
-                  - - Single:
-                        IterExprSub:
-                          - IterExprName: i
-                          - IterExprConst: 1
-                    - Single:
-                        IterExprSub:
-                          - IterExprName: i
-                          - IterExprConst: 2
+              - 11
           - Free:
               - 0
               - 8
-              - 50
-          - For:
-              - i
+              - 11
+          - PublicInput:
+              - 1
               - 0
+          - PublicInput:
+              - 1
+              - 1
+          - PublicInput:
+              - 1
               - 2
-              - - WireRange:
-                    - 1
-                    - 0
-                    - 2
-              - IterExprAnonCall:
-                  - 1
-                  - - Single:
-                        IterExprName: i
-                  - []
-                  - 1: 1
-                  - {}
-                  - - Instance:
-                        - 1
-                        - 0
-          - For:
-              - i
+          - PrivateInput:
+              - 1
               - 3
+          - PrivateInput:
+              - 1
+              - 4
+          - PrivateInput:
+              - 1
               - 5
-              - - WireRange:
-                    - 1
-                    - 3
-                    - 5
-              - IterExprAnonCall:
-                  - 1
-                  - - Single:
-                        IterExprName: i
-                  - []
-                  - {}
-                  - 1: 1
-                  - - Witness:
-                        - 1
-                        - 0
           - Add:
               - 1
               - 6
@@ -493,10 +349,10 @@ The command below reads the statement and prints a textual representation of it.
           - Convert:
               - - Wire:
                     - 0
-                    - 51
+                    - 12
                 - Wire:
                     - 0
-                    - 52
+                    - 13
               - - Wire:
                     - 1
                     - 8
@@ -508,29 +364,29 @@ The command below reads the statement and prints a textual representation of it.
                     - 6
           - AddConstant:
               - 0
-              - 53
-              - 52
+              - 14
+              - 13
               - - 84
                 - 0
                 - 0
                 - 0
           - AssertZero:
               - 0
-              - 53
+              - 14
           - AssertZero:
               - 0
-              - 51
+              - 12
           - Free:
               - 1
               - 6
               - 10
           - Free:
               - 0
-              - 51
-              - 53
+              - 12
+              - 14
           - Constant:
               - 0
-              - 54
+              - 15
               - - 9
           - Convert:
               - - Wire:
@@ -544,7 +400,7 @@ The command below reads the statement and prints a textual representation of it.
                     - 13
               - - Wire:
                     - 0
-                    - 54
+                    - 15
           - AddConstant:
               - 1
               - 14
@@ -566,7 +422,7 @@ The command below reads the statement and prints a textual representation of it.
               - 15
           - Free:
               - 0
-              - 54
+              - 15
               - ~
           - Free:
               - 1
@@ -603,22 +459,22 @@ $ zki_sieve zkif-to-ir [oter options]
 ### A producer: IR to IR-simple converter
 
 The converter in `consumers/flattening.rs` allows to convert any IR circuit into 
-an equivalent circuit that make use of only simple gates (i.e. `GateFor`/`GateSwitch`
-`Functions` are unrolled/multiplexed/inlined). This operation (conversion from IR to
+an equivalent circuit that make use of only simple gates (i.e. 
+`Functions` are unrolled). This operation (conversion from IR to
 IR simple) is sometimes called 'flattening'. 
 
 Here is a simple code to call this converter:
 
 ```rust
 let relation = example_relation();
-let instance = example_instance();
-let witness = example_witness();
+let public_inputs = example_public_inputs();
+let private_inputs = example_private_inputs();
 
 let mut flattener = IRFlattener::new(MemorySink::default());
 let mut evaluator = Evaluator::default();
 
-evaluator.ingest_instance(&instance)?;
-evaluator.ingest_witness(&witness)?;
+evaluator.ingest_public_inputs(&public_inputs)?;
+evaluator.ingest_private_inputs(&private_inputs)?;
 evaluator.ingest_relation(&relation, &mut flattener)?;
 ```
 

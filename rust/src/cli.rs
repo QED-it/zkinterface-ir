@@ -62,7 +62,7 @@ pub struct Options {
     ///
     /// validate      Validate the format and semantics of a statement, as seen by a verifier.
     ///
-    /// evaluate      Evaluate a circuit as prover to check that the statement is true, i.e. the witness satisfies the circuit.
+    /// evaluate      Evaluate a circuit as prover to check that the statement is true, i.e. the private inputs satisfy the circuit.
     ///
     /// metrics       Calculate statistics about the circuit.
     ///
@@ -70,7 +70,7 @@ pub struct Options {
     ///
     /// zkif-to-ir    Convert zkinterface files into SIEVE IR.
     ///
-    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface (takes 3 files for witness, instance, and relation, or a directory with 3 files).
+    /// ir-to-zkif    Convert SIEVE IR files into R1CS zkinterface (takes 3 files for private_inputs, public_inputs, and relation, or a directory with 3 files).
     ///
     /// flatten       Flatten a SIEVE IR circuit (takes files and directories, output resulting circuit in stdout or directory specified by --out).
     ///
@@ -88,7 +88,7 @@ pub struct Options {
     #[structopt(default_value = ".")]
     pub paths: Vec<PathBuf>,
 
-    /// `example --incorrect` will generate an incorrect witness useful for negative tests.
+    /// `example --incorrect` will generate incorrect private inputs useful for negative tests.
     #[structopt(long)]
     pub incorrect: bool,
 
@@ -471,7 +471,7 @@ fn main_ir_flattening(opts: &Options) -> Result<()> {
 }
 
 // Convert to R1CS zkinterface format.
-// Expects one instance, witness, and relation only.
+// Expects one public_inputs, private_inputs, and relation only.
 fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     use crate::consumers::to_r1cs::ToR1CSConverter;
 
@@ -480,7 +480,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
 
     for m in source.iter_messages() {
         let m = m?;
-        // if there is at least one witness message, then we'll convert them as well.
+        // if there is at least one private_inputs message, then we'll convert them as well.
         if let Message::PrivateInputs(_) = m {
             use_witness = true;
         }

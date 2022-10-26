@@ -39,12 +39,12 @@ Relation Validation
  - Ensure that the defined gateset is either 'arithmetic' (or a subset) or 'boolean' (or a subset).
      - If boolean (or subset), checks that the field characteristic is exactly 2.
 
-Inputs Validation (Instances / Witnesses)
- - Ensure that Instance gates are given a value in Instance messages.
- - Ensure that Witness gates are given a value in Witness messages (prover only).
- - Ensure that all Instance and Witness are consumed at the end of the circuit
+Inputs Validation (PublicInputs / PrivateInputs)
+ - Ensure that PublicInput gates are given a value in public_inputs messages.
+ - Ensure that PrivateInput gates are given a value in private_inputs messages (prover only).
+ - Ensure that all public and private inputs are consumed at the end of the circuit
  - Ensure that the value they are set to is indeed encoding an element lying in the underlying field.
-   For degree 1 fields, it can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
+   It can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
 
 Gates Validation
  - Ensure constants given in @addc/@mulc are actual field elements.
@@ -413,7 +413,7 @@ impl Validator {
                 // - Check exists
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
-                // - consume witness.
+                // - consume public/private inputs.
                 let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
                     self.violate(err.to_string());
                     vec![]
@@ -445,9 +445,9 @@ impl Validator {
 
     /// Ingest an equivalent of the AbstractGateCall, along with the expanded outputs list.
     /// It will not set the output_wires as defined in the current validator, as well as it will not
-    /// consume instances and witnesses of the current validator. It's up to the caller
+    /// consume public and private inputs of the current validator. It's up to the caller
     /// to do so whenever necessary.
-    /// It returns the tuple (instance_count, witness_count)
+    /// It returns the tuple (public_count, private_count)
     fn ingest_call(
         &mut self,
         name: &str,
@@ -476,10 +476,10 @@ impl Validator {
     /// This function will check the semantic validity of all the gates in the subcircuit.
     /// It will ensure that all input variable are currently well defined before entering this
     /// subcircuit, and will check that the subcircuit actually correctly set the given number of
-    /// output wires, and that instance and witness variables declared are actually consumed.
+    /// output wires, and that public and private inputs variables declared are actually consumed.
     /// To do so, it creates a local validator, and appends the violations found by it to the
     /// current validator object.
-    /// NOTE: it will @b not consume instance / witness from the current validator, and will @b not
+    /// NOTE: it will @b not consume public/private inputs from the current validator, and will @b not
     /// set output variables of the current validator as set.
     /// If required, this should be done in the caller function.
     fn ingest_subcircuit(
@@ -749,7 +749,7 @@ fn test_validator_violations() -> Result<()> {
 
     // Create a violation by using a value too big for the field.
     public_inputs.inputs[0].values[0] = public_inputs.header.fields[0].clone();
-    // Create a violation by omitting a witness value.
+    // Create a violation by omitting a private input value.
     private_inputs.inputs[0].values.pop().unwrap();
     // Create a violation by using different headers.
     relation.header.fields = vec![vec![10]];
