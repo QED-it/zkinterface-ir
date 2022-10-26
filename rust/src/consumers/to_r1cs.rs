@@ -399,7 +399,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(out)
     }
 
-    fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         if *field_id != 0 {
             return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
         }
@@ -410,7 +410,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(id)
     }
 
-    fn witness(
+    fn private_input(
         &mut self,
         field_id: &FieldId,
         val: Option<Self::FieldElement>,
@@ -474,7 +474,7 @@ pub fn pad_to_max(vals: Vec<Value>) -> Vec<u8> {
 use crate::{
     consumers::evaluator::Evaluator,
     producers::{from_r1cs::FromR1CSConverter, sink::MemorySink},
-    Instance, Message, Source, Witness,
+    Message, PrivateInputs, PublicInputs, Source,
 };
 #[cfg(test)]
 use std::{collections::HashSet, path::PathBuf};
@@ -482,7 +482,10 @@ use std::{collections::HashSet, path::PathBuf};
 use zkinterface::{CircuitHeader as zkiCircuitHeader, Workspace, WorkspaceSink};
 
 #[cfg(test)]
-fn assert_same_io_values(instances: &[Instance], zki_headers: &[zkiCircuitHeader]) -> Result<()> {
+fn assert_same_io_values(
+    public_inputs: &[PublicInputs],
+    zki_headers: &[zkiCircuitHeader],
+) -> Result<()> {
     let zki_vals: HashSet<BigUint> = zki_headers
         .iter()
         .flat_map(|zki_header| {
@@ -494,14 +497,14 @@ fn assert_same_io_values(instances: &[Instance], zki_headers: &[zkiCircuitHeader
                 .collect::<Vec<BigUint>>()
         })
         .collect();
-    let ir_vals: HashSet<BigUint> = instances
+    let ir_vals: HashSet<BigUint> = public_inputs
         .iter()
-        .flat_map(|instance| {
-            instance
-                .common_inputs
+        .flat_map(|pub_inp| {
+            pub_inp
+                .inputs
                 .get(0)
                 .unwrap()
-                .inputs
+                .values
                 .iter()
                 .map(|v| BigUint::from_bytes_le(v))
                 .collect::<Vec<BigUint>>()
@@ -516,7 +519,10 @@ fn assert_same_io_values(instances: &[Instance], zki_headers: &[zkiCircuitHeader
 }
 
 #[cfg(test)]
-fn assert_same_witness_values(witnesses: &[Witness], zki_witness: &[zkiWitness]) -> Result<()> {
+fn assert_same_witness_values(
+    private_inputs: &[PrivateInputs],
+    zki_witness: &[zkiWitness],
+) -> Result<()> {
     let zki_vals: HashSet<BigUint> = zki_witness
         .iter()
         .flat_map(|zki_witness| {
@@ -529,14 +535,14 @@ fn assert_same_witness_values(witnesses: &[Witness], zki_witness: &[zkiWitness])
         })
         .collect();
 
-    let ir_vals: HashSet<BigUint> = witnesses
+    let ir_vals: HashSet<BigUint> = private_inputs
         .iter()
-        .flat_map(|witness| {
-            witness
-                .short_witness
+        .flat_map(|priv_inp| {
+            priv_inp
+                .inputs
                 .get(0)
                 .unwrap()
-                .inputs
+                .values
                 .iter()
                 .map(|v| BigUint::from_bytes_le(v))
                 .collect::<Vec<BigUint>>()
@@ -579,9 +585,9 @@ fn test_to_r1cs_check_witnesses_instances() -> Result<()> {
     let workspace = Workspace::from_dir(&PathBuf::from(&output_directory))?;
     let zki_messages = workspace.read_all_messages();
 
-    assert_same_io_values(&ir_messages.instances, &zki_messages.circuit_headers)?;
+    assert_same_io_values(&ir_messages.public_inputs, &zki_messages.circuit_headers)?;
 
-    assert_same_witness_values(&ir_messages.witnesses, &zki_messages.witnesses)?;
+    assert_same_witness_values(&ir_messages.private_inputs, &zki_messages.witnesses)?;
 
     Ok(())
 }
@@ -645,8 +651,8 @@ fn test_to_r1cs_validate_converted_circuit_same_field() -> Result<()> {
     let output_directory = "local/test_to_r1cs_validate_converted_circuit_same_field";
 
     let messages = vec![
-        Ok(Message::Instance(example_instance())),
-        Ok(Message::Witness(example_witness())),
+        Ok(Message::PublicInputs(example_public_inputs())),
+        Ok(Message::PrivateInputs(example_private_inputs())),
         Ok(Message::Relation(example_relation())),
     ];
 
@@ -748,8 +754,8 @@ fn test_to_r1cs_validate_converted_circuit_bigger_field() -> Result<()> {
     let output_directory = "local/test_to_r1cs_validate_converted_circuit_bigger_field";
 
     let messages = vec![
-        Ok(Message::Instance(example_instance())),
-        Ok(Message::Witness(example_witness())),
+        Ok(Message::PublicInputs(example_public_inputs())),
+        Ok(Message::PrivateInputs(example_private_inputs())),
         Ok(Message::Relation(example_relation())),
     ];
 

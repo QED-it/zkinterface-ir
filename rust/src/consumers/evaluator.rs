@@ -1,6 +1,8 @@
 use crate::structs::count::{wirelist_to_count_list, CountList};
 use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, wirelist_len, WireList};
-use crate::{FieldId, Gate, Header, Instance, Message, Relation, Result, Value, WireId, Witness};
+use crate::{
+    FieldId, Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value, WireId,
+};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
@@ -9,7 +11,7 @@ use std::collections::{HashMap, VecDeque};
 /// It has to define 2 types:
 ///  - `Wire`: represents a variable in the circuit. It should implement the `Clone` trait.
 ///  - `FieldElement`: represents elements of the underlying field. Mainly used when importing
-///                    instances/witnesses from the corresponding pools.
+///                    public/private inputs from the corresponding pools.
 /// see `PlaintextBackend` for an working example of an implementation.
 pub trait ZKBackend {
     type Wire: Clone;
@@ -66,18 +68,18 @@ pub trait ZKBackend {
         b: Self::FieldElement,
     ) -> Result<Self::Wire>;
 
-    /// This functions declares a new instance variable owning the value given as parameter,
+    /// This functions declares a new public input variable owning the value given as parameter,
     /// which should be stored in a new wire.
-    fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire>;
-    /// This functions declares a new witness variable owning the value given as parameter,
+    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire>;
+    /// This functions declares a new private input variable owning the value given as parameter,
     /// which should be stored in a new wire.
     /// The value is given as a `Option`, because depending upon the type of this ZKBackend
     /// (prover / verifier), it should act differently.
-    ///  - In prover mode, the witness should be provided, so the value should be `Some`.
-    ///  - In verifier mode, the witness should normally not be provided (except maybe in test mode)
+    ///  - In prover mode, the private input should be provided, so the value should be `Some`.
+    ///  - In verifier mode, the private input should normally not be provided (except maybe in test mode)
     /// Both cases should return a `Self::Wire` so the ZKBackend should have a specific wire value
     /// to handle it when in verifier mode.
-    fn witness(
+    fn private_input(
         &mut self,
         field_id: &FieldId,
         val: Option<Self::FieldElement>,
@@ -114,20 +116,20 @@ struct FunctionDeclaration {
 /// use zki_sieve::producers::examples::*;
 ///
 /// let relation = example_relation();
-/// let instance = example_instance();
-/// let witness = example_witness();
+/// let public_inputs = example_public_inputs();
+/// let private_inputs = example_private_inputs();
 ///
 /// let mut zkbackend = PlaintextBackend::default();
 /// let mut simulator = Evaluator::default();
-/// let _ = simulator.ingest_instance(&instance);
-/// let _ = simulator.ingest_witness(&witness);
+/// let _ = simulator.ingest_public_inputs(&public_inputs);
+/// let _ = simulator.ingest_private_inputs(&private_inputs);
 /// let _ = simulator.ingest_relation(&relation, &mut zkbackend);
 /// ```
 pub struct Evaluator<B: ZKBackend> {
     values: HashMap<(FieldId, WireId), B::Wire>,
     moduli: Vec<BigUint>,
-    instance_queue: Vec<VecDeque<B::FieldElement>>,
-    witness_queue: Vec<VecDeque<B::FieldElement>>,
+    public_inputs_queue: Vec<VecDeque<B::FieldElement>>,
+    private_inputs_queue: Vec<VecDeque<B::FieldElement>>,
 
     // name => (subcircuit, output_count, input_count)
     known_functions: HashMap<String, FunctionDeclaration>,
@@ -141,8 +143,8 @@ impl<B: ZKBackend> Default for Evaluator<B> {
         Evaluator {
             values: Default::default(),
             moduli: vec![],
-            instance_queue: vec![],
-            witness_queue: vec![],
+            public_inputs_queue: vec![],
+            private_inputs_queue: vec![],
             known_functions: Default::default(),
             verified_at_least_one_gate: false,
             found_error: None,
@@ -189,8 +191,8 @@ impl<B: ZKBackend> Evaluator<B> {
 
     fn ingest_message_(&mut self, msg: &Message, backend: &mut B) -> Result<()> {
         match msg {
-            Message::Instance(i) => self.ingest_instance(i),
-            Message::Witness(w) => self.ingest_witness(w),
+            Message::PublicInputs(i) => self.ingest_public_inputs(i),
+            Message::PrivateInputs(w) => self.ingest_private_inputs(w),
             Message::Relation(r) => self.ingest_relation(r, backend),
         }
     }
@@ -202,41 +204,41 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         for field in &header.fields {
             self.moduli.push(BigUint::from_bytes_le(field));
-            self.instance_queue.push(VecDeque::new());
-            self.witness_queue.push(VecDeque::new());
+            self.public_inputs_queue.push(VecDeque::new());
+            self.private_inputs_queue.push(VecDeque::new());
         }
         Ok(())
     }
 
-    /// Ingest an `Instance` message, and returns a `Result` whether ot nor an error
-    /// was encountered. It stores the instance values in a pool.
-    pub fn ingest_instance(&mut self, instance: &Instance) -> Result<()> {
-        self.ingest_header(&instance.header)?;
+    /// Ingest a `PublicInputs` message, and returns a `Result` whether ot nor an error
+    /// was encountered. It stores the public input values in a pool.
+    pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) -> Result<()> {
+        self.ingest_header(&public_inputs.header)?;
 
-        for (i, inputs) in instance.common_inputs.iter().enumerate() {
-            let instances = self
-                .instance_queue
+        for (i, inputs) in public_inputs.inputs.iter().enumerate() {
+            let values = self
+                .public_inputs_queue
                 .get_mut(i)
-                .ok_or("No enough elements in instance_queue")?;
-            for value in &inputs.inputs {
-                instances.push_back(B::from_bytes_le(value)?);
+                .ok_or("No enough elements in public_inputs_queue")?;
+            for value in &inputs.values {
+                values.push_back(B::from_bytes_le(value)?);
             }
         }
         Ok(())
     }
 
-    /// Ingest an `Witness` message, and returns a `Result` whether ot nor an error
-    /// was encountered. It stores the witness values in a pool.
-    pub fn ingest_witness(&mut self, witness: &Witness) -> Result<()> {
-        self.ingest_header(&witness.header)?;
+    /// Ingest a `PrivateInputs` message, and returns a `Result` whether ot nor an error
+    /// was encountered. It stores the private input values in a pool.
+    pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) -> Result<()> {
+        self.ingest_header(&private_inputs.header)?;
 
-        for (i, inputs) in witness.short_witness.iter().enumerate() {
-            let witnesses = self
-                .witness_queue
+        for (i, inputs) in private_inputs.inputs.iter().enumerate() {
+            let values = self
+                .private_inputs_queue
                 .get_mut(i)
-                .ok_or("No enough elements in witness_queue")?;
-            for value in &inputs.inputs {
-                witnesses.push_back(B::from_bytes_le(value)?);
+                .ok_or("No enough elements in private_inputs_queue")?;
+            for value in &inputs.values {
+                values.push_back(B::from_bytes_le(value)?);
             }
         }
         Ok(())
@@ -269,8 +271,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 &mut self.values,
                 &self.known_functions,
                 &self.moduli,
-                &mut self.instance_queue,
-                &mut self.witness_queue,
+                &mut self.public_inputs_queue,
+                &mut self.private_inputs_queue,
             )?;
         }
         Ok(())
@@ -282,7 +284,7 @@ impl<B: ZKBackend> Evaluator<B> {
     /// - `known_functions` is the map of functions defined in previous or current `Relation` message
     ///    current gate is a `GateFor`
     /// - `moduli` is used mainly in convert gates.
-    /// - `instances` and `witnesses` are the instances and witnesses pools, implemented as Queues.
+    /// - `public_inputs` and `private_inputs` are the public_inputs and private_inputs pools, implemented as Queues.
     ///    They will be consumed whenever necessary.
     fn ingest_gate(
         gate: &Gate,
@@ -290,8 +292,8 @@ impl<B: ZKBackend> Evaluator<B> {
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
         known_functions: &HashMap<String, FunctionDeclaration>,
         moduli: &[BigUint],
-        instances: &mut Vec<VecDeque<B::FieldElement>>,
-        witnesses: &mut Vec<VecDeque<B::FieldElement>>,
+        public_inputs: &mut Vec<VecDeque<B::FieldElement>>,
+        private_inputs: &mut Vec<VecDeque<B::FieldElement>>,
     ) -> Result<()> {
         use Gate::*;
 
@@ -315,7 +317,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
             AssertZero(field_id, inp) => {
                 let inp_wire = get!(*field_id, *inp)?;
-                if backend.assert_zero(field_id, &inp_wire).is_err() {
+                if backend.assert_zero(field_id, inp_wire).is_err() {
                     return Err(format!(
                         "Wire ({}: {}) should be 0, while it is not",
                         *field_id, *inp
@@ -358,26 +360,28 @@ impl<B: ZKBackend> Evaluator<B> {
                 set!(*field_id, *out, prod)?;
             }
 
-            Instance(field_id, out) => {
-                let instances_for_field = instances.get_mut(*field_id as usize).ok_or(format!(
-                    "Unknown field {} when evaluating an Instance gate",
-                    *field_id
-                ))?;
-                let val = if let Some(inner) = instances_for_field.pop_front() {
+            PublicInput(field_id, out) => {
+                let public_inputs_for_field =
+                    public_inputs.get_mut(*field_id as usize).ok_or(format!(
+                        "Unknown field {} when evaluating an PublicInput gate",
+                        *field_id
+                    ))?;
+                let val = if let Some(inner) = public_inputs_for_field.pop_front() {
                     inner
                 } else {
-                    return Err("Not enough instance to consume".into());
+                    return Err("Not enough public inputs to consume".into());
                 };
-                set_instance(backend, scope, *field_id, *out, val)?;
+                set_public_input(backend, scope, *field_id, *out, val)?;
             }
 
-            Witness(field_id, out) => {
-                let witnesses_for_field = witnesses.get_mut(*field_id as usize).ok_or(format!(
-                    "Unknown field {} when evaluating a Witness gate",
-                    *field_id
-                ))?;
-                let val = witnesses_for_field.pop_front();
-                set_witness(backend, scope, *field_id, *out, val)?;
+            PrivateInput(field_id, out) => {
+                let private_inputs_for_field =
+                    private_inputs.get_mut(*field_id as usize).ok_or(format!(
+                        "Unknown field {} when evaluating a PrivateInput gate",
+                        *field_id
+                    ))?;
+                let val = private_inputs_for_field.pop_front();
+                set_private_input(backend, scope, *field_id, *out, val)?;
             }
 
             Free(field_id, first, last) => {
@@ -453,8 +457,8 @@ impl<B: ZKBackend> Evaluator<B> {
                     scope,
                     known_functions,
                     moduli,
-                    instances,
-                    witnesses,
+                    public_inputs,
+                    private_inputs,
                 )?;
             }
 
@@ -467,8 +471,8 @@ impl<B: ZKBackend> Evaluator<B> {
                     scope,
                     known_functions,
                     moduli,
-                    instances,
-                    witnesses,
+                    public_inputs,
+                    private_inputs,
                 )?;
             }
         }
@@ -488,8 +492,8 @@ impl<B: ZKBackend> Evaluator<B> {
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
         known_functions: &HashMap<String, FunctionDeclaration>,
         moduli: &[BigUint],
-        instances: &mut Vec<VecDeque<B::FieldElement>>,
-        witnesses: &mut Vec<VecDeque<B::FieldElement>>,
+        public_inputs: &mut Vec<VecDeque<B::FieldElement>>,
+        private_inputs: &mut Vec<VecDeque<B::FieldElement>>,
     ) -> Result<()> {
         let mut new_scope: HashMap<(FieldId, WireId), B::Wire> = HashMap::new();
 
@@ -515,8 +519,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 &mut new_scope,
                 known_functions,
                 moduli,
-                instances,
-                witnesses,
+                public_inputs,
+                private_inputs,
             )?;
         }
         // copy the outputs produced from 'new_scope', into 'scope'
@@ -544,25 +548,25 @@ impl<B: ZKBackend> Evaluator<B> {
     }
 }
 
-fn set_instance<I: ZKBackend>(
+fn set_public_input<I: ZKBackend>(
     backend: &mut I,
     scope: &mut HashMap<(FieldId, WireId), I::Wire>,
     field_id: FieldId,
     wire_id: WireId,
     value: I::FieldElement,
 ) -> Result<()> {
-    let wire = backend.instance(&field_id, value)?;
+    let wire = backend.public_input(&field_id, value)?;
     set::<I>(scope, field_id, wire_id, wire)
 }
 
-fn set_witness<I: ZKBackend>(
+fn set_private_input<I: ZKBackend>(
     backend: &mut I,
     scope: &mut HashMap<(FieldId, WireId), I::Wire>,
     field_id: FieldId,
     wire_id: WireId,
     value: Option<I::FieldElement>,
 ) -> Result<()> {
-    let wire = backend.witness(&field_id, value)?;
+    let wire = backend.private_input(&field_id, value)?;
     set::<I>(scope, field_id, wire_id, wire)
 }
 
@@ -618,7 +622,7 @@ pub fn get_field<'a>(field_id: &'a FieldId, moduli: &'a [BigUint]) -> Result<&'a
 /// Moreover, it's not optimized at all for modular operations (e.g. modular multiplications) and
 /// can even be slower than a secure backend if the evaluated circuit contains a lot of such
 /// operations.
-/// Currently, this backend does not support 'verifier' mode, and requires witnesses to be provided.
+/// Currently, this backend does not support 'verifier' mode, and requires private inputs to be provided.
 #[derive(Default)]
 pub struct PlaintextBackend {
     pub m: Vec<BigUint>,
@@ -713,18 +717,18 @@ impl ZKBackend for PlaintextBackend {
         Ok((a * b) % field)
     }
 
-    fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         self.constant(field_id, val)
     }
 
-    fn witness(
+    fn private_input(
         &mut self,
         field_id: &FieldId,
         val: Option<Self::FieldElement>,
     ) -> Result<Self::Wire> {
         self.constant(
             field_id,
-            val.unwrap_or_else(|| panic!("Missing witness value for PlaintextBackend")),
+            val.unwrap_or_else(|| panic!("Missing private input value for PlaintextBackend")),
         )
     }
 
@@ -766,14 +770,14 @@ fn test_evaluator() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let relation = example_relation();
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
 
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator: Evaluator<PlaintextBackend> = Evaluator::default();
 
-    simulator.ingest_instance(&instance)?;
-    simulator.ingest_witness(&witness)?;
+    simulator.ingest_public_inputs(&public_inputs)?;
+    simulator.ingest_private_inputs(&private_inputs)?;
     simulator.ingest_relation(&relation, &mut zkbackend)?;
 
     assert_eq!(simulator.get_violations(), Vec::<String>::new());
@@ -788,7 +792,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let relation = example_relation();
-    let instance = example_instance();
+    let public_inputs = example_public_inputs();
 
     struct VerifierInterpreter {}
     impl ZKBackend for VerifierInterpreter {
@@ -854,14 +858,14 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         ) -> Result<Self::Wire> {
             Ok(0)
         }
-        fn instance(
+        fn public_input(
             &mut self,
             _field_id: &FieldId,
             _val: Self::FieldElement,
         ) -> Result<Self::Wire> {
             Ok(0)
         }
-        fn witness(
+        fn private_input(
             &mut self,
             _field_id: &FieldId,
             _val: Option<Self::FieldElement>,
@@ -881,7 +885,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
 
     let mut zkbackend = VerifierInterpreter {};
     let mut simulator = Evaluator::default();
-    simulator.ingest_instance(&instance)?;
+    simulator.ingest_public_inputs(&public_inputs)?;
     simulator.ingest_relation(&relation, &mut zkbackend)?;
 
     assert_eq!(simulator.get_violations(), Vec::<String>::new());
@@ -895,13 +899,13 @@ fn test_evaluator_wrong_result() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let relation = example_relation();
-    let instance = example_instance();
-    let witness = example_witness_incorrect();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs_incorrect();
 
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator = Evaluator::default();
-    let _ = simulator.ingest_instance(&instance);
-    let _ = simulator.ingest_witness(&witness);
+    let _ = simulator.ingest_public_inputs(&public_inputs);
+    let _ = simulator.ingest_private_inputs(&private_inputs);
     let should_be_err = simulator.ingest_relation(&relation, &mut zkbackend);
 
     assert!(should_be_err.is_err());

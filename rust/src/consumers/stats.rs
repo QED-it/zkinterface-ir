@@ -5,13 +5,13 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Gate, Header, Instance, Message, Relation, Result, Value, Witness};
+use crate::{Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
     // Inputs.
-    pub instance_variables: u64,
-    pub witness_variables: u64,
+    pub public_variables: u64,
+    pub private_variables: u64,
     // Gates.
     pub constants_gates: usize,
     pub assert_zero_gates: usize,
@@ -28,8 +28,8 @@ pub struct GateStats {
     pub convert_gates: usize,
 
     // The number of messages into which the statement was split.
-    pub instance_messages: usize,
-    pub witness_messages: usize,
+    pub public_inputs_messages: usize,
+    pub private_inputs_messages: usize,
     pub relation_messages: usize,
 }
 
@@ -40,7 +40,7 @@ pub struct Stats {
 
     pub gate_stats: GateStats,
 
-    // Function definitions => stats / instance_count / witness_count
+    // Function definitions => stats / public_count / private_count
     pub functions: HashMap<String, (GateStats, u64, u64)>,
 }
 
@@ -53,20 +53,20 @@ impl Stats {
 
     pub fn ingest_message(&mut self, msg: &Message) {
         match msg {
-            Message::Instance(i) => self.ingest_instance(i),
-            Message::Witness(w) => self.ingest_witness(w),
+            Message::PublicInputs(i) => self.ingest_public_inputs(i),
+            Message::PrivateInputs(w) => self.ingest_private_inputs(w),
             Message::Relation(r) => self.ingest_relation(r),
         }
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance) {
-        self.ingest_header(&instance.header);
-        self.gate_stats.instance_messages += 1;
+    pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
+        self.ingest_header(&public_inputs.header);
+        self.gate_stats.public_inputs_messages += 1;
     }
 
-    pub fn ingest_witness(&mut self, witness: &Witness) {
-        self.ingest_header(&witness.header);
-        self.gate_stats.witness_messages += 1;
+    pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) {
+        self.ingest_header(&private_inputs.header);
+        self.gate_stats.private_inputs_messages += 1;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
@@ -75,15 +75,15 @@ impl Stats {
 
         for f in relation.functions.iter() {
             let name = f.name.clone();
-            let instance_count = f.instance_count.values().sum::<u64>();
-            let witness_count = f.witness_count.values().sum::<u64>();
+            let public_count = f.public_count.values().sum::<u64>();
+            let private_count = f.private_count.values().sum::<u64>();
             let subcircuit = f.body.clone();
 
             // Just record the signature.
             self.gate_stats.functions_defined += 1;
             let func_stats = ingest_subcircuit(&subcircuit, &self.functions);
             self.functions
-                .insert(name.clone(), (func_stats, instance_count, witness_count));
+                .insert(name.clone(), (func_stats, public_count, private_count));
         }
 
         for gate in &relation.gates {
@@ -149,12 +149,12 @@ impl GateStats {
                 self.mul_constant_gates += 1;
             }
 
-            Instance(_field_id, _out) => {
-                self.instance_variables += 1;
+            PublicInput(_field_id, _out) => {
+                self.public_variables += 1;
             }
 
-            Witness(_field_id, _out) => {
-                self.witness_variables += 1;
+            PrivateInput(_field_id, _out) => {
+                self.private_variables += 1;
             }
 
             Free(_field_id, first, last) => {
@@ -168,19 +168,19 @@ impl GateStats {
 
             Call(name, _, _) => {
                 self.functions_called += 1;
-                if let Some(stats_ins_wit) = known_functions.get(name).cloned() {
-                    self.ingest_call_stats(&stats_ins_wit.0);
-                    self.instance_variables += stats_ins_wit.1;
-                    self.witness_variables += stats_ins_wit.2;
+                if let Some(stats_pub_priv) = known_functions.get(name).cloned() {
+                    self.ingest_call_stats(&stats_pub_priv.0);
+                    self.public_variables += stats_pub_priv.1;
+                    self.private_variables += stats_pub_priv.2;
                 } else {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
             }
 
-            AnonCall(_, _, instance_count, witness_count, subcircuit) => {
+            AnonCall(_, _, public_count, private_count, subcircuit) => {
                 self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                self.instance_variables += instance_count.values().sum::<u64>();
-                self.witness_variables += witness_count.values().sum::<u64>();
+                self.public_variables += public_count.values().sum::<u64>();
+                self.private_variables += private_count.values().sum::<u64>();
             }
         }
     }
@@ -205,20 +205,20 @@ impl GateStats {
 fn test_stats() -> Result<()> {
     use crate::producers::examples::*;
 
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
     let relation = example_relation();
 
     let mut stats = Stats::default();
-    stats.ingest_instance(&instance);
-    stats.ingest_witness(&witness);
+    stats.ingest_public_inputs(&public_inputs);
+    stats.ingest_private_inputs(&private_inputs);
     stats.ingest_relation(&relation);
 
     let mut expected_stats = Stats {
         moduli: vec![literal(EXAMPLE_MODULUS)],
         gate_stats: GateStats {
-            instance_variables: 3,
-            witness_variables: 3,
+            public_variables: 3,
+            private_variables: 3,
             constants_gates: 1,
             assert_zero_gates: 3,
             copy_gates: 0,
@@ -230,8 +230,8 @@ fn test_stats() -> Result<()> {
             functions_defined: 1,
             functions_called: 3,
             convert_gates: 0,
-            instance_messages: 1,
-            witness_messages: 1,
+            public_inputs_messages: 1,
+            private_inputs_messages: 1,
             relation_messages: 1,
         },
         functions: HashMap::new(),

@@ -11,6 +11,7 @@ Rust:
 - remove Boolean gates (and, xor, not)
 - remove Switch
 - remove For loop
+- rename Instance/Witness by PublicInputs/PrivateInputs
 
 # SIEVE IR v1.0.1, 2022-08
 

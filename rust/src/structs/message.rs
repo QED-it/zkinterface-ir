@@ -1,5 +1,5 @@
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::{Instance, Relation, Result, Witness};
+use crate::{PrivateInputs, PublicInputs, Relation, Result};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
@@ -7,8 +7,8 @@ use std::io::Write;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Message {
-    Instance(Instance),
-    Witness(Witness),
+    PublicInputs(PublicInputs),
+    PrivateInputs(PrivateInputs),
     Relation(Relation),
 }
 
@@ -19,13 +19,13 @@ impl<'a> TryFrom<&'a [u8]> for Message {
         let msg = generated::get_size_prefixed_root_as_root(buffer);
 
         Ok(match msg.message_type() {
-            generated::Message::Instance => {
-                let fb_instance = msg.message_as_instance().unwrap();
-                Message::Instance(Instance::try_from(fb_instance)?)
+            generated::Message::PublicInputs => {
+                let fb_public_inputs = msg.message_as_public_inputs().unwrap();
+                Message::PublicInputs(PublicInputs::try_from(fb_public_inputs)?)
             }
-            generated::Message::Witness => {
-                let fb_witness = msg.message_as_witness().unwrap();
-                Message::Witness(Witness::try_from(fb_witness)?)
+            generated::Message::PrivateInputs => {
+                let fb_private_inputs = msg.message_as_private_inputs().unwrap();
+                Message::PrivateInputs(PrivateInputs::try_from(fb_private_inputs)?)
             }
             generated::Message::Relation => {
                 let fb_relation = msg.message_as_relation().unwrap();
@@ -41,10 +41,10 @@ impl Message {
     ///
     /// # Examples
     /// ```
-    /// use zki_sieve::{Instance, Message};
+    /// use zki_sieve::{PublicInputs, Message};
     /// use std::convert::TryFrom;
     ///
-    /// let message = Message::Instance(Instance::default());
+    /// let message = Message::PublicInputs(PublicInputs::default());
     /// let mut buf = Vec::<u8>::new();
     /// message.write_into(&mut buf).unwrap();
     /// let message2 = Message::try_from(&buf[..]).unwrap();
@@ -52,8 +52,8 @@ impl Message {
     /// ```
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         match self {
-            Message::Instance(instance) => instance.write_into(writer),
-            Message::Witness(witness) => witness.write_into(writer),
+            Message::PublicInputs(public_inputs) => public_inputs.write_into(writer),
+            Message::PrivateInputs(private_inputs) => private_inputs.write_into(writer),
             Message::Relation(relation) => relation.write_into(writer),
         }
     }

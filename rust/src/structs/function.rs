@@ -20,8 +20,8 @@ pub struct Function {
     pub name: String,
     pub output_count: CountList,
     pub input_count: CountList,
-    pub instance_count: CountList,
-    pub witness_count: CountList,
+    pub public_count: CountList,
+    pub private_count: CountList,
     pub body: Vec<Gate>,
 }
 
@@ -43,23 +43,23 @@ impl<'a> TryFrom<generated::Function<'a>> for Function {
                 .input_count()
                 .ok_or("Missing input_count in Function")?,
         )?;
-        let instance_count = CountList::try_from(
+        let public_count = CountList::try_from(
             g_function
-                .instance_count()
-                .ok_or("Missing instance_count in Function")?,
+                .public_count()
+                .ok_or("Missing public_count in Function")?,
         )?;
-        let witness_count = CountList::try_from(
+        let private_count = CountList::try_from(
             g_function
-                .witness_count()
-                .ok_or("Missing witness_count in Function")?,
+                .private_count()
+                .ok_or("Missing private_count in Function")?,
         )?;
 
         Ok(Function {
             name: g_function.name().ok_or("Missing name")?.to_string(),
             output_count,
             input_count,
-            instance_count,
-            witness_count,
+            public_count,
+            private_count,
             body: Gate::try_from_vector(g_directives)?,
         })
     }
@@ -71,16 +71,16 @@ impl Function {
         name: String,
         output_count: CountList,
         input_count: CountList,
-        instance_count: CountList,
-        witness_count: CountList,
+        public_count: CountList,
+        private_count: CountList,
         body: Vec<Gate>,
     ) -> Self {
         Function {
             name,
             output_count,
             input_count,
-            instance_count,
-            witness_count,
+            public_count,
+            private_count,
             body,
         }
     }
@@ -94,8 +94,8 @@ impl Function {
         let g_body = Gate::build_vector(builder, &self.body);
         let g_output_count = build_count_list(builder, &self.output_count);
         let g_input_count = build_count_list(builder, &self.input_count);
-        let g_instance_count = build_count_list(builder, &self.instance_count);
-        let g_witness_count = build_count_list(builder, &self.witness_count);
+        let g_public_count = build_count_list(builder, &self.public_count);
+        let g_private_count = build_count_list(builder, &self.private_count);
 
         generated::Function::create(
             builder,
@@ -103,8 +103,8 @@ impl Function {
                 name: Some(g_name),
                 output_count: Some(g_output_count),
                 input_count: Some(g_input_count),
-                instance_count: Some(g_instance_count),
-                witness_count: Some(g_witness_count),
+                public_count: Some(g_public_count),
+                private_count: Some(g_private_count),
                 body: Some(g_body),
             },
         )

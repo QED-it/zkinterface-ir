@@ -9,7 +9,7 @@ use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Inputs {
-    pub inputs: Vec<Value>,
+    pub values: Vec<Value>,
 }
 
 impl<'a> TryFrom<generated::Inputs<'a>> for Inputs {
@@ -18,7 +18,7 @@ impl<'a> TryFrom<generated::Inputs<'a>> for Inputs {
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_inputs: generated::Inputs) -> Result<Inputs> {
         Ok(Inputs {
-            inputs: try_from_values_vector(g_inputs.inputs().ok_or("Missing inputs")?)?,
+            values: try_from_values_vector(g_inputs.values().ok_or("Missing values")?)?,
         })
     }
 }
@@ -29,8 +29,8 @@ impl Inputs {
         &self,
         builder: &mut FlatBufferBuilder<'bldr>,
     ) -> WIPOffset<generated::Inputs<'bldr>> {
-        let inputs = Some(build_values_vector(builder, &self.inputs));
+        let values = Some(build_values_vector(builder, &self.values));
 
-        generated::Inputs::create(builder, &generated::InputsArgs { inputs })
+        generated::Inputs::create(builder, &generated::InputsArgs { values })
     }
 }

@@ -10,57 +10,57 @@ use crate::structs::inputs::Inputs;
 use crate::structs::wire::{WireList, WireListElement};
 use crate::structs::{function::Function, value::Value};
 use crate::Result;
-use crate::{FieldId, Gate, Header, Instance, Relation, Sink, WireId, Witness};
+use crate::{FieldId, Gate, Header, PrivateInputs, PublicInputs, Relation, Sink, WireId};
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
     /// Returns the newly allocated WireId.
     fn create_gate(&mut self, gate: BuildGate) -> Result<WireId>;
 
-    /// Pushes instances and witnesses,
+    /// Pushes public and private inputs,
     /// Allocates some new wire ids for the output,
     /// Creates a new gate,
     /// Returns the newly allocated WireIds.
     fn create_complex_gate(
         &mut self,
         gate: BuildComplexGate,
-        instances: Vec<Vec<Value>>,
-        witnesses: Vec<Vec<Value>>,
+        public_inputs: Vec<Vec<Value>>,
+        private_inputs: Vec<Vec<Value>>,
     ) -> Result<WireList>;
 }
 
-/// MessageBuilder builds messages by buffering sequences of gates and witness/instance values.
+/// MessageBuilder builds messages by buffering sequences of gates and public/private values.
 /// Flush completed messages to a Sink.
 /// finish() must be called.
 struct MessageBuilder<S: Sink> {
     sink: S,
 
-    instance: Instance,
-    witness: Witness,
+    public_inputs: PublicInputs,
+    private_inputs: PrivateInputs,
     relation: Relation,
 
     /// Current size (sum of the number of gates) of the relation's functions vector
     functions_size: usize,
 
-    /// Maximum number of gates or witness or instance values to hold at once.
+    /// Maximum number of gates or public or private values to hold at once.
     /// Default 100,000 or ~12MB of memory.
-    /// Size estimation: 40 per witness + 40 per instance + 48 per gate = 128 bytes.
+    /// Size estimation: 40 per public_input + 40 per private_input + 48 per gate = 128 bytes.
     pub max_len: usize,
 }
 
 impl<S: Sink> MessageBuilder<S> {
     fn new(sink: S, header: Header) -> Self {
-        let common_inputs = vec![Inputs { inputs: vec![] }; header.fields.len()];
-        let short_witness = vec![Inputs { inputs: vec![] }; header.fields.len()];
+        let public_inputs = vec![Inputs { values: vec![] }; header.fields.len()];
+        let private_inputs = vec![Inputs { values: vec![] }; header.fields.len()];
         Self {
             sink,
-            instance: Instance {
+            public_inputs: PublicInputs {
                 header: header.clone(),
-                common_inputs,
+                inputs: public_inputs,
             },
-            witness: Witness {
+            private_inputs: PrivateInputs {
                 header: header.clone(),
-                short_witness,
+                inputs: private_inputs,
             },
             relation: Relation {
                 header,
@@ -72,34 +72,34 @@ impl<S: Sink> MessageBuilder<S> {
         }
     }
 
-    fn push_instance_value(&mut self, field_id: FieldId, value: Value) -> Result<()> {
-        if let Some(inputs) = self.instance.common_inputs.get_mut(field_id as usize) {
-            inputs.inputs.push(value);
+    fn push_public_input_value(&mut self, field_id: FieldId, value: Value) -> Result<()> {
+        if let Some(inputs) = self.public_inputs.inputs.get_mut(field_id as usize) {
+            inputs.values.push(value);
         } else {
             return Err(format!(
-                "Field {} is not defined, cannot push instance value.",
+                "Field {} is not defined, cannot push public input value.",
                 field_id
             )
             .into());
         }
-        if self.instance.get_instance_len() == self.max_len {
-            self.flush_instance();
+        if self.public_inputs.get_public_inputs_len() == self.max_len {
+            self.flush_public_inputs();
         }
         Ok(())
     }
 
-    fn push_witness_value(&mut self, field_id: FieldId, value: Value) -> Result<()> {
-        if let Some(inputs) = self.witness.short_witness.get_mut(field_id as usize) {
-            inputs.inputs.push(value);
+    fn push_private_input_value(&mut self, field_id: FieldId, value: Value) -> Result<()> {
+        if let Some(inputs) = self.private_inputs.inputs.get_mut(field_id as usize) {
+            inputs.values.push(value);
         } else {
             return Err(format!(
-                "Field {} is not defined, cannot push witness value.",
+                "Field {} is not defined, cannot push private input value.",
                 field_id
             )
             .into());
         }
-        if self.witness.get_witness_len() == self.max_len {
-            self.flush_witness();
+        if self.private_inputs.get_private_inputs_len() == self.max_len {
+            self.flush_private_inputs();
         }
         Ok(())
     }
@@ -119,17 +119,21 @@ impl<S: Sink> MessageBuilder<S> {
         }
     }
 
-    fn flush_instance(&mut self) {
-        self.sink.push_instance_message(&self.instance).unwrap();
-        for inputs in &mut self.instance.common_inputs {
-            inputs.inputs.clear();
+    fn flush_public_inputs(&mut self) {
+        self.sink
+            .push_public_inputs_message(&self.public_inputs)
+            .unwrap();
+        for inputs in &mut self.public_inputs.inputs {
+            inputs.values.clear();
         }
     }
 
-    fn flush_witness(&mut self) {
-        self.sink.push_witness_message(&self.witness).unwrap();
-        for inputs in &mut self.witness.short_witness {
-            inputs.inputs.clear();
+    fn flush_private_inputs(&mut self) {
+        self.sink
+            .push_private_inputs_message(&self.private_inputs)
+            .unwrap();
+        for inputs in &mut self.private_inputs.inputs {
+            inputs.values.clear();
         }
     }
 
@@ -141,11 +145,11 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn finish(mut self) -> S {
-        if !self.instance.common_inputs.is_empty() {
-            self.flush_instance();
+        if !self.public_inputs.inputs.is_empty() {
+            self.flush_public_inputs();
         }
-        if !self.witness.short_witness.is_empty() {
-            self.flush_witness();
+        if !self.private_inputs.inputs.is_empty() {
+            self.flush_private_inputs();
         }
         if !self.relation.gates.is_empty() || !self.relation.functions.is_empty() {
             self.flush_relation();
@@ -160,7 +164,7 @@ impl<S: Sink> MessageBuilder<S> {
     }
 }
 
-/// GateBuilder allocates wire IDs, builds gates, and tracks instance and witness values.
+/// GateBuilder allocates wire IDs, builds gates, and tracks public and private inputs.
 ///
 /// # Example
 /// ```
@@ -182,13 +186,13 @@ pub struct GateBuilder<S: Sink> {
     free_id: HashMap<FieldId, WireId>,
 }
 
-/// FunctionParams contains the number of inputs, outputs, instances and witnesses of a function.
+/// FunctionParams contains the number of inputs, outputs, public/private inputs of a function.
 //#[derive(Clone, Copy)]
 struct FunctionParams {
     input_count: CountList,
     output_count: CountList,
-    instance_count: CountList,
-    witness_count: CountList,
+    public_count: CountList,
+    private_count: CountList,
 }
 
 impl FunctionParams {
@@ -197,8 +201,8 @@ impl FunctionParams {
         name: &str,
         input_count: Option<CountList>,
         output_count: Option<CountList>,
-        instance_count: Option<CountList>,
-        witness_count: Option<CountList>,
+        public_count: Option<CountList>,
+        private_count: Option<CountList>,
     ) -> Result<()> {
         if let Some(count) = input_count {
             if count != self.input_count {
@@ -218,20 +222,20 @@ impl FunctionParams {
                 .into());
             }
         }
-        if let Some(count) = instance_count {
-            if count != self.instance_count {
+        if let Some(count) = public_count {
+            if count != self.public_count {
                 return Err(format!(
-                    "Function {} has {:?} instances and is called with {:?} instances.",
-                    name, self.instance_count, count
+                    "Function {} has {:?} public inputs and is called with {:?} public inputs.",
+                    name, self.public_count, count
                 )
                 .into());
             }
         }
-        if let Some(count) = witness_count {
-            if count != self.witness_count {
+        if let Some(count) = private_count {
+            if count != self.private_count {
                 return Err(format!(
-                    "Function {} has {:?} witnesses and is called with {:?} witnesses.",
-                    name, self.witness_count, count
+                    "Function {} has {:?} private inputs and is called with {:?} private inputs.",
+                    name, self.private_count, count
                 )
                 .into());
             }
@@ -292,11 +296,11 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         };
 
         match gate {
-            BuildGate::Instance(_, Some(ref mut value)) => {
-                self.push_instance_value(field_id, take(value))?;
+            BuildGate::PublicInput(_, Some(ref mut value)) => {
+                self.push_public_input_value(field_id, take(value))?;
             }
-            BuildGate::Witness(_, Some(ref mut value)) => {
-                self.push_witness_value(field_id, take(value))?;
+            BuildGate::PrivateInput(_, Some(ref mut value)) => {
+                self.push_private_input_value(field_id, take(value))?;
             }
             _ => {}
         }
@@ -309,51 +313,53 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
     fn create_complex_gate(
         &mut self,
         gate: BuildComplexGate,
-        instances: Vec<Vec<Value>>,
-        witnesses: Vec<Vec<Value>>,
+        public_inputs: Vec<Vec<Value>>,
+        private_inputs: Vec<Vec<Value>>,
     ) -> Result<WireList> {
-        // Check inputs, instances, witnesses size and return output_count
+        // Check inputs, public_inputs, private_inputs size and return output_count
         let output_count: CountList = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
                 let input_count = wirelist_to_count_list(input_wires);
-                let instances_count = vector_of_values_to_count_list(&instances);
-                let witnesses_count = vector_of_values_to_count_list(&witnesses);
+                let public_count = vector_of_values_to_count_list(&public_inputs);
+                let private_count = vector_of_values_to_count_list(&private_inputs);
                 function_params.check(
                     name,
                     Some(input_count),
                     None,
-                    Some(instances_count),
-                    Some(witnesses_count),
+                    Some(public_count),
+                    Some(private_count),
                 )?;
                 function_params.output_count.clone()
             }
 
             BuildComplexGate::Convert(field_id, output_wire_count, _) => {
                 // TODO convert_gate: check that the convert gate with this signature has already been declared
-                // Check that we have no instance and no witness
-                if !instances.is_empty() {
-                    return Err("A Convert gate does not contain an instance".into());
+                // Check that we have no public/private inputs
+                if !public_inputs.is_empty() {
+                    return Err("A Convert gate does not contain a public input".into());
                 }
-                if !witnesses.is_empty() {
-                    return Err("A Convert gate does not contain a witness".into());
+                if !private_inputs.is_empty() {
+                    return Err("A Convert gate does not contain a private_inputs".into());
                 }
                 HashMap::from([(field_id, output_wire_count)])
             }
         };
 
-        // Push instances
-        for (i, values) in instances.iter().enumerate() {
+        // Push public inputs
+        for (i, values) in public_inputs.iter().enumerate() {
             for value in values {
                 assert!(i <= u8::MAX as usize);
-                self.msg_build.push_instance_value(i as u8, value.clone())?;
+                self.msg_build
+                    .push_public_input_value(i as u8, value.clone())?;
             }
         }
-        // Push witnesses
-        for (i, values) in witnesses.iter().enumerate() {
+        // Push private inputs
+        for (i, values) in private_inputs.iter().enumerate() {
             for value in values {
                 assert!(i <= u8::MAX as usize);
-                self.msg_build.push_witness_value(i as u8, value.clone())?;
+                self.msg_build
+                    .push_private_input_value(i as u8, value.clone())?;
             }
         }
 
@@ -398,19 +404,19 @@ impl<S: Sink> GateBuilder<S> {
             output_count,
             input_count,
             gates: vec![],
-            instance_count: HashMap::new(),
-            witness_count: HashMap::new(),
+            public_count: HashMap::new(),
+            private_count: HashMap::new(),
             known_functions: &self.known_functions,
             free_id,
         }
     }
 
-    pub(crate) fn push_witness_value(&mut self, field_id: FieldId, val: Value) -> Result<()> {
-        self.msg_build.push_witness_value(field_id, val)
+    pub(crate) fn push_private_input_value(&mut self, field_id: FieldId, val: Value) -> Result<()> {
+        self.msg_build.push_private_input_value(field_id, val)
     }
 
-    pub(crate) fn push_instance_value(&mut self, field_id: FieldId, val: Value) -> Result<()> {
-        self.msg_build.push_instance_value(field_id, val)
+    pub(crate) fn push_public_input_value(&mut self, field_id: FieldId, val: Value) -> Result<()> {
+        self.msg_build.push_public_input_value(field_id, val)
     }
 
     pub fn push_function(&mut self, function: Function) -> Result<()> {
@@ -422,8 +428,8 @@ impl<S: Sink> GateBuilder<S> {
                 FunctionParams {
                     input_count: function.input_count.clone(),
                     output_count: function.output_count.clone(),
-                    instance_count: function.instance_count.clone(),
-                    witness_count: function.witness_count.clone(),
+                    public_count: function.public_count.clone(),
+                    private_count: function.private_count.clone(),
                 },
             );
         }
@@ -442,7 +448,7 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
 /// finish() must be called to obtain the function.
-/// The number of instances and witnesses consumed by the function are evaluated on the fly.
+/// The number of public and private inputs consumed by the function are evaluated on the fly.
 ///
 /// # Example
 /// ```
@@ -455,10 +461,10 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 ///
 /// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
-///  let witness_square = {
-///     let mut fb = b.new_function_builder("witness_square".to_string(), HashMap::from([(0,1)]), HashMap::new());
-///     let witness_wire = fb.create_gate(Witness(0, None));
-///     let output_wire = fb.create_gate(Mul(0, witness_wire, witness_wire));
+///  let private_square = {
+///     let mut fb = b.new_function_builder("private_square".to_string(), HashMap::from([(0,1)]), HashMap::new());
+///     let private_input_wire = fb.create_gate(PrivateInput(0, None));
+///     let output_wire = fb.create_gate(Mul(0, private_input_wire, private_input_wire));
 ///
 ///     fb.finish(wirelist![0; output_wire]).unwrap()
 ///  };
@@ -469,8 +475,8 @@ pub struct FunctionBuilder<'a> {
     input_count: CountList,
     gates: Vec<Gate>,
 
-    instance_count: CountList, // evaluated on the fly
-    witness_count: CountList,  // evaluated on the fly
+    public_count: CountList,  // evaluated on the fly
+    private_count: CountList, // evaluated on the fly
     known_functions: &'a HashMap<String, FunctionParams>,
     free_id: HashMap<FieldId, WireId>,
 }
@@ -492,7 +498,7 @@ impl FunctionBuilder<'_> {
         result
     }
 
-    /// Updates instance_count and witness_count,
+    /// Updates public_count and private_count,
     /// Allocates a new wire id for the output and creates a new gate,
     /// Returns the newly allocated WireId.
     pub fn create_gate(&mut self, gate: BuildGate) -> WireId {
@@ -504,12 +510,12 @@ impl FunctionBuilder<'_> {
         };
 
         match gate {
-            BuildGate::Instance(instance_field_id, _) => {
-                let count = self.instance_count.entry(instance_field_id).or_insert(0);
+            BuildGate::PublicInput(field_id, _) => {
+                let count = self.public_count.entry(field_id).or_insert(0);
                 *count += 1;
             }
-            BuildGate::Witness(witness_field_id, _) => {
-                let count = self.witness_count.entry(witness_field_id).or_insert(0);
+            BuildGate::PrivateInput(field_id, _) => {
+                let count = self.private_count.entry(field_id).or_insert(0);
                 *count += 1;
             }
             _ => {}
@@ -521,12 +527,12 @@ impl FunctionBuilder<'_> {
     }
 
     /// Allocates some new wire ids for the output,
-    /// Updates instance_count and witness_count,
+    /// Updates public_count and private_count,
     /// Creates a new gate,
     /// Returns the newly allocated WireIds.
     pub fn create_complex_gate(&mut self, gate: BuildComplexGate) -> Result<WireList> {
         // Check inputs size and return function_params
-        let (output_count, instance_count, witness_count) = match gate {
+        let (output_count, public_count, private_count) = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(self.known_functions, name)?;
                 // Check inputs size
@@ -540,8 +546,8 @@ impl FunctionBuilder<'_> {
                 }
                 (
                     function_params.output_count.clone(),
-                    function_params.instance_count.clone(),
-                    function_params.witness_count.clone(),
+                    function_params.public_count.clone(),
+                    function_params.private_count.clone(),
                 )
             }
             BuildComplexGate::Convert(field_id, output_wire_count, _) => (
@@ -556,13 +562,13 @@ impl FunctionBuilder<'_> {
             output_wires.extend(multiple_alloc(field_id, &mut self.free_id, count as usize));
         }
 
-        for (field_id, count) in witness_count {
-            let field_witness_count = self.witness_count.entry(field_id).or_insert(0);
-            *field_witness_count += count;
+        for (field_id, count) in private_count {
+            let field_private_count = self.private_count.entry(field_id).or_insert(0);
+            *field_private_count += count;
         }
-        for (field_id, count) in instance_count {
-            let field_instance_count = self.instance_count.entry(field_id).or_insert(0);
-            *field_instance_count += count;
+        for (field_id, count) in public_count {
+            let field_public_count = self.public_count.entry(field_id).or_insert(0);
+            *field_public_count += count;
         }
 
         self.gates.push(gate.with_output(output_wires.clone()));
@@ -587,8 +593,8 @@ impl FunctionBuilder<'_> {
             self.name.clone(),
             self.output_count.clone(),
             self.input_count.clone(),
-            self.instance_count.clone(),
-            self.witness_count.clone(),
+            self.public_count.clone(),
+            self.private_count.clone(),
             self.gates.to_vec(),
         ))
     }
@@ -655,14 +661,14 @@ fn test_builder_with_function() {
     let out = expand_wirelist(&out).unwrap();
     assert_eq!(out.len(), 2);
 
-    let witness_0 = b.create_gate(Witness(0, Some(vec![30]))).unwrap();
-    let witness_1 = b.create_gate(Witness(0, Some(vec![25]))).unwrap();
+    let private_0 = b.create_gate(PrivateInput(0, Some(vec![30]))).unwrap();
+    let private_1 = b.create_gate(PrivateInput(0, Some(vec![25]))).unwrap();
 
-    let neg_witness_0 = b.create_gate(MulConstant(0, witness_0, vec![100])).unwrap(); // *(-1)
-    let neg_witness_1 = b.create_gate(MulConstant(0, witness_1, vec![100])).unwrap(); // *(-1)
+    let neg_private_0 = b.create_gate(MulConstant(0, private_0, vec![100])).unwrap(); // *(-1)
+    let neg_private_1 = b.create_gate(MulConstant(0, private_1, vec![100])).unwrap(); // *(-1)
 
-    let res_0 = b.create_gate(Add(0, out[0].1, neg_witness_0)).unwrap();
-    let res_1 = b.create_gate(Add(0, out[1].1, neg_witness_1)).unwrap();
+    let res_0 = b.create_gate(Add(0, out[0].1, neg_private_0)).unwrap();
+    let res_1 = b.create_gate(Add(0, out[1].1, neg_private_1)).unwrap();
 
     b.create_gate(AssertZero(0, res_0)).unwrap();
     b.create_gate(AssertZero(0, res_1)).unwrap();
@@ -698,67 +704,67 @@ fn test_builder_with_several_functions() {
 
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
-    let witness_square = {
+    let private_square = {
         let mut fb = b.new_function_builder(
-            "witness_square".to_string(),
+            "private_square".to_string(),
             HashMap::from([(0, 1)]),
             HashMap::new(),
         );
-        let witness_wire = fb.create_gate(Witness(field_id, None));
-        let output_wire = fb.create_gate(Mul(field_id, witness_wire, witness_wire));
+        let private_wire = fb.create_gate(PrivateInput(field_id, None));
+        let output_wire = fb.create_gate(Mul(field_id, private_wire, private_wire));
 
         fb.finish(wirelist![0; output_wire]).unwrap()
     };
 
-    b.push_function(witness_square).unwrap();
+    b.push_function(private_square).unwrap();
 
-    let sub_instance_witness_square = {
+    let sub_public_private_square = {
         let mut fb = b.new_function_builder(
-            "sub_instance_witness_square".to_string(),
+            "sub_public_private_square".to_string(),
             HashMap::from([(0, 1)]),
             HashMap::new(),
         );
-        let instance_wire = fb.create_gate(Instance(field_id, None));
+        let public_wire = fb.create_gate(PublicInput(field_id, None));
 
         // Try to call a function with a wrong number of inputs
         // Should return an error
         let test = fb.create_complex_gate(Call(
-            "witness_square".to_string(),
-            wirelist![0; instance_wire],
+            "private_square".to_string(),
+            wirelist![0; public_wire],
         ));
         assert!(test.is_err());
 
         // Try to Call a not defined function
         // Should return an error
-        let test = fb.create_complex_gate(Call("test".to_string(), wirelist![0;instance_wire]));
+        let test = fb.create_complex_gate(Call("test".to_string(), wirelist![0;public_wire]));
         assert!(test.is_err());
 
-        let witness_square_wires = fb
-            .create_complex_gate(Call("witness_square".to_string(), vec![]))
+        let private_square_wires = fb
+            .create_complex_gate(Call("private_square".to_string(), vec![]))
             .unwrap();
-        let witness_square_wires = expand_wirelist(&witness_square_wires).unwrap();
-        let neg_witness_square_wire =
-            fb.create_gate(MulConstant(field_id, witness_square_wires[0].1, vec![100]));
-        let output_wire = fb.create_gate(Add(field_id, instance_wire, neg_witness_square_wire));
+        let private_square_wires = expand_wirelist(&private_square_wires).unwrap();
+        let neg_private_square_wire =
+            fb.create_gate(MulConstant(field_id, private_square_wires[0].1, vec![100]));
+        let output_wire = fb.create_gate(Add(field_id, public_wire, neg_private_square_wire));
 
         fb.finish(wirelist![0;output_wire]).unwrap()
     };
 
-    b.push_function(sub_instance_witness_square).unwrap();
+    b.push_function(sub_public_private_square).unwrap();
 
-    // Try to call a function with a wrong number of instances
+    // Try to call a function with a wrong number of public inputs
     // Should return an error
     let test = b.create_complex_gate(
-        Call("sub_instance_witness_square".to_string(), vec![]),
+        Call("sub_public_private_square".to_string(), vec![]),
         vec![],
         vec![vec![vec![5]]],
     );
     assert!(test.is_err());
 
-    // Try to call a function with a wrong number of witnesses
+    // Try to call a function with a wrong number of private inputs
     // Should return an error
     let test = b.create_complex_gate(
-        Call("sub_instance_witness_square".to_string(), vec![]),
+        Call("sub_public_private_square".to_string(), vec![]),
         vec![vec![vec![25]]],
         vec![],
     );
@@ -766,7 +772,7 @@ fn test_builder_with_several_functions() {
 
     let out = b
         .create_complex_gate(
-            Call("sub_instance_witness_square".to_string(), vec![]),
+            Call("sub_public_private_square".to_string(), vec![]),
             vec![vec![vec![25]]],
             vec![vec![vec![5]]],
         )

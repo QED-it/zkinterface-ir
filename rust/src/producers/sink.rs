@@ -1,5 +1,5 @@
 use crate::{consumers::source::has_sieve_extension, Source};
-use crate::{Instance, Relation, Result, Witness, FILE_EXTENSION};
+use crate::{PrivateInputs, PublicInputs, Relation, Result, FILE_EXTENSION};
 use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -7,16 +7,16 @@ use std::path::{Path, PathBuf};
 pub trait Sink {
     type Write: Write;
 
-    fn get_instance_writer(&mut self) -> &mut Self::Write;
-    fn get_witness_writer(&mut self) -> &mut Self::Write;
+    fn get_public_inputs_writer(&mut self) -> &mut Self::Write;
+    fn get_private_inputs_writer(&mut self) -> &mut Self::Write;
     fn get_relation_writer(&mut self) -> &mut Self::Write;
 
-    fn push_instance_message(&mut self, instance: &Instance) -> Result<()> {
-        instance.write_into(self.get_instance_writer())
+    fn push_public_inputs_message(&mut self, public_inputs: &PublicInputs) -> Result<()> {
+        public_inputs.write_into(self.get_public_inputs_writer())
     }
 
-    fn push_witness_message(&mut self, witness: &Witness) -> Result<()> {
-        witness.write_into(self.get_witness_writer())
+    fn push_private_inputs_message(&mut self, private_inputs: &PrivateInputs) -> Result<()> {
+        private_inputs.write_into(self.get_private_inputs_writer())
     }
 
     fn push_relation_message(&mut self, relation: &Relation) -> Result<()> {
@@ -26,19 +26,19 @@ pub trait Sink {
 
 #[derive(Default)]
 pub struct MemorySink {
-    pub instance_buffer: Vec<u8>,
-    pub witness_buffer: Vec<u8>,
+    pub public_inputs_buffer: Vec<u8>,
+    pub private_inputs_buffer: Vec<u8>,
     pub relation_buffer: Vec<u8>,
 }
 
 impl Sink for MemorySink {
     type Write = Vec<u8>;
 
-    fn get_instance_writer(&mut self) -> &mut Self::Write {
-        &mut self.instance_buffer
+    fn get_public_inputs_writer(&mut self) -> &mut Self::Write {
+        &mut self.public_inputs_buffer
     }
-    fn get_witness_writer(&mut self) -> &mut Self::Write {
-        &mut self.witness_buffer
+    fn get_private_inputs_writer(&mut self) -> &mut Self::Write {
+        &mut self.private_inputs_buffer
     }
     fn get_relation_writer(&mut self) -> &mut Self::Write {
         &mut self.relation_buffer
@@ -48,8 +48,8 @@ impl Sink for MemorySink {
 impl From<MemorySink> for Source {
     fn from(mem: MemorySink) -> Source {
         Source::from_buffers(vec![
-            mem.instance_buffer,
-            mem.witness_buffer,
+            mem.public_inputs_buffer,
+            mem.private_inputs_buffer,
             mem.relation_buffer,
         ])
     }
@@ -59,8 +59,8 @@ impl From<MemorySink> for Source {
 pub struct FilesSink {
     pub workspace: PathBuf,
 
-    instance_file: File,
-    witness_file: File,
+    public_inputs_file: File,
+    private_inputs_file: File,
     relation_file: File,
 }
 
@@ -75,22 +75,22 @@ impl FilesSink {
         Ok(FilesSink {
             workspace: workspace.as_ref().to_path_buf(),
 
-            instance_file: File::create(Self::instance_path(workspace))?,
-            witness_file: File::create(Self::witness_path(workspace))?,
+            public_inputs_file: File::create(Self::public_inputs_path(workspace))?,
+            private_inputs_file: File::create(Self::private_inputs_path(workspace))?,
             relation_file: File::create(Self::relation_path(workspace))?,
         })
     }
 
-    pub fn instance_path(workspace: &impl AsRef<Path>) -> PathBuf {
+    pub fn public_inputs_path(workspace: &impl AsRef<Path>) -> PathBuf {
         workspace
             .as_ref()
-            .join(format!("000_instance.{}", FILE_EXTENSION))
+            .join(format!("000_public_inputs.{}", FILE_EXTENSION))
     }
 
-    pub fn witness_path(workspace: &impl AsRef<Path>) -> PathBuf {
+    pub fn private_inputs_path(workspace: &impl AsRef<Path>) -> PathBuf {
         workspace
             .as_ref()
-            .join(format!("001_witness.{}", FILE_EXTENSION))
+            .join(format!("001_private_inputs.{}", FILE_EXTENSION))
     }
 
     pub fn relation_path(workspace: &impl AsRef<Path>) -> PathBuf {
@@ -100,8 +100,14 @@ impl FilesSink {
     }
 
     pub fn print_filenames(&self) {
-        eprintln!("Writing {}", Self::instance_path(&self.workspace).display());
-        eprintln!("Writing {}", Self::witness_path(&self.workspace).display());
+        eprintln!(
+            "Writing {}",
+            Self::public_inputs_path(&self.workspace).display()
+        );
+        eprintln!(
+            "Writing {}",
+            Self::private_inputs_path(&self.workspace).display()
+        );
         eprintln!("Writing {}", Self::relation_path(&self.workspace).display());
     }
 }
@@ -109,12 +115,12 @@ impl FilesSink {
 impl Sink for FilesSink {
     type Write = File;
 
-    fn get_instance_writer(&mut self) -> &mut File {
-        &mut self.instance_file
+    fn get_public_inputs_writer(&mut self) -> &mut File {
+        &mut self.public_inputs_file
     }
 
-    fn get_witness_writer(&mut self) -> &mut File {
-        &mut self.witness_file
+    fn get_private_inputs_writer(&mut self) -> &mut File {
+        &mut self.private_inputs_file
     }
 
     fn get_relation_writer(&mut self) -> &mut File {
@@ -175,8 +181,8 @@ fn test_sink() {
     let mut sink = FilesSink::new_clean(&workspace).unwrap();
 
     let expected_filenames = &[
-        ("local/test_sink/000_instance.sieve".into()),
-        ("local/test_sink/001_witness.sieve".into()),
+        ("local/test_sink/000_public_inputs.sieve".into()),
+        ("local/test_sink/001_private_inputs.sieve".into()),
         ("local/test_sink/002_relation.sieve".into()),
     ] as &[PathBuf];
 
@@ -184,9 +190,11 @@ fn test_sink() {
     assert_eq!(filenames.as_slice(), expected_filenames);
     assert_eq!(sizes, vec![0, 0, 0]);
 
-    sink.push_instance_message(&example_instance()).unwrap();
+    sink.push_public_inputs_message(&example_public_inputs())
+        .unwrap();
 
-    sink.push_witness_message(&example_witness()).unwrap();
+    sink.push_private_inputs_message(&example_private_inputs())
+        .unwrap();
 
     sink.push_relation_message(&example_relation()).unwrap();
 
@@ -196,9 +204,11 @@ fn test_sink() {
     assert!(sizes[1] < sizes1[1]);
     assert!(sizes[2] < sizes1[2]);
 
-    sink.push_instance_message(&example_instance()).unwrap();
+    sink.push_public_inputs_message(&example_public_inputs())
+        .unwrap();
 
-    sink.push_witness_message(&example_witness()).unwrap();
+    sink.push_private_inputs_message(&example_private_inputs())
+        .unwrap();
 
     sink.push_relation_message(&example_relation()).unwrap();
 
@@ -213,8 +223,8 @@ fn test_sink() {
     for msg in source.iter_messages() {
         stats.ingest_message(&msg.unwrap());
     }
-    assert_eq!(stats.gate_stats.instance_messages, 2);
-    assert_eq!(stats.gate_stats.witness_messages, 2);
+    assert_eq!(stats.gate_stats.public_inputs_messages, 2);
+    assert_eq!(stats.gate_stats.private_inputs_messages, 2);
     assert_eq!(stats.gate_stats.relation_messages, 2);
 
     // clean workspace, and check there is no more file in it.

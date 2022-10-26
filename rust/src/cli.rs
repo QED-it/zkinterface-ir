@@ -18,7 +18,7 @@ use crate::consumers::{
 use crate::producers::from_r1cs::FromR1CSConverter;
 use crate::producers::sink::MemorySink;
 use crate::{FilesSink, Message, Messages, Result, Sink, Source};
-use crate::{Instance, Relation, Witness};
+use crate::{PrivateInputs, PublicInputs, Relation};
 use zkinterface::WorkspaceSink;
 
 const ABOUT: &str = "
@@ -152,35 +152,35 @@ fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
 
     let header = example_header();
-    let instance = example_instance_h(&header);
+    let public_inputs = example_public_inputs_h(&header);
     let relation = example_relation_h(&header);
-    let witness = if opts.incorrect {
-        example_witness_incorrect_h(&header)
+    let private_inputs = if opts.incorrect {
+        example_private_inputs_incorrect_h(&header)
     } else {
-        example_witness_h(&header)
+        example_private_inputs_h(&header)
     };
-    write_example(opts, &instance, &witness, &relation)?;
+    write_example(opts, &public_inputs, &private_inputs, &relation)?;
     Ok(())
 }
 
 fn main_several_fields_example(opts: &Options) -> Result<()> {
     use crate::producers::examples_with_several_fields::*;
 
-    let instance = example_instance_with_several_fields();
+    let public_inputs = example_public_inputs_with_several_fields();
     let relation = example_relation_with_several_fields();
-    let witness = if opts.incorrect {
-        example_incorrect_witness_with_several_fields()
+    let private_inputs = if opts.incorrect {
+        example_incorrect_private_inputs_with_several_fields()
     } else {
-        example_witness_with_several_fields()
+        example_private_inputs_with_several_fields()
     };
-    write_example(opts, &instance, &witness, &relation)?;
+    write_example(opts, &public_inputs, &private_inputs, &relation)?;
     Ok(())
 }
 
 fn write_example(
     opts: &Options,
-    instance: &Instance,
-    witness: &Witness,
+    public_inputs: &PublicInputs,
+    private_inputs: &PrivateInputs,
     relation: &Relation,
 ) -> Result<()> {
     if opts.paths.len() != 1 {
@@ -189,23 +189,23 @@ fn write_example(
     let out_dir = &opts.paths[0];
 
     if out_dir == Path::new("-") {
-        instance.write_into(&mut stdout())?;
-        witness.write_into(&mut stdout())?;
+        public_inputs.write_into(&mut stdout())?;
+        private_inputs.write_into(&mut stdout())?;
         relation.write_into(&mut stdout())?;
     } else if has_sieve_extension(out_dir) {
         let mut file = File::create(out_dir)?;
-        instance.write_into(&mut file)?;
-        witness.write_into(&mut file)?;
+        public_inputs.write_into(&mut file)?;
+        private_inputs.write_into(&mut file)?;
         relation.write_into(&mut file)?;
         eprintln!(
-            "Written Instance, Witness, and Relation into {}",
+            "Written PublicInputs, PrivateInputs, and Relation into {}",
             out_dir.display()
         );
     } else {
         let mut sink = FilesSink::new_clean(out_dir)?;
         sink.print_filenames();
-        sink.push_instance_message(instance)?;
-        sink.push_witness_message(witness)?;
+        sink.push_public_inputs_message(public_inputs)?;
+        sink.push_private_inputs_message(private_inputs)?;
         sink.push_relation_message(relation)?;
     }
     Ok(())
@@ -240,11 +240,11 @@ fn from_json(options: &Options) -> Result<()> {
         }
     };
     let mut file = File::create("from_json.sieve")?;
-    for instance in messages.instances {
-        instance.write_into(&mut file)?;
+    for pub_inputs in messages.public_inputs {
+        pub_inputs.write_into(&mut file)?;
     }
-    for witness in messages.witnesses {
-        witness.write_into(&mut file)?;
+    for priv_inputs in messages.private_inputs {
+        priv_inputs.write_into(&mut file)?;
     }
     for relation in messages.relations {
         relation.write_into(&mut file)?;
@@ -268,11 +268,11 @@ fn from_yaml(options: &Options) -> Result<()> {
         }
     };
     let mut file = File::create("from_yaml.sieve")?;
-    for instance in messages.instances {
-        instance.write_into(&mut file)?;
+    for pub_inputs in messages.public_inputs {
+        pub_inputs.write_into(&mut file)?;
     }
-    for witness in messages.witnesses {
-        witness.write_into(&mut file)?;
+    for priv_inputs in messages.private_inputs {
+        priv_inputs.write_into(&mut file)?;
     }
     for relation in messages.relations {
         relation.write_into(&mut file)?;
@@ -481,7 +481,7 @@ fn main_ir_to_r1cs(opts: &Options) -> Result<()> {
     for m in source.iter_messages() {
         let m = m?;
         // if there is at least one witness message, then we'll convert them as well.
-        if let Message::Witness(_) = m {
+        if let Message::PrivateInputs(_) = m {
             use_witness = true;
         }
     }

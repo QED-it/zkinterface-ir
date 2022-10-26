@@ -6,13 +6,12 @@ namespace sieve_ir;
 // Ref. SIEVE-IR spec (1.)
 union Message {
    Relation,
-   Instance,
-   Witness,
+   PublicInputs,
+   PrivateInputs,
 }
 
 // The 'version' field should match the following regexp "^\d+.\d+.\d+$"
-// The 'field_characteristic' should be prime, and stored little-endian byte-oriented vector
-// The 'field_degree' should be '1'. No other value is actually supported.
+// The 'fields' should be a list of primes, and stored little-endian byte-oriented vector
 // Ref. SIEVE-IR spec (3.1)
 table Header {
    version              :string;
@@ -25,18 +24,18 @@ table Relation {
    directives           :[Directive];
 }
 // Ref. SIEVE-IR spec (3.2)
-table Instance {
+table PublicInputs {
    header               :Header;
-   common_inputs        :[Inputs];
+   inputs               :[Inputs];
 }
 // Ref. SIEVE-IR spec (3.2)
-table Witness {
+table PrivateInputs {
    header               :Header;
-   short_witness        :[Inputs];
+   inputs               :[Inputs];
 }
 
 table Inputs {
-	inputs              :[Value];
+	values              :[Value];
 }
 
 // ==== Helper types ====
@@ -138,12 +137,12 @@ table GateMulConstant {
    constant    :[ubyte];
 }
 
-table GateInstance {
+table GatePublicInput {
    field_id    :FieldId;
    output      :WireId;
 }
 
-table GateWitness {
+table GatePrivateInput {
    field_id    :FieldId;
    output      :WireId;
 }
@@ -173,8 +172,8 @@ table Function {
     name            :string;
     output_count    :CountList;
     input_count     :CountList;
-    instance_count  :CountList;
-    witness_count   :CountList;
+    public_count    :CountList;
+    private_count   :CountList;
     body            :[Directive];
 }
 // Invokes a previously defined Function gate
@@ -201,8 +200,8 @@ table AbstractGateCall {
 }
 table AbstractAnonCall {
     input_wires     :WireList;
-    instance_count  :CountList;
-    witness_count   :CountList;
+    public_count    :CountList;
+    private_count   :CountList;
     subcircuit      :[Directive];
 }
 
@@ -214,8 +213,8 @@ union DirectiveSet {
    GateMul,
    GateAddConstant,
    GateMulConstant,
-   GateInstance,
-   GateWitness,
+   GatePublicInput,
+   GatePrivateInput,
    GateFree,
    GateConvert,
    GateCall,

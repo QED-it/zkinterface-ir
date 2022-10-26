@@ -14,8 +14,8 @@ pub enum BuildGate {
     Mul(FieldId, WireId, WireId),
     AddConstant(FieldId, WireId, Value),
     MulConstant(FieldId, WireId, Value),
-    Instance(FieldId, Option<Value>),
-    Witness(FieldId, Option<Value>),
+    PublicInput(FieldId, Option<Value>),
+    PrivateInput(FieldId, Option<Value>),
     Free(FieldId, WireId, Option<WireId>),
 }
 
@@ -36,8 +36,8 @@ impl BuildGate {
             Mul(field, left, right) => Gate::Mul(field, output, left, right),
             AddConstant(field, left, value) => Gate::AddConstant(field, output, left, value),
             MulConstant(field, left, value) => Gate::MulConstant(field, output, left, value),
-            Instance(field, _) => Gate::Instance(field, output),
-            Witness(field, _) => Gate::Witness(field, output),
+            PublicInput(field, _) => Gate::PublicInput(field, output),
+            PrivateInput(field, _) => Gate::PrivateInput(field, output),
             Free(field, first, last) => {
                 assert_eq!(output, NO_OUTPUT);
                 Gate::Free(field, first, last)
@@ -58,8 +58,8 @@ impl BuildGate {
             Mul(field, _, _) => field,
             AddConstant(field, _, _) => field,
             MulConstant(field, _, _) => field,
-            Instance(field, _) => field,
-            Witness(field, _) => field,
+            PublicInput(field, _) => field,
+            PrivateInput(field, _) => field,
             Free(field, _, _) => field,
         }
     }

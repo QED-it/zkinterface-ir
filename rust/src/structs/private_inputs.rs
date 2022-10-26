@@ -10,41 +10,41 @@ use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::inputs::Inputs;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct Instance {
+pub struct PrivateInputs {
     pub header: Header,
-    pub common_inputs: Vec<Inputs>,
+    pub inputs: Vec<Inputs>,
 }
 
-impl<'a> TryFrom<generated::Instance<'a>> for Instance {
+impl<'a> TryFrom<generated::PrivateInputs<'a>> for PrivateInputs {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(g_instance: generated::Instance) -> Result<Instance> {
-        let fbs_vector = g_instance.common_inputs().ok_or("Missing common_inputs")?;
-        let mut common_inputs: Vec<Inputs> = vec![];
+    fn try_from(g_private_inputs: generated::PrivateInputs) -> Result<PrivateInputs> {
+        let fbs_vector = g_private_inputs.inputs().ok_or("Missing private_inputs")?;
+        let mut private_inputs: Vec<Inputs> = vec![];
         for g_inputs in fbs_vector {
-            common_inputs.push(Inputs::try_from(g_inputs)?);
+            private_inputs.push(Inputs::try_from(g_inputs)?);
         }
-        Ok(Instance {
-            header: Header::try_from(g_instance.header())?,
-            common_inputs,
+        Ok(PrivateInputs {
+            header: Header::try_from(g_private_inputs.header())?,
+            inputs: private_inputs,
         })
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Instance {
+impl<'a> TryFrom<&'a [u8]> for PrivateInputs {
     type Error = Box<dyn Error>;
 
-    fn try_from(buffer: &'a [u8]) -> Result<Instance> {
-        Instance::try_from(
+    fn try_from(buffer: &'a [u8]) -> Result<PrivateInputs> {
+        PrivateInputs::try_from(
             generated::get_size_prefixed_root_as_root(buffer)
-                .message_as_instance()
-                .ok_or("Not a Instance message.")?,
+                .message_as_private_inputs()
+                .ok_or("Not a PrivateInputs message.")?,
         )
     }
 }
 
-impl Instance {
+impl PrivateInputs {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'bldr>(
         &self,
@@ -52,41 +52,40 @@ impl Instance {
     ) -> WIPOffset<generated::Root<'bldr>> {
         let header = Some(self.header.build(builder));
         let g_inputs: Vec<_> = self
-            .common_inputs
+            .inputs
             .iter()
             .map(|inputs| inputs.build(builder))
             .collect();
         let g_vector = builder.create_vector(&g_inputs);
-
-        let instance = generated::Instance::create(
+        let private_inputs = generated::PrivateInputs::create(
             builder,
-            &generated::InstanceArgs {
+            &generated::PrivateInputsArgs {
                 header,
-                common_inputs: Some(g_vector),
+                inputs: Some(g_vector),
             },
         );
 
         generated::Root::create(
             builder,
             &generated::RootArgs {
-                message_type: generated::Message::Instance,
-                message: Some(instance.as_union_value()),
+                message_type: generated::Message::PrivateInputs,
+                message: Some(private_inputs.as_union_value()),
             },
         )
     }
 
-    /// Writes this Instance as a Flatbuffers message into the provided buffer.
+    /// Writes this PrivateInputs as a Flatbuffers message into the provided buffer.
     ///
     /// # Examples
     /// ```
-    /// use zki_sieve::Instance;
+    /// use zki_sieve::PrivateInputs;
     /// use std::convert::TryFrom;
     ///
-    /// let instance = Instance::default();
+    /// let private_inputs = PrivateInputs::default();
     /// let mut buf = Vec::<u8>::new();
-    /// instance.write_into(&mut buf).unwrap();
-    /// let instance2 = Instance::try_from(&buf[..]).unwrap();
-    /// assert_eq!(instance, instance2);
+    /// private_inputs.write_into(&mut buf).unwrap();
+    /// let private_inputs2 = PrivateInputs::try_from(&buf[..]).unwrap();
+    /// assert_eq!(private_inputs, private_inputs2);
     /// ```
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
@@ -96,10 +95,7 @@ impl Instance {
         Ok(())
     }
 
-    pub fn get_instance_len(&self) -> usize {
-        self.common_inputs
-            .iter()
-            .map(|inputs| inputs.inputs.len())
-            .sum()
+    pub fn get_private_inputs_len(&self) -> usize {
+        self.inputs.iter().map(|inputs| inputs.values.len()).sum()
     }
 }

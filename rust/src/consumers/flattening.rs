@@ -158,17 +158,17 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
             .create_gate(BuildGate::MulConstant(*field_id, *a, b.to_bytes_le()))
     }
 
-    fn instance(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Instance(*field_id, Some(val.to_bytes_le())))
+            .create_gate(BuildGate::PublicInput(*field_id, Some(val.to_bytes_le())))
     }
 
-    fn witness(
+    fn private_input(
         &mut self,
         field_id: &FieldId,
         val: Option<Self::FieldElement>,
@@ -180,7 +180,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Witness(*field_id, value))
+            .create_gate(BuildGate::PrivateInput(*field_id, value))
     }
 
     fn convert(
@@ -202,15 +202,15 @@ fn test_validate_flattening() -> crate::Result<()> {
     use crate::producers::sink::MemorySink;
     use crate::Source;
 
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
     let relation = example_relation();
 
     let mut flattener = IRFlattener::new(MemorySink::default());
     let mut evaluator = Evaluator::default();
 
-    evaluator.ingest_instance(&instance)?;
-    evaluator.ingest_witness(&witness)?;
+    evaluator.ingest_public_inputs(&public_inputs)?;
+    evaluator.ingest_private_inputs(&private_inputs)?;
     evaluator.ingest_relation(&relation, &mut flattener)?;
 
     let s: Source = flattener.finish().into();
@@ -233,14 +233,14 @@ fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::Source;
 
     let relation = example_relation();
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
 
     let mut flattener = IRFlattener::new(MemorySink::default());
     let mut evaluator = Evaluator::default();
 
-    evaluator.ingest_instance(&instance)?;
-    evaluator.ingest_witness(&witness)?;
+    evaluator.ingest_public_inputs(&public_inputs)?;
+    evaluator.ingest_private_inputs(&private_inputs)?;
     evaluator.ingest_relation(&relation, &mut flattener)?;
 
     let s: Source = flattener.finish().into();

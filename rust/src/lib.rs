@@ -39,8 +39,9 @@ pub use producers::sink::{clean_workspace, FilesSink, Sink};
 /// The extension of files containing messages encoded in FlatBuffers-binary.
 pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
 pub use structs::{
-    gates::Gate, header::Header, instance::Instance, message::Message, messages::Messages,
-    relation::Relation, value::Value, witness::Witness, FieldId, WireId,
+    gates::Gate, header::Header, message::Message, messages::Messages,
+    private_inputs::PrivateInputs, public_inputs::PublicInputs, relation::Relation, value::Value,
+    FieldId, WireId,
 };
 
 /// Common definition of Result with generic errors.

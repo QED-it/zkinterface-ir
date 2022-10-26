@@ -1,11 +1,11 @@
 /// A common structure for inputs (used in witness and instance).
 pub mod inputs;
 
-/// A structure representing a message of type Instance.
-pub mod instance;
+/// A structure representing a message of type PublicInputs.
+pub mod public_inputs;
 
-/// A structure representing a message of type Witness.
-pub mod witness;
+/// A structure representing a message of type PrivateInputs.
+pub mod private_inputs;
 
 /// A structure representing a message of type Relation.
 pub mod relation;

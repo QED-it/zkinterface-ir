@@ -51,12 +51,12 @@ impl<S: Sink> FromR1CSConverter<S> {
             if var.id == 0 {
                 assert!(
                     BigUint::from_bytes_le(var.value).is_one(),
-                    "value for instance id:0 should be a constant 1"
+                    "value for public input id:0 should be a constant 1"
                 );
             } else {
                 let wire = conv
                     .b
-                    .create_gate(Instance(FIELD_ID, Some(var.value.to_vec())))
+                    .create_gate(PublicInput(FIELD_ID, Some(var.value.to_vec())))
                     .unwrap();
                 conv.r1cs_to_ir_wire.insert(var.id, wire);
             }
@@ -64,7 +64,7 @@ impl<S: Sink> FromR1CSConverter<S> {
 
         // preallocate wire id which will contain witness variables.
         for var in zki_header.list_witness_ids() {
-            let wire = conv.b.create_gate(Witness(FIELD_ID, None)).unwrap();
+            let wire = conv.b.create_gate(PrivateInput(FIELD_ID, None)).unwrap();
             conv.r1cs_to_ir_wire.insert(var, wire);
         }
 
@@ -134,7 +134,8 @@ impl<S: Sink> FromR1CSConverter<S> {
             if !self.r1cs_to_ir_wire.contains_key(&var.id) {
                 return Err(format!("The ZKI witness id {} does not exist.", var.id).into());
             }
-            self.b.push_witness_value(FIELD_ID, var.value.to_vec())?;
+            self.b
+                .push_private_input_value(FIELD_ID, var.value.to_vec())?;
         }
 
         Ok(())
@@ -256,8 +257,8 @@ fn test_r1cs_stats() -> Result<()> {
     let expected_stats = Stats {
         moduli: vec![vec![101]],
         gate_stats: GateStats {
-            instance_variables: 3,
-            witness_variables: 2,
+            public_variables: 3,
+            private_variables: 2,
             constants_gates: 12,
             assert_zero_gates: 3,
             copy_gates: 0,
@@ -269,8 +270,8 @@ fn test_r1cs_stats() -> Result<()> {
             functions_defined: 0,
             functions_called: 0,
             convert_gates: 0,
-            instance_messages: 1,
-            witness_messages: 1,
+            public_inputs_messages: 1,
+            private_inputs_messages: 1,
             relation_messages: 1,
         },
         functions: Default::default(),

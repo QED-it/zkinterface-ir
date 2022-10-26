@@ -1,4 +1,6 @@
-use crate::{FieldId, Gate, Header, Instance, Message, Relation, Result, WireId, Witness};
+use crate::{
+    FieldId, Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, WireId,
+};
 use num_bigint::BigUint;
 use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap};
@@ -58,8 +60,8 @@ WireRange Validation
 pub struct Validator {
     as_prover: bool,
 
-    instance_queue_len: CountList,
-    witness_queue_len: CountList,
+    public_inputs_queue_len: CountList,
+    private_inputs_queue_len: CountList,
     live_wires: BTreeSet<(FieldId, WireId)>,
 
     got_header: bool,
@@ -67,7 +69,7 @@ pub struct Validator {
 
     fields: Vec<Field>,
 
-    // name => (output_count, input_count, instance_count, witness_count, subcircuit)
+    // name => (output_count, input_count, public_count, private_count, subcircuit)
     known_functions: Rc<RefCell<HashMap<String, (CountList, CountList, CountList, CountList)>>>,
 
     violations: Vec<String>,
@@ -77,8 +79,8 @@ impl Default for Validator {
     fn default() -> Self {
         Self {
             as_prover: Default::default(),
-            instance_queue_len: Default::default(),
-            witness_queue_len: Default::default(),
+            public_inputs_queue_len: Default::default(),
+            private_inputs_queue_len: Default::default(),
             live_wires: Default::default(),
             got_header: Default::default(),
             header_version: Default::default(),
@@ -106,8 +108,8 @@ impl Validator {
     }
 
     pub fn get_violations(mut self) -> Vec<String> {
-        self.ensure_all_instance_values_consumed();
-        self.ensure_all_witness_values_consumed();
+        self.ensure_all_public_values_consumed();
+        self.ensure_all_private_values_consumed();
         if !self.live_wires.is_empty() {
             println!("WARNING: few variables were not freed.");
         }
@@ -124,8 +126,8 @@ impl Validator {
 
     pub fn ingest_message(&mut self, msg: &Message) {
         match msg {
-            Message::Instance(i) => self.ingest_instance(i),
-            Message::Witness(w) => self.ingest_witness(w),
+            Message::PublicInputs(i) => self.ingest_public_inputs(i),
+            Message::PrivateInputs(w) => self.ingest_private_inputs(w),
             Message::Relation(r) => self.ingest_relation(r),
         }
     }
@@ -168,44 +170,44 @@ impl Validator {
             }
             self.header_version = header.version.clone();
 
-            // Initialize instance_queue_len and witness_queue_len
-            self.instance_queue_len = HashMap::new();
-            self.witness_queue_len = HashMap::new();
+            // Initialize public/private_inputs_queue_len
+            self.public_inputs_queue_len = HashMap::new();
+            self.private_inputs_queue_len = HashMap::new();
         }
     }
 
-    pub fn ingest_instance(&mut self, instance: &Instance) {
-        self.ingest_header(&instance.header);
+    pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
+        self.ingest_header(&public_inputs.header);
 
-        // Provide values on the queue available for Instance gates.
-        for (i, instances_per_field) in instance.common_inputs.iter().enumerate() {
+        // Provide values on the queue available for PublicInput gates.
+        for (i, public_inputs_per_field) in public_inputs.inputs.iter().enumerate() {
             assert!(i <= u8::MAX as usize);
             let i = i as u8;
             // Check values.
-            for value in &instances_per_field.inputs {
-                self.ensure_value_in_field(&i, value, || format!("instance value {:?}", value));
+            for value in &public_inputs_per_field.values {
+                self.ensure_value_in_field(&i, value, || format!("public value {:?}", value));
             }
-            let count = self.instance_queue_len.entry(i).or_insert(0);
-            *count += instances_per_field.inputs.len() as u64;
+            let count = self.public_inputs_queue_len.entry(i).or_insert(0);
+            *count += public_inputs_per_field.values.len() as u64;
         }
     }
 
-    pub fn ingest_witness(&mut self, witness: &Witness) {
+    pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) {
         if !self.as_prover {
-            self.violate("As verifier, got an unexpected Witness message.");
+            self.violate("As verifier, got an unexpected PrivateInputs message.");
         }
-        self.ingest_header(&witness.header);
+        self.ingest_header(&private_inputs.header);
 
-        // Provide values on the queue available for Witness gates.
-        for (i, witnesses_per_field) in witness.short_witness.iter().enumerate() {
+        // Provide values on the queue available for PrivateInput gates.
+        for (i, private_inputs_per_field) in private_inputs.inputs.iter().enumerate() {
             assert!(i <= u8::MAX as usize);
             let i = i as u8;
             // Check values.
-            for value in &witnesses_per_field.inputs {
-                self.ensure_value_in_field(&i, value, || format!("witness value {:?}", value));
+            for value in &private_inputs_per_field.values {
+                self.ensure_value_in_field(&i, value, || format!("private value {:?}", value));
             }
-            let count = self.witness_queue_len.entry(i).or_insert(0);
-            *count += witnesses_per_field.inputs.len() as u64;
+            let count = self.private_inputs_queue_len.entry(i).or_insert(0);
+            *count += private_inputs_per_field.values.len() as u64;
         }
     }
 
@@ -213,12 +215,12 @@ impl Validator {
         self.ingest_header(&relation.header);
 
         for f in relation.functions.iter() {
-            let (name, output_count, input_count, instance_count, witness_count) = (
+            let (name, output_count, input_count, public_count, private_count) = (
                 f.name.clone(),
                 f.output_count.clone(),
                 f.input_count.clone(),
-                f.instance_count.clone(),
-                f.witness_count.clone(),
+                f.public_count.clone(),
+                f.private_count.clone(),
             );
 
             // Check that the name follows the proper REGEX
@@ -243,8 +245,8 @@ impl Validator {
                     (
                         output_count.clone(),
                         input_count.clone(),
-                        instance_count.clone(),
-                        witness_count.clone(),
+                        public_count.clone(),
+                        private_count.clone(),
                     ),
                 );
             }
@@ -253,8 +255,8 @@ impl Validator {
                 &f.body,
                 &output_count,
                 &input_count,
-                &instance_count,
-                &witness_count,
+                &public_count,
+                &private_count,
             );
         }
 
@@ -313,16 +315,16 @@ impl Validator {
                 self.ensure_undefined_and_set(field_id, *out);
             }
 
-            Instance(field_id, out) => {
+            PublicInput(field_id, out) => {
                 self.declare(field_id, *out);
                 // Consume value.
-                self.consume_instance(field_id, 1);
+                self.consume_public_inputs(field_id, 1);
             }
 
-            Witness(field_id, out) => {
+            PrivateInput(field_id, out) => {
                 self.declare(field_id, *out);
                 // Consume value.
-                self.consume_witness(field_id, 1);
+                self.consume_private_inputs(field_id, 1);
             }
 
             Free(field_id, first, last) => {
@@ -374,7 +376,7 @@ impl Validator {
                 });
             }
 
-            AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
+            AnonCall(output_wires, input_wires, public_count, private_count, subcircuit) => {
                 let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
                     self.violate(err.to_string());
                     vec![]
@@ -393,13 +395,13 @@ impl Validator {
                     subcircuit,
                     &wirelist_to_count_list(output_wires),
                     &wirelist_to_count_list(input_wires),
-                    instance_count,
-                    witness_count,
+                    public_count,
+                    private_count,
                 );
 
-                // Now, consume instances and witnesses from self.
-                self.consume_instance_count(instance_count);
-                self.consume_witness_count(witness_count);
+                // Now, consume public/private inputs from self.
+                self.consume_public_count(public_count);
+                self.consume_private_count(private_count);
 
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|(field_id, wire_id)| {
@@ -425,13 +427,13 @@ impl Validator {
                     self.ensure_defined_and_set(field_id, *wire_id)
                 });
 
-                let (instance_count, witness_count) = self
+                let (public_count, private_count) = self
                     .ingest_call(name, output_wires, input_wires)
                     .unwrap_or((HashMap::new(), HashMap::new()));
 
-                // Now, consume instances and witnesses from self.
-                self.consume_instance_count(&instance_count);
-                self.consume_witness_count(&witness_count);
+                // Now, consume public/private inputs from self.
+                self.consume_public_count(&public_count);
+                self.consume_private_count(&private_count);
 
                 // set the output wires as defined, since we checked they were in each branch.
                 expanded_outputs.iter().for_each(|(field_id, wire_id)| {
@@ -457,7 +459,7 @@ impl Validator {
             return Err("This function does not exist.".into());
         }
 
-        let (output_count, input_count, instance_count, witness_count) =
+        let (output_count, input_count, public_count, private_count) =
             self.known_functions.borrow().get(name).cloned().unwrap();
 
         if output_count != wirelist_to_count_list(output_wires) {
@@ -468,7 +470,7 @@ impl Validator {
             self.violate("Call: number of input wires mismatch.");
         }
 
-        Ok((instance_count, witness_count))
+        Ok((public_count, private_count))
     }
 
     /// This function will check the semantic validity of all the gates in the subcircuit.
@@ -485,14 +487,14 @@ impl Validator {
         subcircuit: &[Gate],
         output_count: &CountList,
         input_count: &CountList,
-        instance_count: &CountList,
-        witness_count: &CountList,
+        public_count: &CountList,
+        private_count: &CountList,
     ) {
         let mut current_validator = Validator {
             as_prover: self.as_prover,
-            instance_queue_len: instance_count.clone(),
-            witness_queue_len: if self.as_prover {
-                witness_count.clone()
+            public_inputs_queue_len: public_count.clone(),
+            private_inputs_queue_len: if self.as_prover {
+                private_count.clone()
             } else {
                 HashMap::new()
             },
@@ -525,14 +527,24 @@ impl Validator {
         }
 
         self.violations.append(&mut current_validator.violations);
-        if current_validator.instance_queue_len.values().sum::<u64>() != 0 {
+        if current_validator
+            .public_inputs_queue_len
+            .values()
+            .sum::<u64>()
+            != 0
+        {
             self.violate(
-                "The subcircuit has not consumed all the instance variables it should have.",
+                "The subcircuit has not consumed all the public inputs variables it should have.",
             )
         }
-        if current_validator.witness_queue_len.values().sum::<u64>() != 0 {
+        if current_validator
+            .private_inputs_queue_len
+            .values()
+            .sum::<u64>()
+            != 0
+        {
             self.violate(
-                "The subcircuit has not consumed all the witness variables it should have.",
+                "The subcircuit has not consumed all the private inputs variables it should have.",
             )
         }
     }
@@ -551,50 +563,50 @@ impl Validator {
         }
     }
 
-    fn consume_instance(&mut self, field_id: &FieldId, how_many: u64) {
+    fn consume_public_inputs(&mut self, field_id: &FieldId, how_many: u64) {
         if how_many == 0 {
             return;
         }
-        if let Some(count) = self.instance_queue_len.get_mut(field_id) {
+        if let Some(count) = self.public_inputs_queue_len.get_mut(field_id) {
             if *count >= how_many {
                 *count -= how_many;
             } else {
                 *count = 0;
-                self.violate("Not enough Instance value to consume.");
+                self.violate("Not enough public input value to consume.");
             }
         } else {
-            self.violate("Not enough Instance value to consume.");
+            self.violate("Not enough public input value to consume.");
         }
     }
 
-    fn consume_instance_count(&mut self, instance_count: &CountList) {
-        for (field_id, count) in instance_count.iter() {
-            self.consume_instance(field_id, *count);
+    fn consume_public_count(&mut self, public_count: &CountList) {
+        for (field_id, count) in public_count.iter() {
+            self.consume_public_inputs(field_id, *count);
         }
     }
 
-    fn consume_witness(&mut self, field_id: &FieldId, how_many: u64) {
+    fn consume_private_inputs(&mut self, field_id: &FieldId, how_many: u64) {
         if self.as_prover {
             if how_many == 0 {
                 return;
             }
-            if let Some(count) = self.witness_queue_len.get_mut(field_id) {
+            if let Some(count) = self.private_inputs_queue_len.get_mut(field_id) {
                 if *count >= how_many {
                     *count -= how_many;
                 } else {
                     *count = 0;
-                    self.violate("Not enough Witness value to consume.");
+                    self.violate("Not enough private input value to consume.");
                 }
             } else {
-                self.violate("Not enough Witness value to consume.");
+                self.violate("Not enough private input value to consume.");
             }
         }
     }
 
-    fn consume_witness_count(&mut self, witness_count: &CountList) {
+    fn consume_private_count(&mut self, private_count: &CountList) {
         if self.as_prover {
-            for (field_id, count) in witness_count.iter() {
-                self.consume_witness(field_id, *count);
+            for (field_id, count) in private_count.iter() {
+                self.consume_private_inputs(field_id, *count);
             }
         }
     }
@@ -662,25 +674,25 @@ impl Validator {
         }
     }
 
-    fn ensure_all_instance_values_consumed(&mut self) {
-        let instances_not_consumed: u64 = self.instance_queue_len.values().sum::<u64>();
-        if instances_not_consumed != 0 {
+    fn ensure_all_public_values_consumed(&mut self) {
+        let public_inputs_not_consumed: u64 = self.public_inputs_queue_len.values().sum::<u64>();
+        if public_inputs_not_consumed != 0 {
             self.violate(format!(
-                "Too many Instance values ({} not consumed)",
-                instances_not_consumed
+                "Too many public input values ({} not consumed)",
+                public_inputs_not_consumed
             ));
         }
     }
 
-    fn ensure_all_witness_values_consumed(&mut self) {
+    fn ensure_all_private_values_consumed(&mut self) {
         if !self.as_prover {
             return;
         }
-        let witnesses_not_consumed: u64 = self.witness_queue_len.values().sum::<u64>();
-        if witnesses_not_consumed != 0 {
+        let private_inputs_not_consumed: u64 = self.private_inputs_queue_len.values().sum::<u64>();
+        if private_inputs_not_consumed != 0 {
             self.violate(format!(
-                "Too many Witness values ({} not consumed)",
-                witnesses_not_consumed
+                "Too many private input values ({} not consumed)",
+                private_inputs_not_consumed
             ));
         }
     }
@@ -695,14 +707,14 @@ impl Validator {
 fn test_validator() -> Result<()> {
     use crate::producers::examples::*;
 
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
     let relation = example_relation();
 
     let mut validator = Validator::new_as_prover();
 
-    validator.ingest_instance(&instance);
-    validator.ingest_witness(&witness);
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
@@ -714,12 +726,12 @@ fn test_validator() -> Result<()> {
 fn test_validator_as_verifier() -> Result<()> {
     use crate::producers::examples::*;
 
-    let instance = example_instance();
+    let public_inputs = example_public_inputs();
     let relation = example_relation();
 
     let mut validator = Validator::new_as_verifier();
 
-    validator.ingest_instance(&instance);
+    validator.ingest_public_inputs(&public_inputs);
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
@@ -731,29 +743,29 @@ fn test_validator_as_verifier() -> Result<()> {
 fn test_validator_violations() -> Result<()> {
     use crate::producers::examples::*;
 
-    let mut instance = example_instance();
-    let mut witness = example_witness();
+    let mut public_inputs = example_public_inputs();
+    let mut private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
     // Create a violation by using a value too big for the field.
-    instance.common_inputs[0].inputs[0] = instance.header.fields[0].clone();
+    public_inputs.inputs[0].values[0] = public_inputs.header.fields[0].clone();
     // Create a violation by omitting a witness value.
-    witness.short_witness[0].inputs.pop().unwrap();
+    private_inputs.inputs[0].values.pop().unwrap();
     // Create a violation by using different headers.
     relation.header.fields = vec![vec![10]];
 
     let mut validator = Validator::new_as_prover();
-    validator.ingest_instance(&instance);
-    validator.ingest_witness(&witness);
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
     validator.ingest_relation(&relation);
 
     let violations = validator.get_violations();
     assert_eq!(
         violations,
         vec![
-            "The instance value [101, 0, 0, 0] cannot be represented in the field specified in Header (101 >= 101).",
+            "The public value [101, 0, 0, 0] cannot be represented in the field specified in Header (101 >= 101).",
             "The fields are not consistent across headers.",
-            "Not enough Witness value to consume.",
+            "Not enough private input value to consume.",
         ]
     );
 
@@ -764,16 +776,16 @@ fn test_validator_violations() -> Result<()> {
 fn test_validator_free_violations() -> Result<()> {
     use crate::producers::examples::*;
 
-    let instance = example_instance();
-    let witness = example_witness();
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
     relation.gates.push(Gate::Free(0, 1, Some(2)));
     relation.gates.push(Gate::Free(0, 4, None));
 
     let mut validator = Validator::new_as_prover();
-    validator.ingest_instance(&instance);
-    validator.ingest_witness(&witness);
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
     validator.ingest_relation(&relation);
 
     let violations = validator.get_violations();

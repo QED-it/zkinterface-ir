@@ -30,17 +30,17 @@ pub enum Gate {
     AddConstant(FieldId, WireId, WireId, Value),
     /// MulConstant(field_id, output, input, constant)
     MulConstant(FieldId, WireId, WireId, Value),
-    /// Instance(field_id, output)
-    Instance(FieldId, WireId),
-    /// Witness(field_id, output)
-    Witness(FieldId, WireId),
+    /// PublicInput(field_id, output)
+    PublicInput(FieldId, WireId),
+    /// PrivateInput(field_id, output)
+    PrivateInput(FieldId, WireId),
     /// Free(field_id, first, last)
     /// If the option is not given, then only the first wire is freed, otherwise all wires between
     /// the first and the last INCLUSIVE are freed.
     Free(FieldId, WireId, Option<WireId>),
     /// Convert(output, input)
     Convert(WireList, WireList),
-    /// AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit)
+    /// AnonCall(output_wires, input_wires, public_count, private_count, subcircuit)
     AnonCall(WireList, WireList, CountList, CountList, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
     Call(String, WireList, WireList),
@@ -122,17 +122,17 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateInstance => {
-                let gate = gen_gate.directive_as_gate_instance().unwrap();
-                Instance(
+            ds::GatePublicInput => {
+                let gate = gen_gate.directive_as_gate_public_input().unwrap();
+                PublicInput(
                     gate.field_id().ok_or("Missing field id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                 )
             }
 
-            ds::GateWitness => {
-                let gate = gen_gate.directive_as_gate_witness().unwrap();
-                Witness(
+            ds::GatePrivateInput => {
+                let gate = gen_gate.directive_as_gate_private_input().unwrap();
+                PrivateInput(
                     gate.field_id().ok_or("Missing field id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                 )
@@ -172,8 +172,8 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 AnonCall(
                     WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
                     WireList::try_from(inner.input_wires().ok_or("Missing input wires")?)?,
-                    CountList::try_from(inner.instance_count().ok_or("Missing instance count")?)?,
-                    CountList::try_from(inner.witness_count().ok_or("Missing witness count")?)?,
+                    CountList::try_from(inner.public_count().ok_or("Missing public count")?)?,
+                    CountList::try_from(inner.private_count().ok_or("Missing private count")?)?,
                     Gate::try_from_vector(inner.subcircuit().ok_or("Missing subcircuit")?)?,
                 )
             }
@@ -342,12 +342,12 @@ impl Gate {
                 )
             }
 
-            Instance(field_id, output) => {
+            PublicInput(field_id, output) => {
                 let g_field_id = build_field_id(builder, *field_id);
                 let g_output = build_wire_id(builder, *output);
-                let gate = generated::GateInstance::create(
+                let gate = generated::GatePublicInput::create(
                     builder,
-                    &generated::GateInstanceArgs {
+                    &generated::GatePublicInputArgs {
                         field_id: Some(g_field_id),
                         output: Some(g_output),
                     },
@@ -355,18 +355,18 @@ impl Gate {
                 generated::Directive::create(
                     builder,
                     &generated::DirectiveArgs {
-                        directive_type: ds::GateInstance,
+                        directive_type: ds::GatePublicInput,
                         directive: Some(gate.as_union_value()),
                     },
                 )
             }
 
-            Witness(field_id, output) => {
+            PrivateInput(field_id, output) => {
                 let g_field_id = build_field_id(builder, *field_id);
                 let g_output = build_wire_id(builder, *output);
-                let gate = generated::GateWitness::create(
+                let gate = generated::GatePrivateInput::create(
                     builder,
-                    &generated::GateWitnessArgs {
+                    &generated::GatePrivateInputArgs {
                         field_id: Some(g_field_id),
                         output: Some(g_output),
                     },
@@ -374,7 +374,7 @@ impl Gate {
                 generated::Directive::create(
                     builder,
                     &generated::DirectiveArgs {
-                        directive_type: ds::GateWitness,
+                        directive_type: ds::GatePrivateInput,
                         directive: Some(gate.as_union_value()),
                     },
                 )
@@ -422,19 +422,19 @@ impl Gate {
                 )
             }
 
-            AnonCall(output_wires, input_wires, instance_count, witness_count, subcircuit) => {
+            AnonCall(output_wires, input_wires, public_count, private_count, subcircuit) => {
                 let g_outputs = build_wire_list(builder, output_wires);
                 let g_inputs = build_wire_list(builder, input_wires);
                 let g_subcircuit = Gate::build_vector(builder, subcircuit);
-                let g_instance_count = build_count_list(builder, instance_count);
-                let g_witness_count = build_count_list(builder, witness_count);
+                let g_public_count = build_count_list(builder, public_count);
+                let g_private_count = build_count_list(builder, private_count);
 
                 let g_inner = generated::AbstractAnonCall::create(
                     builder,
                     &generated::AbstractAnonCallArgs {
                         input_wires: Some(g_inputs),
-                        instance_count: Some(g_instance_count),
-                        witness_count: Some(g_witness_count),
+                        public_count: Some(g_public_count),
+                        private_count: Some(g_private_count),
                         subcircuit: Some(g_subcircuit),
                     },
                 );
@@ -512,8 +512,8 @@ impl Gate {
             Mul(_, w, _, _) => Some(w),
             AddConstant(_, w, _, _) => Some(w),
             MulConstant(_, w, _, _) => Some(w),
-            Instance(_, w) => Some(w),
-            Witness(_, w) => Some(w),
+            PublicInput(_, w) => Some(w),
+            PrivateInput(_, w) => Some(w),
 
             AssertZero(_, _) => None,
             Free(_, _, _) => None,
@@ -564,10 +564,10 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                     replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
                     replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
                 }
-                Instance(ref field_id, ref mut output) => {
+                PublicInput(ref field_id, ref mut output) => {
                     replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
                 }
-                Witness(ref field_id, ref mut output) => {
+                PrivateInput(ref field_id, ref mut output) => {
                     replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
                 }
                 AssertZero(ref field_id, ref mut wire) => {
@@ -609,10 +609,10 @@ fn test_replace_output_wires() {
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
-        Instance(0, 4),
-        Witness(0, 5),
+        PublicInput(0, 4),
+        PrivateInput(0, 5),
         Constant(0, 6, vec![15]),
-        Instance(1, 6),
+        PublicInput(1, 6),
         Add(0, 7, 4, 5),
         Free(0, 4, Some(5)),
         Mul(0, 8, 6, 7),
@@ -626,10 +626,10 @@ fn test_replace_output_wires() {
     let output_wires = vec![Wire(0, 6), WireRange(0, 11, 12), Wire(0, 15)];
     replace_output_wires(&mut gates, &output_wires).unwrap();
     let correct_gates = vec![
-        Instance(0, 4),
-        Witness(0, 5),
+        PublicInput(0, 4),
+        PrivateInput(0, 5),
         Constant(0, 0, vec![15]),
-        Instance(1, 6),
+        PublicInput(1, 6),
         Add(0, 7, 4, 5),
         Free(0, 4, Some(5)),
         Mul(0, 8, 0, 7),

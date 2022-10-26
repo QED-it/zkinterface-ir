@@ -10,41 +10,41 @@ use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::inputs::Inputs;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
-pub struct Witness {
+pub struct PublicInputs {
     pub header: Header,
-    pub short_witness: Vec<Inputs>,
+    pub inputs: Vec<Inputs>,
 }
 
-impl<'a> TryFrom<generated::Witness<'a>> for Witness {
+impl<'a> TryFrom<generated::PublicInputs<'a>> for PublicInputs {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(g_witness: generated::Witness) -> Result<Witness> {
-        let fbs_vector = g_witness.short_witness().ok_or("Missing short_witness")?;
-        let mut short_witness: Vec<Inputs> = vec![];
+    fn try_from(g_public_inputs: generated::PublicInputs) -> Result<PublicInputs> {
+        let fbs_vector = g_public_inputs.inputs().ok_or("Missing public_inputs")?;
+        let mut public_inputs: Vec<Inputs> = vec![];
         for g_inputs in fbs_vector {
-            short_witness.push(Inputs::try_from(g_inputs)?);
+            public_inputs.push(Inputs::try_from(g_inputs)?);
         }
-        Ok(Witness {
-            header: Header::try_from(g_witness.header())?,
-            short_witness,
+        Ok(PublicInputs {
+            header: Header::try_from(g_public_inputs.header())?,
+            inputs: public_inputs,
         })
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for Witness {
+impl<'a> TryFrom<&'a [u8]> for PublicInputs {
     type Error = Box<dyn Error>;
 
-    fn try_from(buffer: &'a [u8]) -> Result<Witness> {
-        Witness::try_from(
+    fn try_from(buffer: &'a [u8]) -> Result<PublicInputs> {
+        PublicInputs::try_from(
             generated::get_size_prefixed_root_as_root(buffer)
-                .message_as_witness()
-                .ok_or("Not a Witness message.")?,
+                .message_as_public_inputs()
+                .ok_or("Not a PublicInputs message.")?,
         )
     }
 }
 
-impl Witness {
+impl PublicInputs {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'bldr>(
         &self,
@@ -52,40 +52,41 @@ impl Witness {
     ) -> WIPOffset<generated::Root<'bldr>> {
         let header = Some(self.header.build(builder));
         let g_inputs: Vec<_> = self
-            .short_witness
+            .inputs
             .iter()
             .map(|inputs| inputs.build(builder))
             .collect();
         let g_vector = builder.create_vector(&g_inputs);
-        let witness = generated::Witness::create(
+
+        let public_inputs = generated::PublicInputs::create(
             builder,
-            &generated::WitnessArgs {
+            &generated::PublicInputsArgs {
                 header,
-                short_witness: Some(g_vector),
+                inputs: Some(g_vector),
             },
         );
 
         generated::Root::create(
             builder,
             &generated::RootArgs {
-                message_type: generated::Message::Witness,
-                message: Some(witness.as_union_value()),
+                message_type: generated::Message::PublicInputs,
+                message: Some(public_inputs.as_union_value()),
             },
         )
     }
 
-    /// Writes this Witness as a Flatbuffers message into the provided buffer.
+    /// Writes this PublicInputs as a Flatbuffers message into the provided buffer.
     ///
     /// # Examples
     /// ```
-    /// use zki_sieve::Witness;
+    /// use zki_sieve::PublicInputs;
     /// use std::convert::TryFrom;
     ///
-    /// let witness = Witness::default();
+    /// let public_inputs = PublicInputs::default();
     /// let mut buf = Vec::<u8>::new();
-    /// witness.write_into(&mut buf).unwrap();
-    /// let witness2 = Witness::try_from(&buf[..]).unwrap();
-    /// assert_eq!(witness, witness2);
+    /// public_inputs.write_into(&mut buf).unwrap();
+    /// let public_inputs2 = PublicInputs::try_from(&buf[..]).unwrap();
+    /// assert_eq!(public_inputs, public_inputs2);
     /// ```
     pub fn write_into(&self, writer: &mut impl Write) -> Result<()> {
         let mut builder = FlatBufferBuilder::new();
@@ -95,10 +96,7 @@ impl Witness {
         Ok(())
     }
 
-    pub fn get_witness_len(&self) -> usize {
-        self.short_witness
-            .iter()
-            .map(|inputs| inputs.inputs.len())
-            .sum()
+    pub fn get_public_inputs_len(&self) -> usize {
+        self.inputs.iter().map(|inputs| inputs.values.len()).sum()
     }
 }

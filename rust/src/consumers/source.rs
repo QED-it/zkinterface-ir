@@ -21,10 +21,10 @@ use std::path::{Path, PathBuf};
 /// // Create an example workspace including multiple constraints files.
 /// let dir = PathBuf::from("local/test_source");
 /// let mut sink = FilesSink::new_clean(&dir).unwrap();
-/// sink.push_instance_message(&example_instance());
-/// sink.push_witness_message(&example_witness());
+/// sink.push_public_inputs_message(&example_public_inputs());
+/// sink.push_private_inputs_message(&example_private_inputs());
 /// sink.push_relation_message(&example_relation());
-/// sink.push_witness_message(&example_witness());
+/// sink.push_private_inputs_message(&example_private_inputs());
 /// sink.push_relation_message(&example_relation());
 ///
 /// // Iterate over the files and observe the messages.
@@ -33,13 +33,13 @@ use std::path::{Path, PathBuf};
 /// let source = Source::from_directory(&dir).unwrap();
 /// for msg in source.iter_messages() {
 ///     match msg.unwrap() {
-///         Message::Instance(h) => got.push("INSTANCE"),
-///         Message::Witness(w) => got.push("WITNESS"),
+///         Message::PublicInputs(h) => got.push("PUBLIC"),
+///         Message::PrivateInputs(w) => got.push("PRIVATE"),
 ///         Message::Relation(cs) => got.push("RELATION"),
 ///     }
 /// }
 ///
-/// assert_eq!(got, vec!["INSTANCE", "WITNESS", "WITNESS", "RELATION", "RELATION"]);
+/// assert_eq!(got, vec!["PUBLIC", "PRIVATE", "PRIVATE", "RELATION", "RELATION"]);
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Source {
@@ -74,8 +74,8 @@ impl Source {
             paths.sort_by_key(|path| {
                 let name = path.file_name().unwrap().to_str().unwrap();
                 match () {
-                    _ if name.contains("instance") => 0,
-                    _ if name.contains("witness") => 1,
+                    _ if name.contains("public_inputs") => 0,
+                    _ if name.contains("private_inputs") => 1,
                     _ if name.contains("relation") => 3,
                     _ => 4,
                 }
