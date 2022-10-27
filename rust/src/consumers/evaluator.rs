@@ -85,6 +85,10 @@ pub trait ZKBackend {
         val: Option<Self::FieldElement>,
     ) -> Result<Self::Wire>;
 
+    // New is used to allocate in a contiguous memory space wires between first and last inclusive.
+    // If the backend is not interested in contiguous allocations, this function should do nothing.
+    fn gate_new(&mut self, field_id: &FieldId, first: WireId, last: WireId) -> Result<()>;
+
     /// Convert `inputs` from field `input_field_id` into field `output_field_id`.
     /// The result is stored in new wires.
     /// The result must contain at most `output_wire_count` wires.
@@ -382,6 +386,10 @@ impl<B: ZKBackend> Evaluator<B> {
                     ))?;
                 let val = private_inputs_for_field.pop_front();
                 set_private_input(backend, scope, *field_id, *out, val)?;
+            }
+
+            New(field_id, first, last) => {
+                backend.gate_new(field_id, *first, *last)?;
             }
 
             Delete(field_id, first, last) => {
@@ -732,6 +740,10 @@ impl ZKBackend for PlaintextBackend {
         )
     }
 
+    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+        Ok(())
+    }
+
     fn convert(
         &mut self,
         output_field: &FieldId,
@@ -871,6 +883,9 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
             _val: Option<Self::FieldElement>,
         ) -> Result<Self::Wire> {
             Ok(0)
+        }
+        fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+            Ok(())
         }
         fn convert(
             &mut self,

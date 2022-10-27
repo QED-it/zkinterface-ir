@@ -20,6 +20,7 @@ pub struct GateStats {
     pub mul_gates: usize,
     pub add_constant_gates: usize,
     pub mul_constant_gates: usize,
+    pub variables_allocated_with_new: u64,
     pub variables_deleted: u64,
 
     pub functions_defined: usize,
@@ -157,6 +158,10 @@ impl GateStats {
                 self.private_variables += 1;
             }
 
+            New(_field_id, first, last) => {
+                self.variables_allocated_with_new += last - first + 1;
+            }
+
             Delete(_field_id, first, last) => {
                 let last_one = last.unwrap_or(*first);
                 self.variables_deleted += last_one - *first + 1;
@@ -194,6 +199,7 @@ impl GateStats {
         self.mul_gates += other.mul_gates;
         self.add_constant_gates += other.add_constant_gates;
         self.mul_constant_gates += other.mul_constant_gates;
+        self.variables_allocated_with_new += other.variables_allocated_with_new;
         self.variables_deleted += other.variables_deleted;
 
         self.convert_gates += other.convert_gates;
@@ -226,6 +232,7 @@ fn test_stats() -> Result<()> {
             mul_gates: 4,
             add_constant_gates: 0,
             mul_constant_gates: 0,
+            variables_allocated_with_new: 8,
             variables_deleted: 12,
             functions_defined: 1,
             functions_called: 3,

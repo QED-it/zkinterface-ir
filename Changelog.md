@@ -13,6 +13,7 @@ Rust:
 - remove For loop
 - rename Instance/Witness by PublicInputs/PrivateInputs
 - rename Free gate by Delete gate
+- add New gate
 
 # SIEVE IR v1.0.1, 2022-08
 

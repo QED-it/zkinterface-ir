@@ -3,7 +3,7 @@ use crate::{
 };
 use num_bigint::BigUint;
 use num_traits::identities::One;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::consumers::evaluator::get_field;
 use crate::structs::count::{wirelist_to_count_list, CountList};
@@ -50,7 +50,12 @@ Gates Validation
  - Ensure constants given in @addc/@mulc are actual field elements.
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
+ - Ensure that for New gates of the format @new(first, last), we have (last > first).
+ - Ensure that for New gates of the format @(first, last), all wires between first and last inclusive
+   are not already set.
  - Ensure that for Delete gates of the format @delete(first, last), we have (last > first).
+ - Ensure that when deleting contiguous space wires (previously allocated with @new), the first and
+   the last parameters match the preceding new directive.
 
 WireRange Validation
  - Ensure that for WireRange(first, last) that (last > first).
@@ -63,16 +68,26 @@ pub struct Validator {
     public_inputs_queue_len: CountList,
     private_inputs_queue_len: CountList,
     live_wires: BTreeSet<(FieldId, WireId)>,
+    // (field_id, first_wire, last_wire)
+    new_gates: HashSet<(FieldId, WireId, WireId)>,
 
     got_header: bool,
     header_version: String,
 
     fields: Vec<Field>,
 
-    // name => (output_count, input_count, public_count, private_count, subcircuit)
-    known_functions: Rc<RefCell<HashMap<String, (CountList, CountList, CountList, CountList)>>>,
+    // name => (output_count, input_count, public_count, private_count)
+    known_functions: Rc<RefCell<HashMap<String, FunctionCount>>>,
 
     violations: Vec<String>,
+}
+
+#[derive(Clone)]
+pub struct FunctionCount {
+    output_count: CountList,
+    input_count: CountList,
+    public_count: CountList,
+    private_count: CountList,
 }
 
 impl Default for Validator {
@@ -82,6 +97,7 @@ impl Default for Validator {
             public_inputs_queue_len: Default::default(),
             private_inputs_queue_len: Default::default(),
             live_wires: Default::default(),
+            new_gates: Default::default(),
             got_header: Default::default(),
             header_version: Default::default(),
             fields: Default::default(),
@@ -242,12 +258,12 @@ impl Validator {
             } else {
                 self.known_functions.borrow_mut().insert(
                     name.clone(),
-                    (
-                        output_count.clone(),
-                        input_count.clone(),
-                        public_count.clone(),
-                        private_count.clone(),
-                    ),
+                    FunctionCount {
+                        output_count: output_count.clone(),
+                        input_count: input_count.clone(),
+                        public_count: public_count.clone(),
+                        private_count: private_count.clone(),
+                    },
                 );
             }
             // Now validate the subcircuit.
@@ -327,6 +343,30 @@ impl Validator {
                 self.consume_private_inputs(field_id, 1);
             }
 
+            New(field_id, first, last) => {
+                // Ensure first < last
+                if last <= first {
+                    self.violate(format!(
+                        "For New gates, last WireId ({}) must be strictly greater than first WireId ({}).",
+                        last, first
+                    ));
+                }
+                // Ensure wires have not already been allocated by another New gate
+                for wire_id in *first..=*last {
+                    if self.belong_to_new_gates(field_id, &wire_id) {
+                        self.violate(
+                            "For New gates, wires must not have already been allocated by another New gate.");
+                        break;
+                    }
+                }
+                // Ensure wires are not already set
+                for wire_id in *first..=*last {
+                    self.ensure_undefined(field_id, wire_id);
+                }
+                // Add this new wire range into new_gates
+                self.new_gates.insert((*field_id, *first, *last));
+            }
+
             Delete(field_id, first, last) => {
                 // first < last
                 if let Some(last_id) = last {
@@ -336,8 +376,29 @@ impl Validator {
                             last_id, first
                         ));
                     }
+                    // Check whether the Delete gate match a preceding New gate
+                    // If so, remove the preceding New gate from new_wire_ranges
+                    if self.new_gates.contains(&(*field_id, *first, *last_id)) {
+                        self.new_gates.remove(&(*field_id, *first, *last_id));
+                    }
                 }
-                // all wires between first and last INCLUSIVE
+
+                // Check whether some wires belong to a New gate
+                // If a New gate matches this Delete gate, we have already removed it from new_gates HashSet.
+                // Thus, if a wire still belongs to a New gate, it means that we have a violation.
+                for wire_id in *first..=last.unwrap_or(*first) {
+                    if self.belong_to_new_gates(field_id, &wire_id) {
+                        self.violate(format!(
+                            "For Delete gates, ({}:{}) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
+                            field_id, wire_id
+                        ));
+                        break;
+                    }
+                }
+
+                // For all wires between first and last INCLUSIVE
+                // - check that they are already set
+                // - delete them
                 for wire_id in *first..=last.unwrap_or(*first) {
                     self.ensure_defined_and_set(field_id, wire_id);
                     self.remove(field_id, wire_id);
@@ -459,18 +520,17 @@ impl Validator {
             return Err("This function does not exist.".into());
         }
 
-        let (output_count, input_count, public_count, private_count) =
-            self.known_functions.borrow().get(name).cloned().unwrap();
+        let function_count = self.known_functions.borrow().get(name).cloned().unwrap();
 
-        if output_count != wirelist_to_count_list(output_wires) {
+        if function_count.output_count != wirelist_to_count_list(output_wires) {
             self.violate("Call: number of output wires mismatch.");
         }
 
-        if input_count != wirelist_to_count_list(input_wires) {
+        if function_count.input_count != wirelist_to_count_list(input_wires) {
             self.violate("Call: number of input wires mismatch.");
         }
 
-        Ok((public_count, private_count))
+        Ok((function_count.public_count, function_count.private_count))
     }
 
     /// This function will check the semantic validity of all the gates in the subcircuit.
@@ -499,6 +559,7 @@ impl Validator {
                 HashMap::new()
             },
             live_wires: Default::default(),
+            new_gates: Default::default(),
             got_header: self.got_header,
             header_version: self.header_version.clone(),
             fields: self.fields.clone(),
@@ -701,6 +762,15 @@ impl Validator {
         self.violations.push(msg.into());
         // println!("{}", msg.into());
     }
+
+    fn belong_to_new_gates(&self, field_id: &FieldId, wire_id: &WireId) -> bool {
+        for (new_field_id, first, last) in self.new_gates.iter() {
+            if (*new_field_id == *field_id) && *first <= *wire_id && *last >= *wire_id {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[test]
@@ -795,6 +865,48 @@ fn test_validator_delete_violations() -> Result<()> {
             "The wire (0: 1) is used but was not assigned a value, or has been deleted already.",
             "The wire (0: 2) is used but was not assigned a value, or has been deleted already.",
             "The wire (0: 4) is used but was not assigned a value, or has been deleted already.",
+        ]
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_validator_new_violations() -> Result<()> {
+    use crate::producers::examples::*;
+
+    let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
+    let mut relation = example_relation();
+
+    // Violation: Delete contains a wire allocated with a New gate but does not match this New gate
+    relation.gates.push(Gate::Constant(0, 99, vec![0]));
+    relation.gates.push(Gate::New(0, 100, 103));
+    relation.gates.push(Gate::Constant(0, 100, vec![0]));
+    relation.gates.push(Gate::Constant(0, 101, vec![0]));
+    relation.gates.push(Gate::Constant(0, 102, vec![0]));
+    relation.gates.push(Gate::Constant(0, 103, vec![0]));
+    relation.gates.push(Gate::Delete(0, 99, Some(101)));
+
+    // Violation: New gate contains a wire already set
+    relation.gates.push(Gate::Constant(0, 107, vec![0]));
+    relation.gates.push(Gate::New(0, 105, 109));
+
+    // Violation: New gate contains a wire already allocated in another New gate
+    relation.gates.push(Gate::New(0, 109, 110));
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    assert_eq!(
+        violations,
+        vec![
+            "For Delete gates, (0:100) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
+            "The wire (0: 107) has already been initialized before. This violates the SSA property.",
+            "For New gates, wires must not have already been allocated by another New gate."
         ]
     );
 

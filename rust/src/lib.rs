@@ -15,7 +15,7 @@ pub extern crate flatbuffers;
 pub extern crate serde;
 
 /// Message reader and writer code generated from the FlatBuffers schema (../sieve_ir.fbs).
-#[allow(unused_imports)]
+#[allow(unused_imports, clippy::all)]
 pub mod sieve_ir_generated;
 
 /// Implementation of the CLI.

@@ -173,6 +173,10 @@ The command below reads the statement and prints a textual representation of it.
                   - 1
                   - 2
         gates:
+          - New:
+              - 0
+              - 0
+              - 7
           - PrivateInput:
               - 0
               - 1

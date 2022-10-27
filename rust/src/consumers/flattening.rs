@@ -183,6 +183,10 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
             .create_gate(BuildGate::PrivateInput(*field_id, value))
     }
 
+    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+        Ok(())
+    }
+
     fn convert(
         &mut self,
         _output_field: &FieldId,

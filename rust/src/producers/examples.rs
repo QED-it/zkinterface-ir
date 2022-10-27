@@ -80,6 +80,7 @@ pub fn example_relation_h(header: &Header) -> Relation {
             vec![Mul(field_id, 0, 1, 2)],
         )],
         gates: vec![
+            New(field_id, 0, 7),
             PrivateInput(field_id, 1),
             AnonCall(
                 wirelist![field_id;0, 2, 4, 5, 6, 9, 10], // output

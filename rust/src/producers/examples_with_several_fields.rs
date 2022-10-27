@@ -73,6 +73,7 @@ pub fn example_relation_with_several_fields() -> Relation {
             vec![Mul(field_id_101, 0, 1, 2)],
         )],
         gates: vec![
+            New(field_id_101, 0, 7),
             PrivateInput(field_id_101, 1),
             AnonCall(
                 wirelist![field_id_101;0, 2, 4, 5, 6, 9, 10], // output
@@ -111,6 +112,7 @@ pub fn example_relation_with_several_fields() -> Relation {
             Mul(field_id_101, 11, 8, 10),
             AssertZero(field_id_101, 11),
             Delete(field_id_101, 8, Some(11)),
+            New(field_id_7, 0, 5),
             // Read PublicInputs
             PublicInput(field_id_7, 0),
             PublicInput(field_id_7, 1),

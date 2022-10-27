@@ -430,6 +430,10 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(id)
     }
 
+    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+        Ok(())
+    }
+
     fn convert(
         &mut self,
         _output_field: &FieldId,

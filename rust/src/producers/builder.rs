@@ -654,6 +654,7 @@ fn test_builder_with_function() {
     );
     assert!(b.push_function(custom_function).is_err());
 
+    b.create_gate(New(0, 0, 3)).unwrap();
     let id_0 = b.create_gate(Constant(0, vec![40])).unwrap();
     let id_1 = b.create_gate(Constant(0, vec![30])).unwrap();
     let id_2 = b.create_gate(Constant(0, vec![10])).unwrap();

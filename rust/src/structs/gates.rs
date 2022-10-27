@@ -1,7 +1,7 @@
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -34,6 +34,9 @@ pub enum Gate {
     PublicInput(FieldId, WireId),
     /// PrivateInput(field_id, output)
     PrivateInput(FieldId, WireId),
+    /// New(field_id, first, last)
+    /// Allocate in a contiguous space all wires between the first and the last INCLUSIVE.
+    New(FieldId, WireId, WireId),
     /// Delete(field_id, first, last)
     /// If the option is not given, then only the first wire is deleted, otherwise all wires between
     /// the first and the last INCLUSIVE are deleted.
@@ -135,6 +138,15 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 PrivateInput(
                     gate.field_id().ok_or("Missing field id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
+                )
+            }
+
+            ds::GateNew => {
+                let gate = gen_gate.directive_as_gate_new().unwrap();
+                New(
+                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.first().ok_or("Missing first wire")?.id(),
+                    gate.last().ok_or("Missing last wire")?.id(),
                 )
             }
 
@@ -380,6 +392,28 @@ impl Gate {
                 )
             }
 
+            New(field_id, first, last) => {
+                let g_field_id = build_field_id(builder, *field_id);
+                let g_first = build_wire_id(builder, *first);
+                let g_last = build_wire_id(builder, *last);
+                let gate = generated::GateNew::create(
+                    builder,
+                    &generated::GateNewArgs {
+                        field_id: Some(g_field_id),
+                        first: Some(g_first),
+                        last: Some(g_last),
+                    },
+                );
+
+                generated::Directive::create(
+                    builder,
+                    &generated::DirectiveArgs {
+                        directive_type: ds::GateNew,
+                        directive: Some(gate.as_union_value()),
+                    },
+                )
+            }
+
             Delete(field_id, first, last) => {
                 let g_field_id = build_field_id(builder, *field_id);
                 let g_first = build_wire_id(builder, *first);
@@ -517,6 +551,7 @@ impl Gate {
 
             AssertZero(_, _) => None,
             Delete(_, _, _) => None,
+            New(_, _, _) => unimplemented!("New gate"),
 
             Convert(_, _) => unimplemented!("Convert gate"),
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
@@ -525,18 +560,37 @@ impl Gate {
     }
 }
 
-/// replace_output_wires goes through all gates in `gates` and `replace output_wires[i]` by `i`.
+/// replace_output_wires goes through all gates in `gates` and replace `output_wires[i]` by `i`.
+/// If `output_wires[i]` belongs to a New gate, add `Copy(i, output_wires[i])` at the end of gates
+/// and do not modify other gates containing `output_wires[i]`.
 ///
 /// If a `Delete` gate contains an output wire, `replace_output_wires` will return an error.
 pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> Result<()> {
     let expanded_output_wires = expand_wirelist(output_wires)?;
     let mut map: HashMap<FieldId, WireId> = HashMap::new();
 
-    // gates does not have a For gate.
+    // It is not easily doable to replace a WireId in a New gate.
+    // Therefor, if an output wire belongs to a New gate, we will add a Copy gate and not modify this WireId.
+    let mut new_wires: HashSet<(FieldId, WireId)> = HashSet::new();
+    for gate in gates.iter() {
+        if let New(field_id, first, last) = gate {
+            for wire_id in *first..=*last {
+                new_wires.insert((*field_id, wire_id));
+            }
+        }
+    }
+
     for (old_field_id, old_wire) in expanded_output_wires {
         let count = map.entry(old_field_id).or_insert(0);
         let new_wire = *count;
         *count += 1;
+
+        // If the old_wire is in a New gate, we add a Copy gate and not modify this WireId in other gates.
+        if new_wires.contains(&(old_field_id, old_wire)) {
+            gates.push(Copy(old_field_id, new_wire, old_wire));
+            continue;
+        }
+
         for gate in &mut *gates {
             match gate {
                 Constant(ref field_id, ref mut output, _) => {
@@ -572,6 +626,13 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                 }
                 AssertZero(ref field_id, ref mut wire) => {
                     replace_wire_id(field_id, &old_field_id, wire, old_wire, new_wire);
+                }
+                New(ref field_id, ref mut first, ref mut last) => {
+                    // New gates have already been treated at the beginning of the loop
+                    // by adding Copy gate if (old_field_id, old_wire) belongs to the New gate.
+                    if (*first <= old_wire && *last >= old_wire) && (*field_id == old_field_id) {
+                        panic!("Unreachable case !");
+                    }
                 }
                 Delete(ref field_id, ref mut first, ref mut option_last) => match option_last {
                     Some(last) => {
@@ -609,6 +670,7 @@ fn test_replace_output_wires() {
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
+        New(0, 4, 5),
         PublicInput(0, 4),
         PrivateInput(0, 5),
         Constant(0, 6, vec![15]),
@@ -623,22 +685,24 @@ fn test_replace_output_wires() {
         ),
         AssertZero(0, 12),
     ];
-    let output_wires = vec![Wire(0, 6), WireRange(0, 11, 12), Wire(0, 15)];
+    let output_wires = vec![WireRange(0, 5, 6), Wire(0, 12), Wire(0, 15)];
     replace_output_wires(&mut gates, &output_wires).unwrap();
     let correct_gates = vec![
+        New(0, 4, 5),
         PublicInput(0, 4),
         PrivateInput(0, 5),
-        Constant(0, 0, vec![15]),
+        Constant(0, 1, vec![15]),
         PublicInput(1, 6),
         Add(0, 7, 4, 5),
         Delete(0, 4, Some(5)),
-        Mul(0, 8, 0, 7),
+        Mul(0, 8, 1, 7),
         Call(
             "custom".to_string(),
-            vec![Wire(0, 9), Wire(0, 10), Wire(0, 1), Wire(0, 2)],
-            vec![Wire(0, 0), Wire(0, 7), Wire(0, 8)],
+            vec![Wire(0, 9), Wire(0, 10), Wire(0, 11), Wire(0, 2)],
+            vec![Wire(0, 1), Wire(0, 7), Wire(0, 8)],
         ),
         AssertZero(0, 2),
+        Copy(0, 0, 5),
     ];
     assert_eq!(gates, correct_gates);
 }

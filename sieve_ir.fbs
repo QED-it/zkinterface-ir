@@ -147,6 +147,13 @@ table GatePrivateInput {
    output      :WireId;
 }
 
+// To allocate in a contiguous space all wires between the first and the last inclusive.
+table GateNew {
+   field_id    :FieldId;
+   first       :WireId;
+   last        :WireId;
+}
+
 table GateDelete {
    field_id    :FieldId;
    // First wire ID to deallocate.
@@ -215,6 +222,7 @@ union DirectiveSet {
    GateMulConstant,
    GatePublicInput,
    GatePrivateInput,
+   GateNew,
    GateDelete,
    GateConvert,
    GateCall,
