@@ -280,7 +280,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
     /// This function ingests one gate at a time (but can call itself recursively)
     /// - `scope` contains the list of existing wires with their respective value. It will be
-    ///    augmented if this gate produces outputs, or reduced if this is a `GateFree`
+    ///    augmented if this gate produces outputs, or reduced if this is a `GateDelete`
     /// - `known_functions` is the map of functions defined in previous or current `Relation` message
     ///    current gate is a `GateFor`
     /// - `moduli` is used mainly in convert gates.
@@ -384,7 +384,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 set_private_input(backend, scope, *field_id, *out, val)?;
             }
 
-            Free(field_id, first, last) => {
+            Delete(field_id, first, last) => {
                 let last_value = last.unwrap_or(*first);
                 for current in *first..=last_value {
                     remove::<B>(scope, *field_id, current)?;
@@ -542,7 +542,7 @@ impl<B: ZKBackend> Evaluator<B> {
     }
 
     /// This helper function can be used to retrieve value of a given wire at some point
-    /// if it has *NOT* been freed yet, otherwise it will return an Err.
+    /// if it has *NOT* been deleted yet, otherwise it will return an Err.
     pub fn get(&self, field_id: FieldId, wire_id: WireId) -> Result<&B::Wire> {
         get::<B>(&self.values, field_id, wire_id)
     }

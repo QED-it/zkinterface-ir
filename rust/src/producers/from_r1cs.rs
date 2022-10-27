@@ -266,7 +266,7 @@ fn test_r1cs_stats() -> Result<()> {
             mul_gates: 15,
             add_constant_gates: 0,
             mul_constant_gates: 0,
-            variables_freed: 0,
+            variables_deleted: 0,
             functions_defined: 0,
             functions_called: 0,
             convert_gates: 0,

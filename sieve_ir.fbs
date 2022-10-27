@@ -147,11 +147,11 @@ table GatePrivateInput {
    output      :WireId;
 }
 
-table GateFree {
+table GateDelete {
    field_id    :FieldId;
-   // First wire ID to free.
+   // First wire ID to deallocate.
    first       :WireId;
-   // Last wire ID is optional. Free the range [first; last] inclusive.
+   // Last wire ID is optional. Deallocate the range [first; last] inclusive.
    last        :WireId;
 }
 
@@ -215,7 +215,7 @@ union DirectiveSet {
    GateMulConstant,
    GatePublicInput,
    GatePrivateInput,
-   GateFree,
+   GateDelete,
    GateConvert,
    GateCall,
    GateAnonCall,

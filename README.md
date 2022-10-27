@@ -274,7 +274,7 @@ The command below reads the statement and prints a textual representation of it.
               - 8
               - 6
               - 7
-          - Free:
+          - Delete:
               - 0
               - 0
               - 7
@@ -286,7 +286,7 @@ The command below reads the statement and prints a textual representation of it.
           - AssertZero:
               - 0
               - 11
-          - Free:
+          - Delete:
               - 0
               - 8
               - 11
@@ -326,7 +326,7 @@ The command below reads the statement and prints a textual representation of it.
           - AssertZero:
               - 1
               - 8
-          - Free:
+          - Delete:
               - 1
               - 0
               - 5
@@ -376,11 +376,11 @@ The command below reads the statement and prints a textual representation of it.
           - AssertZero:
               - 0
               - 12
-          - Free:
+          - Delete:
               - 1
               - 6
               - 10
-          - Free:
+          - Delete:
               - 0
               - 12
               - 14
@@ -420,11 +420,11 @@ The command below reads the statement and prints a textual representation of it.
           - AssertZero:
               - 1
               - 15
-          - Free:
+          - Delete:
               - 0
               - 15
               - ~
-          - Free:
+          - Delete:
               - 1
               - 11
               - 15

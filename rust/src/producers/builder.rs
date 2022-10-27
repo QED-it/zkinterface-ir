@@ -183,7 +183,7 @@ pub struct GateBuilder<S: Sink> {
 
     // name => FunctionParams
     known_functions: HashMap<String, FunctionParams>,
-    free_id: HashMap<FieldId, WireId>,
+    next_available_id: HashMap<FieldId, WireId>,
 }
 
 /// FunctionParams contains the number of inputs, outputs, public/private inputs of a function.
@@ -257,20 +257,27 @@ fn known_function_params<'a>(
 }
 
 /// alloc allocates a new wire ID.
-fn alloc(field_id: FieldId, free_id: &mut HashMap<FieldId, WireId>) -> WireId {
-    let id = free_id.entry(field_id).or_insert(0);
+fn alloc(field_id: FieldId, next_available_id: &mut HashMap<FieldId, WireId>) -> WireId {
+    let id = next_available_id.entry(field_id).or_insert(0);
     let out_id = *id;
     *id = out_id + 1;
     out_id
 }
 
 /// alloc allocates n wire IDs.
-fn multiple_alloc(field_id: FieldId, free_id: &mut HashMap<FieldId, WireId>, n: usize) -> WireList {
+fn multiple_alloc(
+    field_id: FieldId,
+    next_available_id: &mut HashMap<FieldId, WireId>,
+    n: usize,
+) -> WireList {
     match n {
         0 => vec![],
-        1 => vec![WireListElement::Wire(field_id, alloc(field_id, free_id))],
+        1 => vec![WireListElement::Wire(
+            field_id,
+            alloc(field_id, next_available_id),
+        )],
         _ => {
-            let id = free_id.entry(field_id).or_insert(0);
+            let id = next_available_id.entry(field_id).or_insert(0);
             let first_id = *id;
             let next: u64 = first_id + n as u64;
             *id = next;
@@ -290,7 +297,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
             .into());
         }
         let out_id = if gate.has_output() {
-            alloc(field_id, &mut self.free_id)
+            alloc(field_id, &mut self.next_available_id)
         } else {
             NO_OUTPUT
         };
@@ -365,7 +372,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
         let mut output_wires: WireList = vec![];
         for (field_id, count) in output_count {
-            let wires = multiple_alloc(field_id, &mut self.free_id, count as usize);
+            let wires = multiple_alloc(field_id, &mut self.next_available_id, count as usize);
             output_wires.extend(wires);
         }
 
@@ -381,7 +388,7 @@ impl<S: Sink> GateBuilder<S> {
         GateBuilder {
             msg_build: MessageBuilder::new(sink, header),
             known_functions: HashMap::new(),
-            free_id: HashMap::new(),
+            next_available_id: HashMap::new(),
         }
     }
 
@@ -391,12 +398,12 @@ impl<S: Sink> GateBuilder<S> {
         output_count: CountList,
         input_count: CountList,
     ) -> FunctionBuilder {
-        let mut free_id = HashMap::new();
+        let mut next_available_id = HashMap::new();
         output_count.iter().for_each(|(field_id, count)| {
-            free_id.insert(*field_id, *count);
+            next_available_id.insert(*field_id, *count);
         });
         input_count.iter().for_each(|(field_id, count)| {
-            let field_id_count = free_id.entry(*field_id).or_insert(0);
+            let field_id_count = next_available_id.entry(*field_id).or_insert(0);
             *field_id_count += count;
         });
         FunctionBuilder {
@@ -407,7 +414,7 @@ impl<S: Sink> GateBuilder<S> {
             public_count: HashMap::new(),
             private_count: HashMap::new(),
             known_functions: &self.known_functions,
-            free_id,
+            next_available_id,
         }
     }
 
@@ -478,7 +485,7 @@ pub struct FunctionBuilder<'a> {
     public_count: CountList,  // evaluated on the fly
     private_count: CountList, // evaluated on the fly
     known_functions: &'a HashMap<String, FunctionParams>,
-    free_id: HashMap<FieldId, WireId>,
+    next_available_id: HashMap<FieldId, WireId>,
 }
 
 impl FunctionBuilder<'_> {
@@ -504,7 +511,7 @@ impl FunctionBuilder<'_> {
     pub fn create_gate(&mut self, gate: BuildGate) -> WireId {
         let field_id = gate.get_field();
         let out_id = if gate.has_output() {
-            alloc(field_id, &mut self.free_id)
+            alloc(field_id, &mut self.next_available_id)
         } else {
             NO_OUTPUT
         };
@@ -559,7 +566,11 @@ impl FunctionBuilder<'_> {
 
         let mut output_wires: WireList = vec![];
         for (field_id, count) in output_count {
-            output_wires.extend(multiple_alloc(field_id, &mut self.free_id, count as usize));
+            output_wires.extend(multiple_alloc(
+                field_id,
+                &mut self.next_available_id,
+                count as usize,
+            ));
         }
 
         for (field_id, count) in private_count {

@@ -162,7 +162,7 @@ pub enum DirectiveSet {
   GateMulConstant = 7,
   GatePublicInput = 8,
   GatePrivateInput = 9,
-  GateFree = 10,
+  GateDelete = 10,
   GateConvert = 11,
   GateCall = 12,
   GateAnonCall = 13,
@@ -215,7 +215,7 @@ pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 14] = [
   DirectiveSet::GateMulConstant,
   DirectiveSet::GatePublicInput,
   DirectiveSet::GatePrivateInput,
-  DirectiveSet::GateFree,
+  DirectiveSet::GateDelete,
   DirectiveSet::GateConvert,
   DirectiveSet::GateCall,
   DirectiveSet::GateAnonCall
@@ -233,7 +233,7 @@ pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 14] = [
     "GateMulConstant",
     "GatePublicInput",
     "GatePrivateInput",
-    "GateFree",
+    "GateDelete",
     "GateConvert",
     "GateCall",
     "GateAnonCall"
@@ -2361,15 +2361,15 @@ impl<'a: 'b, 'b> GatePrivateInputBuilder<'a, 'b> {
   }
 }
 
-pub enum GateFreeOffset {}
+pub enum GateDeleteOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct GateFree<'a> {
+pub struct GateDelete<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for GateFree<'a> {
-    type Inner = GateFree<'a>;
+impl<'a> flatbuffers::Follow<'a> for GateDelete<'a> {
+    type Inner = GateDelete<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2378,18 +2378,18 @@ impl<'a> flatbuffers::Follow<'a> for GateFree<'a> {
     }
 }
 
-impl<'a> GateFree<'a> {
+impl<'a> GateDelete<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GateFree {
+        GateDelete {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateFreeArgs<'args>) -> flatbuffers::WIPOffset<GateFree<'bldr>> {
-      let mut builder = GateFreeBuilder::new(_fbb);
+        args: &'args GateDeleteArgs<'args>) -> flatbuffers::WIPOffset<GateDelete<'bldr>> {
+      let mut builder = GateDeleteBuilder::new(_fbb);
       if let Some(x) = args.last { builder.add_last(x); }
       if let Some(x) = args.first { builder.add_first(x); }
       if let Some(x) = args.field_id { builder.add_field_id(x); }
@@ -2402,60 +2402,60 @@ impl<'a> GateFree<'a> {
 
   #[inline]
   pub fn field_id(&self) -> Option<FieldId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<FieldId<'a>>>(GateFree::VT_FIELD_ID, None)
+    self._tab.get::<flatbuffers::ForwardsUOffset<FieldId<'a>>>(GateDelete::VT_FIELD_ID, None)
   }
   #[inline]
   pub fn first(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateFree::VT_FIRST, None)
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateDelete::VT_FIRST, None)
   }
   #[inline]
   pub fn last(&self) -> Option<WireId<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateFree::VT_LAST, None)
+    self._tab.get::<flatbuffers::ForwardsUOffset<WireId<'a>>>(GateDelete::VT_LAST, None)
   }
 }
 
-pub struct GateFreeArgs<'a> {
+pub struct GateDeleteArgs<'a> {
     pub field_id: Option<flatbuffers::WIPOffset<FieldId<'a >>>,
     pub first: Option<flatbuffers::WIPOffset<WireId<'a >>>,
     pub last: Option<flatbuffers::WIPOffset<WireId<'a >>>,
 }
-impl<'a> Default for GateFreeArgs<'a> {
+impl<'a> Default for GateDeleteArgs<'a> {
     #[inline]
     fn default() -> Self {
-        GateFreeArgs {
+        GateDeleteArgs {
             field_id: None,
             first: None,
             last: None,
         }
     }
 }
-pub struct GateFreeBuilder<'a: 'b, 'b> {
+pub struct GateDeleteBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> GateFreeBuilder<'a, 'b> {
+impl<'a: 'b, 'b> GateDeleteBuilder<'a, 'b> {
   #[inline]
   pub fn add_field_id(&mut self, field_id: flatbuffers::WIPOffset<FieldId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<FieldId>>(GateFree::VT_FIELD_ID, field_id);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<FieldId>>(GateDelete::VT_FIELD_ID, field_id);
   }
   #[inline]
   pub fn add_first(&mut self, first: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateFree::VT_FIRST, first);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateDelete::VT_FIRST, first);
   }
   #[inline]
   pub fn add_last(&mut self, last: flatbuffers::WIPOffset<WireId<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateFree::VT_LAST, last);
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireId>>(GateDelete::VT_LAST, last);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateFreeBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateDeleteBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    GateFreeBuilder {
+    GateDeleteBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GateFree<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<GateDelete<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -3214,9 +3214,9 @@ impl<'a> Directive<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn directive_as_gate_free(&self) -> Option<GateFree<'a>> {
-    if self.directive_type() == DirectiveSet::GateFree {
-      self.directive().map(|u| GateFree::init_from_table(u))
+  pub fn directive_as_gate_delete(&self) -> Option<GateDelete<'a>> {
+    if self.directive_type() == DirectiveSet::GateDelete {
+      self.directive().map(|u| GateDelete::init_from_table(u))
     } else {
       None
     }

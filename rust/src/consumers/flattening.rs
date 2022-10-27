@@ -6,7 +6,7 @@ use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
-// Free gate when the wire is no more needed.
+// Delete gate when the wire is no more needed.
 
 #[derive(Default)]
 pub struct IRFlattener<S: Sink> {

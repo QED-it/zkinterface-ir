@@ -107,10 +107,10 @@ pub fn example_relation_with_several_fields() -> Relation {
                 wirelist![field_id_101;3, 0],
             ), // - public_input_0
             Add(field_id_101, 8, 6, 7),
-            Free(field_id_101, 0, Some(7)),
+            Delete(field_id_101, 0, Some(7)),
             Mul(field_id_101, 11, 8, 10),
             AssertZero(field_id_101, 11),
-            Free(field_id_101, 8, Some(11)),
+            Delete(field_id_101, 8, Some(11)),
             // Read PublicInputs
             PublicInput(field_id_7, 0),
             PublicInput(field_id_7, 1),
@@ -123,7 +123,7 @@ pub fn example_relation_with_several_fields() -> Relation {
             Mul(field_id_7, 7, 1, 4), // 1 * 2 = 2 mod 7
             Mul(field_id_7, 8, 2, 5), // 0 * 3 = 0 mod 7
             AssertZero(field_id_7, 8),
-            Free(field_id_7, 0, Some(5)),
+            Delete(field_id_7, 0, Some(5)),
             Mul(field_id_7, 9, 6, 7),                     // 3 * 2 = 6 mod 7
             AddConstant(field_id_7, 10, 9, literal32(1)), // 6 + 1 = 0 mod 7
             AssertZero(field_id_7, 10),
@@ -135,8 +135,8 @@ pub fn example_relation_with_several_fields() -> Relation {
             AddConstant(field_id_101, 14, 13, literal32(84)),
             AssertZero(field_id_101, 14),
             AssertZero(field_id_101, 12),
-            Free(field_id_7, 6, Some(10)),
-            Free(field_id_101, 12, Some(14)),
+            Delete(field_id_7, 6, Some(10)),
+            Delete(field_id_101, 12, Some(14)),
             // Conversion from a small field to a big field
             Constant(field_id_101, 15, vec![9]),
             Convert(
@@ -148,8 +148,8 @@ pub fn example_relation_with_several_fields() -> Relation {
             AssertZero(field_id_7, 11),
             AssertZero(field_id_7, 14),
             AssertZero(field_id_7, 15),
-            Free(field_id_101, 15, None),
-            Free(field_id_7, 11, Some(15)),
+            Delete(field_id_101, 15, None),
+            Delete(field_id_7, 11, Some(15)),
         ],
     }
 }
@@ -307,8 +307,8 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
             PrivateInput(field_id_101, 1), // 3
             // The following conversion is impossible
             Convert(wirelist![field_id_7; 0, 1], wirelist![field_id_101; 0, 1]),
-            Free(field_id_101, 0, Some(1)),
-            Free(field_id_7, 0, Some(1)),
+            Delete(field_id_101, 0, Some(1)),
+            Delete(field_id_7, 0, Some(1)),
         ],
     };
 

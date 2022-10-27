@@ -114,10 +114,10 @@ pub fn example_relation_h(header: &Header) -> Relation {
                 wirelist![field_id;3, 0],
             ), // - public_input_0
             Add(field_id, 8, 6, 7),
-            Free(field_id, 0, Some(7)),
+            Delete(field_id, 0, Some(7)),
             Mul(field_id, 11, 8, 10),
             AssertZero(field_id, 11),
-            Free(field_id, 8, Some(11)),
+            Delete(field_id, 8, Some(11)),
         ],
     }
 }

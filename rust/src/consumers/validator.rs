@@ -50,7 +50,7 @@ Gates Validation
  - Ensure constants given in @addc/@mulc are actual field elements.
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
- - Ensure that for Free gates of the format @free(first, last), we have (last > first).
+ - Ensure that for Delete gates of the format @delete(first, last), we have (last > first).
 
 WireRange Validation
  - Ensure that for WireRange(first, last) that (last > first).
@@ -111,7 +111,7 @@ impl Validator {
         self.ensure_all_public_values_consumed();
         self.ensure_all_private_values_consumed();
         if !self.live_wires.is_empty() {
-            println!("WARNING: few variables were not freed.");
+            println!("WARNING: few variables were not deleted.");
         }
         self.violations
     }
@@ -327,12 +327,12 @@ impl Validator {
                 self.consume_private_inputs(field_id, 1);
             }
 
-            Free(field_id, first, last) => {
+            Delete(field_id, first, last) => {
                 // first < last
                 if let Some(last_id) = last {
                     if last_id <= first {
                         self.violate(format!(
-                            "For Free gates, last WireId ({}) must be strictly greater than first WireId ({}).",
+                            "For Delete gates, last WireId ({}) must be strictly greater than first WireId ({}).",
                             last_id, first
                         ));
                     }
@@ -559,7 +559,7 @@ impl Validator {
 
     fn remove(&mut self, field_id: &FieldId, id: WireId) {
         if !self.live_wires.remove(&(*field_id, id)) {
-            self.violate(format!("The variable ({}: {}) is being freed, but was not defined previously, or has been already freed", *field_id,id));
+            self.violate(format!("The variable ({}: {}) is being deleted, but was not defined previously, or has been already deleted", *field_id,id));
         }
     }
 
@@ -617,7 +617,7 @@ impl Validator {
                 // in this case, this is a violation, since all variables must have been defined
                 // previously
                 self.violate(format!(
-                    "The wire ({}: {}) is used but was not assigned a value, or has been freed already.",
+                    "The wire ({}: {}) is used but was not assigned a value, or has been deleted already.",
                     *field_id,
                     id
                 ));
@@ -773,15 +773,15 @@ fn test_validator_violations() -> Result<()> {
 }
 
 #[test]
-fn test_validator_free_violations() -> Result<()> {
+fn test_validator_delete_violations() -> Result<()> {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
     let private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
-    relation.gates.push(Gate::Free(0, 1, Some(2)));
-    relation.gates.push(Gate::Free(0, 4, None));
+    relation.gates.push(Gate::Delete(0, 1, Some(2)));
+    relation.gates.push(Gate::Delete(0, 4, None));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -792,9 +792,9 @@ fn test_validator_free_violations() -> Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The wire (0: 1) is used but was not assigned a value, or has been freed already.",
-            "The wire (0: 2) is used but was not assigned a value, or has been freed already.",
-            "The wire (0: 4) is used but was not assigned a value, or has been freed already.",
+            "The wire (0: 1) is used but was not assigned a value, or has been deleted already.",
+            "The wire (0: 2) is used but was not assigned a value, or has been deleted already.",
+            "The wire (0: 4) is used but was not assigned a value, or has been deleted already.",
         ]
     );
 

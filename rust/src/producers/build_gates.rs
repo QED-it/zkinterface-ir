@@ -16,7 +16,7 @@ pub enum BuildGate {
     MulConstant(FieldId, WireId, Value),
     PublicInput(FieldId, Option<Value>),
     PrivateInput(FieldId, Option<Value>),
-    Free(FieldId, WireId, Option<WireId>),
+    Delete(FieldId, WireId, Option<WireId>),
 }
 
 pub const NO_OUTPUT: WireId = WireId::MAX;
@@ -38,15 +38,15 @@ impl BuildGate {
             MulConstant(field, left, value) => Gate::MulConstant(field, output, left, value),
             PublicInput(field, _) => Gate::PublicInput(field, output),
             PrivateInput(field, _) => Gate::PrivateInput(field, output),
-            Free(field, first, last) => {
+            Delete(field, first, last) => {
                 assert_eq!(output, NO_OUTPUT);
-                Gate::Free(field, first, last)
+                Gate::Delete(field, first, last)
             }
         }
     }
 
     pub fn has_output(&self) -> bool {
-        !matches!(*self, AssertZero(_, _) | Free(_, _, _))
+        !matches!(*self, AssertZero(_, _) | Delete(_, _, _))
     }
 
     pub fn get_field(&self) -> FieldId {
@@ -60,7 +60,7 @@ impl BuildGate {
             MulConstant(field, _, _) => field,
             PublicInput(field, _) => field,
             PrivateInput(field, _) => field,
-            Free(field, _, _) => field,
+            Delete(field, _, _) => field,
         }
     }
 }

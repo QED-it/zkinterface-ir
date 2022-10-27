@@ -34,10 +34,10 @@ pub enum Gate {
     PublicInput(FieldId, WireId),
     /// PrivateInput(field_id, output)
     PrivateInput(FieldId, WireId),
-    /// Free(field_id, first, last)
-    /// If the option is not given, then only the first wire is freed, otherwise all wires between
-    /// the first and the last INCLUSIVE are freed.
-    Free(FieldId, WireId, Option<WireId>),
+    /// Delete(field_id, first, last)
+    /// If the option is not given, then only the first wire is deleted, otherwise all wires between
+    /// the first and the last INCLUSIVE are deleted.
+    Delete(FieldId, WireId, Option<WireId>),
     /// Convert(output, input)
     Convert(WireList, WireList),
     /// AnonCall(output_wires, input_wires, public_count, private_count, subcircuit)
@@ -138,9 +138,9 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateFree => {
-                let gate = gen_gate.directive_as_gate_free().unwrap();
-                Free(
+            ds::GateDelete => {
+                let gate = gen_gate.directive_as_gate_delete().unwrap();
+                Delete(
                     gate.field_id().ok_or("Missing field id")?.id(),
                     gate.first().ok_or("Missing first wire")?.id(),
                     gate.last().map(|id| id.id()),
@@ -380,13 +380,13 @@ impl Gate {
                 )
             }
 
-            Free(field_id, first, last) => {
+            Delete(field_id, first, last) => {
                 let g_field_id = build_field_id(builder, *field_id);
                 let g_first = build_wire_id(builder, *first);
                 let g_last = last.map(|id| build_wire_id(builder, id));
-                let gate = generated::GateFree::create(
+                let gate = generated::GateDelete::create(
                     builder,
-                    &generated::GateFreeArgs {
+                    &generated::GateDeleteArgs {
                         field_id: Some(g_field_id),
                         first: Some(g_first),
                         last: g_last,
@@ -396,7 +396,7 @@ impl Gate {
                 generated::Directive::create(
                     builder,
                     &generated::DirectiveArgs {
-                        directive_type: ds::GateFree,
+                        directive_type: ds::GateDelete,
                         directive: Some(gate.as_union_value()),
                     },
                 )
@@ -516,7 +516,7 @@ impl Gate {
             PrivateInput(_, w) => Some(w),
 
             AssertZero(_, _) => None,
-            Free(_, _, _) => None,
+            Delete(_, _, _) => None,
 
             Convert(_, _) => unimplemented!("Convert gate"),
             AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
@@ -527,7 +527,7 @@ impl Gate {
 
 /// replace_output_wires goes through all gates in `gates` and `replace output_wires[i]` by `i`.
 ///
-/// If a `Free` gate contains an output wire, `replace_output_wires` will return an error.
+/// If a `Delete` gate contains an output wire, `replace_output_wires` will return an error.
 pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> Result<()> {
     let expanded_output_wires = expand_wirelist(output_wires)?;
     let mut map: HashMap<FieldId, WireId> = HashMap::new();
@@ -573,16 +573,16 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                 AssertZero(ref field_id, ref mut wire) => {
                     replace_wire_id(field_id, &old_field_id, wire, old_wire, new_wire);
                 }
-                Free(ref field_id, ref mut first, ref mut option_last) => match option_last {
+                Delete(ref field_id, ref mut first, ref mut option_last) => match option_last {
                     Some(last) => {
                         if (*first <= old_wire && *last >= old_wire) && (*field_id == old_field_id)
                         {
-                            return Err("It is forbidden to free an output wire !".into());
+                            return Err("It is forbidden to delete an output wire !".into());
                         }
                     }
                     None => {
                         if (*first == old_wire) && (*field_id == old_field_id) {
-                            return Err("It is forbidden to free an output wire !".into());
+                            return Err("It is forbidden to delete an output wire !".into());
                         }
                     }
                 },
@@ -614,7 +614,7 @@ fn test_replace_output_wires() {
         Constant(0, 6, vec![15]),
         PublicInput(1, 6),
         Add(0, 7, 4, 5),
-        Free(0, 4, Some(5)),
+        Delete(0, 4, Some(5)),
         Mul(0, 8, 6, 7),
         Call(
             "custom".to_string(),
@@ -631,7 +631,7 @@ fn test_replace_output_wires() {
         Constant(0, 0, vec![15]),
         PublicInput(1, 6),
         Add(0, 7, 4, 5),
-        Free(0, 4, Some(5)),
+        Delete(0, 4, Some(5)),
         Mul(0, 8, 0, 7),
         Call(
             "custom".to_string(),
@@ -644,7 +644,7 @@ fn test_replace_output_wires() {
 }
 
 #[test]
-fn test_replace_output_wires_with_forbidden_free() {
+fn test_replace_output_wires_with_forbidden_delete() {
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
@@ -654,7 +654,7 @@ fn test_replace_output_wires_with_forbidden_free() {
         Add(0, 9, 7, 8),
         Mul(0, 10, 3, 5),
         AddConstant(0, 11, 10, vec![1]),
-        Free(0, 7, Some(9)),
+        Delete(0, 7, Some(9)),
     ];
     let output_wires = vec![Wire(0, 8), Wire(0, 4)];
     let test = replace_output_wires(&mut gates, &output_wires);
@@ -663,7 +663,7 @@ fn test_replace_output_wires_with_forbidden_free() {
     let mut gates = vec![
         Add(0, 2, 4, 6),
         Mul(0, 7, 4, 6),
-        Free(0, 4, None),
+        Delete(0, 4, None),
         Add(0, 8, 3, 5),
         Add(0, 9, 7, 8),
         Mul(0, 10, 3, 5),
