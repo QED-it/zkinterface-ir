@@ -14,6 +14,7 @@ Rust:
 - rename Instance/Witness by PublicInputs/PrivateInputs
 - rename Free gate by Delete gate
 - add New gate
+- add plugins
 
 # SIEVE IR v1.0.1, 2022-08
 

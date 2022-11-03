@@ -3,6 +3,7 @@ use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
+use std::ops::Add;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::wire::{build_field_id, WireList, WireListElement};
@@ -31,10 +32,10 @@ impl<'a> TryFrom<generated::CountList<'a>> for CountList {
 }
 
 /// Add a vector of this structure into a Flatbuffers message builder.
-pub fn build_count_list<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_count_list<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     elements: &CountList,
-) -> WIPOffset<generated::CountList<'bldr>> {
+) -> WIPOffset<generated::CountList<'a>> {
     let mut g_elements = vec![];
     for (field_id, count) in elements {
         let g_field_id = build_field_id(builder, *field_id);
@@ -55,6 +56,10 @@ pub fn build_count_list<'bldr>(
             elements: Some(g_vector),
         },
     )
+}
+
+pub fn count_len(count_list: &CountList) -> u64 {
+    count_list.iter().fold(0u64, |acc, v| acc.add(v.1))
 }
 
 /// Create a `CountList` from a `WireList` by counting in `wirelist` the number of wires for each field.

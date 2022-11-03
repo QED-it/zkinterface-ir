@@ -1,14 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem::take;
 
 use super::build_gates::NO_OUTPUT;
 pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
 use crate::structs::count::{vector_of_values_to_count_list, wirelist_to_count_list, CountList};
+use crate::structs::function::{Function, FunctionBody};
 use crate::structs::gates::replace_output_wires;
 use crate::structs::inputs::Inputs;
+use crate::structs::plugin::PluginBody;
+use crate::structs::value::Value;
 use crate::structs::wire::{WireList, WireListElement};
-use crate::structs::{function::Function, value::Value};
 use crate::Result;
 use crate::{FieldId, Gate, Header, PrivateInputs, PublicInputs, Relation, Sink, WireId};
 
@@ -64,6 +66,7 @@ impl<S: Sink> MessageBuilder<S> {
             },
             relation: Relation {
                 header,
+                plugins: vec![],
                 functions: vec![],
                 gates: vec![],
             },
@@ -106,15 +109,32 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn push_gate(&mut self, gate: Gate) {
         self.relation.gates.push(gate);
-        if self.relation.gates.len() + self.functions_size >= self.max_len {
+        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+            >= self.max_len
+        {
+            self.flush_relation();
+        }
+    }
+
+    fn push_plugin(&mut self, plugin_name: String) {
+        self.relation.plugins.push(plugin_name);
+        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+            >= self.max_len
+        {
             self.flush_relation();
         }
     }
 
     fn push_function(&mut self, function: Function) {
-        self.functions_size += function.body.len();
+        let func_size = match &function.body {
+            FunctionBody::Gates(gates) => gates.len(),
+            FunctionBody::PluginBody(_) => 1,
+        };
+        self.functions_size += func_size;
         self.relation.functions.push(function);
-        if self.relation.gates.len() + self.functions_size >= self.max_len {
+        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+            >= self.max_len
+        {
             self.flush_relation();
         }
     }
@@ -183,6 +203,7 @@ pub struct GateBuilder<S: Sink> {
 
     // name => FunctionParams
     known_functions: HashMap<String, FunctionParams>,
+    known_plugins: HashSet<String>,
     next_available_id: HashMap<FieldId, WireId>,
 }
 
@@ -254,6 +275,33 @@ fn known_function_params<'a>(
         None => Err(format!("Function {} does not exist !", name).into()),
         Some(v) => Ok(v),
     }
+}
+
+pub fn create_plugin_function(
+    function_name: String,
+    output_count: CountList,
+    input_count: CountList,
+    public_count: CountList,
+    private_count: CountList,
+    plugin_body: PluginBody,
+) -> Result<Function> {
+    if function_name.is_empty() {
+        return Err("Cannot create a function with an empty name".into());
+    }
+    if plugin_body.name.is_empty() {
+        return Err("Cannot create a plugin function with an empty plugin name".into());
+    }
+    if plugin_body.operation.is_empty() {
+        return Err("Cannot create a plugin function with an empty plugin operation".into());
+    }
+    Ok(Function::new(
+        function_name,
+        output_count,
+        input_count,
+        public_count,
+        private_count,
+        FunctionBody::PluginBody(plugin_body),
+    ))
 }
 
 /// alloc allocates a new wire ID.
@@ -387,6 +435,7 @@ impl<S: Sink> GateBuilder<S> {
     pub fn new(sink: S, header: Header) -> Self {
         GateBuilder {
             msg_build: MessageBuilder::new(sink, header),
+            known_plugins: HashSet::new(),
             known_functions: HashMap::new(),
             next_available_id: HashMap::new(),
         }
@@ -439,6 +488,11 @@ impl<S: Sink> GateBuilder<S> {
                     private_count: function.private_count.clone(),
                 },
             );
+        }
+        if let FunctionBody::PluginBody(plugin_body) = &function.body {
+            if self.known_plugins.insert(plugin_body.name.clone()) {
+                self.msg_build.push_plugin(plugin_body.name.clone());
+            }
         }
         self.msg_build.push_function(function);
         Ok(())
@@ -606,7 +660,7 @@ impl FunctionBuilder<'_> {
             self.input_count.clone(),
             self.public_count.clone(),
             self.private_count.clone(),
-            self.gates.to_vec(),
+            FunctionBody::Gates(self.gates.to_vec()),
         ))
     }
 }
@@ -650,7 +704,7 @@ fn test_builder_with_function() {
         HashMap::new(),
         HashMap::new(),
         HashMap::new(),
-        vec![],
+        FunctionBody::Gates(vec![]),
     );
     assert!(b.push_function(custom_function).is_err());
 
@@ -793,6 +847,80 @@ fn test_builder_with_several_functions() {
     assert_eq!(out.len(), 1);
 
     b.create_gate(AssertZero(field_id, out[0].1)).unwrap();
+
+    let sink = b.finish();
+
+    let mut zkbackend = PlaintextBackend::default();
+    let source: Source = sink.into();
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkbackend);
+    assert_eq!(evaluator.get_violations(), Vec::<String>::new());
+}
+
+#[test]
+fn test_builder_with_plugin() {
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::{examples, sink::MemorySink};
+    use crate::structs::wire::expand_wirelist;
+    use crate::wirelist;
+
+    let field_id: FieldId = 0;
+
+    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+
+    let vector_len: u64 = 2;
+    let vector_add_plugin = create_plugin_function(
+        "vector_add_2".to_string(),
+        HashMap::from([(field_id, vector_len)]),
+        HashMap::from([(field_id, 2 * vector_len)]),
+        HashMap::new(),
+        HashMap::new(),
+        PluginBody {
+            name: "vector".to_string(),
+            operation: "add".to_string(),
+            params: vec![field_id.to_string(), vector_len.to_string()],
+        },
+    )
+    .unwrap();
+
+    b.push_function(vector_add_plugin).unwrap();
+
+    let private_0 = b
+        .create_gate(PrivateInput(field_id, Some(vec![1])))
+        .unwrap();
+    let private_1 = b
+        .create_gate(PrivateInput(field_id, Some(vec![2])))
+        .unwrap();
+    let public_0 = b
+        .create_gate(PrivateInput(field_id, Some(vec![3])))
+        .unwrap();
+    let public_1 = b
+        .create_gate(PrivateInput(field_id, Some(vec![4])))
+        .unwrap();
+
+    let out = b
+        .create_complex_gate(
+            Call(
+                "vector_add_2".to_string(),
+                wirelist![field_id; private_0, private_1, public_0, public_1],
+            ),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+    let out = expand_wirelist(&out).unwrap();
+    assert_eq!(out.len() as u64, vector_len);
+
+    let out_0 = b
+        .create_gate(AddConstant(field_id, out[0].1, vec![97]))
+        .unwrap();
+    let out_1 = b
+        .create_gate(AddConstant(field_id, out[1].1, vec![95]))
+        .unwrap();
+
+    b.create_gate(AssertZero(field_id, out_0)).unwrap();
+    b.create_gate(AssertZero(field_id, out_1)).unwrap();
 
     let sink = b.finish();
 

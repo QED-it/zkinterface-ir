@@ -167,11 +167,26 @@ The command below reads the statement and prints a textual representation of it.
             public_count: {}
             private_count: {}
             body:
-              - Mul:
-                  - 0
-                  - 0
-                  - 1
-                  - 2
+              Gates:
+                - Mul:
+                    - 0
+                    - 0
+                    - 1
+                    - 2
+          - name: vector_add_7_3
+            output_count:
+              1: 3
+            input_count:
+              1: 6
+            public_count: {}
+            private_count: {}
+            body:
+              PluginBody:
+                name: vector
+                operation: add
+                params:
+                  - "1"
+                  - "3"
         gates:
           - New:
               - 0
@@ -432,6 +447,56 @@ The command below reads the statement and prints a textual representation of it.
               - 1
               - 11
               - 15
+          - Constant:
+              - 1
+              - 16
+              - - 1
+          - Constant:
+              - 1
+              - 17
+              - - 2
+          - Constant:
+              - 1
+              - 18
+              - - 3
+          - Constant:
+              - 1
+              - 19
+              - - 4
+          - Constant:
+              - 1
+              - 20
+              - - 5
+          - Constant:
+              - 1
+              - 21
+              - - 6
+          - Call:
+              - vector_add_7_3
+              - - WireRange:
+                    - 1
+                    - 22
+                    - 24
+              - - WireRange:
+                    - 1
+                    - 16
+                    - 21
+          - Add:
+              - 1
+              - 25
+              - 22
+              - 24
+          - AssertZero:
+              - 1
+              - 23
+          - AssertZero:
+              - 1
+              - 25
+          - Delete:
+              - 1
+              - 16
+              - 25
+
 
 
 ### A producer: converter from R1CS

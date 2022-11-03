@@ -13,6 +13,7 @@ use crate::structs::function::Function;
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
     pub header: Header,
+    pub plugins: Vec<String>,
     pub functions: Vec<Function>,
     pub gates: Vec<Gate>,
 }
@@ -28,9 +29,16 @@ impl<'a> TryFrom<generated::Relation<'a>> for Relation {
         } else {
             vec![]
         };
+        let mut plugins = Vec::new();
+        if let Some(g_plugins) = g_relation.plugins() {
+            g_plugins
+                .iter()
+                .for_each(|g_plugin| plugins.push(g_plugin.to_string()))
+        }
 
         Ok(Relation {
             header: Header::try_from(g_relation.header())?,
+            plugins,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
         })
@@ -51,18 +59,22 @@ impl<'a> TryFrom<&'a [u8]> for Relation {
 
 impl Relation {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
-        &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::Root<'bldr>> {
+    pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
         let header = Some(self.header.build(builder));
         let directives = Gate::build_vector(builder, &self.gates);
         let functions = Function::build_vector(builder, &self.functions);
+        let g_plugins = self
+            .plugins
+            .iter()
+            .map(|plugin| builder.create_string(plugin))
+            .collect::<Vec<WIPOffset<&str>>>();
+        let g_plugins_vec = builder.create_vector(&g_plugins);
 
         let relation = generated::Relation::create(
             builder,
             &generated::RelationArgs {
                 header,
+                plugins: Some(g_plugins_vec),
                 functions: Some(functions),
                 directives: Some(directives),
             },

@@ -33,6 +33,9 @@ pub mod producers;
 /// Tools and helpers to consume messages.
 pub mod consumers;
 
+/// Tools and helpers to evaluate plugins.
+pub mod plugins;
+
 // Exports.
 pub use consumers::source::Source;
 pub use producers::sink::{clean_workspace, FilesSink, Sink};

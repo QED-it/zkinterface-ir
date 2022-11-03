@@ -46,10 +46,7 @@ impl<'a> TryFrom<&'a [u8]> for PrivateInputs {
 
 impl PrivateInputs {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
-        &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::Root<'bldr>> {
+    pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
         let header = Some(self.header.build(builder));
         let g_inputs: Vec<_> = self
             .inputs

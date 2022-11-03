@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::producers::examples::literal32;
 use crate::structs::inputs::Inputs;
+use crate::structs::plugin::PluginBody;
 use crate::structs::wire::WireListElement;
 use crate::wirelist;
 use crate::{Header, PrivateInputs, PublicInputs, Relation};
@@ -57,21 +58,36 @@ pub fn example_incorrect_private_inputs_with_several_fields() -> PrivateInputs {
 }
 
 pub fn example_relation_with_several_fields() -> Relation {
-    use crate::structs::function::Function;
+    use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
     let field_id_101: u8 = 0;
     let field_id_7: u8 = 1;
     Relation {
         header: example_header_with_several_fields(),
-        functions: vec![Function::new(
-            "com.example::mul".to_string(),
-            HashMap::from([(field_id_101, 1)]),
-            HashMap::from([(field_id_101, 2)]),
-            HashMap::new(),
-            HashMap::new(),
-            vec![Mul(field_id_101, 0, 1, 2)],
-        )],
+        plugins: vec!["vector".to_string()],
+        functions: vec![
+            Function::new(
+                "com.example::mul".to_string(),
+                HashMap::from([(field_id_101, 1)]),
+                HashMap::from([(field_id_101, 2)]),
+                HashMap::new(),
+                HashMap::new(),
+                FunctionBody::Gates(vec![Mul(field_id_101, 0, 1, 2)]),
+            ),
+            Function::new(
+                "vector_add_7_3".to_string(),
+                HashMap::from([(field_id_7, 3)]),
+                HashMap::from([(field_id_7, 6)]),
+                HashMap::new(),
+                HashMap::new(),
+                FunctionBody::PluginBody(PluginBody {
+                    name: "vector".to_string(),
+                    operation: "add".to_string(),
+                    params: vec![field_id_7.to_string(), "3".to_string()],
+                }),
+            ),
+        ],
         gates: vec![
             New(field_id_101, 0, 7),
             PrivateInput(field_id_101, 1),
@@ -152,6 +168,22 @@ pub fn example_relation_with_several_fields() -> Relation {
             AssertZero(field_id_7, 15),
             Delete(field_id_101, 15, None),
             Delete(field_id_7, 11, Some(15)),
+            // Test plugin(vector_add, 1, 3)
+            Constant(field_id_7, 16, vec![1]),
+            Constant(field_id_7, 17, vec![2]),
+            Constant(field_id_7, 18, vec![3]),
+            Constant(field_id_7, 19, vec![4]),
+            Constant(field_id_7, 20, vec![5]),
+            Constant(field_id_7, 21, vec![6]),
+            Call(
+                "vector_add_7_3".to_string(),
+                vec![WireListElement::WireRange(field_id_7, 22, 24)], // [5, 0, 2] = [1, 2, 3] + [4, 5, 6] % 7
+                vec![WireListElement::WireRange(field_id_7, 16, 21)],
+            ),
+            Add(field_id_7, 25, 22, 24), // 0 = 5 + 2 % 7
+            AssertZero(field_id_7, 23),
+            AssertZero(field_id_7, 25),
+            Delete(field_id_7, 16, Some(25)),
         ],
     }
 }
@@ -220,6 +252,7 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     let field_id_7: u8 = 1;
     let relation = Relation {
         header: example_header_with_several_fields(),
+        plugins: vec![],
         functions: vec![],
         gates: vec![
             PublicInput(field_id_101, 0),
@@ -303,6 +336,7 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     // 1st test: impossible conversion
     let relation = Relation {
         header: example_header_with_several_fields(),
+        plugins: vec![],
         functions: vec![],
         gates: vec![
             PublicInput(field_id_101, 0),  // 25
@@ -329,6 +363,7 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     // 2nd test: all input wires do not belong to the same field
     let relation = Relation {
         header: example_header_with_several_fields(),
+        plugins: vec![],
         functions: vec![],
         gates: vec![
             PublicInput(field_id_101, 0), // 25

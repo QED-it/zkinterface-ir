@@ -1,4 +1,7 @@
+use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::{wirelist_to_count_list, CountList};
+use crate::structs::function::FunctionBody;
+use crate::structs::plugin::PluginBody;
 use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, wirelist_len, WireList};
 use crate::{
     FieldId, Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value, WireId,
@@ -85,13 +88,13 @@ pub trait ZKBackend {
         val: Option<Self::FieldElement>,
     ) -> Result<Self::Wire>;
 
-    // New is used to allocate in a contiguous memory space wires between first and last inclusive.
-    // If the backend is not interested in contiguous allocations, this function should do nothing.
+    /// New is used to allocate in a contiguous memory space wires between first and last inclusive.
+    /// If the backend is not interested in contiguous allocations, this function should do nothing.
     fn gate_new(&mut self, field_id: &FieldId, first: WireId, last: WireId) -> Result<()>;
 
     /// Convert `inputs` from field `input_field_id` into field `output_field_id`.
     /// The result is stored in new wires.
-    /// The result must contain at most `output_wire_count` wires.
+    /// The result must contain `output_wire_count` wires.
     fn convert(
         &mut self,
         output_field_id: &FieldId,
@@ -99,12 +102,26 @@ pub trait ZKBackend {
         input_field_id: &FieldId,
         inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>>;
+
+    /// Evaluate plugin defined in `plugin_body` on `inputs`
+    /// The result is stored in new wires.
+    /// The result must be compliant with `output_wire_count`.
+    /// If the plugin is unknown or if `input_count`, `output_count`, `inputs` or `plugin_body`
+    /// are not compliant with the plugin specifications,
+    /// then `evaluate_plugin` returns an error.
+    fn evaluate_plugin(
+        &mut self,
+        output_count: &CountList,
+        input_count: &CountList,
+        inputs: &[&Self::Wire],
+        plugin_body: &PluginBody,
+    ) -> Result<Vec<Self::Wire>>;
 }
 
 /// This structure defines a function as defined in the circuit, but without the name.
 /// It's mainly used to retrieve information from the name.
 struct FunctionDeclaration {
-    subcircuit: Vec<Gate>,
+    body: FunctionBody,
     output_count: CountList,
     input_count: CountList,
 }
@@ -131,12 +148,8 @@ struct FunctionDeclaration {
 /// ```
 pub struct Evaluator<B: ZKBackend> {
     values: HashMap<(FieldId, WireId), B::Wire>,
-    moduli: Vec<BigUint>,
-    public_inputs_queue: Vec<VecDeque<B::FieldElement>>,
-    private_inputs_queue: Vec<VecDeque<B::FieldElement>>,
-
-    // name => (subcircuit, output_count, input_count)
-    known_functions: HashMap<String, FunctionDeclaration>,
+    inputs: EvaluatorInputs<B>,
+    params: EvaluatorParams,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -146,14 +159,33 @@ impl<B: ZKBackend> Default for Evaluator<B> {
     fn default() -> Self {
         Evaluator {
             values: Default::default(),
-            moduli: vec![],
-            public_inputs_queue: vec![],
-            private_inputs_queue: vec![],
-            known_functions: Default::default(),
+            params: Default::default(),
+            inputs: Default::default(),
             verified_at_least_one_gate: false,
             found_error: None,
         }
     }
+}
+
+pub struct EvaluatorInputs<B: ZKBackend> {
+    public_inputs_queue: Vec<VecDeque<B::FieldElement>>,
+    private_inputs_queue: Vec<VecDeque<B::FieldElement>>,
+}
+
+impl<B: ZKBackend> Default for EvaluatorInputs<B> {
+    fn default() -> Self {
+        EvaluatorInputs {
+            public_inputs_queue: Default::default(),
+            private_inputs_queue: Default::default(),
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct EvaluatorParams {
+    moduli: Vec<BigUint>,
+    // name => (body, output_count, input_count)
+    known_functions: HashMap<String, FunctionDeclaration>,
 }
 
 impl<B: ZKBackend> Evaluator<B> {
@@ -202,14 +234,14 @@ impl<B: ZKBackend> Evaluator<B> {
     }
 
     fn ingest_header(&mut self, header: &Header) -> Result<()> {
-        if !self.moduli.is_empty() {
+        if !self.params.moduli.is_empty() {
             // Header has already been ingested !
             return Ok(());
         }
         for field in &header.fields {
-            self.moduli.push(BigUint::from_bytes_le(field));
-            self.public_inputs_queue.push(VecDeque::new());
-            self.private_inputs_queue.push(VecDeque::new());
+            self.params.moduli.push(BigUint::from_bytes_le(field));
+            self.inputs.public_inputs_queue.push(VecDeque::new());
+            self.inputs.private_inputs_queue.push(VecDeque::new());
         }
         Ok(())
     }
@@ -221,6 +253,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
         for (i, inputs) in public_inputs.inputs.iter().enumerate() {
             let values = self
+                .inputs
                 .public_inputs_queue
                 .get_mut(i)
                 .ok_or("No enough elements in public_inputs_queue")?;
@@ -238,6 +271,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
         for (i, inputs) in private_inputs.inputs.iter().enumerate() {
             let values = self
+                .inputs
                 .private_inputs_queue
                 .get_mut(i)
                 .ok_or("No enough elements in private_inputs_queue")?;
@@ -258,10 +292,10 @@ impl<B: ZKBackend> Evaluator<B> {
         }
 
         for f in relation.functions.iter() {
-            self.known_functions.insert(
+            self.params.known_functions.insert(
                 f.name.clone(),
                 FunctionDeclaration {
-                    subcircuit: f.body.clone(),
+                    body: f.body.clone(),
                     output_count: f.output_count.clone(),
                     input_count: f.input_count.clone(),
                 },
@@ -273,10 +307,8 @@ impl<B: ZKBackend> Evaluator<B> {
                 gate,
                 backend,
                 &mut self.values,
-                &self.known_functions,
-                &self.moduli,
-                &mut self.public_inputs_queue,
-                &mut self.private_inputs_queue,
+                &self.params,
+                &mut self.inputs,
             )?;
         }
         Ok(())
@@ -294,10 +326,8 @@ impl<B: ZKBackend> Evaluator<B> {
         gate: &Gate,
         backend: &mut B,
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
-        known_functions: &HashMap<String, FunctionDeclaration>,
-        moduli: &[BigUint],
-        public_inputs: &mut Vec<VecDeque<B::FieldElement>>,
-        private_inputs: &mut Vec<VecDeque<B::FieldElement>>,
+        params: &EvaluatorParams,
+        inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         use Gate::*;
 
@@ -365,8 +395,10 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             PublicInput(field_id, out) => {
-                let public_inputs_for_field =
-                    public_inputs.get_mut(*field_id as usize).ok_or(format!(
+                let public_inputs_for_field = inputs
+                    .public_inputs_queue
+                    .get_mut(*field_id as usize)
+                    .ok_or(format!(
                         "Unknown field {} when evaluating an PublicInput gate",
                         *field_id
                     ))?;
@@ -379,8 +411,10 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             PrivateInput(field_id, out) => {
-                let private_inputs_for_field =
-                    private_inputs.get_mut(*field_id as usize).ok_or(format!(
+                let private_inputs_for_field = inputs
+                    .private_inputs_queue
+                    .get_mut(*field_id as usize)
+                    .ok_or(format!(
                         "Unknown field {} when evaluating a PrivateInput gate",
                         *field_id
                     ))?;
@@ -424,7 +458,7 @@ impl<B: ZKBackend> Evaluator<B> {
                     let val = get!(input_field, *input_wire)?;
                     input_values.push(val);
                 }
-                let out: Vec<<B as ZKBackend>::Wire> = backend.convert(
+                let out: Vec<B::Wire> = backend.convert(
                     &output_field,
                     wirelist_len(output_wires) as u64,
                     &input_field,
@@ -438,14 +472,13 @@ impl<B: ZKBackend> Evaluator<B> {
                 }
                 out.iter().zip(expanded_output_wires.iter()).try_for_each(
                     |(output_value, (_, output_wire))| {
-                        // let value = *(output_value.clone());
                         set::<B>(scope, output_field, *output_wire, output_value.clone())
                     },
                 )?;
             }
 
             Call(name, output_wires, input_wires) => {
-                let function = known_functions.get(name).ok_or("Unknown function")?;
+                let function = params.known_functions.get(name).ok_or("Unknown function")?;
 
                 // simple checks.
                 let output_count: CountList = wirelist_to_count_list(output_wires);
@@ -457,17 +490,46 @@ impl<B: ZKBackend> Evaluator<B> {
                     return Err(format!("Wrong number of input variables in call to function {} (Expected {:?} / Got {:?}).", name, function.input_count, input_count).into());
                 }
 
-                Self::ingest_subcircuit(
-                    &function.subcircuit,
-                    backend,
-                    output_wires,
-                    input_wires,
-                    scope,
-                    known_functions,
-                    moduli,
-                    public_inputs,
-                    private_inputs,
-                )?;
+                match &function.body {
+                    FunctionBody::Gates(gates) => {
+                        Self::ingest_subcircuit(
+                            gates,
+                            backend,
+                            output_wires,
+                            input_wires,
+                            scope,
+                            params,
+                            inputs,
+                        )?;
+                    }
+                    FunctionBody::PluginBody(plugin_body) => {
+                        // Retrieve input values
+                        let expanded_input_wires = expand_wirelist(input_wires)?;
+                        let mut input_values = vec![];
+                        for (field_id, input_wire) in expanded_input_wires.iter() {
+                            let val = get!(*field_id, *input_wire)?;
+                            input_values.push(val);
+                        }
+                        // Evaluate plugin
+                        let out: Vec<B::Wire> = backend.evaluate_plugin(
+                            &output_count,
+                            &input_count,
+                            &input_values,
+                            plugin_body,
+                        )?;
+                        // Store output values
+                        let expanded_output_wires = expand_wirelist(output_wires)?;
+                        if expanded_output_wires.len() != out.len() {
+                            // It is not possible
+                            panic!("During a plugin evaluation, out and expanded_output_wires have not the same length !");
+                        }
+                        out.iter().zip(expanded_output_wires.iter()).try_for_each(
+                            |(output_value, (field_id, output_wire))| {
+                                set::<B>(scope, *field_id, *output_wire, output_value.clone())
+                            },
+                        )?;
+                    }
+                };
             }
 
             AnonCall(output_wires, input_wires, _, _, subcircuit) => {
@@ -477,10 +539,8 @@ impl<B: ZKBackend> Evaluator<B> {
                     output_wires,
                     input_wires,
                     scope,
-                    known_functions,
-                    moduli,
-                    public_inputs,
-                    private_inputs,
+                    params,
+                    inputs,
                 )?;
             }
         }
@@ -498,10 +558,8 @@ impl<B: ZKBackend> Evaluator<B> {
         output_list: &WireList,
         input_list: &WireList,
         scope: &mut HashMap<(FieldId, WireId), B::Wire>,
-        known_functions: &HashMap<String, FunctionDeclaration>,
-        moduli: &[BigUint],
-        public_inputs: &mut Vec<VecDeque<B::FieldElement>>,
-        private_inputs: &mut Vec<VecDeque<B::FieldElement>>,
+        params: &EvaluatorParams,
+        inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         let mut new_scope: HashMap<(FieldId, WireId), B::Wire> = HashMap::new();
 
@@ -521,15 +579,7 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         // evaluate the subcircuit in the new scope.
         for gate in subcircuit {
-            Self::ingest_gate(
-                gate,
-                backend,
-                &mut new_scope,
-                known_functions,
-                moduli,
-                public_inputs,
-                private_inputs,
-            )?;
+            Self::ingest_gate(gate, backend, &mut new_scope, params, inputs)?;
         }
         // copy the outputs produced from 'new_scope', into 'scope'
         let expanded_outputs = expand_wirelist(output_list)?;
@@ -774,6 +824,22 @@ impl ZKBackend for PlaintextBackend {
         }
         Ok(result)
     }
+
+    fn evaluate_plugin(
+        &mut self,
+        output_count: &CountList,
+        input_count: &CountList,
+        inputs: &[&Self::Wire],
+        plugin_body: &PluginBody,
+    ) -> Result<Vec<Self::Wire>> {
+        evaluate_plugin_for_plaintext_backend(
+            output_count,
+            input_count,
+            inputs,
+            plugin_body,
+            &self.m,
+        )
+    }
 }
 
 #[test]
@@ -799,9 +865,11 @@ fn test_evaluator() -> crate::Result<()> {
 
 #[test]
 fn test_evaluator_as_verifier() -> crate::Result<()> {
-    use crate::consumers::evaluator::Evaluator;
     /// This test simply checks that the Evaluator code could run with any ZKInterpreter without issue
+    use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
+    use crate::structs::count::count_len;
+    use std::convert::TryFrom;
 
     let relation = example_relation();
     let public_inputs = example_public_inputs();
@@ -894,7 +962,17 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
             _input_field: &FieldId,
             _inputs: &[&Self::Wire],
         ) -> Result<Vec<Self::Wire>> {
-            Ok(vec![0; output_wire_count as usize])
+            Ok(vec![0; usize::try_from(output_wire_count)?])
+        }
+        fn evaluate_plugin(
+            &mut self,
+            output_count: &CountList,
+            _input_count: &CountList,
+            _inputs: &[&Self::Wire],
+            _plugin_body: &PluginBody,
+        ) -> Result<Vec<Self::Wire>> {
+            let count = count_len(output_count);
+            Ok(vec![0; usize::try_from(count)?])
         }
     }
 

@@ -20,6 +20,7 @@ table Header {
 
 table Relation {
    header               :Header;
+   plugins              :[string];
    functions            :[Function];
    directives           :[Directive];
 }
@@ -167,6 +168,21 @@ table GateConvert {
 	input     :WireList;
 }
 
+union FunctionBody {
+	Gates,
+	PluginBody,
+}
+
+table Gates {
+	gates          :[Directive];
+}
+
+table PluginBody {
+	name          :string;
+	operation     :string;
+	params        :[string];
+}
+
 // Function declaration. The 'name' field is string matching the following pattern
 //   [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
 //   (
@@ -181,8 +197,9 @@ table Function {
     input_count     :CountList;
     public_count    :CountList;
     private_count   :CountList;
-    body            :[Directive];
+    body            :FunctionBody;
 }
+
 // Invokes a previously defined Function gate
 // Ref. SIEVE-IR spec (3.5)
 table GateCall {

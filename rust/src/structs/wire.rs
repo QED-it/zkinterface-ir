@@ -32,18 +32,18 @@ pub fn from_wire_ids_vector(g_vector: &[generated::WireId]) -> Vec<WireId> {
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_wire_id<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_wire_id<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     id: WireId,
-) -> WIPOffset<generated::WireId<'bldr>> {
+) -> WIPOffset<generated::WireId<'a>> {
     generated::WireId::create(builder, &generated::WireIdArgs { id })
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_wire_ids_vector<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_wire_ids_vector<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     wire_ids: &[WireId],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<generated::WireId<'bldr>>>> {
+) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::WireId<'a>>>> {
     let g_wire_ids: Vec<_> = wire_ids
         .iter()
         .map(|id| build_wire_id(builder, *id))
@@ -66,18 +66,18 @@ pub fn from_field_ids_vector(g_vector: &[generated::FieldId]) -> Vec<FieldId> {
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_field_id<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_field_id<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     id: FieldId,
-) -> WIPOffset<generated::FieldId<'bldr>> {
+) -> WIPOffset<generated::FieldId<'a>> {
     generated::FieldId::create(builder, &generated::FieldIdArgs { id })
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_field_ids_vector<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_field_ids_vector<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     field_ids: &[FieldId],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<generated::FieldId<'bldr>>>> {
+) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::FieldId<'a>>>> {
     let g_field_ids: Vec<_> = field_ids
         .iter()
         .map(|id| build_field_id(builder, *id))
@@ -97,11 +97,11 @@ pub fn from_wire(g_wire: &generated::Wire) -> Result<(FieldId, WireId)> {
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_wire<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_wire<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     field_id: FieldId,
     wire_id: WireId,
-) -> WIPOffset<generated::Wire<'bldr>> {
+) -> WIPOffset<generated::Wire<'a>> {
     let fbs_field_id = build_field_id(builder, field_id);
     let fbs_wire_id = build_wire_id(builder, wire_id);
     generated::Wire::create(
@@ -132,12 +132,12 @@ pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(FieldId, WireId
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_range<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_range<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     field_id: FieldId,
     first: WireId,
     last: WireId,
-) -> WIPOffset<generated::WireRange<'bldr>> {
+) -> WIPOffset<generated::WireRange<'a>> {
     let fbs_field_id = build_field_id(builder, field_id);
     let fbs_first = build_wire_id(builder, first);
     let fbs_last = build_wire_id(builder, last);
@@ -184,10 +184,10 @@ impl<'a> TryFrom<generated::WireListElement<'a>> for WireListElement {
 
 impl WireListElement {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
+    pub fn build<'a>(
         &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::WireListElement<'bldr>> {
+        builder: &mut FlatBufferBuilder<'a>,
+    ) -> WIPOffset<generated::WireListElement<'a>> {
         match self {
             Wire(field_id, wire_id) => {
                 let wire = build_wire(builder, *field_id, *wire_id);
@@ -228,10 +228,10 @@ impl<'a> TryFrom<generated::WireList<'a>> for WireList {
 }
 
 /// Add a vector of this structure into a Flatbuffers message builder.
-pub fn build_wire_list<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_wire_list<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     elements: &[WireListElement],
-) -> WIPOffset<generated::WireList<'bldr>> {
+) -> WIPOffset<generated::WireList<'a>> {
     let g_elements: Vec<_> = elements
         .iter()
         .map(|element| element.build(builder))

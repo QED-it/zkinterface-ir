@@ -1,6 +1,8 @@
 use crate::consumers::evaluator::{get_field, ZKBackend};
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
+use crate::structs::count::CountList;
+use crate::structs::plugin::PluginBody;
 use crate::{FieldId, Header, Result, Sink, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
@@ -195,6 +197,16 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         _inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to flatten circuit containing convert gates".into())
+    }
+
+    fn evaluate_plugin(
+        &mut self,
+        _output_count: &CountList,
+        _input_count: &CountList,
+        _inputs: &[&Self::Wire],
+        _plugin_body: &PluginBody,
+    ) -> Result<Vec<Self::Wire>> {
+        Err("Not possible to flatten circuit containing plugin calls".into())
     }
 }
 

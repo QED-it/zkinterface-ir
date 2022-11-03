@@ -64,20 +64,21 @@ pub fn example_private_inputs_incorrect_h(header: &Header) -> PrivateInputs {
 }
 
 pub fn example_relation_h(header: &Header) -> Relation {
-    use crate::structs::function::Function;
+    use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
     let field_id: FieldId = 0;
 
     Relation {
         header: header.clone(),
+        plugins: vec![],
         functions: vec![Function::new(
             "com.example::mul".to_string(),
             HashMap::from([(field_id, 1)]),
             HashMap::from([(field_id, 2)]),
             HashMap::new(),
             HashMap::new(),
-            vec![Mul(field_id, 0, 1, 2)],
+            FunctionBody::Gates(vec![Mul(field_id, 0, 1, 2)]),
         )],
         gates: vec![
             New(field_id, 0, 7),

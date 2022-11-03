@@ -35,6 +35,9 @@ pub mod count;
 /// Handles the AnonGate stuff
 pub mod function;
 
+/// Handles the plugin stuff
+pub mod plugin;
+
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
 

@@ -1,4 +1,6 @@
 use crate::consumers::evaluator::ZKBackend;
+use crate::structs::count::CountList;
+use crate::structs::plugin::PluginBody;
 use crate::{FieldId, Result, Value, WireId};
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Variables as zkiVariables;
@@ -442,6 +444,16 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         _inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to convert to R1CS circuit containing convert gates".into())
+    }
+
+    fn evaluate_plugin(
+        &mut self,
+        _output_count: &CountList,
+        _input_count: &CountList,
+        _inputs: &[&Self::Wire],
+        _plugin_body: &PluginBody,
+    ) -> Result<Vec<Self::Wire>> {
+        Err("Not possible to convert to R1CS circuit circuit containing plugin calls".into())
     }
 }
 

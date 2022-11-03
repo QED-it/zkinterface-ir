@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::structs::function::FunctionBody;
 use crate::{Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -26,12 +27,21 @@ pub struct GateStats {
     pub functions_defined: usize,
     pub functions_called: usize,
 
+    pub plugins_defined: usize,
+    pub plugins_called: usize,
+
     pub convert_gates: usize,
 
     // The number of messages into which the statement was split.
     pub public_inputs_messages: usize,
     pub private_inputs_messages: usize,
     pub relation_messages: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+pub enum FunctionContent {
+    Plugin(u64, u64),              // (public_count, private_count)
+    Function(GateStats, u64, u64), // (stats, public_count, private_count)
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -41,8 +51,7 @@ pub struct Stats {
 
     pub gate_stats: GateStats,
 
-    // Function definitions => stats / public_count / private_count
-    pub functions: HashMap<String, (GateStats, u64, u64)>,
+    pub functions: HashMap<String, FunctionContent>,
 }
 
 impl Stats {
@@ -78,13 +87,23 @@ impl Stats {
             let name = f.name.clone();
             let public_count = f.public_count.values().sum::<u64>();
             let private_count = f.private_count.values().sum::<u64>();
-            let subcircuit = f.body.clone();
-
-            // Just record the signature.
-            self.gate_stats.functions_defined += 1;
-            let func_stats = ingest_subcircuit(&subcircuit, &self.functions);
-            self.functions
-                .insert(name.clone(), (func_stats, public_count, private_count));
+            match &f.body {
+                FunctionBody::Gates(gates) => {
+                    self.gate_stats.functions_defined += 1;
+                    let func_stats = ingest_subcircuit(gates, &self.functions);
+                    self.functions.insert(
+                        name.clone(),
+                        FunctionContent::Function(func_stats, public_count, private_count),
+                    );
+                }
+                FunctionBody::PluginBody(_) => {
+                    self.gate_stats.plugins_defined += 1;
+                    self.functions.insert(
+                        name.clone(),
+                        FunctionContent::Plugin(public_count, private_count),
+                    );
+                }
+            }
         }
 
         for gate in &relation.gates {
@@ -104,7 +123,7 @@ impl Stats {
 
 fn ingest_subcircuit(
     subcircuit: &[Gate],
-    known_functions: &HashMap<String, (GateStats, u64, u64)>,
+    known_functions: &HashMap<String, FunctionContent>,
 ) -> GateStats {
     let mut local_stats = GateStats::default();
     for gate in subcircuit {
@@ -114,11 +133,7 @@ fn ingest_subcircuit(
 }
 
 impl GateStats {
-    fn ingest_gate(
-        &mut self,
-        gate: &Gate,
-        known_functions: &HashMap<String, (GateStats, u64, u64)>,
-    ) {
+    fn ingest_gate(&mut self, gate: &Gate, known_functions: &HashMap<String, FunctionContent>) {
         use Gate::*;
 
         match gate {
@@ -172,11 +187,20 @@ impl GateStats {
             }
 
             Call(name, _, _) => {
-                self.functions_called += 1;
-                if let Some(stats_pub_priv) = known_functions.get(name).cloned() {
-                    self.ingest_call_stats(&stats_pub_priv.0);
-                    self.public_variables += stats_pub_priv.1;
-                    self.private_variables += stats_pub_priv.2;
+                if let Some(func_content) = known_functions.get(name) {
+                    match func_content {
+                        FunctionContent::Function(stats, pub_count, priv_count) => {
+                            self.functions_called += 1;
+                            self.ingest_call_stats(stats);
+                            self.public_variables += pub_count;
+                            self.private_variables += priv_count;
+                        }
+                        FunctionContent::Plugin(pub_count, priv_count) => {
+                            self.plugins_called += 1;
+                            self.public_variables += pub_count;
+                            self.private_variables += priv_count;
+                        }
+                    };
                 } else {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
@@ -236,6 +260,8 @@ fn test_stats() -> Result<()> {
             variables_deleted: 12,
             functions_defined: 1,
             functions_called: 3,
+            plugins_defined: 0,
+            plugins_called: 0,
             convert_gates: 0,
             public_inputs_messages: 1,
             private_inputs_messages: 1,
@@ -245,7 +271,7 @@ fn test_stats() -> Result<()> {
     };
     expected_stats.functions.insert(
         "com.example::mul".to_string(),
-        (
+        FunctionContent::Function(
             GateStats {
                 mul_gates: 1,
                 ..GateStats::default()

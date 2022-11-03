@@ -195,10 +195,10 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
 
 impl Gate {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
+    pub fn build<'a>(
         &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::Directive<'bldr>> {
+        builder: &mut FlatBufferBuilder<'a>,
+    ) -> WIPOffset<generated::Directive<'a>> {
         match self {
             Constant(field_id, output, constant) => {
                 let g_field_id = build_field_id(builder, *field_id);
@@ -528,10 +528,10 @@ impl Gate {
     }
 
     /// Add a vector of this structure into a Flatbuffers message builder.
-    pub fn build_vector<'bldr>(
-        builder: &mut FlatBufferBuilder<'bldr>,
+    pub fn build_vector<'a>(
+        builder: &mut FlatBufferBuilder<'a>,
         gates: &[Gate],
-    ) -> WIPOffset<Vector<'bldr, ForwardsUOffset<generated::Directive<'bldr>>>> {
+    ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Directive<'a>>>> {
         let g_gates: Vec<_> = gates.iter().map(|gate| gate.build(builder)).collect();
         builder.create_vector(&g_gates)
     }

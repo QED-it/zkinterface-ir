@@ -7,6 +7,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::consumers::evaluator::get_field;
 use crate::structs::count::{wirelist_to_count_list, CountList};
+use crate::structs::function::FunctionBody;
 use crate::structs::value::is_probably_prime;
 use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, WireList};
 use regex::Regex;
@@ -76,6 +77,7 @@ pub struct Validator {
 
     fields: Vec<Field>,
 
+    known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
     known_functions: Rc<RefCell<HashMap<String, FunctionCount>>>,
 
@@ -101,6 +103,7 @@ impl Default for Validator {
             got_header: Default::default(),
             header_version: Default::default(),
             fields: Default::default(),
+            known_plugins: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
             violations: Default::default(),
         }
@@ -230,6 +233,10 @@ impl Validator {
     pub fn ingest_relation(&mut self, relation: &Relation) {
         self.ingest_header(&relation.header);
 
+        relation.plugins.iter().for_each(|plugin| {
+            self.known_plugins.insert(plugin.clone());
+        });
+
         for f in relation.functions.iter() {
             let (name, output_count, input_count, public_count, private_count) = (
                 f.name.clone(),
@@ -266,14 +273,28 @@ impl Validator {
                     },
                 );
             }
-            // Now validate the subcircuit.
-            self.ingest_subcircuit(
-                &f.body,
-                &output_count,
-                &input_count,
-                &public_count,
-                &private_count,
-            );
+            // Now validate the body
+            match &f.body {
+                FunctionBody::Gates(gates) => {
+                    // Validate the subcircuit for custom functions
+                    self.ingest_subcircuit(
+                        gates,
+                        &output_count,
+                        &input_count,
+                        &public_count,
+                        &private_count,
+                    );
+                }
+                FunctionBody::PluginBody(plugin_body) => {
+                    // Check that the plugin name has been declared
+                    if !self.known_plugins.contains(&plugin_body.name) {
+                        self.violate(format!(
+                            "The plugin '{}' has not been declared",
+                            plugin_body.name
+                        ));
+                    }
+                }
+            }
         }
 
         for gate in &relation.gates {
@@ -563,6 +584,7 @@ impl Validator {
             got_header: self.got_header,
             header_version: self.header_version.clone(),
             fields: self.fields.clone(),
+            known_plugins: self.known_plugins.clone(),
             known_functions: self.known_functions.clone(),
             violations: vec![],
         };

@@ -45,10 +45,10 @@ impl<'a> TryFrom<Option<generated::Header<'a>>> for Header {
 
 impl Header {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
+    pub fn build<'a>(
         &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::Header<'bldr>> {
+        builder: &mut FlatBufferBuilder<'a>,
+    ) -> WIPOffset<generated::Header<'a>> {
         let version = Some(builder.create_string(&self.version));
         let g_fields = build_values_vector(builder, &self.fields);
 

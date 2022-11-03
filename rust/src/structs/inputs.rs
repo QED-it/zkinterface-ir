@@ -25,10 +25,10 @@ impl<'a> TryFrom<generated::Inputs<'a>> for Inputs {
 
 impl Inputs {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'bldr>(
+    pub fn build<'a>(
         &self,
-        builder: &mut FlatBufferBuilder<'bldr>,
-    ) -> WIPOffset<generated::Inputs<'bldr>> {
+        builder: &mut FlatBufferBuilder<'a>,
+    ) -> WIPOffset<generated::Inputs<'a>> {
         let values = Some(build_values_vector(builder, &self.values));
 
         generated::Inputs::create(builder, &generated::InputsArgs { values })

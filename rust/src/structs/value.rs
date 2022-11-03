@@ -28,19 +28,19 @@ pub fn try_from_values_vector<'a>(
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_value<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_value<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     value: &Value,
-) -> WIPOffset<generated::Value<'bldr>> {
+) -> WIPOffset<generated::Value<'a>> {
     let value = builder.create_vector(&value[..]);
     generated::Value::create(builder, &generated::ValueArgs { value: Some(value) })
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_values_vector<'bldr>(
-    builder: &mut FlatBufferBuilder<'bldr>,
+pub fn build_values_vector<'a>(
+    builder: &mut FlatBufferBuilder<'a>,
     values: &[Value],
-) -> WIPOffset<Vector<'bldr, ForwardsUOffset<generated::Value<'bldr>>>> {
+) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Value<'a>>>> {
     let g_values: Vec<_> = values
         .iter()
         .map(|g_value| build_value(builder, g_value))

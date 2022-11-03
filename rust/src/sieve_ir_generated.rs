@@ -151,6 +151,70 @@ pub struct WireListElementUUnionTableOffset {}
 #[allow(non_camel_case_types)]
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum FunctionBody {
+  NONE = 0,
+  Gates = 1,
+  PluginBody = 2,
+
+}
+
+pub const ENUM_MIN_FUNCTION_BODY: u8 = 0;
+pub const ENUM_MAX_FUNCTION_BODY: u8 = 2;
+
+impl<'a> flatbuffers::Follow<'a> for FunctionBody {
+  type Inner = Self;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::read_scalar_at::<Self>(buf, loc)
+  }
+}
+
+impl flatbuffers::EndianScalar for FunctionBody {
+  #[inline]
+  fn to_little_endian(self) -> Self {
+    let n = u8::to_le(self as u8);
+    let p = &n as *const u8 as *const FunctionBody;
+    unsafe { *p }
+  }
+  #[inline]
+  fn from_little_endian(self) -> Self {
+    let n = u8::from_le(self as u8);
+    let p = &n as *const u8 as *const FunctionBody;
+    unsafe { *p }
+  }
+}
+
+impl flatbuffers::Push for FunctionBody {
+    type Output = FunctionBody;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        flatbuffers::emplace_scalar::<FunctionBody>(dst, *self);
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub const ENUM_VALUES_FUNCTION_BODY:[FunctionBody; 3] = [
+  FunctionBody::NONE,
+  FunctionBody::Gates,
+  FunctionBody::PluginBody
+];
+
+#[allow(non_camel_case_types)]
+pub const ENUM_NAMES_FUNCTION_BODY:[&'static str; 3] = [
+    "NONE",
+    "Gates",
+    "PluginBody"
+];
+
+pub fn enum_name_function_body(e: FunctionBody) -> &'static str {
+  let index = e as u8;
+  ENUM_NAMES_FUNCTION_BODY[index as usize]
+}
+
+pub struct FunctionBodyUnionTableOffset {}
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum DirectiveSet {
   NONE = 0,
   GateConstant = 1,
@@ -367,17 +431,23 @@ impl<'a> Relation<'a> {
       let mut builder = RelationBuilder::new(_fbb);
       if let Some(x) = args.directives { builder.add_directives(x); }
       if let Some(x) = args.functions { builder.add_functions(x); }
+      if let Some(x) = args.plugins { builder.add_plugins(x); }
       if let Some(x) = args.header { builder.add_header(x); }
       builder.finish()
     }
 
     pub const VT_HEADER: flatbuffers::VOffsetT = 4;
-    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 6;
-    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 8;
+    pub const VT_PLUGINS: flatbuffers::VOffsetT = 6;
+    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 8;
+    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 10;
 
   #[inline]
   pub fn header(&self) -> Option<Header<'a>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<Header<'a>>>(Relation::VT_HEADER, None)
+  }
+  #[inline]
+  pub fn plugins(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<&'a str>>>>(Relation::VT_PLUGINS, None)
   }
   #[inline]
   pub fn functions(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Function<'a>>>> {
@@ -391,6 +461,7 @@ impl<'a> Relation<'a> {
 
 pub struct RelationArgs<'a> {
     pub header: Option<flatbuffers::WIPOffset<Header<'a >>>,
+    pub plugins: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<&'a  str>>>>,
     pub functions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Function<'a >>>>>,
     pub directives: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
@@ -399,6 +470,7 @@ impl<'a> Default for RelationArgs<'a> {
     fn default() -> Self {
         RelationArgs {
             header: None,
+            plugins: None,
             functions: None,
             directives: None,
         }
@@ -412,6 +484,10 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
   #[inline]
   pub fn add_header(&mut self, header: flatbuffers::WIPOffset<Header<'b >>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Header>>(Relation::VT_HEADER, header);
+  }
+  #[inline]
+  pub fn add_plugins(&mut self, plugins: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_PLUGINS, plugins);
   }
   #[inline]
   pub fn add_functions(&mut self, functions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Function<'b >>>>) {
@@ -2652,6 +2728,182 @@ impl<'a: 'b, 'b> GateConvertBuilder<'a, 'b> {
   }
 }
 
+pub enum GatesOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct Gates<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for Gates<'a> {
+    type Inner = Gates<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> Gates<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        Gates {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args GatesArgs<'args>) -> flatbuffers::WIPOffset<Gates<'bldr>> {
+      let mut builder = GatesBuilder::new(_fbb);
+      if let Some(x) = args.gates { builder.add_gates(x); }
+      builder.finish()
+    }
+
+    pub const VT_GATES: flatbuffers::VOffsetT = 4;
+
+  #[inline]
+  pub fn gates(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(Gates::VT_GATES, None)
+  }
+}
+
+pub struct GatesArgs<'a> {
+    pub gates: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
+}
+impl<'a> Default for GatesArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        GatesArgs {
+            gates: None,
+        }
+    }
+}
+pub struct GatesBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> GatesBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_gates(&mut self, gates: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Gates::VT_GATES, gates);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GatesBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    GatesBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<Gates<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
+pub enum PluginBodyOffset {}
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub struct PluginBody<'a> {
+  pub _tab: flatbuffers::Table<'a>,
+}
+
+impl<'a> flatbuffers::Follow<'a> for PluginBody<'a> {
+    type Inner = PluginBody<'a>;
+    #[inline]
+    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+        Self {
+            _tab: flatbuffers::Table { buf: buf, loc: loc },
+        }
+    }
+}
+
+impl<'a> PluginBody<'a> {
+    #[inline]
+    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+        PluginBody {
+            _tab: table,
+        }
+    }
+    #[allow(unused_mut)]
+    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+        args: &'args PluginBodyArgs<'args>) -> flatbuffers::WIPOffset<PluginBody<'bldr>> {
+      let mut builder = PluginBodyBuilder::new(_fbb);
+      if let Some(x) = args.params { builder.add_params(x); }
+      if let Some(x) = args.operation { builder.add_operation(x); }
+      if let Some(x) = args.name { builder.add_name(x); }
+      builder.finish()
+    }
+
+    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+    pub const VT_OPERATION: flatbuffers::VOffsetT = 6;
+    pub const VT_PARAMS: flatbuffers::VOffsetT = 8;
+
+  #[inline]
+  pub fn name(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(PluginBody::VT_NAME, None)
+  }
+  #[inline]
+  pub fn operation(&self) -> Option<&'a str> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(PluginBody::VT_OPERATION, None)
+  }
+  #[inline]
+  pub fn params(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<&'a str>>>>(PluginBody::VT_PARAMS, None)
+  }
+}
+
+pub struct PluginBodyArgs<'a> {
+    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub operation: Option<flatbuffers::WIPOffset<&'a  str>>,
+    pub params: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<&'a  str>>>>,
+}
+impl<'a> Default for PluginBodyArgs<'a> {
+    #[inline]
+    fn default() -> Self {
+        PluginBodyArgs {
+            name: None,
+            operation: None,
+            params: None,
+        }
+    }
+}
+pub struct PluginBodyBuilder<'a: 'b, 'b> {
+  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+}
+impl<'a: 'b, 'b> PluginBodyBuilder<'a, 'b> {
+  #[inline]
+  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_NAME, name);
+  }
+  #[inline]
+  pub fn add_operation(&mut self, operation: flatbuffers::WIPOffset<&'b  str>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_OPERATION, operation);
+  }
+  #[inline]
+  pub fn add_params(&mut self, params: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_PARAMS, params);
+  }
+  #[inline]
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> PluginBodyBuilder<'a, 'b> {
+    let start = _fbb.start_table();
+    PluginBodyBuilder {
+      fbb_: _fbb,
+      start_: start,
+    }
+  }
+  #[inline]
+  pub fn finish(self) -> flatbuffers::WIPOffset<PluginBody<'a>> {
+    let o = self.fbb_.end_table(self.start_);
+    flatbuffers::WIPOffset::new(o.value())
+  }
+}
+
 pub enum FunctionOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -2687,6 +2939,7 @@ impl<'a> Function<'a> {
       if let Some(x) = args.input_count { builder.add_input_count(x); }
       if let Some(x) = args.output_count { builder.add_output_count(x); }
       if let Some(x) = args.name { builder.add_name(x); }
+      builder.add_body_type(args.body_type);
       builder.finish()
     }
 
@@ -2695,7 +2948,8 @@ impl<'a> Function<'a> {
     pub const VT_INPUT_COUNT: flatbuffers::VOffsetT = 8;
     pub const VT_PUBLIC_COUNT: flatbuffers::VOffsetT = 10;
     pub const VT_PRIVATE_COUNT: flatbuffers::VOffsetT = 12;
-    pub const VT_BODY: flatbuffers::VOffsetT = 14;
+    pub const VT_BODY_TYPE: flatbuffers::VOffsetT = 14;
+    pub const VT_BODY: flatbuffers::VOffsetT = 16;
 
   #[inline]
   pub fn name(&self) -> Option<&'a str> {
@@ -2718,9 +2972,33 @@ impl<'a> Function<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<CountList<'a>>>(Function::VT_PRIVATE_COUNT, None)
   }
   #[inline]
-  pub fn body(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(Function::VT_BODY, None)
+  pub fn body_type(&self) -> FunctionBody {
+    self._tab.get::<FunctionBody>(Function::VT_BODY_TYPE, Some(FunctionBody::NONE)).unwrap()
   }
+  #[inline]
+  pub fn body(&self) -> Option<flatbuffers::Table<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(Function::VT_BODY, None)
+  }
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn body_as_gates(&self) -> Option<Gates<'a>> {
+    if self.body_type() == FunctionBody::Gates {
+      self.body().map(|u| Gates::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
+  #[inline]
+  #[allow(non_snake_case)]
+  pub fn body_as_plugin_body(&self) -> Option<PluginBody<'a>> {
+    if self.body_type() == FunctionBody::PluginBody {
+      self.body().map(|u| PluginBody::init_from_table(u))
+    } else {
+      None
+    }
+  }
+
 }
 
 pub struct FunctionArgs<'a> {
@@ -2729,7 +3007,8 @@ pub struct FunctionArgs<'a> {
     pub input_count: Option<flatbuffers::WIPOffset<CountList<'a >>>,
     pub public_count: Option<flatbuffers::WIPOffset<CountList<'a >>>,
     pub private_count: Option<flatbuffers::WIPOffset<CountList<'a >>>,
-    pub body: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
+    pub body_type: FunctionBody,
+    pub body: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
 }
 impl<'a> Default for FunctionArgs<'a> {
     #[inline]
@@ -2740,6 +3019,7 @@ impl<'a> Default for FunctionArgs<'a> {
             input_count: None,
             public_count: None,
             private_count: None,
+            body_type: FunctionBody::NONE,
             body: None,
         }
     }
@@ -2770,7 +3050,11 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CountList>>(Function::VT_PRIVATE_COUNT, private_count);
   }
   #[inline]
-  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
+  pub fn add_body_type(&mut self, body_type: FunctionBody) {
+    self.fbb_.push_slot::<FunctionBody>(Function::VT_BODY_TYPE, body_type, FunctionBody::NONE);
+  }
+  #[inline]
+  pub fn add_body(&mut self, body: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_BODY, body);
   }
   #[inline]
