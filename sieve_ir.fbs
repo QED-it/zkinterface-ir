@@ -11,11 +11,11 @@ union Message {
 }
 
 // The 'version' field should match the following regexp "^\d+.\d+.\d+$"
-// The 'fields' should be a list of primes, and stored little-endian byte-oriented vector
+// The 'types' should be a list of primes, and stored little-endian byte-oriented vector
 // Ref. SIEVE-IR spec (3.1)
 table Header {
    version              :string;
-   fields               :[Value];
+   types                :[Value];
 }
 
 table Relation {
@@ -45,18 +45,18 @@ table WireId {
 	id     :uint64;
 }
 
-table FieldId {
+table TypeId {
 	id     :ubyte;
 }
 
-// Field element is encoded in a vector of bytes in little-endian order.
+// Type element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
     value        :[ubyte];
 }
 
 table Count {
-	field_id    :FieldId;
+	type_id    :TypeId;
 	count       :uint64;
 }
 
@@ -65,14 +65,14 @@ table CountList {
 }
 
 table Wire {
-	field_id    :FieldId;
+	type_id     :TypeId;
     wire_id     :WireId;
 }
 
 // first/last are inclusive
 // Ref. SIEVE-IR spec (3.4)
 table WireRange {
-	field_id   :FieldId;
+	type_id    :TypeId;
     first      :WireId;
     last       :WireId;
 }
@@ -94,69 +94,69 @@ table WireList {
 // ==== Gate types ====
 
 table GateConstant {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    constant    :[ubyte];
 }
 
 table GateAssertZero {
-   field_id    :FieldId;
+   type_id     :TypeId;
    input       :WireId;
 }
 
 table GateCopy {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    input       :WireId;
 }
 
 table GateAdd {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    left        :WireId;
    right       :WireId;
 }
 
 table GateMul {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    left        :WireId;
    right       :WireId;
 }
 
 table GateAddConstant {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    input       :WireId;
    constant    :[ubyte];
 }
 
 table GateMulConstant {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
    input       :WireId;
    constant    :[ubyte];
 }
 
 table GatePublicInput {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
 }
 
 table GatePrivateInput {
-   field_id    :FieldId;
+   type_id     :TypeId;
    output      :WireId;
 }
 
 // To allocate in a contiguous space all wires between the first and the last inclusive.
 table GateNew {
-   field_id    :FieldId;
+   type_id     :TypeId;
    first       :WireId;
    last        :WireId;
 }
 
 table GateDelete {
-   field_id    :FieldId;
+   type_id     :TypeId;
    // First wire ID to deallocate.
    first       :WireId;
    // Last wire ID is optional. Deallocate the range [first; last] inclusive.

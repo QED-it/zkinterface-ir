@@ -5,10 +5,10 @@ use std::mem::size_of;
 use crate::structs::inputs::Inputs;
 use crate::structs::wire::WireListElement;
 use crate::wirelist;
-use crate::{FieldId, Header, PrivateInputs, PublicInputs, Relation};
+use crate::{Header, PrivateInputs, PublicInputs, Relation, TypeId};
 
 pub fn example_header() -> Header {
-    example_header_in_field(literal32(EXAMPLE_MODULUS))
+    example_header_in_type(literal32(EXAMPLE_MODULUS))
 }
 
 pub fn example_public_inputs() -> PublicInputs {
@@ -27,8 +27,8 @@ pub fn example_relation() -> Relation {
     example_relation_h(&example_header())
 }
 
-pub fn example_header_in_field(field_order: Vec<u8>) -> Header {
-    Header::new(&[field_order])
+pub fn example_header_in_type(modulo: Vec<u8>) -> Header {
+    Header::new(&[modulo])
 }
 
 // pythogarean example
@@ -67,59 +67,59 @@ pub fn example_relation_h(header: &Header) -> Relation {
     use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
-    let field_id: FieldId = 0;
+    let type_id: TypeId = 0;
 
     Relation {
         header: header.clone(),
         plugins: vec![],
         functions: vec![Function::new(
             "com.example::mul".to_string(),
-            HashMap::from([(field_id, 1)]),
-            HashMap::from([(field_id, 2)]),
+            HashMap::from([(type_id, 1)]),
+            HashMap::from([(type_id, 2)]),
             HashMap::new(),
             HashMap::new(),
-            FunctionBody::Gates(vec![Mul(field_id, 0, 1, 2)]),
+            FunctionBody::Gates(vec![Mul(type_id, 0, 1, 2)]),
         )],
         gates: vec![
-            New(field_id, 0, 7),
-            PrivateInput(field_id, 1),
+            New(type_id, 0, 7),
+            PrivateInput(type_id, 1),
             AnonCall(
-                wirelist![field_id;0, 2, 4, 5, 6, 9, 10], // output
-                wirelist![field_id;1],                    // input
-                HashMap::from([(field_id, 3)]),           // public count
-                HashMap::from([(field_id, 2)]),           // private count
+                wirelist![type_id;0, 2, 4, 5, 6, 9, 10], // output
+                wirelist![type_id;1],                    // input
+                HashMap::from([(type_id, 3)]),           // public count
+                HashMap::from([(type_id, 2)]),           // private count
                 vec![
-                    PublicInput(field_id, 0),
-                    PrivateInput(field_id, 1),
+                    PublicInput(type_id, 0),
+                    PrivateInput(type_id, 1),
                     Call(
                         "com.example::mul".to_string(),
-                        wirelist![field_id;2],
-                        wirelist![field_id;7; 2],
+                        wirelist![type_id;2],
+                        wirelist![type_id;7; 2],
                     ),
                     Call(
                         "com.example::mul".to_string(),
-                        wirelist![field_id;3],
-                        wirelist![field_id;1; 2],
+                        wirelist![type_id;3],
+                        wirelist![type_id;1; 2],
                     ),
-                    Add(field_id, 4, 2, 3),
-                    PrivateInput(field_id, 8),
-                    AssertZero(field_id, 8),
-                    PublicInput(field_id, 5),
-                    AssertZero(field_id, 5),
-                    PublicInput(field_id, 6),
+                    Add(type_id, 4, 2, 3),
+                    PrivateInput(type_id, 8),
+                    AssertZero(type_id, 8),
+                    PublicInput(type_id, 5),
+                    AssertZero(type_id, 5),
+                    PublicInput(type_id, 6),
                 ],
             ),
-            Constant(field_id, 3, encode_negative_one(&header.fields[0])), // -1
+            Constant(type_id, 3, encode_negative_one(&header.types[0])), // -1
             Call(
                 "com.example::mul".to_string(),
-                wirelist![field_id;7],
-                wirelist![field_id;3, 0],
+                wirelist![type_id;7],
+                wirelist![type_id;3, 0],
             ), // - public_input_0
-            Add(field_id, 8, 6, 7),
-            Delete(field_id, 0, Some(7)),
-            Mul(field_id, 11, 8, 10),
-            AssertZero(field_id, 11),
-            Delete(field_id, 8, Some(11)),
+            Add(type_id, 8, 6, 7),
+            Delete(type_id, 0, Some(7)),
+            Mul(type_id, 11, 8, 10),
+            AssertZero(type_id, 11),
+            Delete(type_id, 8, Some(11)),
         ],
     }
 }
@@ -146,9 +146,9 @@ pub fn read_literal<T: EndianScalar>(encoded: &[u8]) -> T {
     }
 }
 
-pub fn encode_negative_one(field: &[u8]) -> Vec<u8> {
-    let mut neg_one = field.to_owned();
-    assert!(!neg_one.is_empty() && neg_one[0] > 0, "Invalid field order");
+pub fn encode_negative_one(modulo: &[u8]) -> Vec<u8> {
+    let mut neg_one = modulo.to_owned();
+    assert!(!neg_one.is_empty() && neg_one[0] > 0, "Invalid modulo");
     neg_one[0] -= 1;
     neg_one
 }

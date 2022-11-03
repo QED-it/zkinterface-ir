@@ -28,7 +28,7 @@ pub mod value;
 /// WireList are used to defined a wire, a range of wires, or a mix of both
 pub mod wire;
 
-/// CountList are used to defined a list of (field_id, count)
+/// CountList are used to defined a list of (type_id, count)
 /// It is used for all public/private count and for inputs/outputs count in function declarations
 pub mod count;
 
@@ -41,7 +41,7 @@ pub mod plugin;
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
 
-/// Fields are identified by a numerical ID.
-pub type FieldId = u8;
+/// Types are identified by a numerical ID.
+pub type TypeId = u8;
 
 pub const IR_VERSION: &str = "1.0.0";

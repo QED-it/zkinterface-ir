@@ -15,6 +15,7 @@ Rust:
 - rename Free gate by Delete gate
 - add New gate
 - add plugins
+- rename FieldId by TypeId
 
 # SIEVE IR v1.0.1, 2022-08
 

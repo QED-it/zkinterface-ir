@@ -44,7 +44,7 @@ pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
 pub use structs::{
     gates::Gate, header::Header, message::Message, messages::Messages,
     private_inputs::PrivateInputs, public_inputs::PublicInputs, relation::Relation, value::Value,
-    FieldId, WireId,
+    TypeId, WireId,
 };
 
 /// Common definition of Result with generic errors.
@@ -76,10 +76,10 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// ```
 #[macro_export]
 macro_rules! wirelist {
-    ($field_id:expr; $elem:expr; $n:expr) => (
-        vec![WireListElement::Wire($field_id, $elem); $n]
+    ($type_id:expr; $elem:expr; $n:expr) => (
+        vec![WireListElement::Wire($type_id, $elem); $n]
     );
-    ($field_id:expr;  $( $x:expr ),*) => (
-        vec![$(WireListElement::Wire($field_id, $x)),*]
+    ($type_id:expr;  $( $x:expr ),*) => (
+        vec![$(WireListElement::Wire($type_id, $x)),*]
     );
 }

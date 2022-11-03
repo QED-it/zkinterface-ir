@@ -114,8 +114,8 @@ impl Stats {
     fn ingest_header(&mut self, header: &Header) {
         if self.moduli.is_empty() {
             // Header has not yet been ingested
-            for field in &header.fields {
-                self.moduli.push(field.clone());
+            for modulo in &header.types {
+                self.moduli.push(modulo.clone());
             }
         }
     }
@@ -137,47 +137,47 @@ impl GateStats {
         use Gate::*;
 
         match gate {
-            Constant(_field_id, _out, _value) => {
+            Constant(_type_id, _out, _value) => {
                 self.constants_gates += 1;
             }
 
-            AssertZero(_field_id, _inp) => {
+            AssertZero(_type_id, _inp) => {
                 self.assert_zero_gates += 1;
             }
 
-            Copy(_field_id, _out, _inp) => {
+            Copy(_type_id, _out, _inp) => {
                 self.copy_gates += 1;
             }
 
-            Add(_field_id, _out, _left, _right) => {
+            Add(_type_id, _out, _left, _right) => {
                 self.add_gates += 1;
             }
 
-            Mul(_field_id, _out, _left, _right) => {
+            Mul(_type_id, _out, _left, _right) => {
                 self.mul_gates += 1;
             }
 
-            AddConstant(_field_id, _out, _inp, _constant) => {
+            AddConstant(_type_id, _out, _inp, _constant) => {
                 self.add_constant_gates += 1;
             }
 
-            MulConstant(_field_id, _out, _inp, _constant) => {
+            MulConstant(_type_id, _out, _inp, _constant) => {
                 self.mul_constant_gates += 1;
             }
 
-            PublicInput(_field_id, _out) => {
+            PublicInput(_type_id, _out) => {
                 self.public_variables += 1;
             }
 
-            PrivateInput(_field_id, _out) => {
+            PrivateInput(_type_id, _out) => {
                 self.private_variables += 1;
             }
 
-            New(_field_id, first, last) => {
+            New(_type_id, first, last) => {
                 self.variables_allocated_with_new += last - first + 1;
             }
 
-            Delete(_field_id, first, last) => {
+            Delete(_type_id, first, last) => {
                 let last_one = last.unwrap_or(*first);
                 self.variables_deleted += last_one - *first + 1;
             }

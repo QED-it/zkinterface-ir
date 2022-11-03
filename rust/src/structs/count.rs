@@ -6,23 +6,23 @@ use std::error::Error;
 use std::ops::Add;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::structs::wire::{build_field_id, WireList, WireListElement};
-use crate::{FieldId, Value};
+use crate::structs::wire::{build_type_id, WireList, WireListElement};
+use crate::{TypeId, Value};
 
-pub type CountList = HashMap<FieldId, u64>;
+pub type CountList = HashMap<TypeId, u64>;
 
 impl<'a> TryFrom<generated::CountList<'a>> for CountList {
     type Error = Box<dyn Error>;
 
     fn try_from(list: generated::CountList<'a>) -> Result<Self> {
         let fbs_vector_option = list.elements();
-        let mut map: HashMap<FieldId, u64> = HashMap::new();
+        let mut map: HashMap<TypeId, u64> = HashMap::new();
         if let Some(fbs_vector) = fbs_vector_option {
             for el in fbs_vector {
-                let field_id = el.field_id().ok_or("Missing field_id in Count")?.id();
+                let type_id = el.type_id().ok_or("Missing type_id in Count")?.id();
                 let count = el.count();
                 if count != 0 {
-                    let element = map.entry(field_id).or_insert(0);
+                    let element = map.entry(type_id).or_insert(0);
                     *element += count;
                 }
             }
@@ -37,12 +37,12 @@ pub fn build_count_list<'a>(
     elements: &CountList,
 ) -> WIPOffset<generated::CountList<'a>> {
     let mut g_elements = vec![];
-    for (field_id, count) in elements {
-        let g_field_id = build_field_id(builder, *field_id);
+    for (type_id, count) in elements {
+        let g_type_id = build_type_id(builder, *type_id);
         g_elements.push(generated::Count::create(
             builder,
             &generated::CountArgs {
-                field_id: Some(g_field_id),
+                type_id: Some(g_type_id),
                 count: *count,
             },
         ));
@@ -62,18 +62,18 @@ pub fn count_len(count_list: &CountList) -> u64 {
     count_list.iter().fold(0u64, |acc, v| acc.add(v.1))
 }
 
-/// Create a `CountList` from a `WireList` by counting in `wirelist` the number of wires for each field.
+/// Create a `CountList` from a `WireList` by counting in `wirelist` the number of wires for each type.
 pub fn wirelist_to_count_list(wirelist: &WireList) -> CountList {
-    let mut map: HashMap<FieldId, u64> = HashMap::new();
+    let mut map: HashMap<TypeId, u64> = HashMap::new();
     for wire in wirelist {
         match wire {
-            WireListElement::Wire(field_id, _) => {
-                let count = map.entry(*field_id).or_insert(0);
+            WireListElement::Wire(type_id, _) => {
+                let count = map.entry(*type_id).or_insert(0);
                 *count += 1;
             }
-            WireListElement::WireRange(field_id, first, last) => {
+            WireListElement::WireRange(type_id, first, last) => {
                 if *first <= *last {
-                    let count = map.entry(*field_id).or_insert(0);
+                    let count = map.entry(*type_id).or_insert(0);
                     *count += *last - *first + 1;
                 }
             }
@@ -94,9 +94,9 @@ fn test_wirelist_to_count_list() {
 }
 
 /// Create a CountList from a vector of vector of Values.
-/// The vector of vector of values contains the values for each field.
-/// More specifically, `values[i]` is a vector containing the values for the field `i`.
-/// `vector_of_values_to_count_list` returns a CountList which contains the number of values for each field.
+/// The vector of vector of values contains the values for each type.
+/// More specifically, `values[i]` is a vector containing the values for the type `i`.
+/// `vector_of_values_to_count_list` returns a CountList which contains the number of values for each type.
 pub fn vector_of_values_to_count_list(values: &[Vec<Value>]) -> CountList {
     let mut map: CountList = HashMap::new();
     for (i, el) in values.iter().enumerate() {
@@ -119,13 +119,13 @@ fn test_vector_of_values_to_count_list() {
     assert_eq!(vector_of_values_to_count_list(&values), countlist);
 }
 
-/// Compare two `CountList` and keep the maximum count for each field.
-/// `count_list_1` will be updated to contain the maximum count for each field
+/// Compare two `CountList` and keep the maximum count for each type.
+/// `count_list_1` will be updated to contain the maximum count for each type
 pub fn count_list_max(count_list_1: &mut CountList, count_list_2: &CountList) {
-    for (field_id, count) in count_list_2 {
-        let field_id_count = count_list_1.entry(*field_id).or_insert(0);
-        if *field_id_count < *count {
-            *field_id_count = *count;
+    for (type_id, count) in count_list_2 {
+        let type_id_count = count_list_1.entry(*type_id).or_insert(0);
+        if *type_id_count < *count {
+            *type_id_count = *count;
         }
     }
 }

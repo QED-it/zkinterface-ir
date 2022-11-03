@@ -1,21 +1,19 @@
-use crate::{
-    FieldId, Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, WireId,
-};
+use crate::{Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::consumers::evaluator::get_field;
+use crate::consumers::evaluator::get_modulo;
 use crate::structs::count::{wirelist_to_count_list, CountList};
 use crate::structs::function::FunctionBody;
 use crate::structs::value::is_probably_prime;
-use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, WireList};
+use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, WireList};
 use regex::Regex;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::rc::Rc;
 
-type Field = BigUint;
+type TypeElement = BigUint;
 
 // Tips: to write regex, use the following website (and select Python as the type of REGEX
 //    https://regex101.com/r/V3ROjH/1
@@ -30,25 +28,20 @@ Here is the list of implemented semantic/syntactic checks:
 Header Validation
  - Ensure that the characteristic is strictly greater than 1.
  - Ensure that the characteristic is a prime.
- - Ensure that the field degree is exactly 1.
  - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”).
  - Ensure header messages are coherent.
      - Versions should be identical.
-     - Field characteristic and field degree should be the same.
-
-Relation Validation
- - Ensure that the defined gateset is either 'arithmetic' (or a subset) or 'boolean' (or a subset).
-     - If boolean (or subset), checks that the field characteristic is exactly 2.
+     - Type moduli should be the same.
 
 Inputs Validation (PublicInputs / PrivateInputs)
  - Ensure that PublicInput gates are given a value in public_inputs messages.
  - Ensure that PrivateInput gates are given a value in private_inputs messages (prover only).
  - Ensure that all public and private inputs are consumed at the end of the circuit
- - Ensure that the value they are set to is indeed encoding an element lying in the underlying field.
-   It can be achieved by ensuring that the encoded value is strictly smaller than the field characteristic.
+ - Ensure that the value they are set to is indeed encoding an element lying in the underlying type.
+   It can be achieved by ensuring that the encoded value is strictly smaller than the type modulo.
 
 Gates Validation
- - Ensure constants given in @addc/@mulc are actual field elements.
+ - Ensure constants given in @addc/@mulc are actual type elements.
  - Ensure input wires of gates map to an already set variable.
  - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
  - Ensure that for New gates of the format @new(first, last), we have (last > first).
@@ -68,14 +61,14 @@ pub struct Validator {
 
     public_inputs_queue_len: CountList,
     private_inputs_queue_len: CountList,
-    live_wires: BTreeSet<(FieldId, WireId)>,
-    // (field_id, first_wire, last_wire)
-    new_gates: HashSet<(FieldId, WireId, WireId)>,
+    live_wires: BTreeSet<(TypeId, WireId)>,
+    // (type_id, first_wire, last_wire)
+    new_gates: HashSet<(TypeId, WireId, WireId)>,
 
     got_header: bool,
     header_version: String,
 
-    fields: Vec<Field>,
+    moduli: Vec<TypeElement>,
 
     known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
@@ -102,7 +95,7 @@ impl Default for Validator {
             new_gates: Default::default(),
             got_header: Default::default(),
             header_version: Default::default(),
-            fields: Default::default(),
+            moduli: Default::default(),
             known_plugins: Default::default(),
             known_functions: Rc::new(RefCell::new(HashMap::default())),
             violations: Default::default(),
@@ -154,12 +147,12 @@ impl Validator {
     fn ingest_header(&mut self, header: &Header) {
         if self.got_header {
             // in this case, ensure that headers are compatible
-            if self.fields.len() != header.fields.len() {
-                self.violate("The fields are not consistent across headers.");
+            if self.moduli.len() != header.types.len() {
+                self.violate("The types are not consistent across headers.");
             }
-            for (previous_field, new_field) in self.fields.iter().zip(header.fields.iter()) {
-                if previous_field != &BigUint::from_bytes_le(new_field) {
-                    self.violate("The fields are not consistent across headers.");
+            for (previous_modulo, new_modulo) in self.moduli.iter().zip(header.types.iter()) {
+                if previous_modulo != &BigUint::from_bytes_le(new_modulo) {
+                    self.violate("The types are not consistent across headers.");
                     break;
                 }
             }
@@ -170,15 +163,15 @@ impl Validator {
         } else {
             self.got_header = true;
 
-            // Check validity of field_characteristic
-            for field in &header.fields {
-                let biguint_field = BigUint::from_bytes_le(field).clone();
-                self.fields.push(biguint_field.clone());
-                if biguint_field.cmp(&One::one()) != Ordering::Greater {
-                    self.violate("All fields should be > 1");
+            // Check validity of type values
+            for modulo in &header.types {
+                let biguint_modulo = BigUint::from_bytes_le(modulo).clone();
+                self.moduli.push(biguint_modulo.clone());
+                if biguint_modulo.cmp(&One::one()) != Ordering::Greater {
+                    self.violate("All type moduli should be > 1");
                 }
-                if !is_probably_prime(field) {
-                    self.violate("All fields should be a prime.")
+                if !is_probably_prime(modulo) {
+                    self.violate("All type moduli should be a prime.")
                 }
             }
 
@@ -199,15 +192,15 @@ impl Validator {
         self.ingest_header(&public_inputs.header);
 
         // Provide values on the queue available for PublicInput gates.
-        for (i, public_inputs_per_field) in public_inputs.inputs.iter().enumerate() {
+        for (i, public_inputs_per_type) in public_inputs.inputs.iter().enumerate() {
             assert!(i <= u8::MAX as usize);
             let i = i as u8;
             // Check values.
-            for value in &public_inputs_per_field.values {
-                self.ensure_value_in_field(&i, value, || format!("public value {:?}", value));
+            for value in &public_inputs_per_type.values {
+                self.ensure_value_in_type(&i, value, || format!("public value {:?}", value));
             }
             let count = self.public_inputs_queue_len.entry(i).or_insert(0);
-            *count += public_inputs_per_field.values.len() as u64;
+            *count += public_inputs_per_type.values.len() as u64;
         }
     }
 
@@ -218,15 +211,15 @@ impl Validator {
         self.ingest_header(&private_inputs.header);
 
         // Provide values on the queue available for PrivateInput gates.
-        for (i, private_inputs_per_field) in private_inputs.inputs.iter().enumerate() {
+        for (i, private_inputs_per_type) in private_inputs.inputs.iter().enumerate() {
             assert!(i <= u8::MAX as usize);
             let i = i as u8;
             // Check values.
-            for value in &private_inputs_per_field.values {
-                self.ensure_value_in_field(&i, value, || format!("private value {:?}", value));
+            for value in &private_inputs_per_type.values {
+                self.ensure_value_in_type(&i, value, || format!("private value {:?}", value));
             }
             let count = self.private_inputs_queue_len.entry(i).or_insert(0);
-            *count += private_inputs_per_field.values.len() as u64;
+            *count += private_inputs_per_type.values.len() as u64;
         }
     }
 
@@ -306,65 +299,63 @@ impl Validator {
         use Gate::*;
 
         match gate {
-            Constant(field_id, out, value) => {
-                self.ensure_value_in_field(field_id, value, || {
-                    "Gate::Constant constant".to_string()
-                });
-                self.ensure_undefined_and_set(field_id, *out);
+            Constant(type_id, out, value) => {
+                self.ensure_value_in_type(type_id, value, || "Gate::Constant constant".to_string());
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            AssertZero(field_id, inp) => {
-                self.ensure_defined_and_set(field_id, *inp);
+            AssertZero(type_id, inp) => {
+                self.ensure_defined_and_set(type_id, *inp);
             }
 
-            Copy(field_id, out, inp) => {
-                self.ensure_defined_and_set(field_id, *inp);
-                self.ensure_undefined_and_set(field_id, *out);
+            Copy(type_id, out, inp) => {
+                self.ensure_defined_and_set(type_id, *inp);
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            Add(field_id, out, left, right) => {
-                self.ensure_defined_and_set(field_id, *left);
-                self.ensure_defined_and_set(field_id, *right);
+            Add(type_id, out, left, right) => {
+                self.ensure_defined_and_set(type_id, *left);
+                self.ensure_defined_and_set(type_id, *right);
 
-                self.ensure_undefined_and_set(field_id, *out);
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            Mul(field_id, out, left, right) => {
-                self.ensure_defined_and_set(field_id, *left);
-                self.ensure_defined_and_set(field_id, *right);
+            Mul(type_id, out, left, right) => {
+                self.ensure_defined_and_set(type_id, *left);
+                self.ensure_defined_and_set(type_id, *right);
 
-                self.ensure_undefined_and_set(field_id, *out);
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            AddConstant(field_id, out, inp, constant) => {
-                self.ensure_value_in_field(field_id, constant, || {
+            AddConstant(type_id, out, inp, constant) => {
+                self.ensure_value_in_type(type_id, constant, || {
                     format!("Gate::AddConstant_{}", *out)
                 });
-                self.ensure_defined_and_set(field_id, *inp);
-                self.ensure_undefined_and_set(field_id, *out);
+                self.ensure_defined_and_set(type_id, *inp);
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            MulConstant(field_id, out, inp, constant) => {
-                self.ensure_value_in_field(field_id, constant, || {
+            MulConstant(type_id, out, inp, constant) => {
+                self.ensure_value_in_type(type_id, constant, || {
                     format!("Gate::MulConstant_{}", *out)
                 });
-                self.ensure_defined_and_set(field_id, *inp);
-                self.ensure_undefined_and_set(field_id, *out);
+                self.ensure_defined_and_set(type_id, *inp);
+                self.ensure_undefined_and_set(type_id, *out);
             }
 
-            PublicInput(field_id, out) => {
-                self.declare(field_id, *out);
+            PublicInput(type_id, out) => {
+                self.declare(type_id, *out);
                 // Consume value.
-                self.consume_public_inputs(field_id, 1);
+                self.consume_public_inputs(type_id, 1);
             }
 
-            PrivateInput(field_id, out) => {
-                self.declare(field_id, *out);
+            PrivateInput(type_id, out) => {
+                self.declare(type_id, *out);
                 // Consume value.
-                self.consume_private_inputs(field_id, 1);
+                self.consume_private_inputs(type_id, 1);
             }
 
-            New(field_id, first, last) => {
+            New(type_id, first, last) => {
                 // Ensure first < last
                 if last <= first {
                     self.violate(format!(
@@ -374,7 +365,7 @@ impl Validator {
                 }
                 // Ensure wires have not already been allocated by another New gate
                 for wire_id in *first..=*last {
-                    if self.belong_to_new_gates(field_id, &wire_id) {
+                    if self.belong_to_new_gates(type_id, &wire_id) {
                         self.violate(
                             "For New gates, wires must not have already been allocated by another New gate.");
                         break;
@@ -382,13 +373,13 @@ impl Validator {
                 }
                 // Ensure wires are not already set
                 for wire_id in *first..=*last {
-                    self.ensure_undefined(field_id, wire_id);
+                    self.ensure_undefined(type_id, wire_id);
                 }
                 // Add this new wire range into new_gates
-                self.new_gates.insert((*field_id, *first, *last));
+                self.new_gates.insert((*type_id, *first, *last));
             }
 
-            Delete(field_id, first, last) => {
+            Delete(type_id, first, last) => {
                 // first < last
                 if let Some(last_id) = last {
                     if last_id <= first {
@@ -399,8 +390,8 @@ impl Validator {
                     }
                     // Check whether the Delete gate match a preceding New gate
                     // If so, remove the preceding New gate from new_wire_ranges
-                    if self.new_gates.contains(&(*field_id, *first, *last_id)) {
-                        self.new_gates.remove(&(*field_id, *first, *last_id));
+                    if self.new_gates.contains(&(*type_id, *first, *last_id)) {
+                        self.new_gates.remove(&(*type_id, *first, *last_id));
                     }
                 }
 
@@ -408,10 +399,10 @@ impl Validator {
                 // If a New gate matches this Delete gate, we have already removed it from new_gates HashSet.
                 // Thus, if a wire still belongs to a New gate, it means that we have a violation.
                 for wire_id in *first..=last.unwrap_or(*first) {
-                    if self.belong_to_new_gates(field_id, &wire_id) {
+                    if self.belong_to_new_gates(type_id, &wire_id) {
                         self.violate(format!(
                             "For Delete gates, ({}:{}) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
-                            field_id, wire_id
+                            type_id, wire_id
                         ));
                         break;
                     }
@@ -421,19 +412,19 @@ impl Validator {
                 // - check that they are already set
                 // - delete them
                 for wire_id in *first..=last.unwrap_or(*first) {
-                    self.ensure_defined_and_set(field_id, wire_id);
-                    self.remove(field_id, wire_id);
+                    self.ensure_defined_and_set(type_id, wire_id);
+                    self.remove(type_id, wire_id);
                 }
             }
 
             Convert(output_wires, input_wires) => {
-                // Check that input_wires is not empty and all input wires belong to the same field
-                if let Err(err) = is_one_field_wirelist(input_wires) {
+                // Check that input_wires is not empty and all input wires belong to the same type
+                if let Err(err) = is_one_type_wirelist(input_wires) {
                     self.violate(format!("Gate::Convert: Error with input wires: {}", err))
                 }
 
-                // Check that output_wires is not empty and all output wires belong to the same field
-                if let Err(err) = is_one_field_wirelist(output_wires) {
+                // Check that output_wires is not empty and all output wires belong to the same type
+                if let Err(err) = is_one_type_wirelist(output_wires) {
                     self.violate(format!("Gate::Convert: Error with output wires: {}", err))
                 }
 
@@ -448,13 +439,13 @@ impl Validator {
                 });
 
                 // Check inputs are already set
-                expanded_inputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_defined_and_set(field_id, *wire_id)
-                });
+                expanded_inputs
+                    .iter()
+                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
 
                 // Set the output wires as defined
-                expanded_outputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_undefined_and_set(field_id, *wire_id)
+                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
+                    self.ensure_undefined_and_set(type_id, *wire_id)
                 });
             }
 
@@ -469,9 +460,9 @@ impl Validator {
                 });
 
                 // Check inputs are already set
-                expanded_inputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_defined_and_set(field_id, *wire_id)
-                });
+                expanded_inputs
+                    .iter()
+                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
                 // ingest it and validate it.
                 self.ingest_subcircuit(
                     subcircuit,
@@ -486,8 +477,8 @@ impl Validator {
                 self.consume_private_count(private_count);
 
                 // set the output wires as defined, since we checked they were in each branch.
-                expanded_outputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_undefined_and_set(field_id, *wire_id)
+                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
+                    self.ensure_undefined_and_set(type_id, *wire_id)
                 });
             }
 
@@ -505,9 +496,9 @@ impl Validator {
                     vec![]
                 });
 
-                expanded_inputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_defined_and_set(field_id, *wire_id)
-                });
+                expanded_inputs
+                    .iter()
+                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
 
                 let (public_count, private_count) = self
                     .ingest_call(name, output_wires, input_wires)
@@ -518,8 +509,8 @@ impl Validator {
                 self.consume_private_count(&private_count);
 
                 // set the output wires as defined, since we checked they were in each branch.
-                expanded_outputs.iter().for_each(|(field_id, wire_id)| {
-                    self.ensure_undefined_and_set(field_id, *wire_id)
+                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
+                    self.ensure_undefined_and_set(type_id, *wire_id)
                 });
             }
         }
@@ -583,7 +574,7 @@ impl Validator {
             new_gates: Default::default(),
             got_header: self.got_header,
             header_version: self.header_version.clone(),
-            fields: self.fields.clone(),
+            moduli: self.moduli.clone(),
             known_plugins: self.known_plugins.clone(),
             known_functions: self.known_functions.clone(),
             violations: vec![],
@@ -592,10 +583,10 @@ impl Validator {
         // input wires should be already defined, and they are numbered from
         // output_wire, so we will artificially define them in the inner
         // validator.
-        for (field_id, count) in input_count.iter() {
-            let first_idx = *output_count.get(field_id).unwrap_or(&0);
+        for (type_id, count) in input_count.iter() {
+            let first_idx = *output_count.get(type_id).unwrap_or(&0);
             for wire_id in first_idx..(first_idx + *count) {
-                current_validator.live_wires.insert((*field_id, wire_id));
+                current_validator.live_wires.insert((*type_id, wire_id));
             }
         }
 
@@ -604,9 +595,9 @@ impl Validator {
         }
 
         // ensure that all output wires are set.
-        for (output_field, count) in output_count.iter() {
+        for (output_type_id, count) in output_count.iter() {
             (0..*count)
-                .for_each(|id| current_validator.ensure_defined_and_set(output_field, id as u64));
+                .for_each(|id| current_validator.ensure_defined_and_set(output_type_id, id as u64));
         }
 
         self.violations.append(&mut current_validator.violations);
@@ -632,25 +623,25 @@ impl Validator {
         }
     }
 
-    fn is_defined(&self, field_id: &FieldId, id: WireId) -> bool {
-        self.live_wires.contains(&(*field_id, id))
+    fn is_defined(&self, type_id: &TypeId, id: WireId) -> bool {
+        self.live_wires.contains(&(*type_id, id))
     }
 
-    fn declare(&mut self, field_id: &FieldId, id: WireId) {
-        self.live_wires.insert((*field_id, id));
+    fn declare(&mut self, type_id: &TypeId, id: WireId) {
+        self.live_wires.insert((*type_id, id));
     }
 
-    fn remove(&mut self, field_id: &FieldId, id: WireId) {
-        if !self.live_wires.remove(&(*field_id, id)) {
-            self.violate(format!("The variable ({}: {}) is being deleted, but was not defined previously, or has been already deleted", *field_id,id));
+    fn remove(&mut self, type_id: &TypeId, id: WireId) {
+        if !self.live_wires.remove(&(*type_id, id)) {
+            self.violate(format!("The variable ({}: {}) is being deleted, but was not defined previously, or has been already deleted", *type_id,id));
         }
     }
 
-    fn consume_public_inputs(&mut self, field_id: &FieldId, how_many: u64) {
+    fn consume_public_inputs(&mut self, type_id: &TypeId, how_many: u64) {
         if how_many == 0 {
             return;
         }
-        if let Some(count) = self.public_inputs_queue_len.get_mut(field_id) {
+        if let Some(count) = self.public_inputs_queue_len.get_mut(type_id) {
             if *count >= how_many {
                 *count -= how_many;
             } else {
@@ -663,17 +654,17 @@ impl Validator {
     }
 
     fn consume_public_count(&mut self, public_count: &CountList) {
-        for (field_id, count) in public_count.iter() {
-            self.consume_public_inputs(field_id, *count);
+        for (type_id, count) in public_count.iter() {
+            self.consume_public_inputs(type_id, *count);
         }
     }
 
-    fn consume_private_inputs(&mut self, field_id: &FieldId, how_many: u64) {
+    fn consume_private_inputs(&mut self, type_id: &TypeId, how_many: u64) {
         if self.as_prover {
             if how_many == 0 {
                 return;
             }
-            if let Some(count) = self.private_inputs_queue_len.get_mut(field_id) {
+            if let Some(count) = self.private_inputs_queue_len.get_mut(type_id) {
                 if *count >= how_many {
                     *count -= how_many;
                 } else {
@@ -688,70 +679,65 @@ impl Validator {
 
     fn consume_private_count(&mut self, private_count: &CountList) {
         if self.as_prover {
-            for (field_id, count) in private_count.iter() {
-                self.consume_private_inputs(field_id, *count);
+            for (type_id, count) in private_count.iter() {
+                self.consume_private_inputs(type_id, *count);
             }
         }
     }
 
-    fn ensure_defined_and_set(&mut self, field_id: &FieldId, id: WireId) {
-        if !self.is_defined(field_id, id) {
+    fn ensure_defined_and_set(&mut self, type_id: &TypeId, id: WireId) {
+        if !self.is_defined(type_id, id) {
             if self.as_prover {
                 // in this case, this is a violation, since all variables must have been defined
                 // previously
                 self.violate(format!(
                     "The wire ({}: {}) is used but was not assigned a value, or has been deleted already.",
-                    *field_id,
+                    *type_id,
                     id
                 ));
             }
             // this line is useful to avoid having many times the same message if the validator already
             // detected that this wire was not previously initialized.
-            self.declare(field_id, id);
+            self.declare(type_id, id);
         }
     }
 
-    fn ensure_undefined(&mut self, field_id: &FieldId, id: WireId) {
-        if self.is_defined(field_id, id) {
+    fn ensure_undefined(&mut self, type_id: &TypeId, id: WireId) {
+        if self.is_defined(type_id, id) {
             self.violate(format!(
                 "The wire ({}: {}) has already been initialized before. This violates the SSA property.",
-                *field_id,
+                *type_id,
                 id
             ));
         }
     }
 
-    fn ensure_undefined_and_set(&mut self, field_id: &FieldId, id: WireId) {
-        self.ensure_undefined(field_id, id);
+    fn ensure_undefined_and_set(&mut self, type_id: &TypeId, id: WireId) {
+        self.ensure_undefined(type_id, id);
         // define it.
-        self.declare(field_id, id);
+        self.declare(type_id, id);
     }
 
-    fn ensure_value_in_field(
-        &mut self,
-        field_id: &FieldId,
-        value: &[u8],
-        name: impl Fn() -> String,
-    ) {
+    fn ensure_value_in_type(&mut self, type_id: &TypeId, value: &[u8], name: impl Fn() -> String) {
         if value.is_empty() {
             self.violate(format!("The {} is empty.", name()));
         }
 
-        let field = get_field(field_id, &self.fields);
-        let field = match field {
+        let modulo = get_modulo(type_id, &self.moduli);
+        let modulo = match modulo {
             Err(_) => {
-                self.violate(format!("Field {} is not defined.", *field_id));
+                self.violate(format!("Type id {} is not defined.", *type_id));
                 return;
             }
-            Ok(field) => field,
+            Ok(modulo) => modulo,
         };
-        let int = &Field::from_bytes_le(value);
-        if int >= field {
+        let int = &TypeElement::from_bytes_le(value);
+        if int >= modulo {
             let msg = format!(
-                "The {} cannot be represented in the field specified in Header ({} >= {}).",
+                "The {} cannot be represented in the type specified in Header ({} >= {}).",
                 name(),
                 int,
-                field
+                modulo
             );
             self.violate(msg);
         }
@@ -785,9 +771,9 @@ impl Validator {
         // println!("{}", msg.into());
     }
 
-    fn belong_to_new_gates(&self, field_id: &FieldId, wire_id: &WireId) -> bool {
-        for (new_field_id, first, last) in self.new_gates.iter() {
-            if (*new_field_id == *field_id) && *first <= *wire_id && *last >= *wire_id {
+    fn belong_to_new_gates(&self, type_id: &TypeId, wire_id: &WireId) -> bool {
+        for (new_type_id, first, last) in self.new_gates.iter() {
+            if (*new_type_id == *type_id) && *first <= *wire_id && *last >= *wire_id {
                 return true;
             }
         }
@@ -839,12 +825,12 @@ fn test_validator_violations() -> Result<()> {
     let mut private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
-    // Create a violation by using a value too big for the field.
-    public_inputs.inputs[0].values[0] = public_inputs.header.fields[0].clone();
+    // Create a violation by using a value too big for the type.
+    public_inputs.inputs[0].values[0] = public_inputs.header.types[0].clone();
     // Create a violation by omitting a private input value.
     private_inputs.inputs[0].values.pop().unwrap();
     // Create a violation by using different headers.
-    relation.header.fields = vec![vec![10]];
+    relation.header.types = vec![vec![10]];
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -855,8 +841,8 @@ fn test_validator_violations() -> Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The public value [101, 0, 0, 0] cannot be represented in the field specified in Header (101 >= 101).",
-            "The fields are not consistent across headers.",
+            "The public value [101, 0, 0, 0] cannot be represented in the type specified in Header (101 >= 101).",
+            "The types are not consistent across headers.",
             "Not enough private input value to consume.",
         ]
     );

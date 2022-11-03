@@ -12,7 +12,7 @@ use zkinterface::CircuitHeader as zkiCircuitHeader;
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Witness as zkiWitness;
 
-const FIELD_ID: u8 = 0;
+const TYPE_ID: u8 = 0;
 
 pub struct FromR1CSConverter<S: Sink> {
     b: GateBuilder<S>,
@@ -33,7 +33,7 @@ impl<S: Sink> FromR1CSConverter<S> {
         };
 
         // allocate constant '1' to IR wire '0'.
-        let one = conv.b.create_gate(Constant(FIELD_ID, vec![1])).unwrap();
+        let one = conv.b.create_gate(Constant(TYPE_ID, vec![1])).unwrap();
         assert_eq!(one, 0);
         conv.r1cs_to_ir_wire.insert(0, one);
 
@@ -41,7 +41,7 @@ impl<S: Sink> FromR1CSConverter<S> {
         conv.minus_one = conv
             .b
             .create_gate(Constant(
-                FIELD_ID,
+                TYPE_ID,
                 zki_header.field_maximum.as_ref().unwrap().clone(),
             ))
             .unwrap();
@@ -56,7 +56,7 @@ impl<S: Sink> FromR1CSConverter<S> {
             } else {
                 let wire = conv
                     .b
-                    .create_gate(PublicInput(FIELD_ID, Some(var.value.to_vec())))
+                    .create_gate(PublicInput(TYPE_ID, Some(var.value.to_vec())))
                     .unwrap();
                 conv.r1cs_to_ir_wire.insert(var.id, wire);
             }
@@ -64,7 +64,7 @@ impl<S: Sink> FromR1CSConverter<S> {
 
         // preallocate wire id which will contain witness variables.
         for var in zki_header.list_witness_ids() {
-            let wire = conv.b.create_gate(PrivateInput(FIELD_ID, None)).unwrap();
+            let wire = conv.b.create_gate(PrivateInput(TYPE_ID, None)).unwrap();
             conv.r1cs_to_ir_wire.insert(var, wire);
         }
 
@@ -81,14 +81,14 @@ impl<S: Sink> FromR1CSConverter<S> {
         if term.id == 0 {
             return self
                 .b
-                .create_gate(Constant(FIELD_ID, Vec::from(non_empty_term_value)));
+                .create_gate(Constant(TYPE_ID, Vec::from(non_empty_term_value)));
         }
 
         let val_id = self
             .b
-            .create_gate(Constant(FIELD_ID, Vec::from(non_empty_term_value)))?;
+            .create_gate(Constant(TYPE_ID, Vec::from(non_empty_term_value)))?;
         if let Some(term_id) = self.r1cs_to_ir_wire.get(&term.id) {
-            Ok(self.b.create_gate(Mul(FIELD_ID, *term_id, val_id))?)
+            Ok(self.b.create_gate(Mul(TYPE_ID, *term_id, val_id))?)
         } else {
             Err(format!("The WireId {} has not been defined yet.", term.id).into())
         }
@@ -97,14 +97,14 @@ impl<S: Sink> FromR1CSConverter<S> {
     fn add_lc(&mut self, lc: &[zkiVariable]) -> Result<WireId> {
         if lc.is_empty() {
             // empty linear combination translates into a 0 value
-            return self.b.create_gate(Constant(FIELD_ID, vec![0]));
+            return self.b.create_gate(Constant(TYPE_ID, vec![0]));
         }
 
         let mut sum_id = self.build_term(&lc[0])?;
 
         for term in &lc[1..] {
             let term_id = self.build_term(term)?;
-            sum_id = self.b.create_gate(Add(FIELD_ID, sum_id, term_id))?;
+            sum_id = self.b.create_gate(Add(TYPE_ID, sum_id, term_id))?;
         }
 
         Ok(sum_id)
@@ -117,13 +117,11 @@ impl<S: Sink> FromR1CSConverter<S> {
             let sum_b_id = self.add_lc(&constraint.linear_combination_b.get_variables())?;
             let sum_c_id = self.add_lc(&constraint.linear_combination_c.get_variables())?;
 
-            let prod_id = self.b.create_gate(Mul(FIELD_ID, sum_a_id, sum_b_id))?;
-            let neg_c_id = self
-                .b
-                .create_gate(Mul(FIELD_ID, self.minus_one, sum_c_id))?;
-            let claim_zero_id = self.b.create_gate(Add(FIELD_ID, prod_id, neg_c_id))?;
+            let prod_id = self.b.create_gate(Mul(TYPE_ID, sum_a_id, sum_b_id))?;
+            let neg_c_id = self.b.create_gate(Mul(TYPE_ID, self.minus_one, sum_c_id))?;
+            let claim_zero_id = self.b.create_gate(Add(TYPE_ID, prod_id, neg_c_id))?;
 
-            self.b.create_gate(AssertZero(FIELD_ID, claim_zero_id))?;
+            self.b.create_gate(AssertZero(TYPE_ID, claim_zero_id))?;
         }
 
         Ok(())
@@ -135,7 +133,7 @@ impl<S: Sink> FromR1CSConverter<S> {
                 return Err(format!("The ZKI witness id {} does not exist.", var.id).into());
             }
             self.b
-                .push_private_input_value(FIELD_ID, var.value.to_vec())?;
+                .push_private_input_value(TYPE_ID, var.value.to_vec())?;
         }
 
         Ok(())
@@ -204,8 +202,8 @@ fn test_r1cs_to_gates() -> Result<()> {
 
     // check instance
     macro_rules! get_val {
-        ($field_id: expr, $idx:expr) => {{
-            eval.get($field_id, $idx).unwrap().to_u32().unwrap()
+        ($type_id: expr, $idx:expr) => {{
+            eval.get($type_id, $idx).unwrap().to_u32().unwrap()
         }};
     }
 
@@ -229,7 +227,7 @@ fn assert_header(header: &Header) {
     use num_traits::ToPrimitive;
 
     assert_eq!(header.version, IR_VERSION);
-    let fc = BigUint::from_bytes_le(&header.fields[0]);
+    let fc = BigUint::from_bytes_le(&header.types[0]);
     assert_eq!(fc.to_u32().unwrap(), 101);
 }
 

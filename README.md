@@ -107,7 +107,7 @@ The command below reads the statement and prints a textual representation of it.
     public_inputs:
       - header:
           version: 1.0.0
-          fields:
+          types:
             - - 101
               - 0
               - 0
@@ -128,7 +128,7 @@ The command below reads the statement and prints a textual representation of it.
     private_inputs:
       - header:
           version: 1.0.0
-          fields:
+          types:
             - - 101
               - 0
               - 0
@@ -149,7 +149,7 @@ The command below reads the statement and prints a textual representation of it.
     relations:
       - header:
           version: 1.0.0
-          fields:
+          types:
             - - 101
               - 0
               - 0

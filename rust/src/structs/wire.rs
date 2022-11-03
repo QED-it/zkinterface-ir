@@ -1,6 +1,6 @@
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
-use crate::{FieldId, WireId};
+use crate::{TypeId, WireId};
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -9,8 +9,8 @@ use std::error::Error;
 /// A WireListElement is either a single wire, or a range.
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum WireListElement {
-    Wire(FieldId, WireId),
-    WireRange(FieldId, WireId, WireId),
+    Wire(TypeId, WireId),
+    WireRange(TypeId, WireId, WireId),
 }
 use WireListElement::*;
 
@@ -52,46 +52,46 @@ pub fn build_wire_ids_vector<'a>(
 }
 
 // =========================================
-//                FieldId
+//                TypeId
 // =========================================
 
 /// Convert from Flatbuffers references to owned structure.
-pub fn from_field_id(g_field_id: &generated::FieldId) -> FieldId {
-    g_field_id.id()
+pub fn from_type_id(g_type_id: &generated::TypeId) -> TypeId {
+    g_type_id.id()
 }
 
 /// Convert from a Flatbuffers vector to owned structures.
-pub fn from_field_ids_vector(g_vector: &[generated::FieldId]) -> Vec<FieldId> {
-    g_vector.iter().map(|g_field_id| g_field_id.id()).collect()
+pub fn from_type_ids_vector(g_vector: &[generated::TypeId]) -> Vec<TypeId> {
+    g_vector.iter().map(|g_type_id| g_type_id.id()).collect()
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_field_id<'a>(
+pub fn build_type_id<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    id: FieldId,
-) -> WIPOffset<generated::FieldId<'a>> {
-    generated::FieldId::create(builder, &generated::FieldIdArgs { id })
+    id: TypeId,
+) -> WIPOffset<generated::TypeId<'a>> {
+    generated::TypeId::create(builder, &generated::TypeIdArgs { id })
 }
 
 /// Add this structure into a Flatbuffers message builder.
-pub fn build_field_ids_vector<'a>(
+pub fn build_type_ids_vector<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    field_ids: &[FieldId],
-) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::FieldId<'a>>>> {
-    let g_field_ids: Vec<_> = field_ids
+    type_ids: &[TypeId],
+) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::TypeId<'a>>>> {
+    let g_type_ids: Vec<_> = type_ids
         .iter()
-        .map(|id| build_field_id(builder, *id))
+        .map(|id| build_type_id(builder, *id))
         .collect();
-    builder.create_vector(&g_field_ids)
+    builder.create_vector(&g_type_ids)
 }
 
 // =========================================
 //              Wire
 // =========================================
 /// Convert from Flatbuffers references to owned structure.
-pub fn from_wire(g_wire: &generated::Wire) -> Result<(FieldId, WireId)> {
+pub fn from_wire(g_wire: &generated::Wire) -> Result<(TypeId, WireId)> {
     Ok((
-        g_wire.field_id().ok_or("Missing field id in wire")?.id() as u8,
+        g_wire.type_id().ok_or("Missing type id in wire")?.id() as u8,
         g_wire.wire_id().ok_or("Missing wire id in wire")?.id(),
     ))
 }
@@ -99,15 +99,15 @@ pub fn from_wire(g_wire: &generated::Wire) -> Result<(FieldId, WireId)> {
 /// Add this structure into a Flatbuffers message builder.
 pub fn build_wire<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    field_id: FieldId,
+    type_id: TypeId,
     wire_id: WireId,
 ) -> WIPOffset<generated::Wire<'a>> {
-    let fbs_field_id = build_field_id(builder, field_id);
+    let fbs_type_id = build_type_id(builder, type_id);
     let fbs_wire_id = build_wire_id(builder, wire_id);
     generated::Wire::create(
         builder,
         &generated::WireArgs {
-            field_id: Some(fbs_field_id),
+            type_id: Some(fbs_type_id),
             wire_id: Some(fbs_wire_id),
         },
     )
@@ -117,11 +117,11 @@ pub fn build_wire<'a>(
 //              WireRange
 // =========================================
 /// Convert from Flatbuffers references to owned structure.
-pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(FieldId, WireId, WireId)> {
+pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(TypeId, WireId, WireId)> {
     Ok((
         g_wirerange
-            .field_id()
-            .ok_or("Missing field id in range")?
+            .type_id()
+            .ok_or("Missing type id in range")?
             .id() as u8,
         g_wirerange
             .first()
@@ -134,17 +134,17 @@ pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(FieldId, WireId
 /// Add this structure into a Flatbuffers message builder.
 pub fn build_range<'a>(
     builder: &mut FlatBufferBuilder<'a>,
-    field_id: FieldId,
+    type_id: TypeId,
     first: WireId,
     last: WireId,
 ) -> WIPOffset<generated::WireRange<'a>> {
-    let fbs_field_id = build_field_id(builder, field_id);
+    let fbs_type_id = build_type_id(builder, type_id);
     let fbs_first = build_wire_id(builder, first);
     let fbs_last = build_wire_id(builder, last);
     generated::WireRange::create(
         builder,
         &generated::WireRangeArgs {
-            field_id: Some(fbs_field_id),
+            type_id: Some(fbs_type_id),
             first: Some(fbs_first),
             last: Some(fbs_last),
         },
@@ -166,14 +166,14 @@ impl<'a> TryFrom<generated::WireListElement<'a>> for WireListElement {
             generated::WireListElementU::Wire => {
                 let wire = element.element_as_wire().unwrap();
                 Wire(
-                    wire.field_id().ok_or("Missing field of wire")?.id(),
+                    wire.type_id().ok_or("Missing type id of wire")?.id(),
                     wire.wire_id().ok_or("Missing wire id of wire")?.id(),
                 )
             }
             generated::WireListElementU::WireRange => {
                 let range = element.element_as_wire_range().unwrap();
                 WireRange(
-                    range.field_id().ok_or("Missing field id of range")?.id(),
+                    range.type_id().ok_or("Missing type id of range")?.id(),
                     range.first().ok_or("Missing first value of range")?.id(),
                     range.last().ok_or("Missing last value of range")?.id(),
                 )
@@ -189,8 +189,8 @@ impl WireListElement {
         builder: &mut FlatBufferBuilder<'a>,
     ) -> WIPOffset<generated::WireListElement<'a>> {
         match self {
-            Wire(field_id, wire_id) => {
-                let wire = build_wire(builder, *field_id, *wire_id);
+            Wire(type_id, wire_id) => {
+                let wire = build_wire(builder, *type_id, *wire_id);
                 generated::WireListElement::create(
                     builder,
                     &generated::WireListElementArgs {
@@ -199,8 +199,8 @@ impl WireListElement {
                     },
                 )
             }
-            WireRange(field_id, first, last) => {
-                let range = build_range(builder, *field_id, *first, *last);
+            WireRange(type_id, first, last) => {
+                let range = build_range(builder, *type_id, *first, *last);
                 generated::WireListElement::create(
                     builder,
                     &generated::WireListElementArgs {
@@ -247,10 +247,10 @@ pub fn build_wire_list<'a>(
 }
 
 /// Expand a WireListElement into a vector of Result<WireId>.
-pub fn expand_wirelistelement(wire: &WireListElement) -> Vec<Result<(FieldId, WireId)>> {
+pub fn expand_wirelistelement(wire: &WireListElement) -> Vec<Result<(TypeId, WireId)>> {
     match wire {
-        WireListElement::Wire(field_id, wire_id) => vec![Ok((*field_id, *wire_id))],
-        WireListElement::WireRange(field_id, first, last) => {
+        WireListElement::Wire(type_id, wire_id) => vec![Ok((*type_id, *wire_id))],
+        WireListElement::WireRange(type_id, first, last) => {
             if last <= first {
                 vec![Err(format!(
                     "In WireRange, last WireId ({}) must be strictly greater than first WireId ({}).",
@@ -258,18 +258,18 @@ pub fn expand_wirelistelement(wire: &WireListElement) -> Vec<Result<(FieldId, Wi
                 )
                     .into())]
             } else {
-                (*first..=*last).map(|item| Ok((*field_id, item))).collect()
+                (*first..=*last).map(|item| Ok((*type_id, item))).collect()
             }
         }
     }
 }
 
 /// Expand a WireList into a vector of individual WireId.
-pub fn expand_wirelist(wirelist: &WireList) -> Result<Vec<(FieldId, WireId)>> {
+pub fn expand_wirelist(wirelist: &WireList) -> Result<Vec<(TypeId, WireId)>> {
     let res = wirelist
         .iter()
         .flat_map(expand_wirelistelement)
-        .collect::<Result<Vec<(FieldId, WireId)>>>()?;
+        .collect::<Result<Vec<(TypeId, WireId)>>>()?;
     Ok(res)
 }
 
@@ -277,7 +277,7 @@ pub fn expand_wirelist(wirelist: &WireList) -> Result<Vec<(FieldId, WireId)>> {
 fn test_expand_wirelist() {
     let wirelist = vec![WireRange(1, 0, 2), Wire(0, 5)];
     let new_wirelist = expand_wirelist(&wirelist).unwrap();
-    let correct_wirelist: Vec<(FieldId, WireId)> = vec![(1, 0), (1, 1), (1, 2), (0, 5)];
+    let correct_wirelist: Vec<(TypeId, WireId)> = vec![(1, 0), (1, 1), (1, 2), (0, 5)];
     assert_eq!(new_wirelist, correct_wirelist);
 
     let wirelist = vec![WireRange(3, 0, 1), WireRange(1, 2, 2), Wire(0, 5)];
@@ -303,14 +303,14 @@ pub fn wirelist_len(wirelist: &WireList) -> usize {
 /// Do not modify wirelist if old_wire does not belong to it (do not unroll WireRange)
 pub(crate) fn replace_wire_in_wirelist(
     wirelist: &mut WireList,
-    field_id: FieldId,
+    type_id: TypeId,
     old_wire: WireId,
     new_wire: WireId,
 ) -> Result<()> {
     let mut wires = expand_wirelist(wirelist)?;
     let mut updated = false;
     for wire in wires.iter_mut() {
-        if (wire.0 == field_id) && (wire.1 == old_wire) {
+        if (wire.0 == type_id) && (wire.1 == old_wire) {
             wire.1 = new_wire;
             updated = true;
         }
@@ -343,15 +343,15 @@ fn test_replace_wire_in_wirelist() {
     assert_eq!(wirelist, correct_wirelist);
 }
 
-/// Replace `wire` by `new_wire` if `wire` was equal to `old_wire` and `field_id` was equal to `old_field_id`
+/// Replace `wire` by `new_wire` if `wire` was equal to `old_wire` and `type_id` was equal to `old_type_id`
 pub(crate) fn replace_wire_id(
-    field_id: &FieldId,
-    old_field_id: &FieldId,
+    type_id: &TypeId,
+    old_type_id: &TypeId,
     wire: &mut WireId,
     old_wire: WireId,
     new_wire: WireId,
 ) {
-    if (*wire == old_wire) && (*field_id == *old_field_id) {
+    if (*wire == old_wire) && (*type_id == *old_type_id) {
         *wire = new_wire;
     }
 }
@@ -371,35 +371,35 @@ fn test_replace_wire_id() {
     assert_eq!(wire, 8);
 }
 
-pub fn wire_ids_to_wirelist(field_id: &FieldId, wire_ids: &[WireId]) -> WireList {
+pub fn wire_ids_to_wirelist(type_id: &TypeId, wire_ids: &[WireId]) -> WireList {
     wire_ids
         .iter()
-        .map(|id| WireListElement::Wire(*field_id, *id))
+        .map(|id| WireListElement::Wire(*type_id, *id))
         .collect()
 }
 
-pub fn is_one_field_wirelist(wirelist: &WireList) -> Result<FieldId> {
+pub fn is_one_type_wirelist(wirelist: &WireList) -> Result<TypeId> {
     if wirelist.is_empty() {
         return Err("Empty wirelist".into());
     }
-    let common_field_id = match wirelist[0] {
-        WireListElement::Wire(field_id, _) => field_id,
-        WireListElement::WireRange(field_id, _, _) => field_id,
+    let common_type_id = match wirelist[0] {
+        WireListElement::Wire(type_id, _) => type_id,
+        WireListElement::WireRange(type_id, _, _) => type_id,
     };
 
     for element in wirelist {
         match element {
-            WireListElement::Wire(field_id, _) => {
-                if *field_id != common_field_id {
-                    return Err("Several fields".into());
+            WireListElement::Wire(type_id, _) => {
+                if *type_id != common_type_id {
+                    return Err("Several types".into());
                 }
             }
-            WireListElement::WireRange(field_id, _, _) => {
-                if *field_id != common_field_id {
-                    return Err("Several fields".into());
+            WireListElement::WireRange(type_id, _, _) => {
+                if *type_id != common_type_id {
+                    return Err("Several types".into());
                 }
             }
         }
     }
-    Ok(common_field_id)
+    Ok(common_type_id)
 }

@@ -2,9 +2,9 @@ use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::{wirelist_to_count_list, CountList};
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
-use crate::structs::wire::{expand_wirelist, is_one_field_wirelist, wirelist_len, WireList};
+use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, wirelist_len, WireList};
 use crate::{
-    FieldId, Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value, WireId,
+    Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId,
 };
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
@@ -13,67 +13,62 @@ use std::collections::{HashMap, VecDeque};
 /// The `ZKBackend` trait should be implemented by any backend that wants to evaluate SIEVE IR circuits.
 /// It has to define 2 types:
 ///  - `Wire`: represents a variable in the circuit. It should implement the `Clone` trait.
-///  - `FieldElement`: represents elements of the underlying field. Mainly used when importing
+///  - `TypeElement`: represents elements of the underlying type. Mainly used when importing
 ///                    public/private inputs from the corresponding pools.
 /// see `PlaintextBackend` for an working example of an implementation.
 pub trait ZKBackend {
     type Wire: Clone;
     /// Usually a big Integer type.
-    type FieldElement: 'static + Clone;
+    type TypeElement: 'static + Clone;
 
-    /// Imports a `Self::FieldElement` from a byte buffer, in little endian.
-    /// If the buffer does not represent an element of the underlying field, then
+    /// Imports a `Self::TypeElement` from a byte buffer, in little endian.
+    /// If the buffer does not represent an element of the underlying type, then
     /// it returns an Err.
-    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement>;
-    /// Set the underlying field of the running backend.
-    /// If the field is not compatible with this ZKBackend, then it should return Err
-    fn set_fields(&mut self, moduli: &[Value]) -> Result<()>;
+    fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement>;
+    /// Set the underlying type of the running backend.
+    /// If the type is not compatible with this ZKBackend, then it should return Err
+    fn set_types(&mut self, moduli: &[Value]) -> Result<()>;
 
-    /// Returns a `FieldElement` representing '1' in the underlying field.
-    fn one(&self) -> Result<Self::FieldElement>;
-    /// Returns a `FieldElement` representing '-1' in the underlying field.
-    fn minus_one(&self, field_id: &FieldId) -> Result<Self::FieldElement>;
-    /// Returns a `FieldElement` representing '0' in the underlying field.
-    fn zero(&self) -> Result<Self::FieldElement>;
+    /// Returns a `TypeElement` representing '1' in the underlying type.
+    fn one(&self) -> Result<Self::TypeElement>;
+    /// Returns a `TypeElement` representing '-1' in the underlying type.
+    fn minus_one(&self, type_id: &TypeId) -> Result<Self::TypeElement>;
+    /// Returns a `TypeElement` representing '0' in the underlying type.
+    fn zero(&self) -> Result<Self::TypeElement>;
 
     // Returns a new instance of a given Wire id
-    fn copy(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire>;
+    fn copy(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire>;
 
     /// Imports a constant value into a new `Self::Wire`.
-    fn constant(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire>;
+    fn constant(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire>;
     /// This functions checks whether the given `Self::Wire` is indeed zero or not.
     /// Depending upon whether `self` is in prover, or verifier mode, this function should act
     /// accordingly. E.g. in prover mode, if the wire is not zero, then this function should
     /// return an Err.
-    fn assert_zero(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<()>;
+    fn assert_zero(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<()>;
 
     /// Adds two wires into a new wire.
-    fn add(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
     /// Multiplies two wires into a new wire.
-    fn multiply(
-        &mut self,
-        field_id: &FieldId,
-        a: &Self::Wire,
-        b: &Self::Wire,
-    ) -> Result<Self::Wire>;
-    /// Adds a given wire by a constant `Self::FieldElement` into a new wire.
+    fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire>;
+    /// Adds a given wire by a constant `Self::TypeElement` into a new wire.
     fn add_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire>;
-    /// Multiplies a given wire by a constant `Self::FieldElement` into a new wire.
+    /// Multiplies a given wire by a constant `Self::TypeElement` into a new wire.
     fn mul_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire>;
 
     /// This functions declares a new public input variable owning the value given as parameter,
     /// which should be stored in a new wire.
-    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire>;
+    fn public_input(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire>;
     /// This functions declares a new private input variable owning the value given as parameter,
     /// which should be stored in a new wire.
     /// The value is given as a `Option`, because depending upon the type of this ZKBackend
@@ -84,22 +79,22 @@ pub trait ZKBackend {
     /// to handle it when in verifier mode.
     fn private_input(
         &mut self,
-        field_id: &FieldId,
-        val: Option<Self::FieldElement>,
+        type_id: &TypeId,
+        val: Option<Self::TypeElement>,
     ) -> Result<Self::Wire>;
 
     /// New is used to allocate in a contiguous memory space wires between first and last inclusive.
     /// If the backend is not interested in contiguous allocations, this function should do nothing.
-    fn gate_new(&mut self, field_id: &FieldId, first: WireId, last: WireId) -> Result<()>;
+    fn gate_new(&mut self, type_id: &TypeId, first: WireId, last: WireId) -> Result<()>;
 
-    /// Convert `inputs` from field `input_field_id` into field `output_field_id`.
+    /// Convert `inputs` from type `input_type_id` into type `output_type_id`.
     /// The result is stored in new wires.
     /// The result must contain `output_wire_count` wires.
     fn convert(
         &mut self,
-        output_field_id: &FieldId,
+        output_type_id: &TypeId,
         output_wire_count: u64,
-        input_field_id: &FieldId,
+        input_type_id: &TypeId,
         inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>>;
 
@@ -147,7 +142,7 @@ struct FunctionDeclaration {
 /// let _ = simulator.ingest_relation(&relation, &mut zkbackend);
 /// ```
 pub struct Evaluator<B: ZKBackend> {
-    values: HashMap<(FieldId, WireId), B::Wire>,
+    values: HashMap<(TypeId, WireId), B::Wire>,
     inputs: EvaluatorInputs<B>,
     params: EvaluatorParams,
 
@@ -168,8 +163,8 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 }
 
 pub struct EvaluatorInputs<B: ZKBackend> {
-    public_inputs_queue: Vec<VecDeque<B::FieldElement>>,
-    private_inputs_queue: Vec<VecDeque<B::FieldElement>>,
+    public_inputs_queue: Vec<VecDeque<B::TypeElement>>,
+    private_inputs_queue: Vec<VecDeque<B::TypeElement>>,
 }
 
 impl<B: ZKBackend> Default for EvaluatorInputs<B> {
@@ -238,8 +233,8 @@ impl<B: ZKBackend> Evaluator<B> {
             // Header has already been ingested !
             return Ok(());
         }
-        for field in &header.fields {
-            self.params.moduli.push(BigUint::from_bytes_le(field));
+        for modulo in &header.types {
+            self.params.moduli.push(BigUint::from_bytes_le(modulo));
             self.inputs.public_inputs_queue.push(VecDeque::new());
             self.inputs.private_inputs_queue.push(VecDeque::new());
         }
@@ -285,7 +280,7 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `Relation` message
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
         self.ingest_header(&relation.header)?;
-        backend.set_fields(&relation.header.fields)?;
+        backend.set_types(&relation.header.types)?;
 
         if !relation.gates.is_empty() {
             self.verified_at_least_one_gate = true;
@@ -325,116 +320,116 @@ impl<B: ZKBackend> Evaluator<B> {
     fn ingest_gate(
         gate: &Gate,
         backend: &mut B,
-        scope: &mut HashMap<(FieldId, WireId), B::Wire>,
+        scope: &mut HashMap<(TypeId, WireId), B::Wire>,
         params: &EvaluatorParams,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         use Gate::*;
 
         macro_rules! get {
-            ($field_id:expr, $wire_id:expr) => {{
-                get::<B>(scope, $field_id, $wire_id)
+            ($type_id:expr, $wire_id:expr) => {{
+                get::<B>(scope, $type_id, $wire_id)
             }};
         }
 
         macro_rules! set {
-            ($field_id: expr, $wire_id:expr, $wire_name:expr) => {{
-                set::<B>(scope, $field_id, $wire_id, $wire_name)
+            ($type_id: expr, $wire_id:expr, $wire_name:expr) => {{
+                set::<B>(scope, $type_id, $wire_id, $wire_name)
             }};
         }
 
         match gate {
-            Constant(field_id, out, value) => {
-                let wire = backend.constant(field_id, B::from_bytes_le(value)?)?;
-                set!(*field_id, *out, wire)?;
+            Constant(type_id, out, value) => {
+                let wire = backend.constant(type_id, B::from_bytes_le(value)?)?;
+                set!(*type_id, *out, wire)?;
             }
 
-            AssertZero(field_id, inp) => {
-                let inp_wire = get!(*field_id, *inp)?;
-                if backend.assert_zero(field_id, inp_wire).is_err() {
+            AssertZero(type_id, inp) => {
+                let inp_wire = get!(*type_id, *inp)?;
+                if backend.assert_zero(type_id, inp_wire).is_err() {
                     return Err(format!(
                         "Wire ({}: {}) should be 0, while it is not",
-                        *field_id, *inp
+                        *type_id, *inp
                     )
                     .into());
                 }
             }
 
-            Copy(field_id, out, inp) => {
-                let in_wire = get!(*field_id, *inp)?;
-                let out_wire = backend.copy(field_id, in_wire)?;
-                set!(*field_id, *out, out_wire)?;
+            Copy(type_id, out, inp) => {
+                let in_wire = get!(*type_id, *inp)?;
+                let out_wire = backend.copy(type_id, in_wire)?;
+                set!(*type_id, *out, out_wire)?;
             }
 
-            Add(field_id, out, left, right) => {
-                let l = get!(*field_id, *left)?;
-                let r = get!(*field_id, *right)?;
-                let sum = backend.add(field_id, l, r)?;
-                set!(*field_id, *out, sum)?;
+            Add(type_id, out, left, right) => {
+                let l = get!(*type_id, *left)?;
+                let r = get!(*type_id, *right)?;
+                let sum = backend.add(type_id, l, r)?;
+                set!(*type_id, *out, sum)?;
             }
 
-            Mul(field_id, out, left, right) => {
-                let l = get!(*field_id, *left)?;
-                let r = get!(*field_id, *right)?;
-                let prod = backend.multiply(field_id, l, r)?;
-                set!(*field_id, *out, prod)?;
+            Mul(type_id, out, left, right) => {
+                let l = get!(*type_id, *left)?;
+                let r = get!(*type_id, *right)?;
+                let prod = backend.multiply(type_id, l, r)?;
+                set!(*type_id, *out, prod)?;
             }
 
-            AddConstant(field_id, out, inp, constant) => {
-                let l = get!(*field_id, *inp)?;
+            AddConstant(type_id, out, inp, constant) => {
+                let l = get!(*type_id, *inp)?;
                 let r = B::from_bytes_le(constant)?;
-                let sum = backend.add_constant(field_id, l, r)?;
-                set!(*field_id, *out, sum)?;
+                let sum = backend.add_constant(type_id, l, r)?;
+                set!(*type_id, *out, sum)?;
             }
 
-            MulConstant(field_id, out, inp, constant) => {
-                let l = get!(*field_id, *inp)?;
+            MulConstant(type_id, out, inp, constant) => {
+                let l = get!(*type_id, *inp)?;
                 let r = B::from_bytes_le(constant)?;
-                let prod = backend.mul_constant(field_id, l, r)?;
-                set!(*field_id, *out, prod)?;
+                let prod = backend.mul_constant(type_id, l, r)?;
+                set!(*type_id, *out, prod)?;
             }
 
-            PublicInput(field_id, out) => {
-                let public_inputs_for_field = inputs
+            PublicInput(type_id, out) => {
+                let public_inputs_for_type = inputs
                     .public_inputs_queue
-                    .get_mut(*field_id as usize)
+                    .get_mut(*type_id as usize)
                     .ok_or(format!(
-                        "Unknown field {} when evaluating an PublicInput gate",
-                        *field_id
+                        "Unknown type id {} when evaluating an PublicInput gate",
+                        *type_id
                     ))?;
-                let val = if let Some(inner) = public_inputs_for_field.pop_front() {
+                let val = if let Some(inner) = public_inputs_for_type.pop_front() {
                     inner
                 } else {
                     return Err("Not enough public inputs to consume".into());
                 };
-                set_public_input(backend, scope, *field_id, *out, val)?;
+                set_public_input(backend, scope, *type_id, *out, val)?;
             }
 
-            PrivateInput(field_id, out) => {
-                let private_inputs_for_field = inputs
+            PrivateInput(type_id, out) => {
+                let private_inputs_for_type = inputs
                     .private_inputs_queue
-                    .get_mut(*field_id as usize)
+                    .get_mut(*type_id as usize)
                     .ok_or(format!(
-                        "Unknown field {} when evaluating a PrivateInput gate",
-                        *field_id
+                        "Unknown type id {} when evaluating a PrivateInput gate",
+                        *type_id
                     ))?;
-                let val = private_inputs_for_field.pop_front();
-                set_private_input(backend, scope, *field_id, *out, val)?;
+                let val = private_inputs_for_type.pop_front();
+                set_private_input(backend, scope, *type_id, *out, val)?;
             }
 
-            New(field_id, first, last) => {
-                backend.gate_new(field_id, *first, *last)?;
+            New(type_id, first, last) => {
+                backend.gate_new(type_id, *first, *last)?;
             }
 
-            Delete(field_id, first, last) => {
+            Delete(type_id, first, last) => {
                 let last_value = last.unwrap_or(*first);
                 for current in *first..=last_value {
-                    remove::<B>(scope, *field_id, current)?;
+                    remove::<B>(scope, *type_id, current)?;
                 }
             }
 
             Convert(output_wires, input_wires) => {
-                let output_field = match is_one_field_wirelist(output_wires) {
+                let output_type = match is_one_type_wirelist(output_wires) {
                     Err(err) => {
                         return Err(
                             format!("Error with output wires of a Convert gate: {}", err).into(),
@@ -443,7 +438,7 @@ impl<B: ZKBackend> Evaluator<B> {
                     Ok(val) => val,
                 };
 
-                let input_field = match is_one_field_wirelist(input_wires) {
+                let input_type = match is_one_type_wirelist(input_wires) {
                     Err(err) => {
                         return Err(
                             format!("Error with input wires of a Convert gate: {}", err).into()
@@ -455,13 +450,13 @@ impl<B: ZKBackend> Evaluator<B> {
                 let expanded_input_wires = expand_wirelist(input_wires)?;
                 let mut input_values = vec![];
                 for (_, input_wire) in expanded_input_wires.iter() {
-                    let val = get!(input_field, *input_wire)?;
+                    let val = get!(input_type, *input_wire)?;
                     input_values.push(val);
                 }
                 let out: Vec<B::Wire> = backend.convert(
-                    &output_field,
+                    &output_type,
                     wirelist_len(output_wires) as u64,
-                    &input_field,
+                    &input_type,
                     &input_values,
                 )?;
 
@@ -472,7 +467,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 }
                 out.iter().zip(expanded_output_wires.iter()).try_for_each(
                     |(output_value, (_, output_wire))| {
-                        set::<B>(scope, output_field, *output_wire, output_value.clone())
+                        set::<B>(scope, output_type, *output_wire, output_value.clone())
                     },
                 )?;
             }
@@ -506,8 +501,8 @@ impl<B: ZKBackend> Evaluator<B> {
                         // Retrieve input values
                         let expanded_input_wires = expand_wirelist(input_wires)?;
                         let mut input_values = vec![];
-                        for (field_id, input_wire) in expanded_input_wires.iter() {
-                            let val = get!(*field_id, *input_wire)?;
+                        for (type_id, input_wire) in expanded_input_wires.iter() {
+                            let val = get!(*type_id, *input_wire)?;
                             input_values.push(val);
                         }
                         // Evaluate plugin
@@ -524,8 +519,8 @@ impl<B: ZKBackend> Evaluator<B> {
                             panic!("During a plugin evaluation, out and expanded_output_wires have not the same length !");
                         }
                         out.iter().zip(expanded_output_wires.iter()).try_for_each(
-                            |(output_value, (field_id, output_wire))| {
-                                set::<B>(scope, *field_id, *output_wire, output_value.clone())
+                            |(output_value, (type_id, output_wire))| {
+                                set::<B>(scope, *type_id, *output_wire, output_value.clone())
                             },
                         )?;
                     }
@@ -557,23 +552,23 @@ impl<B: ZKBackend> Evaluator<B> {
         backend: &mut B,
         output_list: &WireList,
         input_list: &WireList,
-        scope: &mut HashMap<(FieldId, WireId), B::Wire>,
+        scope: &mut HashMap<(TypeId, WireId), B::Wire>,
         params: &EvaluatorParams,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
-        let mut new_scope: HashMap<(FieldId, WireId), B::Wire> = HashMap::new();
+        let mut new_scope: HashMap<(TypeId, WireId), B::Wire> = HashMap::new();
 
         // copy the inputs required by this function into the new scope, at the proper index
         let expanded_inputs = expand_wirelist(input_list)?;
         let mut input_indexes = wirelist_to_count_list(output_list);
-        for (input_field, input_wire) in expanded_inputs.iter() {
-            let idx = input_indexes.entry(*input_field).or_insert(0);
-            let i = get::<B>(scope, *input_field, *input_wire)?;
+        for (input_type, input_wire) in expanded_inputs.iter() {
+            let idx = input_indexes.entry(*input_type).or_insert(0);
+            let i = get::<B>(scope, *input_type, *input_wire)?;
             set::<B>(
                 &mut new_scope,
-                *input_field,
+                *input_type,
                 *idx,
-                backend.copy(input_field, i)?,
+                backend.copy(input_type, i)?,
             )?;
             *idx += 1;
         }
@@ -584,14 +579,14 @@ impl<B: ZKBackend> Evaluator<B> {
         // copy the outputs produced from 'new_scope', into 'scope'
         let expanded_outputs = expand_wirelist(output_list)?;
         let mut output_indexes: CountList = HashMap::new();
-        for (output_field, output_wire) in expanded_outputs.iter() {
-            let idx = output_indexes.entry(*output_field).or_insert(0);
-            let w = get::<B>(&new_scope, *output_field, *idx)?;
+        for (output_type, output_wire) in expanded_outputs.iter() {
+            let idx = output_indexes.entry(*output_type).or_insert(0);
+            let w = get::<B>(&new_scope, *output_type, *idx)?;
             set::<B>(
                 scope,
-                *output_field,
+                *output_type,
                 *output_wire,
-                backend.copy(output_field, w)?,
+                backend.copy(output_type, w)?,
             )?;
             *idx += 1;
         }
@@ -601,43 +596,43 @@ impl<B: ZKBackend> Evaluator<B> {
 
     /// This helper function can be used to retrieve value of a given wire at some point
     /// if it has *NOT* been deleted yet, otherwise it will return an Err.
-    pub fn get(&self, field_id: FieldId, wire_id: WireId) -> Result<&B::Wire> {
-        get::<B>(&self.values, field_id, wire_id)
+    pub fn get(&self, type_id: TypeId, wire_id: WireId) -> Result<&B::Wire> {
+        get::<B>(&self.values, type_id, wire_id)
     }
 }
 
 fn set_public_input<I: ZKBackend>(
     backend: &mut I,
-    scope: &mut HashMap<(FieldId, WireId), I::Wire>,
-    field_id: FieldId,
+    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    type_id: TypeId,
     wire_id: WireId,
-    value: I::FieldElement,
+    value: I::TypeElement,
 ) -> Result<()> {
-    let wire = backend.public_input(&field_id, value)?;
-    set::<I>(scope, field_id, wire_id, wire)
+    let wire = backend.public_input(&type_id, value)?;
+    set::<I>(scope, type_id, wire_id, wire)
 }
 
 fn set_private_input<I: ZKBackend>(
     backend: &mut I,
-    scope: &mut HashMap<(FieldId, WireId), I::Wire>,
-    field_id: FieldId,
+    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    type_id: TypeId,
     wire_id: WireId,
-    value: Option<I::FieldElement>,
+    value: Option<I::TypeElement>,
 ) -> Result<()> {
-    let wire = backend.private_input(&field_id, value)?;
-    set::<I>(scope, field_id, wire_id, wire)
+    let wire = backend.private_input(&type_id, value)?;
+    set::<I>(scope, type_id, wire_id, wire)
 }
 
 fn set<I: ZKBackend>(
-    scope: &mut HashMap<(FieldId, WireId), I::Wire>,
-    field_id: FieldId,
+    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    type_id: TypeId,
     wire_id: WireId,
     wire: I::Wire,
 ) -> Result<()> {
-    if scope.insert((field_id, wire_id), wire).is_some() {
+    if scope.insert((type_id, wire_id), wire).is_some() {
         Err(format!(
             "Wire ({}: {}) already has a value in this scope.",
-            field_id, wire_id
+            type_id, wire_id
         )
         .into())
     } else {
@@ -646,31 +641,31 @@ fn set<I: ZKBackend>(
 }
 
 pub fn get<I: ZKBackend>(
-    scope: &HashMap<(FieldId, WireId), I::Wire>,
-    field_id: FieldId,
+    scope: &HashMap<(TypeId, WireId), I::Wire>,
+    type_id: TypeId,
     wire_id: WireId,
 ) -> Result<&I::Wire> {
     scope
-        .get(&(field_id, wire_id))
-        .ok_or_else(|| format!("No value given for wire ({}: {})", field_id, wire_id).into())
+        .get(&(type_id, wire_id))
+        .ok_or_else(|| format!("No value given for wire ({}: {})", type_id, wire_id).into())
 }
 
 fn remove<I: ZKBackend>(
-    scope: &mut HashMap<(FieldId, WireId), I::Wire>,
-    field_id: FieldId,
+    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    type_id: TypeId,
     wire_id: WireId,
 ) -> Result<I::Wire> {
     scope
-        .remove(&(field_id, wire_id))
-        .ok_or_else(|| format!("No value given for wire ({}: {})", field_id, wire_id).into())
+        .remove(&(type_id, wire_id))
+        .ok_or_else(|| format!("No value given for wire ({}: {})", type_id, wire_id).into())
 }
 
-pub fn get_field<'a>(field_id: &'a FieldId, moduli: &'a [BigUint]) -> Result<&'a BigUint> {
-    let field = moduli.get(*field_id as usize);
-    if let Some(value) = field {
+pub fn get_modulo<'a>(type_id: &'a TypeId, moduli: &'a [BigUint]) -> Result<&'a BigUint> {
+    let modulo = moduli.get(*type_id as usize);
+    if let Some(value) = modulo {
         Ok(value)
     } else {
-        Err(format!("Field {} is not defined.", *field_id).into())
+        Err(format!("Type id {} is not defined.", *type_id).into())
     }
 }
 
@@ -688,13 +683,13 @@ pub struct PlaintextBackend {
 
 impl ZKBackend for PlaintextBackend {
     type Wire = BigUint;
-    type FieldElement = BigUint;
+    type TypeElement = BigUint;
 
-    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
+    fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
+    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
         if !self.m.is_empty() {
             self.m = vec![];
         }
@@ -708,31 +703,31 @@ impl ZKBackend for PlaintextBackend {
         Ok(())
     }
 
-    fn one(&self) -> Result<Self::FieldElement> {
+    fn one(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::one())
     }
 
-    fn minus_one(&self, field_id: &FieldId) -> Result<Self::FieldElement> {
-        let field = get_field(field_id, &self.m)?;
-        if field.is_zero() {
+    fn minus_one(&self, type_id: &TypeId) -> Result<Self::TypeElement> {
+        let modulo = get_modulo(type_id, &self.m)?;
+        if modulo.is_zero() {
             return Err("Modulus is equal to zero.".into());
         }
-        Ok(field - self.one()?)
+        Ok(modulo - self.one()?)
     }
 
-    fn zero(&self) -> Result<Self::FieldElement> {
+    fn zero(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::zero())
     }
 
-    fn copy(&mut self, _field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire> {
+    fn copy(&mut self, _type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire> {
         Ok(wire.clone())
     }
 
-    fn constant(&mut self, _field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn constant(&mut self, _type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
         Ok(val)
     }
 
-    fn assert_zero(&mut self, _field_id: &FieldId, wire: &Self::Wire) -> Result<()> {
+    fn assert_zero(&mut self, _type_id: &TypeId, wire: &Self::Wire) -> Result<()> {
         if wire.is_zero() {
             Ok(())
         } else {
@@ -740,83 +735,78 @@ impl ZKBackend for PlaintextBackend {
         }
     }
 
-    fn add(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a + b) % field)
+    fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        let modulo = get_modulo(type_id, &self.m)?;
+        Ok((a + b) % modulo)
     }
 
-    fn multiply(
-        &mut self,
-        field_id: &FieldId,
-        a: &Self::Wire,
-        b: &Self::Wire,
-    ) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a * b) % field)
+    fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        let modulo = get_modulo(type_id, &self.m)?;
+        Ok((a * b) % modulo)
     }
 
     fn add_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a + b) % field)
+        let modulo = get_modulo(type_id, &self.m)?;
+        Ok((a + b) % modulo)
     }
 
     fn mul_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        let field = get_field(field_id, &self.m)?;
-        Ok((a * b) % field)
+        let modulo = get_modulo(type_id, &self.m)?;
+        Ok((a * b) % modulo)
     }
 
-    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
-        self.constant(field_id, val)
+    fn public_input(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
+        self.constant(type_id, val)
     }
 
     fn private_input(
         &mut self,
-        field_id: &FieldId,
-        val: Option<Self::FieldElement>,
+        type_id: &TypeId,
+        val: Option<Self::TypeElement>,
     ) -> Result<Self::Wire> {
         self.constant(
-            field_id,
+            type_id,
             val.unwrap_or_else(|| panic!("Missing private input value for PlaintextBackend")),
         )
     }
 
-    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+    fn gate_new(&mut self, _: &TypeId, _: WireId, _: WireId) -> Result<()> {
         Ok(())
     }
 
     fn convert(
         &mut self,
-        output_field: &FieldId,
+        output_type: &TypeId,
         output_wire_count: u64,
-        input_field: &FieldId,
+        input_type: &TypeId,
         inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
-        // Retrieve input/output field moduli
-        let input_field_value = get_field(input_field, &self.m)?;
-        let output_field_value = get_field(output_field, &self.m)?;
+        // Retrieve input/output moduli
+        let input_modulo = get_modulo(input_type, &self.m)?;
+        let output_modulo = get_modulo(output_type, &self.m)?;
 
         // Convert input to BigUint
         let mut number: BigUint = BigUint::zero();
         for input in inputs.iter() {
-            number *= input_field_value;
+            number *= input_modulo;
             number += *input;
         }
 
-        // Convert BigUint value into output_field
+        // Convert BigUint value into output element
         let mut result = vec![];
         for _ in 0..output_wire_count {
-            result.insert(0, &number % output_field_value);
-            number = &number / output_field_value;
+            result.insert(0, &number % output_modulo);
+            number = &number / output_modulo;
         }
 
         if !number.is_zero() {
@@ -877,38 +867,34 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
     struct VerifierInterpreter {}
     impl ZKBackend for VerifierInterpreter {
         type Wire = i64;
-        type FieldElement = BigUint;
-        fn from_bytes_le(_val: &[u8]) -> Result<Self::FieldElement> {
+        type TypeElement = BigUint;
+        fn from_bytes_le(_val: &[u8]) -> Result<Self::TypeElement> {
             Ok(BigUint::zero())
         }
-        fn set_fields(&mut self, _moduli: &[Value]) -> Result<()> {
+        fn set_types(&mut self, _moduli: &[Value]) -> Result<()> {
             Ok(())
         }
-        fn one(&self) -> Result<Self::FieldElement> {
+        fn one(&self) -> Result<Self::TypeElement> {
             Ok(BigUint::one())
         }
-        fn zero(&self) -> Result<Self::FieldElement> {
+        fn zero(&self) -> Result<Self::TypeElement> {
             Ok(BigUint::zero())
         }
-        fn minus_one(&self, _field_id: &FieldId) -> Result<Self::FieldElement> {
+        fn minus_one(&self, _type_id: &TypeId) -> Result<Self::TypeElement> {
             Ok(BigUint::one())
         }
-        fn copy(&mut self, _field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire> {
+        fn copy(&mut self, _type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire> {
             Ok(*wire)
         }
-        fn constant(
-            &mut self,
-            _field_id: &FieldId,
-            _val: Self::FieldElement,
-        ) -> Result<Self::Wire> {
+        fn constant(&mut self, _type_id: &TypeId, _val: Self::TypeElement) -> Result<Self::Wire> {
             Ok(0)
         }
-        fn assert_zero(&mut self, _field_id: &FieldId, _wire: &Self::Wire) -> Result<()> {
+        fn assert_zero(&mut self, _type_id: &TypeId, _wire: &Self::Wire) -> Result<()> {
             Ok(())
         }
         fn add(
             &mut self,
-            _field_id: &FieldId,
+            _type_id: &TypeId,
             _a: &Self::Wire,
             _b: &Self::Wire,
         ) -> Result<Self::Wire> {
@@ -916,7 +902,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         }
         fn multiply(
             &mut self,
-            _field_id: &FieldId,
+            _type_id: &TypeId,
             _a: &Self::Wire,
             _b: &Self::Wire,
         ) -> Result<Self::Wire> {
@@ -924,42 +910,42 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         }
         fn add_constant(
             &mut self,
-            _field_id: &FieldId,
+            _type_id: &TypeId,
             _a: &Self::Wire,
-            _b: Self::FieldElement,
+            _b: Self::TypeElement,
         ) -> Result<Self::Wire> {
             Ok(0)
         }
         fn mul_constant(
             &mut self,
-            _field_id: &FieldId,
+            _type_id: &TypeId,
             _a: &Self::Wire,
-            _b: Self::FieldElement,
+            _b: Self::TypeElement,
         ) -> Result<Self::Wire> {
             Ok(0)
         }
         fn public_input(
             &mut self,
-            _field_id: &FieldId,
-            _val: Self::FieldElement,
+            _type_id: &TypeId,
+            _val: Self::TypeElement,
         ) -> Result<Self::Wire> {
             Ok(0)
         }
         fn private_input(
             &mut self,
-            _field_id: &FieldId,
-            _val: Option<Self::FieldElement>,
+            _type_id: &TypeId,
+            _val: Option<Self::TypeElement>,
         ) -> Result<Self::Wire> {
             Ok(0)
         }
-        fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+        fn gate_new(&mut self, _: &TypeId, _: WireId, _: WireId) -> Result<()> {
             Ok(())
         }
         fn convert(
             &mut self,
-            _output_field: &FieldId,
+            _output_type: &TypeId,
             output_wire_count: u64,
-            _input_field: &FieldId,
+            _input_type: &TypeId,
             _inputs: &[&Self::Wire],
         ) -> Result<Vec<Self::Wire>> {
             Ok(vec![0; usize::try_from(output_wire_count)?])

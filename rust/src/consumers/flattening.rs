@@ -1,9 +1,9 @@
-use crate::consumers::evaluator::{get_field, ZKBackend};
+use crate::consumers::evaluator::{get_modulo, ZKBackend};
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::count::CountList;
 use crate::structs::plugin::PluginBody;
-use crate::{FieldId, Header, Result, Sink, Value, WireId};
+use crate::{Header, Result, Sink, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
@@ -41,13 +41,13 @@ impl<S: Sink> Drop for IRFlattener<S> {
 
 impl<S: Sink> ZKBackend for IRFlattener<S> {
     type Wire = WireId;
-    type FieldElement = BigUint;
+    type TypeElement = BigUint;
 
-    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
+    fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
+    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
         if self.b.is_none() {
             let header = Header::new(moduli);
             for modulus in moduli {
@@ -58,83 +58,78 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(())
     }
 
-    fn one(&self) -> Result<Self::FieldElement> {
+    fn one(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::one())
     }
 
-    fn minus_one(&self, field_id: &FieldId) -> Result<Self::FieldElement> {
+    fn minus_one(&self, type_id: &TypeId) -> Result<Self::TypeElement> {
         if self.moduli.is_empty() {
-            return Err("Moduli is not initiated, used `set_fields()` before calling.".into());
+            return Err("Moduli is not initiated, used `set_types()` before calling.".into());
         }
-        let field = get_field(field_id, &self.moduli)?;
-        Ok(field - self.one()?)
+        let modulo = get_modulo(type_id, &self.moduli)?;
+        Ok(modulo - self.one()?)
     }
 
-    fn zero(&self) -> Result<Self::FieldElement> {
+    fn zero(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::zero())
     }
 
-    fn copy(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire> {
+    fn copy(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Copy(*field_id, *wire))
+            .create_gate(BuildGate::Copy(*type_id, *wire))
     }
 
-    fn constant(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn constant(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Constant(*field_id, val.to_bytes_le()))
+            .create_gate(BuildGate::Constant(*type_id, val.to_bytes_le()))
     }
 
-    fn assert_zero(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<()> {
+    fn assert_zero(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<()> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::AssertZero(*field_id, *wire))?;
+            .create_gate(BuildGate::AssertZero(*type_id, *wire))?;
         Ok(())
     }
 
-    fn add(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+    fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Add(*field_id, *a, *b))
+            .create_gate(BuildGate::Add(*type_id, *a, *b))
     }
 
-    fn multiply(
-        &mut self,
-        field_id: &FieldId,
-        a: &Self::Wire,
-        b: &Self::Wire,
-    ) -> Result<Self::Wire> {
+    fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::Mul(*field_id, *a, *b))
+            .create_gate(BuildGate::Mul(*type_id, *a, *b))
     }
 
     fn add_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
@@ -142,14 +137,14 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::AddConstant(*field_id, *a, b.to_bytes_le()))
+            .create_gate(BuildGate::AddConstant(*type_id, *a, b.to_bytes_le()))
     }
 
     fn mul_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
@@ -157,23 +152,23 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::MulConstant(*field_id, *a, b.to_bytes_le()))
+            .create_gate(BuildGate::MulConstant(*type_id, *a, b.to_bytes_le()))
     }
 
-    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
+    fn public_input(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::PublicInput(*field_id, Some(val.to_bytes_le())))
+            .create_gate(BuildGate::PublicInput(*type_id, Some(val.to_bytes_le())))
     }
 
     fn private_input(
         &mut self,
-        field_id: &FieldId,
-        val: Option<Self::FieldElement>,
+        type_id: &TypeId,
+        val: Option<Self::TypeElement>,
     ) -> Result<Self::Wire> {
         if self.b.is_none() {
             panic!("Builder has not been properly initialized.");
@@ -182,18 +177,18 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.b
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::PrivateInput(*field_id, value))
+            .create_gate(BuildGate::PrivateInput(*type_id, value))
     }
 
-    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+    fn gate_new(&mut self, _: &TypeId, _: WireId, _: WireId) -> Result<()> {
         Ok(())
     }
 
     fn convert(
         &mut self,
-        _output_field: &FieldId,
+        _output_type: &TypeId,
         _output_wire_count: u64,
-        _input_field: &FieldId,
+        _input_type: &TypeId,
         _inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to flatten circuit containing convert gates".into())

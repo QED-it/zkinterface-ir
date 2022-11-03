@@ -4,9 +4,9 @@ use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use num_bigint_dig;
 use num_bigint_dig::prime::probably_prime;
 
-/// A Value is a field element encoded least-significant-byte-first (little-endian). Trailing zeros may be omitted.
+/// A Value is a type element encoded least-significant-byte-first (little-endian). Trailing zeros may be omitted.
 ///
-/// Example: the element `one` on a 32 bits fields is encoded `[1, 0, 0, 0]`.
+/// Example: the element `one` on a 32 bits type is encoded `[1, 0, 0, 0]`.
 /// The compact form `[1]` is also valid.
 pub type Value = Vec<u8>;
 

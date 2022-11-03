@@ -52,7 +52,7 @@ pub struct Options {
     ///
     /// example       Produce arithmetic example statements.
     ///
-    /// several-fields-example Produce example statements with several fields.
+    /// several-types-example Produce example statements with several types.
     ///
     /// to-text       Print the content in a human-readable form.
     ///
@@ -108,7 +108,7 @@ pub struct Options {
 pub fn cli(options: &Options) -> Result<()> {
     match &options.tool[..] {
         "example" => main_example(options),
-        "several-fields-example" => main_several_fields_example(options),
+        "several-types-example" => main_several_types_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "from-json" => from_json(options),
@@ -163,15 +163,15 @@ fn main_example(opts: &Options) -> Result<()> {
     Ok(())
 }
 
-fn main_several_fields_example(opts: &Options) -> Result<()> {
-    use crate::producers::examples_with_several_fields::*;
+fn main_several_types_example(opts: &Options) -> Result<()> {
+    use crate::producers::examples_with_several_types::*;
 
-    let public_inputs = example_public_inputs_with_several_fields();
-    let relation = example_relation_with_several_fields();
+    let public_inputs = example_public_inputs_with_several_types();
+    let relation = example_relation_with_several_types();
     let private_inputs = if opts.incorrect {
-        example_incorrect_private_inputs_with_several_fields()
+        example_incorrect_private_inputs_with_several_types()
     } else {
-        example_private_inputs_with_several_fields()
+        example_private_inputs_with_several_types()
     };
     write_example(opts, &public_inputs, &private_inputs, &relation)?;
     Ok(())
@@ -554,11 +554,11 @@ fn test_cli() -> Result<()> {
         out: PathBuf::from("-"),
     })?;
 
-    let several_fields_workspace = PathBuf::from("local/test_cli/several_fields_example");
+    let several_types_workspace = PathBuf::from("local/test_cli/several_types_example");
 
     cli(&Options {
-        tool: "several-fields-example".to_string(),
-        paths: vec![several_fields_workspace.clone()],
+        tool: "several-types-example".to_string(),
+        paths: vec![several_types_workspace.clone()],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
@@ -567,7 +567,7 @@ fn test_cli() -> Result<()> {
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
-        paths: vec![several_fields_workspace],
+        paths: vec![several_types_workspace],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,

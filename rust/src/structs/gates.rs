@@ -6,41 +6,41 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 use super::wire::WireList;
-use super::wire::{build_field_id, build_wire_id, build_wire_list};
+use super::wire::{build_type_id, build_wire_id, build_wire_list};
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
 use crate::structs::count::{build_count_list, CountList};
 use crate::structs::wire::{expand_wirelist, replace_wire_id, replace_wire_in_wirelist};
-use crate::{FieldId, Value, WireId};
+use crate::{TypeId, Value, WireId};
 
 /// This one correspond to Directive in the FlatBuffers schema
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Gate {
-    /// Constant(field_id, output, constant)
-    Constant(FieldId, WireId, Value),
-    /// AssertZero(field_id, input)
-    AssertZero(FieldId, WireId),
-    /// Copy(field_id, output, input)
-    Copy(FieldId, WireId, WireId),
-    /// Add(field_id, output, input, input)
-    Add(FieldId, WireId, WireId, WireId),
-    /// Mul(field_id, output, input, input)
-    Mul(FieldId, WireId, WireId, WireId),
-    /// AddConstant(field_id, output, input, constant)
-    AddConstant(FieldId, WireId, WireId, Value),
-    /// MulConstant(field_id, output, input, constant)
-    MulConstant(FieldId, WireId, WireId, Value),
-    /// PublicInput(field_id, output)
-    PublicInput(FieldId, WireId),
-    /// PrivateInput(field_id, output)
-    PrivateInput(FieldId, WireId),
-    /// New(field_id, first, last)
+    /// Constant(type_id, output, constant)
+    Constant(TypeId, WireId, Value),
+    /// AssertZero(type_id, input)
+    AssertZero(TypeId, WireId),
+    /// Copy(type_id, output, input)
+    Copy(TypeId, WireId, WireId),
+    /// Add(type_id, output, input, input)
+    Add(TypeId, WireId, WireId, WireId),
+    /// Mul(type_id, output, input, input)
+    Mul(TypeId, WireId, WireId, WireId),
+    /// AddConstant(type_id, output, input, constant)
+    AddConstant(TypeId, WireId, WireId, Value),
+    /// MulConstant(type_id, output, input, constant)
+    MulConstant(TypeId, WireId, WireId, Value),
+    /// PublicInput(type_id, output)
+    PublicInput(TypeId, WireId),
+    /// PrivateInput(type_id, output)
+    PrivateInput(TypeId, WireId),
+    /// New(type_id, first, last)
     /// Allocate in a contiguous space all wires between the first and the last INCLUSIVE.
-    New(FieldId, WireId, WireId),
-    /// Delete(field_id, first, last)
+    New(TypeId, WireId, WireId),
+    /// Delete(type_id, first, last)
     /// If the option is not given, then only the first wire is deleted, otherwise all wires between
     /// the first and the last INCLUSIVE are deleted.
-    Delete(FieldId, WireId, Option<WireId>),
+    Delete(TypeId, WireId, Option<WireId>),
     /// Convert(output, input)
     Convert(WireList, WireList),
     /// AnonCall(output_wires, input_wires, public_count, private_count, subcircuit)
@@ -62,7 +62,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateConstant => {
                 let gate = gen_gate.directive_as_gate_constant().unwrap();
                 Constant(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     Vec::from(gate.constant().ok_or("Missing constant")?),
                 )
@@ -71,7 +71,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateAssertZero => {
                 let gate = gen_gate.directive_as_gate_assert_zero().unwrap();
                 AssertZero(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
                 )
             }
@@ -79,7 +79,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateCopy => {
                 let gate = gen_gate.directive_as_gate_copy().unwrap();
                 Copy(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
                 )
@@ -88,7 +88,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateAdd => {
                 let gate = gen_gate.directive_as_gate_add().unwrap();
                 Add(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
                     gate.right().ok_or("Missing right input")?.id(),
@@ -98,7 +98,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateMul => {
                 let gate = gen_gate.directive_as_gate_mul().unwrap();
                 Mul(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     gate.left().ok_or("Missing left input")?.id(),
                     gate.right().ok_or("Missing right input")?.id(),
@@ -108,7 +108,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateAddConstant => {
                 let gate = gen_gate.directive_as_gate_add_constant().unwrap();
                 AddConstant(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
                     Vec::from(gate.constant().ok_or("Missing constant")?),
@@ -118,7 +118,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateMulConstant => {
                 let gate = gen_gate.directive_as_gate_mul_constant().unwrap();
                 MulConstant(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                     gate.input().ok_or("Missing input")?.id(),
                     Vec::from(gate.constant().ok_or("Missing constant")?),
@@ -128,7 +128,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GatePublicInput => {
                 let gate = gen_gate.directive_as_gate_public_input().unwrap();
                 PublicInput(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                 )
             }
@@ -136,7 +136,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GatePrivateInput => {
                 let gate = gen_gate.directive_as_gate_private_input().unwrap();
                 PrivateInput(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.output().ok_or("Missing output")?.id(),
                 )
             }
@@ -144,7 +144,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateNew => {
                 let gate = gen_gate.directive_as_gate_new().unwrap();
                 New(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.first().ok_or("Missing first wire")?.id(),
                     gate.last().ok_or("Missing last wire")?.id(),
                 )
@@ -153,7 +153,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
             ds::GateDelete => {
                 let gate = gen_gate.directive_as_gate_delete().unwrap();
                 Delete(
-                    gate.field_id().ok_or("Missing field id")?.id(),
+                    gate.type_id().ok_or("Missing type id")?.id(),
                     gate.first().ok_or("Missing first wire")?.id(),
                     gate.last().map(|id| id.id()),
                 )
@@ -200,15 +200,15 @@ impl Gate {
         builder: &mut FlatBufferBuilder<'a>,
     ) -> WIPOffset<generated::Directive<'a>> {
         match self {
-            Constant(field_id, output, constant) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            Constant(type_id, output, constant) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_constant = builder.create_vector(constant);
                 let g_output = build_wire_id(builder, *output);
 
                 let gate = generated::GateConstant::create(
                     builder,
                     &generated::GateConstantArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         constant: Some(g_constant),
                     },
@@ -222,13 +222,13 @@ impl Gate {
                 )
             }
 
-            AssertZero(field_id, input) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            AssertZero(type_id, input) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_input = build_wire_id(builder, *input);
                 let gate = generated::GateAssertZero::create(
                     builder,
                     &generated::GateAssertZeroArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         input: Some(g_input),
                     },
                 );
@@ -241,14 +241,14 @@ impl Gate {
                 )
             }
 
-            Copy(field_id, output, input) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            Copy(type_id, output, input) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_input = build_wire_id(builder, *input);
                 let g_output = build_wire_id(builder, *output);
                 let gate = generated::GateCopy::create(
                     builder,
                     &generated::GateCopyArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         input: Some(g_input),
                     },
@@ -262,15 +262,15 @@ impl Gate {
                 )
             }
 
-            Add(field_id, output, left, right) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            Add(type_id, output, left, right) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_left = build_wire_id(builder, *left);
                 let g_right = build_wire_id(builder, *right);
                 let g_output = build_wire_id(builder, *output);
                 let gate = generated::GateAdd::create(
                     builder,
                     &generated::GateAddArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         left: Some(g_left),
                         right: Some(g_right),
@@ -285,15 +285,15 @@ impl Gate {
                 )
             }
 
-            Mul(field_id, output, left, right) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            Mul(type_id, output, left, right) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_left = build_wire_id(builder, *left);
                 let g_right = build_wire_id(builder, *right);
                 let g_output = build_wire_id(builder, *output);
                 let gate = generated::GateMul::create(
                     builder,
                     &generated::GateMulArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         left: Some(g_left),
                         right: Some(g_right),
@@ -308,15 +308,15 @@ impl Gate {
                 )
             }
 
-            AddConstant(field_id, output, input, constant) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            AddConstant(type_id, output, input, constant) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_input = build_wire_id(builder, *input);
                 let g_output = build_wire_id(builder, *output);
                 let constant = builder.create_vector(constant);
                 let gate = generated::GateAddConstant::create(
                     builder,
                     &generated::GateAddConstantArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         input: Some(g_input),
                         constant: Some(constant),
@@ -331,15 +331,15 @@ impl Gate {
                 )
             }
 
-            MulConstant(field_id, output, input, constant) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            MulConstant(type_id, output, input, constant) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_input = build_wire_id(builder, *input);
                 let g_output = build_wire_id(builder, *output);
                 let constant = builder.create_vector(constant);
                 let gate = generated::GateMulConstant::create(
                     builder,
                     &generated::GateMulConstantArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                         input: Some(g_input),
                         constant: Some(constant),
@@ -354,13 +354,13 @@ impl Gate {
                 )
             }
 
-            PublicInput(field_id, output) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            PublicInput(type_id, output) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_output = build_wire_id(builder, *output);
                 let gate = generated::GatePublicInput::create(
                     builder,
                     &generated::GatePublicInputArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                     },
                 );
@@ -373,13 +373,13 @@ impl Gate {
                 )
             }
 
-            PrivateInput(field_id, output) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            PrivateInput(type_id, output) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_output = build_wire_id(builder, *output);
                 let gate = generated::GatePrivateInput::create(
                     builder,
                     &generated::GatePrivateInputArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         output: Some(g_output),
                     },
                 );
@@ -392,14 +392,14 @@ impl Gate {
                 )
             }
 
-            New(field_id, first, last) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            New(type_id, first, last) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_first = build_wire_id(builder, *first);
                 let g_last = build_wire_id(builder, *last);
                 let gate = generated::GateNew::create(
                     builder,
                     &generated::GateNewArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         first: Some(g_first),
                         last: Some(g_last),
                     },
@@ -414,14 +414,14 @@ impl Gate {
                 )
             }
 
-            Delete(field_id, first, last) => {
-                let g_field_id = build_field_id(builder, *field_id);
+            Delete(type_id, first, last) => {
+                let g_type_id = build_type_id(builder, *type_id);
                 let g_first = build_wire_id(builder, *first);
                 let g_last = last.map(|id| build_wire_id(builder, id));
                 let gate = generated::GateDelete::create(
                     builder,
                     &generated::GateDeleteArgs {
-                        field_id: Some(g_field_id),
+                        type_id: Some(g_type_id),
                         first: Some(g_first),
                         last: g_last,
                     },
@@ -567,97 +567,96 @@ impl Gate {
 /// If a `Delete` gate contains an output wire, `replace_output_wires` will return an error.
 pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> Result<()> {
     let expanded_output_wires = expand_wirelist(output_wires)?;
-    let mut map: HashMap<FieldId, WireId> = HashMap::new();
+    let mut map: HashMap<TypeId, WireId> = HashMap::new();
 
     // It is not easily doable to replace a WireId in a New gate.
     // Therefor, if an output wire belongs to a New gate, we will add a Copy gate and not modify this WireId.
-    let mut new_wires: HashSet<(FieldId, WireId)> = HashSet::new();
+    let mut new_wires: HashSet<(TypeId, WireId)> = HashSet::new();
     for gate in gates.iter() {
-        if let New(field_id, first, last) = gate {
+        if let New(type_id, first, last) = gate {
             for wire_id in *first..=*last {
-                new_wires.insert((*field_id, wire_id));
+                new_wires.insert((*type_id, wire_id));
             }
         }
     }
 
-    for (old_field_id, old_wire) in expanded_output_wires {
-        let count = map.entry(old_field_id).or_insert(0);
+    for (old_type_id, old_wire) in expanded_output_wires {
+        let count = map.entry(old_type_id).or_insert(0);
         let new_wire = *count;
         *count += 1;
 
         // If the old_wire is in a New gate, we add a Copy gate and not modify this WireId in other gates.
-        if new_wires.contains(&(old_field_id, old_wire)) {
-            gates.push(Copy(old_field_id, new_wire, old_wire));
+        if new_wires.contains(&(old_type_id, old_wire)) {
+            gates.push(Copy(old_type_id, new_wire, old_wire));
             continue;
         }
 
         for gate in &mut *gates {
             match gate {
-                Constant(ref field_id, ref mut output, _) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
+                Constant(ref type_id, ref mut output, _) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                 }
-                Copy(ref field_id, ref mut output, ref mut input) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
+                Copy(ref type_id, ref mut output, ref mut input) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, input, old_wire, new_wire);
                 }
-                Add(ref field_id, ref mut output, ref mut left, ref mut right) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, left, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, right, old_wire, new_wire);
+                Add(ref type_id, ref mut output, ref mut left, ref mut right) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, left, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, right, old_wire, new_wire);
                 }
-                Mul(ref field_id, ref mut output, ref mut left, ref mut right) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, left, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, right, old_wire, new_wire);
+                Mul(ref type_id, ref mut output, ref mut left, ref mut right) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, left, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, right, old_wire, new_wire);
                 }
-                AddConstant(ref field_id, ref mut output, ref mut input, _) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
+                AddConstant(ref type_id, ref mut output, ref mut input, _) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, input, old_wire, new_wire);
                 }
-                MulConstant(ref field_id, ref mut output, ref mut input, _) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
-                    replace_wire_id(field_id, &old_field_id, input, old_wire, new_wire);
+                MulConstant(ref type_id, ref mut output, ref mut input, _) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
+                    replace_wire_id(type_id, &old_type_id, input, old_wire, new_wire);
                 }
-                PublicInput(ref field_id, ref mut output) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
+                PublicInput(ref type_id, ref mut output) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                 }
-                PrivateInput(ref field_id, ref mut output) => {
-                    replace_wire_id(field_id, &old_field_id, output, old_wire, new_wire);
+                PrivateInput(ref type_id, ref mut output) => {
+                    replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                 }
-                AssertZero(ref field_id, ref mut wire) => {
-                    replace_wire_id(field_id, &old_field_id, wire, old_wire, new_wire);
+                AssertZero(ref type_id, ref mut wire) => {
+                    replace_wire_id(type_id, &old_type_id, wire, old_wire, new_wire);
                 }
-                New(ref field_id, ref mut first, ref mut last) => {
+                New(ref type_id, ref mut first, ref mut last) => {
                     // New gates have already been treated at the beginning of the loop
-                    // by adding Copy gate if (old_field_id, old_wire) belongs to the New gate.
-                    if (*first <= old_wire && *last >= old_wire) && (*field_id == old_field_id) {
+                    // by adding Copy gate if (old_type_id, old_wire) belongs to the New gate.
+                    if (*first <= old_wire && *last >= old_wire) && (*type_id == old_type_id) {
                         panic!("Unreachable case !");
                     }
                 }
-                Delete(ref field_id, ref mut first, ref mut option_last) => match option_last {
+                Delete(ref type_id, ref mut first, ref mut option_last) => match option_last {
                     Some(last) => {
-                        if (*first <= old_wire && *last >= old_wire) && (*field_id == old_field_id)
-                        {
+                        if (*first <= old_wire && *last >= old_wire) && (*type_id == old_type_id) {
                             return Err("It is forbidden to delete an output wire !".into());
                         }
                     }
                     None => {
-                        if (*first == old_wire) && (*field_id == old_field_id) {
+                        if (*first == old_wire) && (*type_id == old_type_id) {
                             return Err("It is forbidden to delete an output wire !".into());
                         }
                     }
                 },
                 Convert(ref mut output, ref mut input) => {
-                    replace_wire_in_wirelist(output, old_field_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(input, old_field_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(output, old_type_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(input, old_type_id, old_wire, new_wire)?;
                 }
                 AnonCall(ref mut outputs, ref mut inputs, _, _, _) => {
-                    replace_wire_in_wirelist(outputs, old_field_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(outputs, old_type_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(inputs, old_type_id, old_wire, new_wire)?;
                 }
                 Call(_, ref mut outputs, ref mut inputs) => {
-                    replace_wire_in_wirelist(outputs, old_field_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(inputs, old_field_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(outputs, old_type_id, old_wire, new_wire)?;
+                    replace_wire_in_wirelist(inputs, old_type_id, old_wire, new_wire)?;
                 }
             }
         }

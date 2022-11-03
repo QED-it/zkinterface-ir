@@ -1,7 +1,7 @@
 use crate::consumers::evaluator::ZKBackend;
 use crate::structs::count::CountList;
 use crate::structs::plugin::PluginBody;
-use crate::{FieldId, Result, Value, WireId};
+use crate::{Result, TypeId, Value, WireId};
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Variables as zkiVariables;
 use zkinterface::Witness as zkiWitness;
@@ -95,21 +95,21 @@ impl<S: Sink> ToR1CSConverter<S> {
 impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     // Wire id
     type Wire = u64;
-    type FieldElement = BigUint;
+    type TypeElement = BigUint;
 
-    fn from_bytes_le(val: &[u8]) -> Result<Self::FieldElement> {
+    fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
         Ok(BigUint::from_bytes_le(val))
     }
 
-    fn set_fields(&mut self, moduli: &[Value]) -> Result<()> {
+    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
         if moduli.len() != 1 {
-            return Err("One field must be defined to convert to R1CS.".into());
+            return Err("One type must be defined to convert to R1CS.".into());
         }
         let mut modulus: &[u8] = moduli
             .get(0)
-            .ok_or("One field must be defined to convert to R1CS.")?;
+            .ok_or("One type must be defined to convert to R1CS.")?;
         // This assumes that finite field elements can be zero padded in their byte reprs. For prime
-        // fields, this assumes that the byte representation is little-endian.
+        // types, this assumes that the byte representation is little-endian.
         while modulus.last() == Some(&0) {
             modulus = &modulus[0..modulus.len() - 1];
         }
@@ -129,34 +129,34 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(())
     }
 
-    fn one(&self) -> Result<Self::FieldElement> {
+    fn one(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::one())
     }
 
-    fn minus_one(&self, field_id: &FieldId) -> Result<Self::FieldElement> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn minus_one(&self, type_id: &TypeId) -> Result<Self::TypeElement> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         if self.src_modulus.is_zero() {
-            return Err("Modulus is not initiated, used `set_fields()` before calling.".into());
+            return Err("Modulus is not initiated, used `set_types()` before calling.".into());
         }
         Ok(&self.src_modulus - self.one()?)
     }
 
-    fn zero(&self) -> Result<Self::FieldElement> {
+    fn zero(&self) -> Result<Self::TypeElement> {
         Ok(BigUint::zero())
     }
 
-    fn copy(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn copy(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         Ok(*wire)
     }
 
-    fn constant(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn constant(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let id = self
             .builder
@@ -165,9 +165,9 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(id)
     }
 
-    fn assert_zero(&mut self, field_id: &FieldId, wire: &Self::Wire) -> Result<()> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn assert_zero(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<()> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         self.push_constraint(BilinearConstraint {
             linear_combination_a: make_combination(vec![*wire], vec![1]),
@@ -176,9 +176,9 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         })
     }
 
-    fn add(&mut self, field_id: &FieldId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if *type_id != 0 {
+            return Err("All types ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let out = self.builder.allocate_var();
         let correction_wire = if self.use_correction {
@@ -229,14 +229,9 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(out)
     }
 
-    fn multiply(
-        &mut self,
-        field_id: &FieldId,
-        a: &Self::Wire,
-        b: &Self::Wire,
-    ) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let out = self.builder.allocate_var();
         let correction_wire = if self.use_correction {
@@ -288,12 +283,12 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn add_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let out = self.builder.allocate_var();
         let correction_wire = if self.use_correction {
@@ -349,12 +344,12 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn mul_constant(
         &mut self,
-        field_id: &FieldId,
+        type_id: &TypeId,
         a: &Self::Wire,
-        b: Self::FieldElement,
+        b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let out = self.builder.allocate_var();
         let correction_wire = if self.use_correction {
@@ -401,9 +396,9 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(out)
     }
 
-    fn public_input(&mut self, field_id: &FieldId, val: Self::FieldElement) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+    fn public_input(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let id = self
             .builder
@@ -414,11 +409,11 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn private_input(
         &mut self,
-        field_id: &FieldId,
-        val: Option<Self::FieldElement>,
+        type_id: &TypeId,
+        val: Option<Self::TypeElement>,
     ) -> Result<Self::Wire> {
-        if *field_id != 0 {
-            return Err("All field ids must be equal to 0 to be able to convert into R1CS.".into());
+        if *type_id != 0 {
+            return Err("All type ids must be equal to 0 to be able to convert into R1CS.".into());
         }
         let id = self.builder.allocate_var();
         if !self.use_witness ^ val.is_none() {
@@ -432,15 +427,15 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(id)
     }
 
-    fn gate_new(&mut self, _: &FieldId, _: WireId, _: WireId) -> Result<()> {
+    fn gate_new(&mut self, _: &TypeId, _: WireId, _: WireId) -> Result<()> {
         Ok(())
     }
 
     fn convert(
         &mut self,
-        _output_field: &FieldId,
+        _output_type: &TypeId,
         _output_wire_count: u64,
-        _input_field: &FieldId,
+        _input_type: &TypeId,
         _inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to convert to R1CS circuit containing convert gates".into())
@@ -703,12 +698,12 @@ fn test_to_r1cs_validate_converted_circuit_same_field() -> Result<()> {
 }
 
 #[test]
-fn test_to_r1cs_validate_2ways_conversion_bigger_field() -> Result<()> {
+fn test_to_r1cs_validate_two_ways_conversion_bigger_field() -> Result<()> {
     use zkinterface::producers::examples::example_circuit_header_inputs as zki_example_header_inputs;
     use zkinterface::producers::examples::example_constraints as zki_example_constraints;
     use zkinterface::producers::examples::example_witness_inputs as zki_example_witness_inputs;
 
-    let output_directory = "local/test_to_r1cs_validate_2ways_conversion_bigger_field";
+    let output_directory = "local/test_to_r1cs_validate_two_ways_conversion_bigger_field";
 
     // begin tests as with from_r1cs
 
