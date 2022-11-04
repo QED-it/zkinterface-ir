@@ -20,6 +20,13 @@ pub fn evaluate_plugin_for_plaintext_backend(
             &plugin_body.params,
             moduli,
         ),
+        ("vector", "mul") => vector::vector_mul(
+            output_count,
+            input_count,
+            inputs,
+            &plugin_body.params,
+            moduli,
+        ),
         _ => Err("Unknown plugin".into()),
     }
 }

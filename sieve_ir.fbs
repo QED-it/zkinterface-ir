@@ -207,27 +207,6 @@ table GateCall {
     output_wires      :WireList;
     input_wires       :WireList;
 }
-// Defines a anonymous basic-block consisting of a list of gates.
-table GateAnonCall {
-    output_wires    :WireList;
-    inner           :AbstractAnonCall;
-}
-
-/// The two Abstract types cannot exist by themselves in a circuit,
-/// they MUST be included in another gate (For / Call / ...)
-/// because they don't specify output wires, which should be specified in the
-/// encompassing structure itself.
-table AbstractGateCall {
-    // Invokes a previously defined Function gate
-    name              :string;
-    input_wires       :WireList;
-}
-table AbstractAnonCall {
-    input_wires     :WireList;
-    public_count    :CountList;
-    private_count   :CountList;
-    subcircuit      :[Directive];
-}
 
 union DirectiveSet {
    GateConstant,
@@ -243,7 +222,6 @@ union DirectiveSet {
    GateDelete,
    GateConvert,
    GateCall,
-   GateAnonCall,
 }
 
 table Directive {

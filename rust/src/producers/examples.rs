@@ -4,7 +4,6 @@ use std::mem::size_of;
 
 use crate::structs::inputs::Inputs;
 use crate::structs::wire::WireListElement;
-use crate::wirelist;
 use crate::{Header, PrivateInputs, PublicInputs, Relation, TypeId};
 
 pub fn example_header() -> Header {
@@ -36,7 +35,7 @@ pub fn example_public_inputs_h(header: &Header) -> PublicInputs {
     PublicInputs {
         header: header.clone(),
         inputs: vec![Inputs {
-            values: vec![literal32(25), literal32(0), literal32(1)],
+            values: vec![literal32(5)],
         }],
     }
 }
@@ -45,7 +44,7 @@ pub fn example_private_inputs_h(header: &Header) -> PrivateInputs {
     PrivateInputs {
         header: header.clone(),
         inputs: vec![Inputs {
-            values: vec![literal32(3), literal32(4), literal32(0)],
+            values: vec![literal32(3), literal32(4)],
         }],
     }
 }
@@ -57,7 +56,6 @@ pub fn example_private_inputs_incorrect_h(header: &Header) -> PrivateInputs {
             values: vec![
                 literal32(3),
                 literal32(4 + 1), // incorrect.
-                literal32(1),
             ],
         }],
     }
@@ -73,53 +71,40 @@ pub fn example_relation_h(header: &Header) -> Relation {
         header: header.clone(),
         plugins: vec![],
         functions: vec![Function::new(
-            "com.example::mul".to_string(),
+            "square".to_string(),
             HashMap::from([(type_id, 1)]),
-            HashMap::from([(type_id, 2)]),
+            HashMap::from([(type_id, 1)]),
             HashMap::new(),
             HashMap::new(),
-            FunctionBody::Gates(vec![Mul(type_id, 0, 1, 2)]),
+            FunctionBody::Gates(vec![Mul(type_id, 0, 1, 1)]),
         )],
         gates: vec![
-            New(type_id, 0, 7),
+            // Right-triangle example
+            New(type_id, 0, 2),
+            PublicInput(type_id, 0),
             PrivateInput(type_id, 1),
-            AnonCall(
-                wirelist![type_id;0, 2, 4, 5, 6, 9, 10], // output
-                wirelist![type_id;1],                    // input
-                HashMap::from([(type_id, 3)]),           // public count
-                HashMap::from([(type_id, 2)]),           // private count
-                vec![
-                    PublicInput(type_id, 0),
-                    PrivateInput(type_id, 1),
-                    Call(
-                        "com.example::mul".to_string(),
-                        wirelist![type_id;2],
-                        wirelist![type_id;7; 2],
-                    ),
-                    Call(
-                        "com.example::mul".to_string(),
-                        wirelist![type_id;3],
-                        wirelist![type_id;1; 2],
-                    ),
-                    Add(type_id, 4, 2, 3),
-                    PrivateInput(type_id, 8),
-                    AssertZero(type_id, 8),
-                    PublicInput(type_id, 5),
-                    AssertZero(type_id, 5),
-                    PublicInput(type_id, 6),
-                ],
-            ),
-            Constant(type_id, 3, encode_negative_one(&header.types[0])), // -1
+            PrivateInput(type_id, 2),
             Call(
-                "com.example::mul".to_string(),
-                wirelist![type_id;7],
-                wirelist![type_id;3, 0],
-            ), // - public_input_0
+                "square".to_string(),
+                vec![WireListElement::Wire(type_id, 3)],
+                vec![WireListElement::Wire(type_id, 0)],
+            ),
+            Call(
+                "square".to_string(),
+                vec![WireListElement::Wire(type_id, 4)],
+                vec![WireListElement::Wire(type_id, 1)],
+            ),
+            Call(
+                "square".to_string(),
+                vec![WireListElement::Wire(type_id, 5)],
+                vec![WireListElement::Wire(type_id, 2)],
+            ),
+            Add(type_id, 6, 4, 5),
+            MulConstant(type_id, 7, 3, vec![100]),
             Add(type_id, 8, 6, 7),
-            Delete(type_id, 0, Some(7)),
-            Mul(type_id, 11, 8, 10),
-            AssertZero(type_id, 11),
-            Delete(type_id, 8, Some(11)),
+            AssertZero(type_id, 8),
+            Delete(type_id, 0, Some(2)),
+            Delete(type_id, 3, Some(8)),
         ],
     }
 }

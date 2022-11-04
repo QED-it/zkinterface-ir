@@ -230,12 +230,11 @@ pub enum DirectiveSet {
   GateDelete = 11,
   GateConvert = 12,
   GateCall = 13,
-  GateAnonCall = 14,
 
 }
 
 pub const ENUM_MIN_DIRECTIVE_SET: u8 = 0;
-pub const ENUM_MAX_DIRECTIVE_SET: u8 = 14;
+pub const ENUM_MAX_DIRECTIVE_SET: u8 = 13;
 
 impl<'a> flatbuffers::Follow<'a> for DirectiveSet {
   type Inner = Self;
@@ -269,7 +268,7 @@ impl flatbuffers::Push for DirectiveSet {
 }
 
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 15] = [
+pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 14] = [
   DirectiveSet::NONE,
   DirectiveSet::GateConstant,
   DirectiveSet::GateAssertZero,
@@ -283,12 +282,11 @@ pub const ENUM_VALUES_DIRECTIVE_SET:[DirectiveSet; 15] = [
   DirectiveSet::GateNew,
   DirectiveSet::GateDelete,
   DirectiveSet::GateConvert,
-  DirectiveSet::GateCall,
-  DirectiveSet::GateAnonCall
+  DirectiveSet::GateCall
 ];
 
 #[allow(non_camel_case_types)]
-pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 15] = [
+pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 14] = [
     "NONE",
     "GateConstant",
     "GateAssertZero",
@@ -302,8 +300,7 @@ pub const ENUM_NAMES_DIRECTIVE_SET:[&'static str; 15] = [
     "GateNew",
     "GateDelete",
     "GateConvert",
-    "GateCall",
-    "GateAnonCall"
+    "GateCall"
 ];
 
 pub fn enum_name_directive_set(e: DirectiveSet) -> &'static str {
@@ -3172,298 +3169,6 @@ impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
   }
 }
 
-pub enum GateAnonCallOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct GateAnonCall<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for GateAnonCall<'a> {
-    type Inner = GateAnonCall<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> GateAnonCall<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GateAnonCall {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GateAnonCallArgs<'args>) -> flatbuffers::WIPOffset<GateAnonCall<'bldr>> {
-      let mut builder = GateAnonCallBuilder::new(_fbb);
-      if let Some(x) = args.inner { builder.add_inner(x); }
-      if let Some(x) = args.output_wires { builder.add_output_wires(x); }
-      builder.finish()
-    }
-
-    pub const VT_OUTPUT_WIRES: flatbuffers::VOffsetT = 4;
-    pub const VT_INNER: flatbuffers::VOffsetT = 6;
-
-  #[inline]
-  pub fn output_wires(&self) -> Option<WireList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(GateAnonCall::VT_OUTPUT_WIRES, None)
-  }
-  #[inline]
-  pub fn inner(&self) -> Option<AbstractAnonCall<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<AbstractAnonCall<'a>>>(GateAnonCall::VT_INNER, None)
-  }
-}
-
-pub struct GateAnonCallArgs<'a> {
-    pub output_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
-    pub inner: Option<flatbuffers::WIPOffset<AbstractAnonCall<'a >>>,
-}
-impl<'a> Default for GateAnonCallArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        GateAnonCallArgs {
-            output_wires: None,
-            inner: None,
-        }
-    }
-}
-pub struct GateAnonCallBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> GateAnonCallBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_output_wires(&mut self, output_wires: flatbuffers::WIPOffset<WireList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(GateAnonCall::VT_OUTPUT_WIRES, output_wires);
-  }
-  #[inline]
-  pub fn add_inner(&mut self, inner: flatbuffers::WIPOffset<AbstractAnonCall<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<AbstractAnonCall>>(GateAnonCall::VT_INNER, inner);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GateAnonCallBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    GateAnonCallBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GateAnonCall<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum AbstractGateCallOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-/// The two Abstract types cannot exist by themselves in a circuit,
-/// they MUST be included in another gate (For / Call / ...)
-/// because they don't specify output wires, which should be specified in the
-/// encompassing structure itself.
-pub struct AbstractGateCall<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for AbstractGateCall<'a> {
-    type Inner = AbstractGateCall<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> AbstractGateCall<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        AbstractGateCall {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args AbstractGateCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractGateCall<'bldr>> {
-      let mut builder = AbstractGateCallBuilder::new(_fbb);
-      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
-      if let Some(x) = args.name { builder.add_name(x); }
-      builder.finish()
-    }
-
-    pub const VT_NAME: flatbuffers::VOffsetT = 4;
-    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 6;
-
-  #[inline]
-  pub fn name(&self) -> Option<&'a str> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(AbstractGateCall::VT_NAME, None)
-  }
-  #[inline]
-  pub fn input_wires(&self) -> Option<WireList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractGateCall::VT_INPUT_WIRES, None)
-  }
-}
-
-pub struct AbstractGateCallArgs<'a> {
-    pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
-}
-impl<'a> Default for AbstractGateCallArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        AbstractGateCallArgs {
-            name: None,
-            input_wires: None,
-        }
-    }
-}
-pub struct AbstractGateCallBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> AbstractGateCallBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b  str>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractGateCall::VT_NAME, name);
-  }
-  #[inline]
-  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractGateCall::VT_INPUT_WIRES, input_wires);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractGateCallBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    AbstractGateCallBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractGateCall<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum AbstractAnonCallOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct AbstractAnonCall<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for AbstractAnonCall<'a> {
-    type Inner = AbstractAnonCall<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> AbstractAnonCall<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        AbstractAnonCall {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args AbstractAnonCallArgs<'args>) -> flatbuffers::WIPOffset<AbstractAnonCall<'bldr>> {
-      let mut builder = AbstractAnonCallBuilder::new(_fbb);
-      if let Some(x) = args.subcircuit { builder.add_subcircuit(x); }
-      if let Some(x) = args.private_count { builder.add_private_count(x); }
-      if let Some(x) = args.public_count { builder.add_public_count(x); }
-      if let Some(x) = args.input_wires { builder.add_input_wires(x); }
-      builder.finish()
-    }
-
-    pub const VT_INPUT_WIRES: flatbuffers::VOffsetT = 4;
-    pub const VT_PUBLIC_COUNT: flatbuffers::VOffsetT = 6;
-    pub const VT_PRIVATE_COUNT: flatbuffers::VOffsetT = 8;
-    pub const VT_SUBCIRCUIT: flatbuffers::VOffsetT = 10;
-
-  #[inline]
-  pub fn input_wires(&self) -> Option<WireList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<WireList<'a>>>(AbstractAnonCall::VT_INPUT_WIRES, None)
-  }
-  #[inline]
-  pub fn public_count(&self) -> Option<CountList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<CountList<'a>>>(AbstractAnonCall::VT_PUBLIC_COUNT, None)
-  }
-  #[inline]
-  pub fn private_count(&self) -> Option<CountList<'a>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<CountList<'a>>>(AbstractAnonCall::VT_PRIVATE_COUNT, None)
-  }
-  #[inline]
-  pub fn subcircuit(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Directive<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Directive<'a>>>>>(AbstractAnonCall::VT_SUBCIRCUIT, None)
-  }
-}
-
-pub struct AbstractAnonCallArgs<'a> {
-    pub input_wires: Option<flatbuffers::WIPOffset<WireList<'a >>>,
-    pub public_count: Option<flatbuffers::WIPOffset<CountList<'a >>>,
-    pub private_count: Option<flatbuffers::WIPOffset<CountList<'a >>>,
-    pub subcircuit: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
-}
-impl<'a> Default for AbstractAnonCallArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        AbstractAnonCallArgs {
-            input_wires: None,
-            public_count: None,
-            private_count: None,
-            subcircuit: None,
-        }
-    }
-}
-pub struct AbstractAnonCallBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> AbstractAnonCallBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_input_wires(&mut self, input_wires: flatbuffers::WIPOffset<WireList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<WireList>>(AbstractAnonCall::VT_INPUT_WIRES, input_wires);
-  }
-  #[inline]
-  pub fn add_public_count(&mut self, public_count: flatbuffers::WIPOffset<CountList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CountList>>(AbstractAnonCall::VT_PUBLIC_COUNT, public_count);
-  }
-  #[inline]
-  pub fn add_private_count(&mut self, private_count: flatbuffers::WIPOffset<CountList<'b >>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<CountList>>(AbstractAnonCall::VT_PRIVATE_COUNT, private_count);
-  }
-  #[inline]
-  pub fn add_subcircuit(&mut self, subcircuit: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Directive<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(AbstractAnonCall::VT_SUBCIRCUIT, subcircuit);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> AbstractAnonCallBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    AbstractAnonCallBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<AbstractAnonCall<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
 pub enum DirectiveOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -3634,16 +3339,6 @@ impl<'a> Directive<'a> {
   pub fn directive_as_gate_call(&self) -> Option<GateCall<'a>> {
     if self.directive_type() == DirectiveSet::GateCall {
       self.directive().map(|u| GateCall::init_from_table(u))
-    } else {
-      None
-    }
-  }
-
-  #[inline]
-  #[allow(non_snake_case)]
-  pub fn directive_as_gate_anon_call(&self) -> Option<GateAnonCall<'a>> {
-    if self.directive_type() == DirectiveSet::GateAnonCall {
-      self.directive().map(|u| GateAnonCall::init_from_table(u))
     } else {
       None
     }

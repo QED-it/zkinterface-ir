@@ -32,7 +32,7 @@ pub mod wire;
 /// It is used for all public/private count and for inputs/outputs count in function declarations
 pub mod count;
 
-/// Handles the AnonGate stuff
+/// Handles the Call gate stuff
 pub mod function;
 
 /// Handles the plugin stuff

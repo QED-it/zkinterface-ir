@@ -205,12 +205,6 @@ impl GateStats {
                     eprintln!("WARNING Stats: function not defined \"{}\"", name);
                 }
             }
-
-            AnonCall(_, _, public_count, private_count, subcircuit) => {
-                self.ingest_call_stats(&ingest_subcircuit(subcircuit, known_functions));
-                self.public_variables += public_count.values().sum::<u64>();
-                self.private_variables += private_count.values().sum::<u64>();
-            }
         }
     }
 
@@ -247,17 +241,17 @@ fn test_stats() -> Result<()> {
     let mut expected_stats = Stats {
         moduli: vec![literal(EXAMPLE_MODULUS)],
         gate_stats: GateStats {
-            public_variables: 3,
-            private_variables: 3,
-            constants_gates: 1,
-            assert_zero_gates: 3,
+            public_variables: 1,
+            private_variables: 2,
+            constants_gates: 0,
+            assert_zero_gates: 1,
             copy_gates: 0,
             add_gates: 2,
-            mul_gates: 4,
+            mul_gates: 3,
             add_constant_gates: 0,
-            mul_constant_gates: 0,
-            variables_allocated_with_new: 8,
-            variables_deleted: 12,
+            mul_constant_gates: 1,
+            variables_allocated_with_new: 3,
+            variables_deleted: 9,
             functions_defined: 1,
             functions_called: 3,
             plugins_defined: 0,
@@ -270,7 +264,7 @@ fn test_stats() -> Result<()> {
         functions: HashMap::new(),
     };
     expected_stats.functions.insert(
-        "com.example::mul".to_string(),
+        "square".to_string(),
         FunctionContent::Function(
             GateStats {
                 mul_gates: 1,

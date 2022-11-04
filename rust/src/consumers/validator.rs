@@ -449,39 +449,6 @@ impl Validator {
                 });
             }
 
-            AnonCall(output_wires, input_wires, public_count, private_count, subcircuit) => {
-                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
-                let expanded_inputs = expand_wirelist(input_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
-
-                // Check inputs are already set
-                expanded_inputs
-                    .iter()
-                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
-                // ingest it and validate it.
-                self.ingest_subcircuit(
-                    subcircuit,
-                    &wirelist_to_count_list(output_wires),
-                    &wirelist_to_count_list(input_wires),
-                    public_count,
-                    private_count,
-                );
-
-                // Now, consume public/private inputs from self.
-                self.consume_public_count(public_count);
-                self.consume_private_count(private_count);
-
-                // set the output wires as defined, since we checked they were in each branch.
-                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
-                    self.ensure_undefined_and_set(type_id, *wire_id)
-                });
-            }
-
             Call(name, output_wires, input_wires) => {
                 // - Check exists
                 // - Outputs and inputs match function signature

@@ -526,18 +526,6 @@ impl<B: ZKBackend> Evaluator<B> {
                     }
                 };
             }
-
-            AnonCall(output_wires, input_wires, _, _, subcircuit) => {
-                Self::ingest_subcircuit(
-                    subcircuit,
-                    backend,
-                    output_wires,
-                    input_wires,
-                    scope,
-                    params,
-                    inputs,
-                )?;
-            }
         }
         Ok(())
     }

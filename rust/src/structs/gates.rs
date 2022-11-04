@@ -9,7 +9,6 @@ use super::wire::WireList;
 use super::wire::{build_type_id, build_wire_id, build_wire_list};
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
-use crate::structs::count::{build_count_list, CountList};
 use crate::structs::wire::{expand_wirelist, replace_wire_id, replace_wire_in_wirelist};
 use crate::{TypeId, Value, WireId};
 
@@ -43,8 +42,6 @@ pub enum Gate {
     Delete(TypeId, WireId, Option<WireId>),
     /// Convert(output, input)
     Convert(WireList, WireList),
-    /// AnonCall(output_wires, input_wires, public_count, private_count, subcircuit)
-    AnonCall(WireList, WireList, CountList, CountList, Vec<Gate>),
     /// GateCall(name, output_wires, input_wires)
     Call(String, WireList, WireList),
 }
@@ -174,19 +171,6 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                     gate.name().ok_or("Missing function name.")?.into(),
                     WireList::try_from(gate.output_wires().ok_or("Missing outputs")?)?,
                     WireList::try_from(gate.input_wires().ok_or("Missing inputs")?)?,
-                )
-            }
-
-            ds::GateAnonCall => {
-                let gate = gen_gate.directive_as_gate_anon_call().unwrap();
-                let inner = gate.inner().ok_or("Missing inner AbstractAnonCall")?;
-
-                AnonCall(
-                    WireList::try_from(gate.output_wires().ok_or("Missing output wires")?)?,
-                    WireList::try_from(inner.input_wires().ok_or("Missing input wires")?)?,
-                    CountList::try_from(inner.public_count().ok_or("Missing public count")?)?,
-                    CountList::try_from(inner.private_count().ok_or("Missing private count")?)?,
-                    Gate::try_from_vector(inner.subcircuit().ok_or("Missing subcircuit")?)?,
                 )
             }
         })
@@ -456,40 +440,6 @@ impl Gate {
                 )
             }
 
-            AnonCall(output_wires, input_wires, public_count, private_count, subcircuit) => {
-                let g_outputs = build_wire_list(builder, output_wires);
-                let g_inputs = build_wire_list(builder, input_wires);
-                let g_subcircuit = Gate::build_vector(builder, subcircuit);
-                let g_public_count = build_count_list(builder, public_count);
-                let g_private_count = build_count_list(builder, private_count);
-
-                let g_inner = generated::AbstractAnonCall::create(
-                    builder,
-                    &generated::AbstractAnonCallArgs {
-                        input_wires: Some(g_inputs),
-                        public_count: Some(g_public_count),
-                        private_count: Some(g_private_count),
-                        subcircuit: Some(g_subcircuit),
-                    },
-                );
-
-                let g_gate = generated::GateAnonCall::create(
-                    builder,
-                    &generated::GateAnonCallArgs {
-                        output_wires: Some(g_outputs),
-                        inner: Some(g_inner),
-                    },
-                );
-
-                generated::Directive::create(
-                    builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateAnonCall,
-                        directive: Some(g_gate.as_union_value()),
-                    },
-                )
-            }
-
             Call(name, output_wires, input_wires) => {
                 let g_name = builder.create_string(name);
                 let g_outputs = build_wire_list(builder, output_wires);
@@ -554,7 +504,6 @@ impl Gate {
             New(_, _, _) => unimplemented!("New gate"),
 
             Convert(_, _) => unimplemented!("Convert gate"),
-            AnonCall(_, _, _, _, _) => unimplemented!("AnonCall gate"),
             Call(_, _, _) => unimplemented!("Call gate"),
         }
     }
@@ -649,10 +598,6 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                 Convert(ref mut output, ref mut input) => {
                     replace_wire_in_wirelist(output, old_type_id, old_wire, new_wire)?;
                     replace_wire_in_wirelist(input, old_type_id, old_wire, new_wire)?;
-                }
-                AnonCall(ref mut outputs, ref mut inputs, _, _, _) => {
-                    replace_wire_in_wirelist(outputs, old_type_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(inputs, old_type_id, old_wire, new_wire)?;
                 }
                 Call(_, ref mut outputs, ref mut inputs) => {
                     replace_wire_in_wirelist(outputs, old_type_id, old_wire, new_wire)?;

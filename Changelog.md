@@ -16,6 +16,7 @@ Rust:
 - add New gate
 - add plugins
 - rename FieldId by TypeId
+- remove AnonCall gate
 
 # SIEVE IR v1.0.1, 2022-08
 

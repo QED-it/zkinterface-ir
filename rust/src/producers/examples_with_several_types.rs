@@ -8,7 +8,7 @@ use crate::wirelist;
 use crate::{Header, PrivateInputs, PublicInputs, Relation};
 
 pub fn example_header_with_several_types() -> Header {
-    Header::new(&[literal32(101), literal32(7)])
+    Header::new(&[literal32(7), literal32(101)])
 }
 
 pub fn example_public_inputs_with_several_types() -> PublicInputs {
@@ -16,11 +16,9 @@ pub fn example_public_inputs_with_several_types() -> PublicInputs {
         header: example_header_with_several_types(),
         inputs: vec![
             Inputs {
-                values: vec![vec![25], vec![0], vec![1]],
+                values: vec![vec![5]],
             },
-            Inputs {
-                values: vec![vec![6], vec![1], vec![0]],
-            },
+            Inputs { values: vec![] },
         ],
     }
 }
@@ -30,11 +28,9 @@ pub fn example_private_inputs_with_several_types() -> PrivateInputs {
         header: example_header_with_several_types(),
         inputs: vec![
             Inputs {
-                values: vec![vec![3], vec![4], vec![0]],
+                values: vec![vec![3], vec![4]],
             },
-            Inputs {
-                values: vec![vec![4], vec![2], vec![3]],
-            },
+            Inputs { values: vec![] },
         ],
     }
 }
@@ -47,12 +43,9 @@ pub fn example_incorrect_private_inputs_with_several_types() -> PrivateInputs {
                 values: vec![
                     vec![3],
                     vec![5], // incorrect
-                    vec![0],
                 ],
             },
-            Inputs {
-                values: vec![vec![4], vec![2], vec![3]],
-            },
+            Inputs { values: vec![] },
         ],
     }
 }
@@ -61,129 +54,67 @@ pub fn example_relation_with_several_types() -> Relation {
     use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
-    let type_id_101: u8 = 0;
-    let type_id_7: u8 = 1;
+    let type_id_7: u8 = 0;
+    let type_id_101: u8 = 1;
     Relation {
         header: example_header_with_several_types(),
         plugins: vec!["vector".to_string()],
         functions: vec![
             Function::new(
-                "com.example::mul".to_string(),
+                "square".to_string(),
                 HashMap::from([(type_id_101, 1)]),
-                HashMap::from([(type_id_101, 2)]),
+                HashMap::from([(type_id_101, 1)]),
                 HashMap::new(),
                 HashMap::new(),
-                FunctionBody::Gates(vec![Mul(type_id_101, 0, 1, 2)]),
+                FunctionBody::Gates(vec![Mul(type_id_101, 0, 1, 1)]),
             ),
             Function::new(
-                "vector_add_7_3".to_string(),
-                HashMap::from([(type_id_7, 3)]),
-                HashMap::from([(type_id_7, 6)]),
+                "vector_mul_7_2".to_string(),
+                HashMap::from([(type_id_101, 2)]),
+                HashMap::from([(type_id_101, 4)]),
                 HashMap::new(),
                 HashMap::new(),
                 FunctionBody::PluginBody(PluginBody {
                     name: "vector".to_string(),
-                    operation: "add".to_string(),
-                    params: vec![type_id_7.to_string(), "3".to_string()],
+                    operation: "mul".to_string(),
+                    params: vec![type_id_101.to_string(), "2".to_string()],
                 }),
             ),
         ],
         gates: vec![
-            New(type_id_101, 0, 7),
-            PrivateInput(type_id_101, 1),
-            AnonCall(
-                wirelist![type_id_101;0, 2, 4, 5, 6, 9, 10], // output
-                wirelist![type_id_101;1],                    // input
-                HashMap::from([(type_id_101, 3)]),           // public count
-                HashMap::from([(type_id_101, 2)]),           // private count
-                vec![
-                    PublicInput(type_id_101, 0),
-                    PrivateInput(type_id_101, 1),
-                    Call(
-                        "com.example::mul".to_string(),
-                        wirelist![type_id_101;2],
-                        wirelist![type_id_101;7; 2],
-                    ),
-                    Call(
-                        "com.example::mul".to_string(),
-                        wirelist![type_id_101;3],
-                        wirelist![type_id_101;1; 2],
-                    ),
-                    Add(type_id_101, 4, 2, 3),
-                    PrivateInput(type_id_101, 8),
-                    AssertZero(type_id_101, 8),
-                    PublicInput(type_id_101, 5),
-                    AssertZero(type_id_101, 5),
-                    PublicInput(type_id_101, 6),
-                ],
-            ),
-            Constant(type_id_101, 3, literal32(100)), // -1
-            Call(
-                "com.example::mul".to_string(),
-                wirelist![type_id_101;7],
-                wirelist![type_id_101;3, 0],
-            ), // - public_input_0
-            Add(type_id_101, 8, 6, 7),
-            Delete(type_id_101, 0, Some(7)),
-            Mul(type_id_101, 11, 8, 10),
-            AssertZero(type_id_101, 11),
-            Delete(type_id_101, 8, Some(11)),
-            New(type_id_101, 0, 5),
-            // Read PublicInputs
+            // Right-triangle example
+            New(type_id_101, 0, 8),
             PublicInput(type_id_7, 0),
-            PublicInput(type_id_7, 1),
-            PublicInput(type_id_7, 2),
-            // Read PrivateInputs
-            PrivateInput(type_id_7, 3),
-            PrivateInput(type_id_7, 4),
-            PrivateInput(type_id_7, 5),
-            Add(type_id_7, 6, 0, 3), // 6 + 4 = 3 mod 7
-            Mul(type_id_7, 7, 1, 4), // 1 * 2 = 2 mod 7
-            Mul(type_id_7, 8, 2, 5), // 0 * 3 = 0 mod 7
-            AssertZero(type_id_7, 8),
-            Delete(type_id_7, 0, Some(5)),
-            Mul(type_id_7, 9, 6, 7),                     // 3 * 2 = 6 mod 7
-            AddConstant(type_id_7, 10, 9, literal32(1)), // 6 + 1 = 0 mod 7
-            AssertZero(type_id_7, 10),
-            // Conversion from a big modulo to a small modulo
+            PrivateInput(type_id_7, 1),
+            PrivateInput(type_id_7, 2),
             Convert(
-                wirelist![type_id_101; 12,13],
-                wirelist![type_id_7;8, 7, 6], // [0 , 2, 3]_7 = 2 * 7 + 3 = 17
+                vec![WireListElement::Wire(type_id_101, 0)],
+                vec![WireListElement::Wire(type_id_7, 0)],
             ),
-            AddConstant(type_id_101, 14, 13, literal32(84)),
-            AssertZero(type_id_101, 14),
-            AssertZero(type_id_101, 12),
-            Delete(type_id_7, 6, Some(10)),
-            Delete(type_id_101, 12, Some(14)),
-            // Conversion from a small modulo to a big modulo
-            Constant(type_id_101, 15, vec![9]),
             Convert(
-                wirelist![type_id_7; 11, 12, 13], // [0, 1, 2]_7 (1 * 7 + 2 = 9)
-                wirelist![type_id_101;15],        // [9]_101
+                vec![WireListElement::Wire(type_id_101, 1)],
+                vec![WireListElement::Wire(type_id_7, 1)],
             ),
-            AddConstant(type_id_7, 14, 13, vec![5]), // 2 + 5 = 0 mod 7
-            AddConstant(type_id_7, 15, 12, vec![6]), // 1 + 6 = 0 mod 7
-            AssertZero(type_id_7, 11),
-            AssertZero(type_id_7, 14),
-            AssertZero(type_id_7, 15),
-            Delete(type_id_101, 15, None),
-            Delete(type_id_7, 11, Some(15)),
-            // Test plugin(vector_add, 1, 3)
-            Constant(type_id_7, 16, vec![1]),
-            Constant(type_id_7, 17, vec![2]),
-            Constant(type_id_7, 18, vec![3]),
-            Constant(type_id_7, 19, vec![4]),
-            Constant(type_id_7, 20, vec![5]),
-            Constant(type_id_7, 21, vec![6]),
+            Convert(
+                vec![WireListElement::Wire(type_id_101, 2)],
+                vec![WireListElement::Wire(type_id_7, 2)],
+            ),
+            Delete(type_id_7, 0, Some(2)),
             Call(
-                "vector_add_7_3".to_string(),
-                vec![WireListElement::WireRange(type_id_7, 22, 24)], // [5, 0, 2] = [1, 2, 3] + [4, 5, 6] % 7
-                vec![WireListElement::WireRange(type_id_7, 16, 21)],
+                "square".to_string(),
+                vec![WireListElement::Wire(type_id_101, 3)],
+                vec![WireListElement::Wire(type_id_101, 0)],
             ),
-            Add(type_id_7, 25, 22, 24), // 0 = 5 + 2 % 7
-            AssertZero(type_id_7, 23),
-            AssertZero(type_id_7, 25),
-            Delete(type_id_7, 16, Some(25)),
+            Call(
+                "vector_mul_7_2".to_string(),
+                vec![WireListElement::WireRange(type_id_101, 4, 5)],
+                wirelist![type_id_101; 1, 2, 1, 2],
+            ),
+            Add(type_id_101, 6, 4, 5),
+            MulConstant(type_id_101, 7, 3, vec![100]),
+            Add(type_id_101, 8, 6, 7),
+            AssertZero(type_id_101, 8),
+            Delete(type_id_101, 0, Some(8)),
         ],
     }
 }
@@ -248,19 +179,20 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     let public_inputs = example_public_inputs_with_several_types();
     let private_inputs = example_private_inputs_with_several_types();
 
-    let type_id_101: u8 = 0;
-    let type_id_7: u8 = 1;
+    let type_id_7: u8 = 0;
+    let type_id_101: u8 = 1;
     let relation = Relation {
         header: example_header_with_several_types(),
         plugins: vec![],
         functions: vec![],
         gates: vec![
-            PublicInput(type_id_101, 0),
-            PrivateInput(type_id_101, 1),
             PublicInput(type_id_7, 0),
+            PrivateInput(type_id_7, 1),
+            PrivateInput(type_id_7, 2),
+            Constant(type_id_101, 0, vec![3]),
             // Error: in a convert gate, all inputs should belong to the same type
             Convert(
-                wirelist![type_id_7; 1, 2],
+                wirelist![type_id_7; 3, 4],
                 vec![
                     WireListElement::Wire(type_id_101, 0),
                     WireListElement::Wire(type_id_7, 0),
@@ -269,13 +201,13 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
             // Error: in a convert gate, all outputs should belong to the same type
             Convert(
                 vec![
-                    WireListElement::Wire(type_id_101, 2),
-                    WireListElement::Wire(type_id_7, 3),
+                    WireListElement::Wire(type_id_101, 1),
+                    WireListElement::Wire(type_id_7, 5),
                 ],
                 wirelist![type_id_7; 0],
             ),
             // Error: in a convert gate, input should not be empty
-            Convert(wirelist![type_id_7; 4,5], vec![]),
+            Convert(wirelist![type_id_7; 6], vec![]),
             // Error: in a convert gate, output should not be empty
             Convert(vec![], wirelist![type_id_7; 0]),
         ],
@@ -294,8 +226,6 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
             "Gate::Convert: Error with output wires: Several types",
             "Gate::Convert: Error with input wires: Empty wirelist",
             "Gate::Convert: Error with output wires: Empty wirelist",
-            "Too many public input values (4 not consumed)",
-            "Too many private input values (5 not consumed)"
         ]
     );
 
@@ -330,8 +260,8 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     let public_inputs = example_public_inputs_with_several_types();
     let private_inputs = example_private_inputs_with_several_types();
 
-    let type_id_101: u8 = 0;
-    let type_id_7: u8 = 1;
+    let type_id_7: u8 = 0;
+    let type_id_101: u8 = 1;
 
     // 1st test: impossible conversion
     let relation = Relation {
@@ -339,12 +269,11 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
         plugins: vec![],
         functions: vec![],
         gates: vec![
-            PublicInput(type_id_101, 0),  // 25
-            PrivateInput(type_id_101, 1), // 3
+            Constant(type_id_101, 0, vec![25]),
             // The following conversion is impossible
-            Convert(wirelist![type_id_7; 0, 1], wirelist![type_id_101; 0, 1]),
-            Delete(type_id_101, 0, Some(1)),
-            Delete(type_id_7, 0, Some(1)),
+            Convert(wirelist![type_id_7; 0], wirelist![type_id_101; 0]),
+            Delete(type_id_101, 0, None),
+            Delete(type_id_7, 0, None),
         ],
     };
 
@@ -366,8 +295,8 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
         plugins: vec![],
         functions: vec![],
         gates: vec![
-            PublicInput(type_id_101, 0), // 25
-            PublicInput(type_id_7, 0),   // 6
+            PublicInput(type_id_7, 0), // 5
+            Constant(type_id_101, 0, vec![25]),
             // Error: in the following convert gate, all input wires do not belong to the same type
             Convert(
                 wirelist![type_id_101; 1, 2],

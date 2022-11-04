@@ -108,32 +108,27 @@ The command below reads the statement and prints a textual representation of it.
       - header:
           version: 1.0.0
           types:
-            - - 101
-              - 0
-              - 0
-              - 0
             - - 7
+              - 0
+              - 0
+              - 0
+            - - 101
               - 0
               - 0
               - 0
         inputs:
           - values:
-              - - 25
-              - - 0
-              - - 1
-          - values:
-              - - 6
-              - - 1
-              - - 0
+              - - 5
+          - values: []
     private_inputs:
       - header:
           version: 1.0.0
           types:
-            - - 101
-              - 0
-              - 0
-              - 0
             - - 7
+              - 0
+              - 0
+              - 0
+            - - 101
               - 0
               - 0
               - 0
@@ -141,361 +136,137 @@ The command below reads the statement and prints a textual representation of it.
           - values:
               - - 3
               - - 4
-              - - 0
-          - values:
-              - - 4
-              - - 2
-              - - 3
+          - values: []
     relations:
       - header:
           version: 1.0.0
           types:
-            - - 101
-              - 0
-              - 0
-              - 0
             - - 7
               - 0
               - 0
               - 0
+            - - 101
+              - 0
+              - 0
+              - 0
+        plugins:
+          - vector
         functions:
-          - name: "com.example::mul"
+          - name: square
             output_count:
-              0: 1
+              1: 1
             input_count:
-              0: 2
+              1: 1
             public_count: {}
             private_count: {}
             body:
               Gates:
                 - Mul:
-                    - 0
+                    - 1
                     - 0
                     - 1
-                    - 2
-          - name: vector_add_7_3
+                    - 1
+          - name: vector_mul_7_2
             output_count:
-              1: 3
+              1: 2
             input_count:
-              1: 6
+              1: 4
             public_count: {}
             private_count: {}
             body:
               PluginBody:
                 name: vector
-                operation: add
+                operation: mul
                 params:
                   - "1"
-                  - "3"
+                  - "2"
         gates:
           - New:
+              - 1
+              - 0
+              - 8
+          - PublicInput:
               - 0
               - 0
-              - 7
           - PrivateInput:
               - 0
               - 1
-          - AnonCall:
-              - - Wire:
-                    - 0
-                    - 0
-                - Wire:
-                    - 0
-                    - 2
-                - Wire:
-                    - 0
-                    - 4
-                - Wire:
-                    - 0
-                    - 5
-                - Wire:
-                    - 0
-                    - 6
-                - Wire:
-                    - 0
-                    - 9
-                - Wire:
-                    - 0
-                    - 10
-              - - Wire:
-                    - 0
-                    - 1
-              - 0: 3
-              - 0: 2
-              - - PublicInput:
-                    - 0
-                    - 0
-                - PrivateInput:
-                    - 0
-                    - 1
-                - Call:
-                    - "com.example::mul"
-                    - - Wire:
-                          - 0
-                          - 2
-                    - - Wire:
-                          - 0
-                          - 7
-                      - Wire:
-                          - 0
-                          - 7
-                - Call:
-                    - "com.example::mul"
-                    - - Wire:
-                          - 0
-                          - 3
-                    - - Wire:
-                          - 0
-                          - 1
-                      - Wire:
-                          - 0
-                          - 1
-                - Add:
-                    - 0
-                    - 4
-                    - 2
-                    - 3
-                - PrivateInput:
-                    - 0
-                    - 8
-                - AssertZero:
-                    - 0
-                    - 8
-                - PublicInput:
-                    - 0
-                    - 5
-                - AssertZero:
-                    - 0
-                    - 5
-                - PublicInput:
-                    - 0
-                    - 6
-          - Constant:
+          - PrivateInput:
               - 0
+              - 2
+          - Convert:
+              - - Wire:
+                    - 1
+                    - 0
+              - - Wire:
+                    - 0
+                    - 0
+          - Convert:
+              - - Wire:
+                    - 1
+                    - 1
+              - - Wire:
+                    - 0
+                    - 1
+          - Convert:
+              - - Wire:
+                    - 1
+                    - 2
+              - - Wire:
+                    - 0
+                    - 2
+          - Delete:
+              - 0
+              - 0
+              - 2
+          - Call:
+              - square
+              - - Wire:
+                    - 1
+                    - 3
+              - - Wire:
+                    - 1
+                    - 0
+          - Call:
+              - vector_mul_7_2
+              - - WireRange:
+                    - 1
+                    - 4
+                    - 5
+              - - Wire:
+                    - 1
+                    - 1
+                - Wire:
+                    - 1
+                    - 2
+                - Wire:
+                    - 1
+                    - 1
+                - Wire:
+                    - 1
+                    - 2
+          - Add:
+              - 1
+              - 6
+              - 4
+              - 5
+          - MulConstant:
+              - 1
+              - 7
               - 3
               - - 100
-                - 0
-                - 0
-                - 0
-          - Call:
-              - "com.example::mul"
-              - - Wire:
-                    - 0
-                    - 7
-              - - Wire:
-                    - 0
-                    - 3
-                - Wire:
-                    - 0
-                    - 0
-          - Add:
-              - 0
-              - 8
-              - 6
-              - 7
-          - Delete:
-              - 0
-              - 0
-              - 7
-          - Mul:
-              - 0
-              - 11
-              - 8
-              - 10
-          - AssertZero:
-              - 0
-              - 11
-          - Delete:
-              - 0
-              - 8
-              - 11
-          - PublicInput:
-              - 1
-              - 0
-          - PublicInput:
-              - 1
-              - 1
-          - PublicInput:
-              - 1
-              - 2
-          - PrivateInput:
-              - 1
-              - 3
-          - PrivateInput:
-              - 1
-              - 4
-          - PrivateInput:
-              - 1
-              - 5
           - Add:
               - 1
-              - 6
-              - 0
-              - 3
-          - Mul:
-              - 1
-              - 7
-              - 1
-              - 4
-          - Mul:
-              - 1
               - 8
-              - 2
-              - 5
+              - 6
+              - 7
           - AssertZero:
               - 1
               - 8
           - Delete:
               - 1
               - 0
-              - 5
-          - Mul:
-              - 1
-              - 9
-              - 6
-              - 7
-          - AddConstant:
-              - 1
-              - 10
-              - 9
-              - - 1
-                - 0
-                - 0
-                - 0
-          - AssertZero:
-              - 1
-              - 10
-          - Convert:
-              - - Wire:
-                    - 0
-                    - 12
-                - Wire:
-                    - 0
-                    - 13
-              - - Wire:
-                    - 1
-                    - 8
-                - Wire:
-                    - 1
-                    - 7
-                - Wire:
-                    - 1
-                    - 6
-          - AddConstant:
-              - 0
-              - 14
-              - 13
-              - - 84
-                - 0
-                - 0
-                - 0
-          - AssertZero:
-              - 0
-              - 14
-          - AssertZero:
-              - 0
-              - 12
-          - Delete:
-              - 1
-              - 6
-              - 10
-          - Delete:
-              - 0
-              - 12
-              - 14
-          - Constant:
-              - 0
-              - 15
-              - - 9
-          - Convert:
-              - - Wire:
-                    - 1
-                    - 11
-                - Wire:
-                    - 1
-                    - 12
-                - Wire:
-                    - 1
-                    - 13
-              - - Wire:
-                    - 0
-                    - 15
-          - AddConstant:
-              - 1
-              - 14
-              - 13
-              - - 5
-          - AddConstant:
-              - 1
-              - 15
-              - 12
-              - - 6
-          - AssertZero:
-              - 1
-              - 11
-          - AssertZero:
-              - 1
-              - 14
-          - AssertZero:
-              - 1
-              - 15
-          - Delete:
-              - 0
-              - 15
-              - ~
-          - Delete:
-              - 1
-              - 11
-              - 15
-          - Constant:
-              - 1
-              - 16
-              - - 1
-          - Constant:
-              - 1
-              - 17
-              - - 2
-          - Constant:
-              - 1
-              - 18
-              - - 3
-          - Constant:
-              - 1
-              - 19
-              - - 4
-          - Constant:
-              - 1
-              - 20
-              - - 5
-          - Constant:
-              - 1
-              - 21
-              - - 6
-          - Call:
-              - vector_add_7_3
-              - - WireRange:
-                    - 1
-                    - 22
-                    - 24
-              - - WireRange:
-                    - 1
-                    - 16
-                    - 21
-          - Add:
-              - 1
-              - 25
-              - 22
-              - 24
-          - AssertZero:
-              - 1
-              - 23
-          - AssertZero:
-              - 1
-              - 25
-          - Delete:
-              - 1
-              - 16
-              - 25
+              - 8
 
 
 
