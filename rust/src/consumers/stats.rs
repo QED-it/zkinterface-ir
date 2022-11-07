@@ -13,6 +13,7 @@ pub struct GateStats {
     // Inputs.
     pub public_variables: u64,
     pub private_variables: u64,
+
     // Gates.
     pub constants_gates: usize,
     pub assert_zero_gates: usize,
@@ -23,14 +24,13 @@ pub struct GateStats {
     pub mul_constant_gates: usize,
     pub variables_allocated_with_new: u64,
     pub variables_deleted: u64,
+    pub convert_gates: usize,
 
     pub functions_defined: usize,
     pub functions_called: usize,
 
     pub plugins_defined: usize,
     pub plugins_called: usize,
-
-    pub convert_gates: usize,
 
     // The number of messages into which the statement was split.
     pub public_inputs_messages: usize,
@@ -40,8 +40,8 @@ pub struct GateStats {
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum FunctionContent {
-    Plugin(u64, u64),              // (public_count, private_count)
-    Function(GateStats, u64, u64), // (stats, public_count, private_count)
+    Plugin(u64, u64),    // (public_count, private_count)
+    Function(GateStats), // (stats)
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -85,18 +85,24 @@ impl Stats {
 
         for f in relation.functions.iter() {
             let name = f.name.clone();
-            let public_count = f.public_count.values().sum::<u64>();
-            let private_count = f.private_count.values().sum::<u64>();
             match &f.body {
                 FunctionBody::Gates(gates) => {
                     self.gate_stats.functions_defined += 1;
                     let func_stats = ingest_subcircuit(gates, &self.functions);
-                    self.functions.insert(
-                        name.clone(),
-                        FunctionContent::Function(func_stats, public_count, private_count),
-                    );
+                    self.functions
+                        .insert(name.clone(), FunctionContent::Function(func_stats));
                 }
-                FunctionBody::PluginBody(_) => {
+                FunctionBody::PluginBody(plugin_body) => {
+                    let public_count = plugin_body
+                        .public_count
+                        .iter()
+                        .map(|(_, count)| *count)
+                        .sum();
+                    let private_count = plugin_body
+                        .private_count
+                        .iter()
+                        .map(|(_, count)| *count)
+                        .sum();
                     self.gate_stats.plugins_defined += 1;
                     self.functions.insert(
                         name.clone(),
@@ -189,11 +195,9 @@ impl GateStats {
             Call(name, _, _) => {
                 if let Some(func_content) = known_functions.get(name) {
                     match func_content {
-                        FunctionContent::Function(stats, pub_count, priv_count) => {
+                        FunctionContent::Function(stats) => {
                             self.functions_called += 1;
                             self.ingest_call_stats(stats);
-                            self.public_variables += pub_count;
-                            self.private_variables += priv_count;
                         }
                         FunctionContent::Plugin(pub_count, priv_count) => {
                             self.plugins_called += 1;
@@ -209,6 +213,10 @@ impl GateStats {
     }
 
     fn ingest_call_stats(&mut self, other: &GateStats) {
+        // Inputs
+        self.public_variables += other.public_variables;
+        self.private_variables += other.private_variables;
+
         // Gates.
         self.constants_gates += other.constants_gates;
         self.assert_zero_gates += other.assert_zero_gates;
@@ -219,9 +227,10 @@ impl GateStats {
         self.mul_constant_gates += other.mul_constant_gates;
         self.variables_allocated_with_new += other.variables_allocated_with_new;
         self.variables_deleted += other.variables_deleted;
-
         self.convert_gates += other.convert_gates;
+
         self.functions_called += other.functions_called;
+        self.plugins_called += other.plugins_called;
     }
 }
 
@@ -265,14 +274,10 @@ fn test_stats() -> Result<()> {
     };
     expected_stats.functions.insert(
         "square".to_string(),
-        FunctionContent::Function(
-            GateStats {
-                mul_gates: 1,
-                ..GateStats::default()
-            },
-            0,
-            0,
-        ),
+        FunctionContent::Function(GateStats {
+            mul_gates: 1,
+            ..GateStats::default()
+        }),
     );
 
     assert_eq!(expected_stats, stats);

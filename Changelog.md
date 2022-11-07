@@ -17,6 +17,10 @@ Rust:
 - add plugins
 - rename FieldId by TypeId
 - remove AnonCall gate
+- in FBS, remove CountList table and use directly [Count]
+- remove public/private counts from custom function signature
+- add public/private counts into PluginBody
+
 
 # SIEVE IR v1.0.1, 2022-08
 

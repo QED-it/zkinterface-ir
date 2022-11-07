@@ -28,7 +28,7 @@ pub mod value;
 /// WireList are used to defined a wire, a range of wires, or a mix of both
 pub mod wire;
 
-/// CountList are used to defined a list of (type_id, count)
+/// Count are used to defined a (type_id, count)
 /// It is used for all public/private count and for inputs/outputs count in function declarations
 pub mod count;
 

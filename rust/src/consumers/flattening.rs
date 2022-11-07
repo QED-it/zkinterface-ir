@@ -1,7 +1,7 @@
 use crate::consumers::evaluator::{get_modulo, ZKBackend};
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
-use crate::structs::count::CountList;
+use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
 use crate::{Header, Result, Sink, TypeId, Value, WireId};
 use num_bigint::BigUint;
@@ -196,8 +196,8 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
 
     fn evaluate_plugin(
         &mut self,
-        _output_count: &CountList,
-        _input_count: &CountList,
+        _output_count: &[Count],
+        _input_count: &[Count],
         _inputs: &[&Self::Wire],
         _plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {

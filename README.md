@@ -154,11 +154,11 @@ The command below reads the statement and prints a textual representation of it.
         functions:
           - name: square
             output_count:
-              1: 1
+              - type_id: 1
+                count: 1
             input_count:
-              1: 1
-            public_count: {}
-            private_count: {}
+              - type_id: 1
+                count: 1
             body:
               Gates:
                 - Mul:
@@ -168,11 +168,13 @@ The command below reads the statement and prints a textual representation of it.
                     - 1
           - name: vector_mul_7_2
             output_count:
-              1: 2
+              - type_id: 1
+                count: 2
             input_count:
-              1: 4
-            public_count: {}
-            private_count: {}
+              - type_id: 1
+                count: 2
+              - type_id: 1
+                count: 2
             body:
               PluginBody:
                 name: vector
@@ -180,6 +182,8 @@ The command below reads the statement and prints a textual representation of it.
                 params:
                   - "1"
                   - "2"
+                public_count: {}
+                private_count: {}
         gates:
           - New:
               - 1
@@ -233,16 +237,12 @@ The command below reads the statement and prints a textual representation of it.
                     - 1
                     - 4
                     - 5
-              - - Wire:
+              - - WireRange:
                     - 1
-                    - 1
-                - Wire:
                     - 1
                     - 2
-                - Wire:
+                - WireRange:
                     - 1
-                    - 1
-                - Wire:
                     - 1
                     - 2
           - Add:
@@ -267,6 +267,7 @@ The command below reads the statement and prints a textual representation of it.
               - 1
               - 0
               - 8
+
 
 
 

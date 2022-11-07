@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use crate::producers::examples::literal32;
 use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::wire::WireListElement;
-use crate::wirelist;
 use crate::{Header, PrivateInputs, PublicInputs, Relation};
+use std::collections::HashMap;
 
 pub fn example_header_with_several_types() -> Header {
     Header::new(&[literal32(7), literal32(101)])
@@ -51,6 +49,7 @@ pub fn example_incorrect_private_inputs_with_several_types() -> PrivateInputs {
 }
 
 pub fn example_relation_with_several_types() -> Relation {
+    use crate::structs::count::Count;
     use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
@@ -62,22 +61,20 @@ pub fn example_relation_with_several_types() -> Relation {
         functions: vec![
             Function::new(
                 "square".to_string(),
-                HashMap::from([(type_id_101, 1)]),
-                HashMap::from([(type_id_101, 1)]),
-                HashMap::new(),
-                HashMap::new(),
+                vec![Count::new(type_id_101, 1)],
+                vec![Count::new(type_id_101, 1)],
                 FunctionBody::Gates(vec![Mul(type_id_101, 0, 1, 1)]),
             ),
             Function::new(
                 "vector_mul_7_2".to_string(),
-                HashMap::from([(type_id_101, 2)]),
-                HashMap::from([(type_id_101, 4)]),
-                HashMap::new(),
-                HashMap::new(),
+                vec![Count::new(type_id_101, 2)],
+                vec![Count::new(type_id_101, 2), Count::new(type_id_101, 2)],
                 FunctionBody::PluginBody(PluginBody {
                     name: "vector".to_string(),
                     operation: "mul".to_string(),
                     params: vec![type_id_101.to_string(), "2".to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
                 }),
             ),
         ],
@@ -108,7 +105,10 @@ pub fn example_relation_with_several_types() -> Relation {
             Call(
                 "vector_mul_7_2".to_string(),
                 vec![WireListElement::WireRange(type_id_101, 4, 5)],
-                wirelist![type_id_101; 1, 2, 1, 2],
+                vec![
+                    WireListElement::WireRange(type_id_101, 1, 2),
+                    WireListElement::WireRange(type_id_101, 1, 2),
+                ],
             ),
             Add(type_id_101, 6, 4, 5),
             MulConstant(type_id_101, 7, 3, vec![100]),
@@ -174,6 +174,7 @@ fn test_validator_with_several_types() -> crate::Result<()> {
 #[test]
 fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     use crate::consumers::validator::Validator;
+    use crate::wirelist;
     use crate::Gate::*;
 
     let public_inputs = example_public_inputs_with_several_types();
@@ -255,6 +256,7 @@ fn test_evaluator_with_several_types() -> crate::Result<()> {
 #[test]
 fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::wirelist;
     use crate::Gate::*;
 
     let public_inputs = example_public_inputs_with_several_types();

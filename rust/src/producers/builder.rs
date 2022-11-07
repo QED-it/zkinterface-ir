@@ -1,16 +1,17 @@
 use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::mem::take;
 
 use super::build_gates::NO_OUTPUT;
 pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
-use crate::structs::count::{vector_of_values_to_count_list, wirelist_to_count_list, CountList};
+use crate::structs::count::{count_list_to_hashmap, wirelist_to_count_list, Count};
 use crate::structs::function::{Function, FunctionBody};
 use crate::structs::gates::replace_output_wires;
 use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::value::Value;
-use crate::structs::wire::{WireList, WireListElement};
+use crate::structs::wire::{wirelist_to_hashmap, WireList, WireListElement};
 use crate::Result;
 use crate::{Gate, Header, PrivateInputs, PublicInputs, Relation, Sink, TypeId, WireId};
 
@@ -76,7 +77,7 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_public_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        if let Some(inputs) = self.public_inputs.inputs.get_mut(type_id as usize) {
+        if let Some(inputs) = self.public_inputs.inputs.get_mut(usize::try_from(type_id)?) {
             inputs.values.push(value);
         } else {
             return Err(format!(
@@ -92,7 +93,11 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_private_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        if let Some(inputs) = self.private_inputs.inputs.get_mut(type_id as usize) {
+        if let Some(inputs) = self
+            .private_inputs
+            .inputs
+            .get_mut(usize::try_from(type_id)?)
+        {
             inputs.values.push(value);
         } else {
             return Err(format!(
@@ -176,12 +181,6 @@ impl<S: Sink> MessageBuilder<S> {
         }
         self.sink
     }
-
-    fn nb_types(&self) -> u8 {
-        let result = self.relation.header.types.len();
-        assert!(result <= u8::MAX as usize);
-        result as u8
-    }
 }
 
 /// GateBuilder allocates wire IDs, builds gates, and tracks public and private inputs.
@@ -210,20 +209,20 @@ pub struct GateBuilder<S: Sink> {
 /// FunctionParams contains the number of inputs, outputs, public/private inputs of a function.
 //#[derive(Clone, Copy)]
 struct FunctionParams {
-    input_count: CountList,
-    output_count: CountList,
-    public_count: CountList,
-    private_count: CountList,
+    input_count: Vec<Count>,
+    output_count: Vec<Count>,
+    public_count: HashMap<TypeId, u64>,
+    private_count: HashMap<TypeId, u64>,
 }
 
 impl FunctionParams {
     fn check(
         &self,
         name: &str,
-        input_count: Option<CountList>,
-        output_count: Option<CountList>,
-        public_count: Option<CountList>,
-        private_count: Option<CountList>,
+        input_count: Option<Vec<Count>>,
+        output_count: Option<Vec<Count>>,
+        public_count: Option<HashMap<TypeId, u64>>,
+        private_count: Option<HashMap<TypeId, u64>>,
     ) -> Result<()> {
         if let Some(count) = input_count {
             if count != self.input_count {
@@ -279,10 +278,8 @@ fn known_function_params<'a>(
 
 pub fn create_plugin_function(
     function_name: String,
-    output_count: CountList,
-    input_count: CountList,
-    public_count: CountList,
-    private_count: CountList,
+    output_count: Vec<Count>,
+    input_count: Vec<Count>,
     plugin_body: PluginBody,
 ) -> Result<Function> {
     if function_name.is_empty() {
@@ -298,8 +295,6 @@ pub fn create_plugin_function(
         function_name,
         output_count,
         input_count,
-        public_count,
-        private_count,
         FunctionBody::PluginBody(plugin_body),
     ))
 }
@@ -316,7 +311,7 @@ fn alloc(type_id: TypeId, next_available_id: &mut HashMap<TypeId, WireId>) -> Wi
 fn multiple_alloc(
     type_id: TypeId,
     next_available_id: &mut HashMap<TypeId, WireId>,
-    n: usize,
+    n: u64,
 ) -> WireList {
     match n {
         0 => vec![],
@@ -327,7 +322,7 @@ fn multiple_alloc(
         _ => {
             let id = next_available_id.entry(type_id).or_insert(0);
             let first_id = *id;
-            let next: u64 = first_id + n as u64;
+            let next = first_id + n;
             *id = next;
             vec![WireListElement::WireRange(type_id, first_id, next - 1)]
         }
@@ -337,7 +332,7 @@ fn multiple_alloc(
 impl<S: Sink> GateBuilderT for GateBuilder<S> {
     fn create_gate(&mut self, mut gate: BuildGate) -> Result<WireId> {
         let type_id = gate.get_type_id();
-        if type_id >= self.msg_build.nb_types() {
+        if usize::try_from(type_id)? >= self.msg_build.relation.header.types.len() {
             return Err(format!(
                 "Type id {} is not defined, we cannot create the gate",
                 type_id
@@ -372,18 +367,28 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         private_inputs: Vec<Vec<Value>>,
     ) -> Result<WireList> {
         // Check inputs, public_inputs, private_inputs size and return output_count
-        let output_count: CountList = match gate {
+        let output_count = match gate {
             BuildComplexGate::Call(ref name, ref input_wires) => {
                 let function_params = known_function_params(&self.known_functions, name)?;
                 let input_count = wirelist_to_count_list(input_wires);
-                let public_count = vector_of_values_to_count_list(&public_inputs);
-                let private_count = vector_of_values_to_count_list(&private_inputs);
+                let mut public_count_map = HashMap::new();
+                for (i, inputs) in public_inputs.iter().enumerate() {
+                    if !inputs.is_empty() {
+                        public_count_map.insert(u8::try_from(i)?, u64::try_from(inputs.len())?);
+                    }
+                }
+                let mut private_count_map = HashMap::new();
+                for (i, inputs) in private_inputs.iter().enumerate() {
+                    if !inputs.is_empty() {
+                        private_count_map.insert(u8::try_from(i)?, u64::try_from(inputs.len())?);
+                    }
+                }
                 function_params.check(
                     name,
                     Some(input_count),
                     None,
-                    Some(public_count),
-                    Some(private_count),
+                    Some(public_count_map),
+                    Some(private_count_map),
                 )?;
                 function_params.output_count.clone()
             }
@@ -397,30 +402,28 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                 if !private_inputs.is_empty() {
                     return Err("A Convert gate does not contain a private_inputs".into());
                 }
-                HashMap::from([(type_id, output_wire_count)])
+                vec![Count::new(type_id, output_wire_count)]
             }
         };
 
         // Push public inputs
         for (i, values) in public_inputs.iter().enumerate() {
             for value in values {
-                assert!(i <= u8::MAX as usize);
                 self.msg_build
-                    .push_public_input_value(i as u8, value.clone())?;
+                    .push_public_input_value(u8::try_from(i)?, value.clone())?;
             }
         }
         // Push private inputs
         for (i, values) in private_inputs.iter().enumerate() {
             for value in values {
-                assert!(i <= u8::MAX as usize);
                 self.msg_build
-                    .push_private_input_value(i as u8, value.clone())?;
+                    .push_private_input_value(u8::try_from(i)?, value.clone())?;
             }
         }
 
         let mut output_wires: WireList = vec![];
-        for (type_id, count) in output_count {
-            let wires = multiple_alloc(type_id, &mut self.next_available_id, count as usize);
+        for count in output_count {
+            let wires = multiple_alloc(count.type_id, &mut self.next_available_id, count.count);
             output_wires.extend(wires);
         }
 
@@ -444,16 +447,16 @@ impl<S: Sink> GateBuilder<S> {
     pub fn new_function_builder(
         &self,
         name: String,
-        output_count: CountList,
-        input_count: CountList,
+        output_count: Vec<Count>,
+        input_count: Vec<Count>,
     ) -> FunctionBuilder {
         let mut next_available_id = HashMap::new();
-        output_count.iter().for_each(|(type_id, count)| {
-            next_available_id.insert(*type_id, *count);
+        output_count.iter().for_each(|count| {
+            next_available_id.insert(count.type_id, count.count);
         });
-        input_count.iter().for_each(|(type_id, count)| {
-            let type_id_count = next_available_id.entry(*type_id).or_insert(0);
-            *type_id_count += count;
+        input_count.iter().for_each(|count| {
+            let type_id_count = next_available_id.entry(count.type_id).or_insert(0);
+            *type_id_count += count.count;
         });
         FunctionBuilder {
             name,
@@ -475,27 +478,53 @@ impl<S: Sink> GateBuilder<S> {
         self.msg_build.push_public_input_value(type_id, val)
     }
 
-    pub fn push_function(&mut self, function: Function) -> Result<()> {
-        if self.known_functions.contains_key(&function.name) {
-            return Err(format!("Function {} already exists !", function.name).into());
-        } else {
-            self.known_functions.insert(
-                function.name.clone(),
-                FunctionParams {
-                    input_count: function.input_count.clone(),
-                    output_count: function.output_count.clone(),
-                    public_count: function.public_count.clone(),
-                    private_count: function.private_count.clone(),
-                },
-            );
+    pub fn push_function(&mut self, function_with_counts: FunctionWithInputsCounts) -> Result<()> {
+        // Check that there are no other functions with the same name
+        if self
+            .known_functions
+            .contains_key(&function_with_counts.function.name)
+        {
+            return Err(format!(
+                "Function {} already exists !",
+                function_with_counts.function.name
+            )
+            .into());
         }
-        if let FunctionBody::PluginBody(plugin_body) = &function.body {
+
+        // Add the function into known_functions
+        self.known_functions.insert(
+            function_with_counts.function.name.clone(),
+            FunctionParams {
+                input_count: function_with_counts.function.input_count.clone(),
+                output_count: function_with_counts.function.output_count.clone(),
+                public_count: function_with_counts.public_count.clone(),
+                private_count: function_with_counts.private_count.clone(),
+            },
+        );
+
+        // If the function is a plugin function, add the plugin names into the list of used plugins
+        if let FunctionBody::PluginBody(plugin_body) = &function_with_counts.function.body {
             if self.known_plugins.insert(plugin_body.name.clone()) {
                 self.msg_build.push_plugin(plugin_body.name.clone());
             }
         }
-        self.msg_build.push_function(function);
+        // Add the function into the list of functions in the Relation
+        self.msg_build.push_function(function_with_counts.function);
         Ok(())
+    }
+
+    pub fn push_plugin(&mut self, function: Function) -> Result<()> {
+        if let FunctionBody::PluginBody(ref plugin_body) = function.body {
+            let public_count = plugin_body.public_count.clone();
+            let private_count = plugin_body.private_count.clone();
+            self.push_function(FunctionWithInputsCounts {
+                function,
+                public_count,
+                private_count,
+            })
+        } else {
+            Err("push_plugin must be called with a plugin function".into())
+        }
     }
 
     pub fn finish(self) -> S {
@@ -507,6 +536,12 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
     GateBuilder::new(MemorySink::default(), Header::default())
 }
 
+pub struct FunctionWithInputsCounts {
+    function: Function,
+    public_count: HashMap<TypeId, u64>,
+    private_count: HashMap<TypeId, u64>,
+}
+
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
 /// finish() must be called to obtain the function.
 /// The number of public and private inputs consumed by the function are evaluated on the fly.
@@ -516,6 +551,7 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 /// use std::collections::HashMap;
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder,  BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
+/// use zki_sieve::structs::count::Count;
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
 /// use zki_sieve::Header;
@@ -523,7 +559,7 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 /// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
 ///
 ///  let private_square = {
-///     let mut fb = b.new_function_builder("private_square".to_string(), HashMap::from([(0,1)]), HashMap::new());
+///     let mut fb = b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
 ///     let private_input_wire = fb.create_gate(PrivateInput(0, None));
 ///     let output_wire = fb.create_gate(Mul(0, private_input_wire, private_input_wire));
 ///
@@ -532,12 +568,12 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 /// ```
 pub struct FunctionBuilder<'a> {
     name: String,
-    output_count: CountList,
-    input_count: CountList,
+    output_count: Vec<Count>,
+    input_count: Vec<Count>,
     gates: Vec<Gate>,
 
-    public_count: CountList,  // evaluated on the fly
-    private_count: CountList, // evaluated on the fly
+    public_count: HashMap<TypeId, u64>,  // evaluated on the fly
+    private_count: HashMap<TypeId, u64>, // evaluated on the fly
     known_functions: &'a HashMap<String, FunctionParams>,
     next_available_id: HashMap<TypeId, WireId>,
 }
@@ -546,14 +582,14 @@ impl FunctionBuilder<'_> {
     /// Returns a Vec<(TypeId, WireId)> containing the inputs wires (without WireRange).
     pub fn input_wires(&self) -> Vec<(TypeId, WireId)> {
         let mut map = HashMap::new();
-        for (type_id, count) in self.output_count.iter() {
-            map.insert(*type_id, *count);
+        for count in self.output_count.iter() {
+            map.insert(count.type_id, count.count);
         }
         let mut result: Vec<(TypeId, WireId)> = vec![];
-        for (type_id, count) in self.input_count.iter() {
-            let type_id_count = map.entry(*type_id).or_insert(0);
-            for id in *type_id_count..(*type_id_count + *count) {
-                result.push((*type_id, id));
+        for count in self.input_count.iter() {
+            let type_id_count = map.entry(count.type_id).or_insert(0);
+            for id in *type_id_count..(*type_id_count + count.count) {
+                result.push((count.type_id, id));
             }
         }
         result
@@ -612,28 +648,28 @@ impl FunctionBuilder<'_> {
                 )
             }
             BuildComplexGate::Convert(type_id, output_wire_count, _) => (
-                HashMap::from([(type_id, output_wire_count)]),
+                vec![Count::new(type_id, output_wire_count)],
                 HashMap::new(),
                 HashMap::new(),
             ),
         };
 
         let mut output_wires: WireList = vec![];
-        for (type_id, count) in output_count {
+        for count in output_count {
             output_wires.extend(multiple_alloc(
-                type_id,
+                count.type_id,
                 &mut self.next_available_id,
-                count as usize,
+                count.count,
             ));
         }
 
-        for (type_id, count) in private_count {
-            let type_private_count = self.private_count.entry(type_id).or_insert(0);
-            *type_private_count += count;
+        for (type_id, count) in private_count.iter() {
+            let type_private_count = self.private_count.entry(*type_id).or_insert(0);
+            *type_private_count += *count;
         }
-        for (type_id, count) in public_count {
-            let type_public_count = self.public_count.entry(type_id).or_insert(0);
-            *type_public_count += count;
+        for (type_id, count) in public_count.iter() {
+            let type_public_count = self.public_count.entry(*type_id).or_insert(0);
+            *type_public_count += *count;
         }
 
         self.gates.push(gate.with_output(output_wires.clone()));
@@ -641,34 +677,35 @@ impl FunctionBuilder<'_> {
         Ok(output_wires)
     }
 
-    // Creates and returns the Function
-    pub fn finish(&mut self, output_wires: WireList) -> Result<Function> {
-        let given_output_count: CountList = wirelist_to_count_list(&output_wires);
-        if given_output_count != self.output_count {
+    // Creates and returns the Function as well as the number of public/private inputs consumed by this Function
+    pub fn finish(&mut self, output_wires: WireList) -> Result<FunctionWithInputsCounts> {
+        let output_wires_map = wirelist_to_hashmap(&output_wires);
+        let output_count_map = count_list_to_hashmap(&self.output_count);
+        if output_wires_map != output_count_map {
             return Err(format!(
                 "Function {} should return {:?} outputs (and not {:?})",
-                self.name, self.output_count, given_output_count
+                self.name, output_count_map, output_wires_map
             )
             .into());
         }
 
         replace_output_wires(&mut self.gates, &output_wires)?;
 
-        Ok(Function::new(
-            self.name.clone(),
-            self.output_count.clone(),
-            self.input_count.clone(),
-            self.public_count.clone(),
-            self.private_count.clone(),
-            FunctionBody::Gates(self.gates.to_vec()),
-        ))
+        Ok(FunctionWithInputsCounts {
+            function: Function::new(
+                self.name.clone(),
+                self.output_count.clone(),
+                self.input_count.clone(),
+                FunctionBody::Gates(self.gates.to_vec()),
+            ),
+            public_count: self.public_count.clone(),
+            private_count: self.private_count.clone(),
+        })
     }
 }
 
 #[test]
 fn test_builder_with_function() {
-    use std::collections::HashMap;
-
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
@@ -681,8 +718,8 @@ fn test_builder_with_function() {
     let custom_sub = {
         let mut fb = b.new_function_builder(
             "custom_sub".to_string(),
-            HashMap::from([(0, 2)]),
-            HashMap::from([(0, 4)]),
+            vec![Count::new(0, 2)],
+            vec![Count::new(0, 4)],
         );
 
         let input_wires = fb.input_wires();
@@ -698,27 +735,29 @@ fn test_builder_with_function() {
 
     // Try to push two functions with the same name
     // It should return an error
-    let custom_function = Function::new(
-        "custom_sub".to_string(),
-        HashMap::new(),
-        HashMap::new(),
-        HashMap::new(),
-        HashMap::new(),
-        FunctionBody::Gates(vec![]),
-    );
+    let custom_function = FunctionWithInputsCounts {
+        function: Function::new(
+            "custom_sub".to_string(),
+            vec![],
+            vec![],
+            FunctionBody::Gates(vec![]),
+        ),
+        public_count: HashMap::new(),
+        private_count: HashMap::new(),
+    };
     assert!(b.push_function(custom_function).is_err());
 
     b.create_gate(New(0, 0, 3)).unwrap();
     let id_0 = b.create_gate(Constant(0, vec![40])).unwrap();
-    let id_1 = b.create_gate(Constant(0, vec![30])).unwrap();
-    let id_2 = b.create_gate(Constant(0, vec![10])).unwrap();
+    let _id_1 = b.create_gate(Constant(0, vec![30])).unwrap();
+    let _id_2 = b.create_gate(Constant(0, vec![10])).unwrap();
     let id_3 = b.create_gate(Constant(0, vec![5])).unwrap();
 
     let out = b
         .create_complex_gate(
             Call(
                 "custom_sub".to_string(),
-                wirelist![0;id_0, id_1, id_2, id_3],
+                vec![WireListElement::WireRange(0, id_0, id_3)],
             ),
             vec![],
             vec![],
@@ -771,11 +810,8 @@ fn test_builder_with_several_functions() {
     let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
 
     let private_square = {
-        let mut fb = b.new_function_builder(
-            "private_square".to_string(),
-            HashMap::from([(0, 1)]),
-            HashMap::new(),
-        );
+        let mut fb =
+            b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
         let private_wire = fb.create_gate(PrivateInput(type_id, None));
         let output_wire = fb.create_gate(Mul(type_id, private_wire, private_wire));
 
@@ -787,8 +823,8 @@ fn test_builder_with_several_functions() {
     let sub_public_private_square = {
         let mut fb = b.new_function_builder(
             "sub_public_private_square".to_string(),
-            HashMap::from([(0, 1)]),
-            HashMap::new(),
+            vec![Count::new(0, 1)],
+            vec![],
         );
         let public_wire = fb.create_gate(PublicInput(type_id, None));
 
@@ -863,7 +899,6 @@ fn test_builder_with_plugin() {
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::{examples, sink::MemorySink};
     use crate::structs::wire::expand_wirelist;
-    use crate::wirelist;
 
     let type_id: TypeId = 0;
 
@@ -872,19 +907,22 @@ fn test_builder_with_plugin() {
     let vector_len: u64 = 2;
     let vector_add_plugin = create_plugin_function(
         "vector_add_2".to_string(),
-        HashMap::from([(type_id, vector_len)]),
-        HashMap::from([(type_id, 2 * vector_len)]),
-        HashMap::new(),
-        HashMap::new(),
+        vec![Count::new(type_id, vector_len)],
+        vec![
+            Count::new(type_id, vector_len),
+            Count::new(type_id, vector_len),
+        ],
         PluginBody {
             name: "vector".to_string(),
             operation: "add".to_string(),
             params: vec![type_id.to_string(), vector_len.to_string()],
+            public_count: HashMap::new(),
+            private_count: HashMap::new(),
         },
     )
     .unwrap();
 
-    b.push_function(vector_add_plugin).unwrap();
+    b.push_plugin(vector_add_plugin).unwrap();
 
     let private_0 = b.create_gate(PrivateInput(type_id, Some(vec![1]))).unwrap();
     let private_1 = b.create_gate(PrivateInput(type_id, Some(vec![2]))).unwrap();
@@ -895,7 +933,10 @@ fn test_builder_with_plugin() {
         .create_complex_gate(
             Call(
                 "vector_add_2".to_string(),
-                wirelist![type_id; private_0, private_1, public_0, public_1],
+                vec![
+                    WireListElement::WireRange(type_id, private_0, private_1),
+                    WireListElement::WireRange(type_id, public_0, public_1),
+                ],
             ),
             vec![],
             vec![],

@@ -1,12 +1,12 @@
 use num_bigint::BigUint;
-use std::collections::HashMap;
+use std::convert::TryFrom;
 
-use crate::structs::count::CountList;
+use crate::structs::count::Count;
 use crate::Result;
 
 fn vector_check<'a>(
-    output_count: &'a CountList,
-    input_count: &'a CountList,
+    output_count: &'a [Count],
+    input_count: &'a [Count],
     inputs: &'a [&BigUint],
     params: &'a [String],
     moduli: &'a [BigUint],
@@ -19,6 +19,7 @@ fn vector_check<'a>(
     }
     let param_type_id = params[0].parse::<u8>()?;
     let param_len = params[1].parse::<usize>()?;
+    let param_len_u64 = u64::try_from(param_len)?;
     if param_len == 0 {
         return Err("plugin(vector, add/mul) cannot be called without inputs.".into());
     }
@@ -30,18 +31,23 @@ fn vector_check<'a>(
     })?;
 
     // Check that `output_count` and `input_count` are compliant with `plugin(vector, add/mul, params)`
-    if *output_count != HashMap::from([(param_type_id, param_len as u64)]) {
+    let expected_output_count = vec![Count::new(param_type_id, param_len_u64)];
+    if *output_count != expected_output_count {
         return Err(format!(
-            "When calling the plugin(vector, add/mul, {}, {}), the out parameter in the function signature must be equal to {}: {}.",
-            param_type_id, param_len, param_type_id, param_len
+            "When calling the plugin(vector, add/mul, {}, {}), the out parameter in the function signature must be equal to {:?} (and not {:?}).",
+            param_type_id, param_len, expected_output_count, output_count
         )
             .into());
     }
 
-    if *input_count != HashMap::from([(param_type_id, 2 * param_len as u64)]) {
+    let expected_input_count = vec![
+        Count::new(param_type_id, param_len_u64),
+        Count::new(param_type_id, param_len_u64),
+    ];
+    if *input_count != expected_input_count {
         return Err(format!(
-            "When calling the plugin(vector, add/mul, {}, {}), the in parameter in the function signature must be equal to {}: {}.",
-            param_type_id, param_len, param_type_id, 2*param_len
+            "When calling the plugin(vector, add/mul, {}, {}), the in parameter in the function signature must be equal to {:?} (and not {:?}).",
+            param_type_id, param_len_u64, expected_input_count, input_count
         )
             .into());
     }
@@ -61,8 +67,8 @@ fn vector_check<'a>(
 /// This function takes as input two vectors `in1` and `in2` of length `length` containing elements from type `type_id`,
 /// This function returns one vector of length `length` such that `out[i] = in1[i] + in2[i] % type_modulo`
 pub fn vector_add(
-    output_count: &CountList,
-    input_count: &CountList,
+    output_count: &[Count],
+    input_count: &[Count],
     inputs: &[&BigUint],
     params: &[String],
     moduli: &[BigUint],
@@ -81,8 +87,8 @@ pub fn vector_add(
 /// This function takes as input two vectors `in1` and `in2` of length `length` containing elements from type `type_id`,
 /// This function returns one vector of length `length` such that `out[i] = in1[i] * in2[i] % type_modulo`
 pub fn vector_mul(
-    output_count: &CountList,
-    input_count: &CountList,
+    output_count: &[Count],
+    input_count: &[Count],
     inputs: &[&BigUint],
     params: &[String],
     moduli: &[BigUint],
@@ -99,8 +105,8 @@ pub fn vector_mul(
 
 #[test]
 fn test_vector_check() {
-    let output_count = HashMap::from([(0, 2)]);
-    let input_count = HashMap::from([(0, 4)]);
+    let output_count = vec![Count::new(0, 2)];
+    let input_count = vec![Count::new(0, 2), Count::new(0, 2)];
     let inputs = [
         &BigUint::from_bytes_le(&[1]),
         &BigUint::from_bytes_le(&[2]),
@@ -147,7 +153,7 @@ fn test_vector_check() {
     assert!(result.is_err());
 
     // Try to use the plugin vector with an incorrect output_count
-    let incorrect_output_count = HashMap::from([(0, 3)]);
+    let incorrect_output_count = vec![Count::new(0, 3)];
     let result = vector_check(
         &incorrect_output_count,
         &input_count,
@@ -158,7 +164,7 @@ fn test_vector_check() {
     assert!(result.is_err());
 
     // Try to use the plugin vector with an incorrect input_count
-    let incorrect_input_count = HashMap::from([(0, 6)]);
+    let incorrect_input_count = vec![Count::new(0, 2), Count::new(0, 3)];
     let result = vector_check(
         &output_count,
         &incorrect_input_count,
@@ -186,8 +192,8 @@ fn test_vector_check() {
 
 #[test]
 fn test_vector_add() {
-    let output_count = HashMap::from([(0, 2)]);
-    let input_count = HashMap::from([(0, 4)]);
+    let output_count = vec![Count::new(0, 2)];
+    let input_count = vec![Count::new(0, 2), Count::new(0, 2)];
     let inputs = [
         &BigUint::from_bytes_le(&[1]),
         &BigUint::from_bytes_le(&[2]),
@@ -214,8 +220,8 @@ fn test_vector_add() {
 
 #[test]
 fn test_vector_mul() {
-    let output_count = HashMap::from([(0, 2)]);
-    let input_count = HashMap::from([(0, 4)]);
+    let output_count = vec![Count::new(0, 2)];
+    let input_count = vec![Count::new(0, 2), Count::new(0, 2)];
     let inputs = [
         &BigUint::from_bytes_le(&[1]),
         &BigUint::from_bytes_le(&[2]),

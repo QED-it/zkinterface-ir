@@ -1,14 +1,17 @@
 use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
-use crate::structs::count::{wirelist_to_count_list, CountList};
+use crate::structs::count::{wirelist_to_count_list, Count};
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
-use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, wirelist_len, WireList};
+use crate::structs::wire::{
+    expand_wirelist, is_one_type_wirelist, wirelist_len, wirelist_to_hashmap, WireList,
+};
 use crate::{
     Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId,
 };
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
+use std::convert::TryFrom;
 
 /// The `ZKBackend` trait should be implemented by any backend that wants to evaluate SIEVE IR circuits.
 /// It has to define 2 types:
@@ -106,8 +109,8 @@ pub trait ZKBackend {
     /// then `evaluate_plugin` returns an error.
     fn evaluate_plugin(
         &mut self,
-        output_count: &CountList,
-        input_count: &CountList,
+        output_count: &[Count],
+        input_count: &[Count],
         inputs: &[&Self::Wire],
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>>;
@@ -117,8 +120,8 @@ pub trait ZKBackend {
 /// It's mainly used to retrieve information from the name.
 struct FunctionDeclaration {
     body: FunctionBody,
-    output_count: CountList,
-    input_count: CountList,
+    output_count: Vec<Count>,
+    input_count: Vec<Count>,
 }
 
 /// This structure is the core of IR evaluation. It is instantiated using a ZKBackend,
@@ -163,8 +166,8 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 }
 
 pub struct EvaluatorInputs<B: ZKBackend> {
-    public_inputs_queue: Vec<VecDeque<B::TypeElement>>,
-    private_inputs_queue: Vec<VecDeque<B::TypeElement>>,
+    public_inputs_queue: HashMap<TypeId, VecDeque<B::TypeElement>>,
+    private_inputs_queue: HashMap<TypeId, VecDeque<B::TypeElement>>,
 }
 
 impl<B: ZKBackend> Default for EvaluatorInputs<B> {
@@ -235,8 +238,6 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         for modulo in &header.types {
             self.params.moduli.push(BigUint::from_bytes_le(modulo));
-            self.inputs.public_inputs_queue.push(VecDeque::new());
-            self.inputs.private_inputs_queue.push(VecDeque::new());
         }
         Ok(())
     }
@@ -250,8 +251,8 @@ impl<B: ZKBackend> Evaluator<B> {
             let values = self
                 .inputs
                 .public_inputs_queue
-                .get_mut(i)
-                .ok_or("No enough elements in public_inputs_queue")?;
+                .entry(u8::try_from(i)?)
+                .or_insert_with(VecDeque::new);
             for value in &inputs.values {
                 values.push_back(B::from_bytes_le(value)?);
             }
@@ -268,8 +269,8 @@ impl<B: ZKBackend> Evaluator<B> {
             let values = self
                 .inputs
                 .private_inputs_queue
-                .get_mut(i)
-                .ok_or("No enough elements in private_inputs_queue")?;
+                .entry(u8::try_from(i)?)
+                .or_insert_with(VecDeque::new);
             for value in &inputs.values {
                 values.push_back(B::from_bytes_le(value)?);
             }
@@ -392,29 +393,22 @@ impl<B: ZKBackend> Evaluator<B> {
             PublicInput(type_id, out) => {
                 let public_inputs_for_type = inputs
                     .public_inputs_queue
-                    .get_mut(*type_id as usize)
-                    .ok_or(format!(
-                        "Unknown type id {} when evaluating an PublicInput gate",
-                        *type_id
-                    ))?;
-                let val = if let Some(inner) = public_inputs_for_type.pop_front() {
-                    inner
-                } else {
-                    return Err("Not enough public inputs to consume".into());
-                };
+                    .get_mut(type_id)
+                    .ok_or("Not enough public inputs to consume")?;
+                let val = public_inputs_for_type
+                    .pop_front()
+                    .ok_or("Not enough public inputs to consume")?;
                 set_public_input(backend, scope, *type_id, *out, val)?;
             }
 
             PrivateInput(type_id, out) => {
-                let private_inputs_for_type = inputs
-                    .private_inputs_queue
-                    .get_mut(*type_id as usize)
-                    .ok_or(format!(
-                        "Unknown type id {} when evaluating a PrivateInput gate",
-                        *type_id
-                    ))?;
-                let val = private_inputs_for_type.pop_front();
-                set_private_input(backend, scope, *type_id, *out, val)?;
+                let private_inputs_for_type = inputs.private_inputs_queue.get_mut(type_id);
+                if let Some(priv_inputs_for_type) = private_inputs_for_type {
+                    let val = priv_inputs_for_type.pop_front();
+                    set_private_input(backend, scope, *type_id, *out, val)?;
+                } else {
+                    set_private_input(backend, scope, *type_id, *out, None)?;
+                }
             }
 
             New(type_id, first, last) => {
@@ -455,7 +449,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 }
                 let out: Vec<B::Wire> = backend.convert(
                     &output_type,
-                    wirelist_len(output_wires) as u64,
+                    wirelist_len(output_wires),
                     &input_type,
                     &input_values,
                 )?;
@@ -476,11 +470,11 @@ impl<B: ZKBackend> Evaluator<B> {
                 let function = params.known_functions.get(name).ok_or("Unknown function")?;
 
                 // simple checks.
-                let output_count: CountList = wirelist_to_count_list(output_wires);
+                let output_count = wirelist_to_count_list(output_wires);
                 if output_count != function.output_count {
                     return Err(format!("Wrong number of output variables in call to function {} (Expected {:?} / Got {:?}).", name, function.output_count, output_count).into());
                 }
-                let input_count: CountList = wirelist_to_count_list(input_wires);
+                let input_count = wirelist_to_count_list(input_wires);
                 if input_count != function.input_count {
                     return Err(format!("Wrong number of input variables in call to function {} (Expected {:?} / Got {:?}).", name, function.input_count, input_count).into());
                 }
@@ -498,6 +492,7 @@ impl<B: ZKBackend> Evaluator<B> {
                         )?;
                     }
                     FunctionBody::PluginBody(plugin_body) => {
+                        // TODO add public/private inputs
                         // Retrieve input values
                         let expanded_input_wires = expand_wirelist(input_wires)?;
                         let mut input_values = vec![];
@@ -507,8 +502,8 @@ impl<B: ZKBackend> Evaluator<B> {
                         }
                         // Evaluate plugin
                         let out: Vec<B::Wire> = backend.evaluate_plugin(
-                            &output_count,
-                            &input_count,
+                            &wirelist_to_count_list(output_wires),
+                            &wirelist_to_count_list(input_wires),
                             &input_values,
                             plugin_body,
                         )?;
@@ -548,7 +543,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
         // copy the inputs required by this function into the new scope, at the proper index
         let expanded_inputs = expand_wirelist(input_list)?;
-        let mut input_indexes = wirelist_to_count_list(output_list);
+        let mut input_indexes = wirelist_to_hashmap(output_list);
         for (input_type, input_wire) in expanded_inputs.iter() {
             let idx = input_indexes.entry(*input_type).or_insert(0);
             let i = get::<B>(scope, *input_type, *input_wire)?;
@@ -566,7 +561,7 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         // copy the outputs produced from 'new_scope', into 'scope'
         let expanded_outputs = expand_wirelist(output_list)?;
-        let mut output_indexes: CountList = HashMap::new();
+        let mut output_indexes = HashMap::new();
         for (output_type, output_wire) in expanded_outputs.iter() {
             let idx = output_indexes.entry(*output_type).or_insert(0);
             let w = get::<B>(&new_scope, *output_type, *idx)?;
@@ -805,8 +800,8 @@ impl ZKBackend for PlaintextBackend {
 
     fn evaluate_plugin(
         &mut self,
-        output_count: &CountList,
-        input_count: &CountList,
+        output_count: &[Count],
+        input_count: &[Count],
         inputs: &[&Self::Wire],
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
@@ -821,7 +816,7 @@ impl ZKBackend for PlaintextBackend {
 }
 
 #[test]
-fn test_evaluator() -> crate::Result<()> {
+fn test_evaluator() -> Result<()> {
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
 
@@ -842,11 +837,10 @@ fn test_evaluator() -> crate::Result<()> {
 }
 
 #[test]
-fn test_evaluator_as_verifier() -> crate::Result<()> {
+fn test_evaluator_as_verifier() -> Result<()> {
     /// This test simply checks that the Evaluator code could run with any ZKInterpreter without issue
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
-    use crate::structs::count::count_len;
     use std::convert::TryFrom;
 
     let relation = example_relation();
@@ -940,12 +934,12 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
         }
         fn evaluate_plugin(
             &mut self,
-            output_count: &CountList,
-            _input_count: &CountList,
+            output_count: &[Count],
+            _input_count: &[Count],
             _inputs: &[&Self::Wire],
             _plugin_body: &PluginBody,
         ) -> Result<Vec<Self::Wire>> {
-            let count = count_len(output_count);
+            let count = output_count.iter().map(|count| count.count).sum::<u64>();
             Ok(vec![0; usize::try_from(count)?])
         }
     }
@@ -961,7 +955,7 @@ fn test_evaluator_as_verifier() -> crate::Result<()> {
 }
 
 #[test]
-fn test_evaluator_wrong_result() -> crate::Result<()> {
+fn test_evaluator_wrong_result() -> Result<()> {
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
 

@@ -1,5 +1,5 @@
 use crate::consumers::evaluator::ZKBackend;
-use crate::structs::count::CountList;
+use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
 use crate::{Result, TypeId, Value, WireId};
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
@@ -443,8 +443,8 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
 
     fn evaluate_plugin(
         &mut self,
-        _output_count: &CountList,
-        _input_count: &CountList,
+        _output_count: &[Count],
+        _input_count: &[Count],
         _inputs: &[&Self::Wire],
         _plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {

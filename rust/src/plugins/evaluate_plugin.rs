@@ -1,13 +1,13 @@
 use num_bigint::BigUint;
 
 use crate::plugins::vector;
-use crate::structs::count::CountList;
+use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
 use crate::Result;
 
 pub fn evaluate_plugin_for_plaintext_backend(
-    output_count: &CountList,
-    input_count: &CountList,
+    output_count: &[Count],
+    input_count: &[Count],
     inputs: &[&BigUint],
     plugin_body: &PluginBody,
     moduli: &[BigUint],

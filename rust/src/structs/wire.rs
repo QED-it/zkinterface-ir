@@ -3,6 +3,7 @@ use crate::Result;
 use crate::{TypeId, WireId};
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -289,12 +290,12 @@ fn test_expand_wirelist() {
     assert!(new_wirelist.is_err());
 }
 
-pub fn wirelist_len(wirelist: &WireList) -> usize {
+pub fn wirelist_len(wirelist: &WireList) -> u64 {
     wirelist
         .iter()
         .map(|wire| match wire {
             WireListElement::Wire(_, _) => 1,
-            WireListElement::WireRange(_, first, last) => (*last as usize) - (*first as usize) + 1,
+            WireListElement::WireRange(_, first, last) => *last - *first + 1,
         })
         .sum()
 }
@@ -402,4 +403,27 @@ pub fn is_one_type_wirelist(wirelist: &WireList) -> Result<TypeId> {
         }
     }
     Ok(common_type_id)
+}
+
+pub fn wirelist_to_hashmap(wirelist: &WireList) -> HashMap<TypeId, u64> {
+    let mut map = HashMap::new();
+    wirelist.iter().for_each(|wire| match wire {
+        WireListElement::Wire(type_id, _) => {
+            let count = map.entry(*type_id).or_insert(0);
+            *count += 1;
+        }
+        WireListElement::WireRange(type_id, first, last) => {
+            let count = map.entry(*type_id).or_insert(0);
+            *count += *last - *first + 1;
+        }
+    });
+    map
+}
+
+#[test]
+fn test_wirelist_to_hashmap() {
+    let wirelist = vec![WireRange(0, 0, 2), Wire(1, 1), Wire(0, 4)];
+    let result = wirelist_to_hashmap(&wirelist);
+    let expected_map: HashMap<TypeId, u64> = HashMap::from([(0, 4), (1, 1)]);
+    assert_eq!(result, expected_map);
 }

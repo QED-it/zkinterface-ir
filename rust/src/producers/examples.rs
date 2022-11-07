@@ -1,5 +1,4 @@
 use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
-use std::collections::HashMap;
 use std::mem::size_of;
 
 use crate::structs::inputs::Inputs;
@@ -62,6 +61,7 @@ pub fn example_private_inputs_incorrect_h(header: &Header) -> PrivateInputs {
 }
 
 pub fn example_relation_h(header: &Header) -> Relation {
+    use crate::structs::count::Count;
     use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
 
@@ -72,10 +72,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
         plugins: vec![],
         functions: vec![Function::new(
             "square".to_string(),
-            HashMap::from([(type_id, 1)]),
-            HashMap::from([(type_id, 1)]),
-            HashMap::new(),
-            HashMap::new(),
+            vec![Count::new(type_id, 1)],
+            vec![Count::new(type_id, 1)],
             FunctionBody::Gates(vec![Mul(type_id, 0, 1, 1)]),
         )],
         gates: vec![

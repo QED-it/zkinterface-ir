@@ -4,14 +4,12 @@ use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::consumers::evaluator::get_modulo;
-use crate::structs::count::{wirelist_to_count_list, CountList};
+use crate::structs::count::{count_list_to_hashmap, wirelist_to_count_list, Count};
 use crate::structs::function::FunctionBody;
 use crate::structs::value::is_probably_prime;
 use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, WireList};
 use regex::Regex;
-use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::rc::Rc;
 
 type TypeElement = BigUint;
 
@@ -55,12 +53,12 @@ WireRange Validation
  - Ensure that for WireRange(first, last) that (last > first).
 ";
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Validator {
     as_prover: bool,
 
-    public_inputs_queue_len: CountList,
-    private_inputs_queue_len: CountList,
+    public_inputs_queue_len: HashMap<TypeId, u64>,
+    private_inputs_queue_len: HashMap<TypeId, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
     new_gates: HashSet<(TypeId, WireId, WireId)>,
@@ -72,35 +70,17 @@ pub struct Validator {
 
     known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
-    known_functions: Rc<RefCell<HashMap<String, FunctionCount>>>,
+    known_functions: HashMap<String, FunctionCount>,
 
     violations: Vec<String>,
 }
 
 #[derive(Clone)]
 pub struct FunctionCount {
-    output_count: CountList,
-    input_count: CountList,
-    public_count: CountList,
-    private_count: CountList,
-}
-
-impl Default for Validator {
-    fn default() -> Self {
-        Self {
-            as_prover: Default::default(),
-            public_inputs_queue_len: Default::default(),
-            private_inputs_queue_len: Default::default(),
-            live_wires: Default::default(),
-            new_gates: Default::default(),
-            got_header: Default::default(),
-            header_version: Default::default(),
-            moduli: Default::default(),
-            known_plugins: Default::default(),
-            known_functions: Rc::new(RefCell::new(HashMap::default())),
-            violations: Default::default(),
-        }
-    }
+    output_count: Vec<Count>,
+    input_count: Vec<Count>,
+    public_count: HashMap<TypeId, u64>,
+    private_count: HashMap<TypeId, u64>,
 }
 
 impl Validator {
@@ -231,12 +211,10 @@ impl Validator {
         });
 
         for f in relation.functions.iter() {
-            let (name, output_count, input_count, public_count, private_count) = (
+            let (name, output_count, input_count) = (
                 f.name.clone(),
                 f.output_count.clone(),
                 f.input_count.clone(),
-                f.public_count.clone(),
-                f.private_count.clone(),
             );
 
             // Check that the name follows the proper REGEX
@@ -248,35 +226,12 @@ impl Validator {
                 ));
             }
 
-            // Just record the signature first.
-            if self.known_functions.borrow().contains_key(&name) {
-                self.violate(format!(
-                    "A function with the name '{}' already exists",
-                    name
-                ));
-                continue;
-            } else {
-                self.known_functions.borrow_mut().insert(
-                    name.clone(),
-                    FunctionCount {
-                        output_count: output_count.clone(),
-                        input_count: input_count.clone(),
-                        public_count: public_count.clone(),
-                        private_count: private_count.clone(),
-                    },
-                );
-            }
-            // Now validate the body
-            match &f.body {
+            // Validate the body
+            let (public_count, private_count) = match &f.body {
                 FunctionBody::Gates(gates) => {
                     // Validate the subcircuit for custom functions
-                    self.ingest_subcircuit(
-                        gates,
-                        &output_count,
-                        &input_count,
-                        &public_count,
-                        &private_count,
-                    );
+                    // And return public_count and private_count
+                    self.ingest_custom_function(gates, &output_count, &input_count)
                 }
                 FunctionBody::PluginBody(plugin_body) => {
                     // Check that the plugin name has been declared
@@ -286,7 +241,30 @@ impl Validator {
                             plugin_body.name
                         ));
                     }
+                    (
+                        plugin_body.public_count.clone(),
+                        plugin_body.private_count.clone(),
+                    )
                 }
+            };
+
+            // Record the signature first.
+            if self.known_functions.contains_key(&name) {
+                self.violate(format!(
+                    "A function with the name '{}' already exists",
+                    name
+                ));
+                continue;
+            } else {
+                self.known_functions.insert(
+                    name.clone(),
+                    FunctionCount {
+                        output_count: output_count.clone(),
+                        input_count: input_count.clone(),
+                        public_count: public_count.clone(),
+                        private_count: private_count.clone(),
+                    },
+                );
             }
         }
 
@@ -493,13 +471,13 @@ impl Validator {
         name: &str,
         output_wires: &WireList,
         input_wires: &WireList,
-    ) -> Result<(CountList, CountList)> {
-        if !self.known_functions.borrow().contains_key(name) {
+    ) -> Result<(HashMap<TypeId, u64>, HashMap<TypeId, u64>)> {
+        if !self.known_functions.contains_key(name) {
             self.violate(format!("Unknown Function gate {}", name));
             return Err("This function does not exist.".into());
         }
 
-        let function_count = self.known_functions.borrow().get(name).cloned().unwrap();
+        let function_count = self.known_functions.get(name).cloned().unwrap();
 
         if function_count.output_count != wirelist_to_count_list(output_wires) {
             self.violate("Call: number of output wires mismatch.");
@@ -515,20 +493,49 @@ impl Validator {
     /// This function will check the semantic validity of all the gates in the subcircuit.
     /// It will ensure that all input variable are currently well defined before entering this
     /// subcircuit, and will check that the subcircuit actually correctly set the given number of
-    /// output wires, and that public and private inputs variables declared are actually consumed.
+    /// output wires.
     /// To do so, it creates a local validator, and appends the violations found by it to the
     /// current validator object.
-    /// NOTE: it will @b not consume public/private inputs from the current validator, and will @b not
-    /// set output variables of the current validator as set.
-    /// If required, this should be done in the caller function.
-    fn ingest_subcircuit(
+    /// It will return the number of consumed public/private inputs
+    fn ingest_custom_function(
         &mut self,
         subcircuit: &[Gate],
-        output_count: &CountList,
-        input_count: &CountList,
-        public_count: &CountList,
-        private_count: &CountList,
-    ) {
+        output_count: &[Count],
+        input_count: &[Count],
+    ) -> (HashMap<TypeId, u64>, HashMap<TypeId, u64>) {
+        // Count public/private input consumed in this function
+        let mut public_count = HashMap::new();
+        let mut private_count = HashMap::new();
+        for gate in subcircuit.iter() {
+            match gate {
+                Gate::PublicInput(type_id, _) => {
+                    let count = public_count.entry(*type_id).or_insert(0);
+                    *count += 1;
+                }
+                Gate::PrivateInput(type_id, _) => {
+                    let count = private_count.entry(*type_id).or_insert(0);
+                    *count += 1;
+                }
+                Gate::Call(name, _, _) => {
+                    if !self.known_functions.contains_key(name) {
+                        self.violate(format!("Unknown Function gate {}", name));
+                    }
+
+                    let function_count = self.known_functions.get(name).unwrap().clone();
+                    for (type_id, count) in function_count.public_count.iter() {
+                        let curr_count = public_count.entry(*type_id).or_insert(0);
+                        *curr_count += *count;
+                    }
+                    for (type_id, count) in function_count.private_count.iter() {
+                        let curr_count = private_count.entry(*type_id).or_insert(0);
+                        *curr_count += *count;
+                    }
+                }
+                _ => (), /* DO NOTHING */
+            };
+        }
+
+        // Create a new validator to evaluate the custom function circuit
         let mut current_validator = Validator {
             as_prover: self.as_prover,
             public_inputs_queue_len: public_count.clone(),
@@ -550,44 +557,29 @@ impl Validator {
         // input wires should be already defined, and they are numbered from
         // output_wire, so we will artificially define them in the inner
         // validator.
-        for (type_id, count) in input_count.iter() {
-            let first_idx = *output_count.get(type_id).unwrap_or(&0);
+        let output_count_map = count_list_to_hashmap(output_count);
+        let input_count_map = count_list_to_hashmap(input_count);
+        for (type_id, count) in input_count_map.iter() {
+            let first_idx = *output_count_map.get(type_id).unwrap_or(&0);
             for wire_id in first_idx..(first_idx + *count) {
                 current_validator.live_wires.insert((*type_id, wire_id));
             }
         }
 
-        for x in subcircuit.iter() {
-            current_validator.ingest_gate(x);
+        // Evaluate the subcircuit
+        for gate in subcircuit.iter() {
+            current_validator.ingest_gate(gate);
         }
 
         // ensure that all output wires are set.
-        for (output_type_id, count) in output_count.iter() {
-            (0..*count)
-                .for_each(|id| current_validator.ensure_defined_and_set(output_type_id, id as u64));
+        for (output_type_id, count) in output_count_map.iter() {
+            (0..*count).for_each(|id| current_validator.ensure_defined_and_set(output_type_id, id));
         }
 
+        // Copy violations from current_validator to the main validator
         self.violations.append(&mut current_validator.violations);
-        if current_validator
-            .public_inputs_queue_len
-            .values()
-            .sum::<u64>()
-            != 0
-        {
-            self.violate(
-                "The subcircuit has not consumed all the public inputs variables it should have.",
-            )
-        }
-        if current_validator
-            .private_inputs_queue_len
-            .values()
-            .sum::<u64>()
-            != 0
-        {
-            self.violate(
-                "The subcircuit has not consumed all the private inputs variables it should have.",
-            )
-        }
+
+        (public_count, private_count)
     }
 
     fn is_defined(&self, type_id: &TypeId, id: WireId) -> bool {
@@ -620,10 +612,10 @@ impl Validator {
         }
     }
 
-    fn consume_public_count(&mut self, public_count: &CountList) {
-        for (type_id, count) in public_count.iter() {
-            self.consume_public_inputs(type_id, *count);
-        }
+    fn consume_public_count(&mut self, public_count: &HashMap<TypeId, u64>) {
+        public_count
+            .iter()
+            .for_each(|(type_id, count)| self.consume_public_inputs(type_id, *count));
     }
 
     fn consume_private_inputs(&mut self, type_id: &TypeId, how_many: u64) {
@@ -644,11 +636,11 @@ impl Validator {
         }
     }
 
-    fn consume_private_count(&mut self, private_count: &CountList) {
+    fn consume_private_count(&mut self, private_count: &HashMap<TypeId, u64>) {
         if self.as_prover {
-            for (type_id, count) in private_count.iter() {
-                self.consume_private_inputs(type_id, *count);
-            }
+            private_count
+                .iter()
+                .for_each(|(type_id, count)| self.consume_private_inputs(type_id, *count));
         }
     }
 

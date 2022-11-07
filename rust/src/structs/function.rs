@@ -5,7 +5,7 @@ use std::error::Error;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
-use crate::structs::count::{build_count_list, CountList};
+use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
 use crate::{Gate, Result};
 
@@ -29,10 +29,8 @@ pub enum FunctionBody {
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Function {
     pub name: String,
-    pub output_count: CountList,
-    pub input_count: CountList,
-    pub public_count: CountList,
-    pub private_count: CountList,
+    pub output_count: Vec<Count>,
+    pub input_count: Vec<Count>,
     pub body: FunctionBody,
 }
 
@@ -41,25 +39,15 @@ impl<'a> TryFrom<generated::Function<'a>> for Function {
     type Error = Box<dyn Error>;
 
     fn try_from(g_function: generated::Function) -> Result<Function> {
-        let output_count = CountList::try_from(
+        let output_count = Count::try_from_vector(
             g_function
                 .output_count()
                 .ok_or("Missing output_count in Function")?,
         )?;
-        let input_count = CountList::try_from(
+        let input_count = Count::try_from_vector(
             g_function
                 .input_count()
                 .ok_or("Missing input_count in Function")?,
-        )?;
-        let public_count = CountList::try_from(
-            g_function
-                .public_count()
-                .ok_or("Missing public_count in Function")?,
-        )?;
-        let private_count = CountList::try_from(
-            g_function
-                .private_count()
-                .ok_or("Missing private_count in Function")?,
         )?;
 
         let g_body_type = g_function.body_type();
@@ -81,8 +69,6 @@ impl<'a> TryFrom<generated::Function<'a>> for Function {
             name: g_function.name().ok_or("Missing name")?.to_string(),
             output_count,
             input_count,
-            public_count,
-            private_count,
             body,
         })
     }
@@ -92,18 +78,14 @@ impl Function {
     /// Default constructor
     pub fn new(
         name: String,
-        output_count: CountList,
-        input_count: CountList,
-        public_count: CountList,
-        private_count: CountList,
+        output_count: Vec<Count>,
+        input_count: Vec<Count>,
         body: FunctionBody,
     ) -> Self {
         Function {
             name,
             output_count,
             input_count,
-            public_count,
-            private_count,
             body,
         }
     }
@@ -114,10 +96,8 @@ impl Function {
         builder: &mut FlatBufferBuilder<'a>,
     ) -> WIPOffset<generated::Function<'a>> {
         let g_name = builder.create_string(&self.name);
-        let g_output_count = build_count_list(builder, &self.output_count);
-        let g_input_count = build_count_list(builder, &self.input_count);
-        let g_public_count = build_count_list(builder, &self.public_count);
-        let g_private_count = build_count_list(builder, &self.private_count);
+        let g_output_count = Count::build_vector(builder, &self.output_count);
+        let g_input_count = Count::build_vector(builder, &self.input_count);
         let (g_body_type, g_body) = match &self.body {
             FunctionBody::Gates(gates) => {
                 let g_gates_vector = Gate::build_vector(builder, gates);
@@ -143,8 +123,6 @@ impl Function {
                 name: Some(g_name),
                 output_count: Some(g_output_count),
                 input_count: Some(g_input_count),
-                public_count: Some(g_public_count),
-                private_count: Some(g_private_count),
                 body_type: g_body_type,
                 body: Some(g_body),
             },

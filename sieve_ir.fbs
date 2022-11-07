@@ -57,11 +57,7 @@ table Value {
 
 table Count {
 	type_id    :TypeId;
-	count       :uint64;
-}
-
-table CountList {
-	elements    :[Count];
+	count      :uint64;
 }
 
 table Wire {
@@ -181,6 +177,8 @@ table PluginBody {
 	name          :string;
 	operation     :string;
 	params        :[string];
+    public_count    :[Count]; // Each type_id must be unique
+    private_count   :[Count]; // Each type_id must be unique
 }
 
 // Function declaration. The 'name' field is string matching the following pattern
@@ -193,10 +191,8 @@ table PluginBody {
 table Function {
     // Declare a Function gate as a custom computation
     name            :string;
-    output_count    :CountList;
-    input_count     :CountList;
-    public_count    :CountList;
-    private_count   :CountList;
+    output_count    :[Count];
+    input_count     :[Count];
     body            :FunctionBody;
 }
 
