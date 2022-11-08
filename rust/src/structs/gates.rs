@@ -9,7 +9,7 @@ use super::wire::build_wire_list;
 use super::wire::WireList;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
-use crate::structs::wire::{expand_wirelist, replace_wire_id, replace_wire_in_wirelist};
+use crate::structs::wire::{expand_wirelist, replace_wire_id};
 use crate::{TypeId, Value, WireId};
 
 /// This one correspond to Directive in the FlatBuffers schema
@@ -458,22 +458,49 @@ impl Gate {
 }
 
 /// replace_output_wires goes through all gates in `gates` and replace `output_wires[i]` by `i`.
-/// If `output_wires[i]` belongs to a New gate, add `Copy(i, output_wires[i])` at the end of gates
-/// and do not modify other gates containing `output_wires[i]`.
+/// If `output_wires[i]` belongs to a wire range (in New, Call, Convert gates),
+/// add `Copy(i, output_wires[i])` at the end of gates and do not modify other gates containing `output_wires[i]`.
 ///
 /// If a `Delete` gate contains an output wire, `replace_output_wires` will return an error.
 pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> Result<()> {
     let expanded_output_wires = expand_wirelist(output_wires)?;
     let mut map: HashMap<TypeId, WireId> = HashMap::new();
 
-    // It is not easily doable to replace a WireId in a New gate.
-    // Therefor, if an output wire belongs to a New gate, we will add a Copy gate and not modify this WireId.
-    let mut new_wires: HashSet<(TypeId, WireId)> = HashSet::new();
+    // It is not easily doable to replace a WireId in a wire range.
+    // Therefor, if an output wire belongs to a wire range, we will add a Copy gate and not modify this WireId.
+    let mut do_no_modify_wires: HashSet<(TypeId, WireId)> = HashSet::new();
     for gate in gates.iter() {
-        if let New(type_id, first, last) = gate {
-            for wire_id in *first..=*last {
-                new_wires.insert((*type_id, wire_id));
+        match gate {
+            New(type_id, first_id, last_id) => {
+                for wire_id in *first_id..=*last_id {
+                    do_no_modify_wires.insert((*type_id, wire_id));
+                }
             }
+            Call(_, out_ids, in_ids) => {
+                expand_wirelist(out_ids)?
+                    .iter()
+                    .for_each(|(type_id, wire_id)| {
+                        do_no_modify_wires.insert((*type_id, *wire_id));
+                    });
+                expand_wirelist(in_ids)?
+                    .iter()
+                    .for_each(|(type_id, wire_id)| {
+                        do_no_modify_wires.insert((*type_id, *wire_id));
+                    });
+            }
+            Convert(out_ids, in_ids) => {
+                expand_wirelist(out_ids)?
+                    .iter()
+                    .for_each(|(type_id, wire_id)| {
+                        do_no_modify_wires.insert((*type_id, *wire_id));
+                    });
+                expand_wirelist(in_ids)?
+                    .iter()
+                    .for_each(|(type_id, wire_id)| {
+                        do_no_modify_wires.insert((*type_id, *wire_id));
+                    });
+            }
+            _ => (),
         }
     }
 
@@ -482,8 +509,8 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
         let new_wire = *count;
         *count += 1;
 
-        // If the old_wire is in a New gate, we add a Copy gate and not modify this WireId in other gates.
-        if new_wires.contains(&(old_type_id, old_wire)) {
+        // If the old_wire is in a wire range, we add a Copy gate and not modify this WireId in other gates.
+        if do_no_modify_wires.contains(&(old_type_id, old_wire)) {
             gates.push(Copy(old_type_id, new_wire, old_wire));
             continue;
         }
@@ -536,14 +563,12 @@ pub fn replace_output_wires(gates: &mut Vec<Gate>, output_wires: &WireList) -> R
                         return Err("It is forbidden to delete an output wire !".into());
                     }
                 }
-                Convert(ref mut output, ref mut input) => {
-                    replace_wire_in_wirelist(output, old_type_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(input, old_type_id, old_wire, new_wire)?;
-                }
-                Call(_, ref mut outputs, ref mut inputs) => {
-                    replace_wire_in_wirelist(outputs, old_type_id, old_wire, new_wire)?;
-                    replace_wire_in_wirelist(inputs, old_type_id, old_wire, new_wire)?;
-                }
+                // Convert gates have already been treated at the beginning of the loop
+                // by adding Copy gate if (old_type_id, old_wire) belongs to the Convert gate.
+                Convert(_, _) => (),
+                // Call gates have already been treated at the beginning of the loop
+                // by adding Copy gate if (old_type_id, old_wire) belongs to the Call gate.
+                Call(_, _, _) => (),
             }
         }
     }
@@ -555,39 +580,40 @@ fn test_replace_output_wires() {
     use crate::structs::wire::WireListElement::*;
 
     let mut gates = vec![
-        New(0, 4, 5),
+        New(0, 4, 4),
         PublicInput(0, 4),
         PrivateInput(0, 5),
         Constant(0, 6, vec![15]),
         PublicInput(1, 6),
         Add(0, 7, 4, 5),
-        Delete(0, 4, 5),
+        Delete(0, 4, 4),
         Mul(0, 8, 6, 7),
         Call(
             "custom".to_string(),
             vec![WireRange(0, 9, 12)],
-            vec![WireRange(0, 6, 8)],
+            vec![WireRange(0, 7, 8)],
         ),
         AssertZero(0, 12),
     ];
-    let output_wires = vec![WireRange(0, 5, 6), Wire(0, 12), Wire(0, 15)];
+    let output_wires = vec![WireRange(0, 4, 6), Wire(0, 12)];
     replace_output_wires(&mut gates, &output_wires).unwrap();
     let correct_gates = vec![
-        New(0, 4, 5),
+        New(0, 4, 4),
         PublicInput(0, 4),
-        PrivateInput(0, 5),
-        Constant(0, 1, vec![15]),
+        PrivateInput(0, 1),
+        Constant(0, 2, vec![15]),
         PublicInput(1, 6),
-        Add(0, 7, 4, 5),
-        Delete(0, 4, 5),
-        Mul(0, 8, 1, 7),
+        Add(0, 7, 4, 1),
+        Delete(0, 4, 4),
+        Mul(0, 8, 2, 7),
         Call(
             "custom".to_string(),
-            vec![Wire(0, 9), Wire(0, 10), Wire(0, 11), Wire(0, 2)],
-            vec![Wire(0, 1), Wire(0, 7), Wire(0, 8)],
+            vec![WireRange(0, 9, 12)],
+            vec![WireRange(0, 7, 8)],
         ),
-        AssertZero(0, 2),
-        Copy(0, 0, 5),
+        AssertZero(0, 12),
+        Copy(0, 0, 4),
+        Copy(0, 3, 12),
     ];
     assert_eq!(gates, correct_gates);
 }

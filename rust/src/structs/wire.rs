@@ -205,50 +205,6 @@ pub fn wirelist_len(wirelist: &WireList) -> u64 {
         .sum()
 }
 
-/// Go through `wirelist` and replace `old_wire` by `new_wire`
-/// Do not modify wirelist if old_wire does not belong to it (do not unroll WireRange)
-pub(crate) fn replace_wire_in_wirelist(
-    wirelist: &mut WireList,
-    type_id: TypeId,
-    old_wire: WireId,
-    new_wire: WireId,
-) -> Result<()> {
-    let mut wires = expand_wirelist(wirelist)?;
-    let mut updated = false;
-    for wire in wires.iter_mut() {
-        if (wire.0 == type_id) && (wire.1 == old_wire) {
-            wire.1 = new_wire;
-            updated = true;
-        }
-    }
-    if updated {
-        *wirelist = wires.iter().map(|w| Wire(w.0, w.1)).collect()
-    }
-    Ok(())
-}
-
-#[test]
-fn test_replace_wire_in_wirelist() {
-    let mut wirelist = vec![WireRange(0, 0, 2), Wire(1, 5)];
-    replace_wire_in_wirelist(&mut wirelist, 0, 4, 14).unwrap();
-    let correct_wirelist = vec![WireRange(0, 0, 2), Wire(1, 5)];
-    assert_eq!(wirelist, correct_wirelist);
-
-    replace_wire_in_wirelist(&mut wirelist, 1, 5, 15).unwrap();
-    let correct_wirelist = vec![Wire(0, 0), Wire(0, 1), Wire(0, 2), Wire(1, 15)];
-    assert_eq!(wirelist, correct_wirelist);
-
-    let mut wirelist = vec![WireRange(0, 0, 2), Wire(1, 5)];
-    replace_wire_in_wirelist(&mut wirelist, 0, 1, 14).unwrap();
-    let correct_wirelist = vec![Wire(0, 0), Wire(0, 14), Wire(0, 2), Wire(1, 5)];
-    assert_eq!(wirelist, correct_wirelist);
-
-    let mut wirelist = vec![WireRange(0, 0, 2), Wire(1, 1)];
-    replace_wire_in_wirelist(&mut wirelist, 0, 1, 14).unwrap();
-    let correct_wirelist = vec![Wire(0, 0), Wire(0, 14), Wire(0, 2), Wire(1, 1)];
-    assert_eq!(wirelist, correct_wirelist);
-}
-
 /// Replace `wire` by `new_wire` if `wire` was equal to `old_wire` and `type_id` was equal to `old_type_id`
 pub(crate) fn replace_wire_id(
     type_id: &TypeId,
