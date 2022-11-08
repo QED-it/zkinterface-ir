@@ -20,7 +20,9 @@ Rust:
 - in FBS, remove CountList table and use directly [Count]
 - remove public/private counts from custom function signature
 - add public/private counts into PluginBody
-
+- in FBS, remove WireId and TypeId tables and use directly ubyte and uint64
+- in FBS, remove Header table and move its content into Relation, PublicInputs, PrivateInputs
+- in FBS, rename some field names in gates
 
 # SIEVE IR v1.0.1, 2022-08
 

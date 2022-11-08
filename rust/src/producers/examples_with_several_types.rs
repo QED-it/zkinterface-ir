@@ -2,16 +2,14 @@ use crate::producers::examples::literal32;
 use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::wire::WireListElement;
-use crate::{Header, PrivateInputs, PublicInputs, Relation};
+use crate::structs::IR_VERSION;
+use crate::{PrivateInputs, PublicInputs, Relation};
 use std::collections::HashMap;
-
-pub fn example_header_with_several_types() -> Header {
-    Header::new(&[literal32(7), literal32(101)])
-}
 
 pub fn example_public_inputs_with_several_types() -> PublicInputs {
     PublicInputs {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         inputs: vec![
             Inputs {
                 values: vec![vec![5]],
@@ -23,7 +21,8 @@ pub fn example_public_inputs_with_several_types() -> PublicInputs {
 
 pub fn example_private_inputs_with_several_types() -> PrivateInputs {
     PrivateInputs {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         inputs: vec![
             Inputs {
                 values: vec![vec![3], vec![4]],
@@ -35,7 +34,8 @@ pub fn example_private_inputs_with_several_types() -> PrivateInputs {
 
 pub fn example_incorrect_private_inputs_with_several_types() -> PrivateInputs {
     PrivateInputs {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         inputs: vec![
             Inputs {
                 values: vec![
@@ -56,7 +56,8 @@ pub fn example_relation_with_several_types() -> Relation {
     let type_id_7: u8 = 0;
     let type_id_101: u8 = 1;
     Relation {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         plugins: vec!["vector".to_string()],
         functions: vec![
             Function::new(
@@ -96,7 +97,7 @@ pub fn example_relation_with_several_types() -> Relation {
                 vec![WireListElement::Wire(type_id_101, 2)],
                 vec![WireListElement::Wire(type_id_7, 2)],
             ),
-            Delete(type_id_7, 0, Some(2)),
+            Delete(type_id_7, 0, 2),
             Call(
                 "square".to_string(),
                 vec![WireListElement::Wire(type_id_101, 3)],
@@ -114,7 +115,7 @@ pub fn example_relation_with_several_types() -> Relation {
             MulConstant(type_id_101, 7, 3, vec![100]),
             Add(type_id_101, 8, 6, 7),
             AssertZero(type_id_101, 8),
-            Delete(type_id_101, 0, Some(8)),
+            Delete(type_id_101, 0, 8),
         ],
     }
 }
@@ -183,7 +184,8 @@ fn test_validator_with_incorrect_convert_gates() -> crate::Result<()> {
     let type_id_7: u8 = 0;
     let type_id_101: u8 = 1;
     let relation = Relation {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         plugins: vec![],
         functions: vec![],
         gates: vec![
@@ -267,15 +269,16 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
 
     // 1st test: impossible conversion
     let relation = Relation {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         plugins: vec![],
         functions: vec![],
         gates: vec![
             Constant(type_id_101, 0, vec![25]),
             // The following conversion is impossible
             Convert(wirelist![type_id_7; 0], wirelist![type_id_101; 0]),
-            Delete(type_id_101, 0, None),
-            Delete(type_id_7, 0, None),
+            Delete(type_id_101, 0, 0),
+            Delete(type_id_7, 0, 0),
         ],
     };
 
@@ -293,7 +296,8 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
 
     // 2nd test: all input wires do not belong to the same type
     let relation = Relation {
-        header: example_header_with_several_types(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
         plugins: vec![],
         functions: vec![],
         gates: vec![

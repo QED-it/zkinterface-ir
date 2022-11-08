@@ -6,13 +6,14 @@ use std::error::Error;
 use std::io::Write;
 
 use super::gates::Gate;
-use super::header::Header;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::function::Function;
+use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
-    pub header: Header,
+    pub version: String,
+    pub types: Vec<Value>,
     pub plugins: Vec<String>,
     pub functions: Vec<Function>,
     pub gates: Vec<Gate>,
@@ -37,7 +38,8 @@ impl<'a> TryFrom<generated::Relation<'a>> for Relation {
         }
 
         Ok(Relation {
-            header: Header::try_from(g_relation.header())?,
+            version: g_relation.version().ok_or("Missing version")?.to_string(),
+            types: try_from_values_vector(g_relation.types().ok_or("Missing types")?)?,
             plugins,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
@@ -60,7 +62,8 @@ impl<'a> TryFrom<&'a [u8]> for Relation {
 impl Relation {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
-        let header = Some(self.header.build(builder));
+        let g_version = builder.create_string(&self.version);
+        let g_types = build_values_vector(builder, &self.types);
         let directives = Gate::build_vector(builder, &self.gates);
         let functions = Function::build_vector(builder, &self.functions);
         let g_plugins = self
@@ -73,7 +76,8 @@ impl Relation {
         let relation = generated::Relation::create(
             builder,
             &generated::RelationArgs {
-                header,
+                version: Some(g_version),
+                types: Some(g_types),
                 plugins: Some(g_plugins_vec),
                 functions: Some(functions),
                 directives: Some(directives),

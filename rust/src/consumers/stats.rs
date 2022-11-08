@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::structs::function::FunctionBody;
-use crate::{Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, Value};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
@@ -46,7 +46,7 @@ pub enum FunctionContent {
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
-    // Header.
+    // Types.
     pub moduli: Vec<Value>,
 
     pub gate_stats: GateStats,
@@ -70,17 +70,17 @@ impl Stats {
     }
 
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        self.ingest_header(&public_inputs.header);
+        self.ingest_types(&public_inputs.types);
         self.gate_stats.public_inputs_messages += 1;
     }
 
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) {
-        self.ingest_header(&private_inputs.header);
+        self.ingest_types(&private_inputs.types);
         self.gate_stats.private_inputs_messages += 1;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
-        self.ingest_header(&relation.header);
+        self.ingest_types(&relation.types);
         self.gate_stats.relation_messages += 1;
 
         for f in relation.functions.iter() {
@@ -117,12 +117,12 @@ impl Stats {
         }
     }
 
-    fn ingest_header(&mut self, header: &Header) {
+    fn ingest_types(&mut self, types: &[Value]) {
         if self.moduli.is_empty() {
-            // Header has not yet been ingested
-            for modulo in &header.types {
-                self.moduli.push(modulo.clone());
-            }
+            // Types have not yet been ingested
+            types
+                .iter()
+                .for_each(|modulo| self.moduli.push(modulo.clone()));
         }
     }
 }
@@ -184,8 +184,7 @@ impl GateStats {
             }
 
             Delete(_type_id, first, last) => {
-                let last_one = last.unwrap_or(*first);
-                self.variables_deleted += last_one - *first + 1;
+                self.variables_deleted += *last - *first + 1;
             }
 
             Convert(_, _) => {

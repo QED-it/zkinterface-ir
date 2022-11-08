@@ -3,54 +3,34 @@ use std::mem::size_of;
 
 use crate::structs::inputs::Inputs;
 use crate::structs::wire::WireListElement;
-use crate::{Header, PrivateInputs, PublicInputs, Relation, TypeId};
-
-pub fn example_header() -> Header {
-    example_header_in_type(literal32(EXAMPLE_MODULUS))
-}
-
-pub fn example_public_inputs() -> PublicInputs {
-    example_public_inputs_h(&example_header())
-}
-
-pub fn example_private_inputs() -> PrivateInputs {
-    example_private_inputs_h(&example_header())
-}
-
-pub fn example_private_inputs_incorrect() -> PrivateInputs {
-    example_private_inputs_incorrect_h(&example_header())
-}
-
-pub fn example_relation() -> Relation {
-    example_relation_h(&example_header())
-}
-
-pub fn example_header_in_type(modulo: Vec<u8>) -> Header {
-    Header::new(&[modulo])
-}
+use crate::structs::IR_VERSION;
+use crate::{PrivateInputs, PublicInputs, Relation, TypeId};
 
 // pythogarean example
-pub fn example_public_inputs_h(header: &Header) -> PublicInputs {
+pub fn example_public_inputs() -> PublicInputs {
     PublicInputs {
-        header: header.clone(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(EXAMPLE_MODULUS)],
         inputs: vec![Inputs {
             values: vec![literal32(5)],
         }],
     }
 }
 
-pub fn example_private_inputs_h(header: &Header) -> PrivateInputs {
+pub fn example_private_inputs() -> PrivateInputs {
     PrivateInputs {
-        header: header.clone(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(EXAMPLE_MODULUS)],
         inputs: vec![Inputs {
             values: vec![literal32(3), literal32(4)],
         }],
     }
 }
 
-pub fn example_private_inputs_incorrect_h(header: &Header) -> PrivateInputs {
+pub fn example_private_inputs_incorrect() -> PrivateInputs {
     PrivateInputs {
-        header: header.clone(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(EXAMPLE_MODULUS)],
         inputs: vec![Inputs {
             values: vec![
                 literal32(3),
@@ -60,7 +40,7 @@ pub fn example_private_inputs_incorrect_h(header: &Header) -> PrivateInputs {
     }
 }
 
-pub fn example_relation_h(header: &Header) -> Relation {
+pub fn example_relation() -> Relation {
     use crate::structs::count::Count;
     use crate::structs::function::{Function, FunctionBody};
     use crate::Gate::*;
@@ -68,7 +48,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
     let type_id: TypeId = 0;
 
     Relation {
-        header: header.clone(),
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(EXAMPLE_MODULUS)],
         plugins: vec![],
         functions: vec![Function::new(
             "square".to_string(),
@@ -101,8 +82,8 @@ pub fn example_relation_h(header: &Header) -> Relation {
             MulConstant(type_id, 7, 3, vec![100]),
             Add(type_id, 8, 6, 7),
             AssertZero(type_id, 8),
-            Delete(type_id, 0, Some(2)),
-            Delete(type_id, 3, Some(8)),
+            Delete(type_id, 0, 2),
+            Delete(type_id, 3, 8),
         ],
     }
 }

@@ -98,7 +98,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     type TypeElement = BigUint;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
-        Ok(BigUint::from_bytes_le(val))
+        Ok(value_to_biguint(val))
     }
 
     fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
@@ -115,7 +115,7 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         }
 
         // modulus
-        self.src_modulus = BigUint::from_bytes_le(modulus);
+        self.src_modulus = value_to_biguint(modulus);
 
         self.byte_len = modulus.len();
 
@@ -481,6 +481,7 @@ pub fn pad_to_max(vals: Vec<Value>) -> Vec<u8> {
         .collect::<Vec<u8>>()
 }
 
+use crate::structs::value::value_to_biguint;
 #[cfg(test)]
 use crate::{
     consumers::evaluator::Evaluator,
@@ -504,7 +505,7 @@ fn assert_same_io_values(
                 .instance_variables
                 .get_variables()
                 .iter()
-                .map(|v| BigUint::from_bytes_le(v.value))
+                .map(|v| value_to_biguint(v.value))
                 .collect::<Vec<BigUint>>()
         })
         .collect();
@@ -517,7 +518,7 @@ fn assert_same_io_values(
                 .unwrap()
                 .values
                 .iter()
-                .map(|v| BigUint::from_bytes_le(v))
+                .map(|v| value_to_biguint(v))
                 .collect::<Vec<BigUint>>()
         })
         .collect();
@@ -541,7 +542,7 @@ fn assert_same_witness_values(
                 .assigned_variables
                 .get_variables()
                 .iter()
-                .map(|v| BigUint::from_bytes_le(v.value))
+                .map(|v| value_to_biguint(v.value))
                 .collect::<Vec<BigUint>>()
         })
         .collect();
@@ -555,7 +556,7 @@ fn assert_same_witness_values(
                 .unwrap()
                 .values
                 .iter()
-                .map(|v| BigUint::from_bytes_le(v))
+                .map(|v| value_to_biguint(v))
                 .collect::<Vec<BigUint>>()
         })
         .collect();

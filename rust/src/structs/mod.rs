@@ -10,9 +10,6 @@ pub mod private_inputs;
 /// A structure representing a message of type Relation.
 pub mod relation;
 
-/// A common structure for message headers.
-pub mod header;
-
 /// Message is a wrapper for all types of messages in a common enum.
 pub mod message;
 
@@ -44,4 +41,4 @@ pub type WireId = u64;
 /// Types are identified by a numerical ID.
 pub type TypeId = u8;
 
-pub const IR_VERSION: &str = "1.0.0";
+pub const IR_VERSION: &str = "2.0.0";

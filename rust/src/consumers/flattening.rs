@@ -3,7 +3,8 @@ use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
-use crate::{Header, Result, Sink, TypeId, Value, WireId};
+use crate::structs::value::value_to_biguint;
+use crate::{Result, Sink, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 
@@ -44,16 +45,15 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     type TypeElement = BigUint;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
-        Ok(BigUint::from_bytes_le(val))
+        Ok(value_to_biguint(val))
     }
 
     fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
         if self.b.is_none() {
-            let header = Header::new(moduli);
-            for modulus in moduli {
-                self.moduli.push(BigUint::from_bytes_le(modulus));
-            }
-            self.b = Some(GateBuilder::new(self.sink.take().unwrap(), header));
+            moduli
+                .iter()
+                .for_each(|modulo| self.moduli.push(value_to_biguint(modulo)));
+            self.b = Some(GateBuilder::new(self.sink.take().unwrap(), moduli));
         }
         Ok(())
     }

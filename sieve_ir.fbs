@@ -3,7 +3,6 @@
 namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
-// Ref. SIEVE-IR spec (1.)
 union Message {
    Relation,
    PublicInputs,
@@ -11,27 +10,23 @@ union Message {
 }
 
 // The 'version' field should match the following regexp "^\d+.\d+.\d+$"
-// The 'types' should be a list of primes, and stored little-endian byte-oriented vector
-// Ref. SIEVE-IR spec (3.1)
-table Header {
+table Relation {
    version              :string;
    types                :[Value];
-}
-
-table Relation {
-   header               :Header;
    plugins              :[string];
    functions            :[Function];
    directives           :[Directive];
 }
-// Ref. SIEVE-IR spec (3.2)
+
 table PublicInputs {
-   header               :Header;
+   version              :string;
+   types                :[Value];
    inputs               :[Inputs];
 }
-// Ref. SIEVE-IR spec (3.2)
+
 table PrivateInputs {
-   header               :Header;
+   version              :string;
+   types                :[Value];
    inputs               :[Inputs];
 }
 
@@ -41,14 +36,6 @@ table Inputs {
 
 // ==== Helper types ====
 
-table WireId {
-	id     :uint64;
-}
-
-table TypeId {
-	id     :ubyte;
-}
-
 // Type element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
@@ -56,21 +43,20 @@ table Value {
 }
 
 table Count {
-	type_id    :TypeId;
+	type_id    :ubyte;
 	count      :uint64;
 }
 
 table Wire {
-	type_id     :TypeId;
-    wire_id     :WireId;
+	type_id     :ubyte;
+    wire_id     :uint64;
 }
 
 // first/last are inclusive
-// Ref. SIEVE-IR spec (3.4)
 table WireRange {
-	type_id    :TypeId;
-    first      :WireId;
-    last       :WireId;
+	type_id    :ubyte;
+    first_id   :uint64;
+    last_id    :uint64;
 }
 
 union WireListElementU {
@@ -90,78 +76,77 @@ table WireList {
 // ==== Gate types ====
 
 table GateConstant {
-   type_id     :TypeId;
-   output      :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
    constant    :[ubyte];
 }
 
 table GateAssertZero {
-   type_id     :TypeId;
-   input       :WireId;
+   type_id     :ubyte;
+   in_id       :uint64;
 }
 
 table GateCopy {
-   type_id     :TypeId;
-   output      :WireId;
-   input       :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
+   in_id       :uint64;
 }
 
 table GateAdd {
-   type_id     :TypeId;
-   output      :WireId;
-   left        :WireId;
-   right       :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
+   left_id     :uint64;
+   right_id    :uint64;
 }
 
 table GateMul {
-   type_id     :TypeId;
-   output      :WireId;
-   left        :WireId;
-   right       :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
+   left_id     :uint64;
+   right_id    :uint64;
 }
 
 table GateAddConstant {
-   type_id     :TypeId;
-   output      :WireId;
-   input       :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
+   in_id       :uint64;
    constant    :[ubyte];
 }
 
 table GateMulConstant {
-   type_id     :TypeId;
-   output      :WireId;
-   input       :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
+   in_id       :uint64;
    constant    :[ubyte];
 }
 
 table GatePublicInput {
-   type_id     :TypeId;
-   output      :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
 }
 
 table GatePrivateInput {
-   type_id     :TypeId;
-   output      :WireId;
+   type_id     :ubyte;
+   out_id      :uint64;
 }
 
 // To allocate in a contiguous space all wires between the first and the last inclusive.
 table GateNew {
-   type_id     :TypeId;
-   first       :WireId;
-   last        :WireId;
+   type_id     :ubyte;
+   first_id    :uint64;
+   last_id     :uint64;
 }
 
+// To deallocate wires between first and last inclusive
 table GateDelete {
-   type_id     :TypeId;
-   // First wire ID to deallocate.
-   first       :WireId;
-   // Last wire ID is optional. Deallocate the range [first; last] inclusive.
-   last        :WireId;
+   type_id     :ubyte;
+   first_id    :uint64;
+   last_id     :uint64;
 }
 
 table GateConvert {
-	output    :WireList;
-	input     :WireList;
+	out_ids    :WireList;
+	in_ids     :WireList;
 }
 
 union FunctionBody {
@@ -187,7 +172,6 @@ table PluginBody {
 //       [`.' | `::']
 //       [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
 //   )*
-// Ref. SIEVE-IR spec (3.5)
 table Function {
     // Declare a Function gate as a custom computation
     name            :string;
@@ -197,11 +181,10 @@ table Function {
 }
 
 // Invokes a previously defined Function gate
-// Ref. SIEVE-IR spec (3.5)
 table GateCall {
     name              :string;
-    output_wires      :WireList;
-    input_wires       :WireList;
+    out_ids      :WireList;
+    in_ids       :WireList;
 }
 
 union DirectiveSet {

@@ -5,13 +5,14 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
 
-use super::header::Header;
+use super::value::{build_values_vector, try_from_values_vector, Value};
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::inputs::Inputs;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct PublicInputs {
-    pub header: Header,
+    pub version: String,
+    pub types: Vec<Value>,
     pub inputs: Vec<Inputs>,
 }
 
@@ -26,7 +27,11 @@ impl<'a> TryFrom<generated::PublicInputs<'a>> for PublicInputs {
             public_inputs.push(Inputs::try_from(g_inputs)?);
         }
         Ok(PublicInputs {
-            header: Header::try_from(g_public_inputs.header())?,
+            version: g_public_inputs
+                .version()
+                .ok_or("Missing version")?
+                .to_string(),
+            types: try_from_values_vector(g_public_inputs.types().ok_or("Missing types")?)?,
             inputs: public_inputs,
         })
     }
@@ -47,7 +52,8 @@ impl<'a> TryFrom<&'a [u8]> for PublicInputs {
 impl PublicInputs {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
-        let header = Some(self.header.build(builder));
+        let g_version = builder.create_string(&self.version);
+        let g_types = build_values_vector(builder, &self.types);
         let g_inputs: Vec<_> = self
             .inputs
             .iter()
@@ -58,7 +64,8 @@ impl PublicInputs {
         let public_inputs = generated::PublicInputs::create(
             builder,
             &generated::PublicInputsArgs {
-                header,
+                version: Some(g_version),
+                types: Some(g_types),
                 inputs: Some(g_vector),
             },
         );

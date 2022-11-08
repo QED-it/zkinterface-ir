@@ -17,7 +17,7 @@ pub enum BuildGate {
     PublicInput(TypeId, Option<Value>),
     PrivateInput(TypeId, Option<Value>),
     New(TypeId, WireId, WireId),
-    Delete(TypeId, WireId, Option<WireId>),
+    Delete(TypeId, WireId, WireId),
 }
 
 pub const NO_OUTPUT: WireId = WireId::MAX;

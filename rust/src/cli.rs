@@ -151,13 +151,12 @@ fn stream_messages(opts: &Options) -> Result<Source> {
 fn main_example(opts: &Options) -> Result<()> {
     use crate::producers::examples::*;
 
-    let header = example_header();
-    let public_inputs = example_public_inputs_h(&header);
-    let relation = example_relation_h(&header);
+    let public_inputs = example_public_inputs();
+    let relation = example_relation();
     let private_inputs = if opts.incorrect {
-        example_private_inputs_incorrect_h(&header)
+        example_private_inputs_incorrect()
     } else {
-        example_private_inputs_h(&header)
+        example_private_inputs()
     };
     write_example(opts, &public_inputs, &private_inputs, &relation)?;
     Ok(())

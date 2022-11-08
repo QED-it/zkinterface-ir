@@ -1,7 +1,7 @@
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
 use crate::{TypeId, WireId};
-use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -19,82 +19,11 @@ use WireListElement::*;
 pub type WireList = Vec<WireListElement>;
 
 // =========================================
-//                WireId
-// =========================================
-
-/// Convert from Flatbuffers references to owned structure.
-pub fn from_wire_id(g_wire_id: &generated::WireId) -> WireId {
-    g_wire_id.id()
-}
-
-/// Convert from a Flatbuffers vector to owned structures.
-pub fn from_wire_ids_vector(g_vector: &[generated::WireId]) -> Vec<WireId> {
-    g_vector.iter().map(|g_wire_id| g_wire_id.id()).collect()
-}
-
-/// Add this structure into a Flatbuffers message builder.
-pub fn build_wire_id<'a>(
-    builder: &mut FlatBufferBuilder<'a>,
-    id: WireId,
-) -> WIPOffset<generated::WireId<'a>> {
-    generated::WireId::create(builder, &generated::WireIdArgs { id })
-}
-
-/// Add this structure into a Flatbuffers message builder.
-pub fn build_wire_ids_vector<'a>(
-    builder: &mut FlatBufferBuilder<'a>,
-    wire_ids: &[WireId],
-) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::WireId<'a>>>> {
-    let g_wire_ids: Vec<_> = wire_ids
-        .iter()
-        .map(|id| build_wire_id(builder, *id))
-        .collect();
-    builder.create_vector(&g_wire_ids)
-}
-
-// =========================================
-//                TypeId
-// =========================================
-
-/// Convert from Flatbuffers references to owned structure.
-pub fn from_type_id(g_type_id: &generated::TypeId) -> TypeId {
-    g_type_id.id()
-}
-
-/// Convert from a Flatbuffers vector to owned structures.
-pub fn from_type_ids_vector(g_vector: &[generated::TypeId]) -> Vec<TypeId> {
-    g_vector.iter().map(|g_type_id| g_type_id.id()).collect()
-}
-
-/// Add this structure into a Flatbuffers message builder.
-pub fn build_type_id<'a>(
-    builder: &mut FlatBufferBuilder<'a>,
-    id: TypeId,
-) -> WIPOffset<generated::TypeId<'a>> {
-    generated::TypeId::create(builder, &generated::TypeIdArgs { id })
-}
-
-/// Add this structure into a Flatbuffers message builder.
-pub fn build_type_ids_vector<'a>(
-    builder: &mut FlatBufferBuilder<'a>,
-    type_ids: &[TypeId],
-) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::TypeId<'a>>>> {
-    let g_type_ids: Vec<_> = type_ids
-        .iter()
-        .map(|id| build_type_id(builder, *id))
-        .collect();
-    builder.create_vector(&g_type_ids)
-}
-
-// =========================================
 //              Wire
 // =========================================
 /// Convert from Flatbuffers references to owned structure.
 pub fn from_wire(g_wire: &generated::Wire) -> Result<(TypeId, WireId)> {
-    Ok((
-        g_wire.type_id().ok_or("Missing type id in wire")?.id() as u8,
-        g_wire.wire_id().ok_or("Missing wire id in wire")?.id(),
-    ))
+    Ok((g_wire.type_id(), g_wire.wire_id()))
 }
 
 /// Add this structure into a Flatbuffers message builder.
@@ -103,15 +32,7 @@ pub fn build_wire<'a>(
     type_id: TypeId,
     wire_id: WireId,
 ) -> WIPOffset<generated::Wire<'a>> {
-    let fbs_type_id = build_type_id(builder, type_id);
-    let fbs_wire_id = build_wire_id(builder, wire_id);
-    generated::Wire::create(
-        builder,
-        &generated::WireArgs {
-            type_id: Some(fbs_type_id),
-            wire_id: Some(fbs_wire_id),
-        },
-    )
+    generated::Wire::create(builder, &generated::WireArgs { type_id, wire_id })
 }
 
 // =========================================
@@ -120,15 +41,9 @@ pub fn build_wire<'a>(
 /// Convert from Flatbuffers references to owned structure.
 pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(TypeId, WireId, WireId)> {
     Ok((
-        g_wirerange
-            .type_id()
-            .ok_or("Missing type id in range")?
-            .id() as u8,
-        g_wirerange
-            .first()
-            .ok_or("Missing start value in range")?
-            .id(),
-        g_wirerange.last().ok_or("Missing end value in range")?.id(),
+        g_wirerange.type_id(),
+        g_wirerange.first_id(),
+        g_wirerange.last_id(),
     ))
 }
 
@@ -136,18 +51,15 @@ pub fn from_range(g_wirerange: &generated::WireRange) -> Result<(TypeId, WireId,
 pub fn build_range<'a>(
     builder: &mut FlatBufferBuilder<'a>,
     type_id: TypeId,
-    first: WireId,
-    last: WireId,
+    first_id: WireId,
+    last_id: WireId,
 ) -> WIPOffset<generated::WireRange<'a>> {
-    let fbs_type_id = build_type_id(builder, type_id);
-    let fbs_first = build_wire_id(builder, first);
-    let fbs_last = build_wire_id(builder, last);
     generated::WireRange::create(
         builder,
         &generated::WireRangeArgs {
-            type_id: Some(fbs_type_id),
-            first: Some(fbs_first),
-            last: Some(fbs_last),
+            type_id,
+            first_id,
+            last_id,
         },
     )
 }
@@ -166,18 +78,11 @@ impl<'a> TryFrom<generated::WireListElement<'a>> for WireListElement {
             }
             generated::WireListElementU::Wire => {
                 let wire = element.element_as_wire().unwrap();
-                Wire(
-                    wire.type_id().ok_or("Missing type id of wire")?.id(),
-                    wire.wire_id().ok_or("Missing wire id of wire")?.id(),
-                )
+                Wire(wire.type_id(), wire.wire_id())
             }
             generated::WireListElementU::WireRange => {
                 let range = element.element_as_wire_range().unwrap();
-                WireRange(
-                    range.type_id().ok_or("Missing type id of range")?.id(),
-                    range.first().ok_or("Missing first value of range")?.id(),
-                    range.last().ok_or("Missing last value of range")?.id(),
-                )
+                WireRange(range.type_id(), range.first_id(), range.last_id())
             }
         })
     }

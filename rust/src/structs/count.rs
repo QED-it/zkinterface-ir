@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::structs::wire::{build_type_id, WireList, WireListElement};
+use crate::structs::wire::{WireList, WireListElement};
 use crate::TypeId;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -21,7 +21,7 @@ impl<'a> TryFrom<generated::Count<'a>> for Count {
 
     fn try_from(g_count: generated::Count) -> Result<Count> {
         Ok(Count {
-            type_id: g_count.type_id().ok_or("Missing type id")?.id(),
+            type_id: g_count.type_id(),
             count: g_count.count(),
         })
     }
@@ -38,12 +38,10 @@ impl Count {
         &self,
         builder: &mut FlatBufferBuilder<'a>,
     ) -> WIPOffset<generated::Count<'a>> {
-        let g_type_id = build_type_id(builder, self.type_id);
-
         generated::Count::create(
             builder,
             &generated::CountArgs {
-                type_id: Some(g_type_id),
+                type_id: self.type_id,
                 count: self.count,
             },
         )

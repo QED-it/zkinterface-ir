@@ -2,12 +2,11 @@ use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::{wirelist_to_count_list, Count};
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
+use crate::structs::value::value_to_biguint;
 use crate::structs::wire::{
     expand_wirelist, is_one_type_wirelist, wirelist_len, wirelist_to_hashmap, WireList,
 };
-use crate::{
-    Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId,
-};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use std::collections::{HashMap, VecDeque};
@@ -147,7 +146,8 @@ struct FunctionDeclaration {
 pub struct Evaluator<B: ZKBackend> {
     values: HashMap<(TypeId, WireId), B::Wire>,
     inputs: EvaluatorInputs<B>,
-    params: EvaluatorParams,
+    // name => (body, output_count, input_count)
+    known_functions: HashMap<String, FunctionDeclaration>,
 
     verified_at_least_one_gate: bool,
     found_error: Option<String>,
@@ -157,7 +157,7 @@ impl<B: ZKBackend> Default for Evaluator<B> {
     fn default() -> Self {
         Evaluator {
             values: Default::default(),
-            params: Default::default(),
+            known_functions: Default::default(),
             inputs: Default::default(),
             verified_at_least_one_gate: false,
             found_error: None,
@@ -177,13 +177,6 @@ impl<B: ZKBackend> Default for EvaluatorInputs<B> {
             private_inputs_queue: Default::default(),
         }
     }
-}
-
-#[derive(Default)]
-pub struct EvaluatorParams {
-    moduli: Vec<BigUint>,
-    // name => (body, output_count, input_count)
-    known_functions: HashMap<String, FunctionDeclaration>,
 }
 
 impl<B: ZKBackend> Evaluator<B> {
@@ -231,22 +224,9 @@ impl<B: ZKBackend> Evaluator<B> {
         }
     }
 
-    fn ingest_header(&mut self, header: &Header) -> Result<()> {
-        if !self.params.moduli.is_empty() {
-            // Header has already been ingested !
-            return Ok(());
-        }
-        for modulo in &header.types {
-            self.params.moduli.push(BigUint::from_bytes_le(modulo));
-        }
-        Ok(())
-    }
-
     /// Ingest a `PublicInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the public input values in a pool.
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) -> Result<()> {
-        self.ingest_header(&public_inputs.header)?;
-
         for (i, inputs) in public_inputs.inputs.iter().enumerate() {
             let values = self
                 .inputs
@@ -263,8 +243,6 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `PrivateInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the private input values in a pool.
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) -> Result<()> {
-        self.ingest_header(&private_inputs.header)?;
-
         for (i, inputs) in private_inputs.inputs.iter().enumerate() {
             let values = self
                 .inputs
@@ -280,15 +258,14 @@ impl<B: ZKBackend> Evaluator<B> {
 
     /// Ingest a `Relation` message
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
-        self.ingest_header(&relation.header)?;
-        backend.set_types(&relation.header.types)?;
+        backend.set_types(&relation.types)?;
 
         if !relation.gates.is_empty() {
             self.verified_at_least_one_gate = true;
         }
 
         for f in relation.functions.iter() {
-            self.params.known_functions.insert(
+            self.known_functions.insert(
                 f.name.clone(),
                 FunctionDeclaration {
                     body: f.body.clone(),
@@ -303,7 +280,7 @@ impl<B: ZKBackend> Evaluator<B> {
                 gate,
                 backend,
                 &mut self.values,
-                &self.params,
+                &self.known_functions,
                 &mut self.inputs,
             )?;
         }
@@ -322,7 +299,7 @@ impl<B: ZKBackend> Evaluator<B> {
         gate: &Gate,
         backend: &mut B,
         scope: &mut HashMap<(TypeId, WireId), B::Wire>,
-        params: &EvaluatorParams,
+        known_functions: &HashMap<String, FunctionDeclaration>,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         use Gate::*;
@@ -416,8 +393,7 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             Delete(type_id, first, last) => {
-                let last_value = last.unwrap_or(*first);
-                for current in *first..=last_value {
+                for current in *first..=*last {
                     remove::<B>(scope, *type_id, current)?;
                 }
             }
@@ -467,7 +443,7 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             Call(name, output_wires, input_wires) => {
-                let function = params.known_functions.get(name).ok_or("Unknown function")?;
+                let function = known_functions.get(name).ok_or("Unknown function")?;
 
                 // simple checks.
                 let output_count = wirelist_to_count_list(output_wires);
@@ -487,7 +463,7 @@ impl<B: ZKBackend> Evaluator<B> {
                             output_wires,
                             input_wires,
                             scope,
-                            params,
+                            known_functions,
                             inputs,
                         )?;
                     }
@@ -536,7 +512,7 @@ impl<B: ZKBackend> Evaluator<B> {
         output_list: &WireList,
         input_list: &WireList,
         scope: &mut HashMap<(TypeId, WireId), B::Wire>,
-        params: &EvaluatorParams,
+        known_functions: &HashMap<String, FunctionDeclaration>,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         let mut new_scope: HashMap<(TypeId, WireId), B::Wire> = HashMap::new();
@@ -557,7 +533,7 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         // evaluate the subcircuit in the new scope.
         for gate in subcircuit {
-            Self::ingest_gate(gate, backend, &mut new_scope, params, inputs)?;
+            Self::ingest_gate(gate, backend, &mut new_scope, known_functions, inputs)?;
         }
         // copy the outputs produced from 'new_scope', into 'scope'
         let expanded_outputs = expand_wirelist(output_list)?;
@@ -669,7 +645,7 @@ impl ZKBackend for PlaintextBackend {
     type TypeElement = BigUint;
 
     fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement> {
-        Ok(BigUint::from_bytes_le(val))
+        Ok(value_to_biguint(val))
     }
 
     fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
@@ -677,7 +653,7 @@ impl ZKBackend for PlaintextBackend {
             self.m = vec![];
         }
         for val in moduli {
-            let biguint_val = &BigUint::from_bytes_le(val);
+            let biguint_val = &value_to_biguint(val);
             if biguint_val.is_zero() {
                 return Err("Modulus cannot be zero.".into());
             }

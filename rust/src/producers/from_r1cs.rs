@@ -3,7 +3,7 @@ use num_traits::One;
 use std::ops::Add;
 
 use crate::producers::builder::{BuildGate, GateBuilder, GateBuilderT};
-use crate::{Header, Result, Sink, WireId};
+use crate::{Result, Sink, Value, WireId};
 use BuildGate::*;
 
 use std::collections::BTreeMap;
@@ -27,7 +27,7 @@ impl<S: Sink> FromR1CSConverter<S> {
     /// the ZKI CircuitHeader will be used to preallocate things
     pub fn new(sink: S, zki_header: &zkiCircuitHeader) -> Self {
         let mut conv = Self {
-            b: GateBuilder::new(sink, zki_header_to_header(zki_header).unwrap()),
+            b: GateBuilder::new(sink, &zki_header_to_types(zki_header).unwrap()),
             r1cs_to_ir_wire: Default::default(),
             minus_one: 0,
         };
@@ -144,7 +144,7 @@ impl<S: Sink> FromR1CSConverter<S> {
     }
 }
 
-fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
+fn zki_header_to_types(zki_header: &zkiCircuitHeader) -> Result<Vec<Value>> {
     match &zki_header.field_maximum {
         None => Err("field_maximum must be provided".into()),
 
@@ -153,7 +153,7 @@ fn zki_header_to_header(zki_header: &zkiCircuitHeader) -> Result<Header> {
             let one: u8 = 1;
             fc = fc.add(one);
 
-            Ok(Header::new(&[fc.to_bytes_le()]))
+            Ok(vec![fc.to_bytes_le()])
         }
     }
 }
@@ -188,8 +188,8 @@ fn test_r1cs_to_gates() -> Result<()> {
     let zki_r1cs = zki_example_constraints();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
-    let ir_header = zki_header_to_header(&zki_header)?;
-    assert_header(&ir_header);
+    let ir_types = zki_header_to_types(&zki_header)?;
+    assert_types(&ir_types);
 
     let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 
@@ -222,12 +222,11 @@ fn test_r1cs_to_gates() -> Result<()> {
 }
 
 #[cfg(test)]
-fn assert_header(header: &Header) {
-    use crate::structs::IR_VERSION;
+fn assert_types(types: &[Value]) {
     use num_traits::ToPrimitive;
 
-    assert_eq!(header.version, IR_VERSION);
-    let fc = BigUint::from_bytes_le(&header.types[0]);
+    assert_eq!(types.len(), 1);
+    let fc = BigUint::from_bytes_le(&types[0]);
     assert_eq!(fc.to_u32().unwrap(), 101);
 }
 
@@ -242,8 +241,8 @@ fn test_r1cs_stats() -> Result<()> {
     let zki_r1cs = zki_example_constraints();
     let zki_witness = zki_example_witness_inputs(3, 4);
 
-    let ir_header = zki_header_to_header(&zki_header)?;
-    assert_header(&ir_header);
+    let ir_types = zki_header_to_types(&zki_header)?;
+    assert_types(&ir_types);
 
     let mut converter = FromR1CSConverter::new(MemorySink::default(), &zki_header);
 

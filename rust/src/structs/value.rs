@@ -1,6 +1,7 @@
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use num_bigint::BigUint;
 use num_bigint_dig;
 use num_bigint_dig::prime::probably_prime;
 
@@ -60,4 +61,8 @@ fn test_is_probably_prime() {
 
     let value: Value = vec![101];
     assert!(is_probably_prime(&value));
+}
+
+pub fn value_to_biguint(value: &[u8]) -> BigUint {
+    BigUint::from_bytes_le(value)
 }

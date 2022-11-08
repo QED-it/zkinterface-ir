@@ -12,8 +12,9 @@ use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::value::Value;
 use crate::structs::wire::{wirelist_to_hashmap, WireList, WireListElement};
+use crate::structs::IR_VERSION;
 use crate::Result;
-use crate::{Gate, Header, PrivateInputs, PublicInputs, Relation, Sink, TypeId, WireId};
+use crate::{Gate, PrivateInputs, PublicInputs, Relation, Sink, TypeId, WireId};
 
 pub trait GateBuilderT {
     /// Allocates a new wire id for the output and creates a new gate,
@@ -52,21 +53,24 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-    fn new(sink: S, header: Header) -> Self {
-        let public_inputs = vec![Inputs { values: vec![] }; header.types.len()];
-        let private_inputs = vec![Inputs { values: vec![] }; header.types.len()];
+    fn new(sink: S, types: &[Value]) -> Self {
+        let public_inputs = vec![Inputs { values: vec![] }; types.len()];
+        let private_inputs = vec![Inputs { values: vec![] }; types.len()];
         Self {
             sink,
             public_inputs: PublicInputs {
-                header: header.clone(),
+                version: IR_VERSION.to_string(),
+                types: types.to_owned(),
                 inputs: public_inputs,
             },
             private_inputs: PrivateInputs {
-                header: header.clone(),
+                version: IR_VERSION.to_string(),
+                types: types.to_owned(),
                 inputs: private_inputs,
             },
             relation: Relation {
-                header,
+                version: IR_VERSION.to_string(),
+                types: types.to_owned(),
                 plugins: vec![],
                 functions: vec![],
                 gates: vec![],
@@ -189,9 +193,8 @@ impl<S: Sink> MessageBuilder<S> {
 /// ```
 /// use zki_sieve::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
-/// use zki_sieve::Header;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
+/// let mut b = GateBuilder::new(MemorySink::default(), &vec![vec![2]]);
 ///
 /// let type_id = 0;
 /// let my_id = b.create_gate(Constant(type_id, vec![0])).unwrap();
@@ -332,7 +335,7 @@ fn multiple_alloc(
 impl<S: Sink> GateBuilderT for GateBuilder<S> {
     fn create_gate(&mut self, mut gate: BuildGate) -> Result<WireId> {
         let type_id = gate.get_type_id();
-        if usize::try_from(type_id)? >= self.msg_build.relation.header.types.len() {
+        if usize::try_from(type_id)? >= self.msg_build.relation.types.len() {
             return Err(format!(
                 "Type id {} is not defined, we cannot create the gate",
                 type_id
@@ -435,9 +438,9 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
-    pub fn new(sink: S, header: Header) -> Self {
+    pub fn new(sink: S, types: &[Value]) -> Self {
         GateBuilder {
-            msg_build: MessageBuilder::new(sink, header),
+            msg_build: MessageBuilder::new(sink, types),
             known_plugins: HashSet::new(),
             known_functions: HashMap::new(),
             next_available_id: HashMap::new(),
@@ -533,7 +536,7 @@ impl<S: Sink> GateBuilder<S> {
 }
 
 pub fn new_example_builder() -> GateBuilder<MemorySink> {
-    GateBuilder::new(MemorySink::default(), Header::default())
+    GateBuilder::new(MemorySink::default(), &[vec![2]])
 }
 
 pub struct FunctionWithInputsCounts {
@@ -554,9 +557,8 @@ pub struct FunctionWithInputsCounts {
 /// use zki_sieve::structs::count::Count;
 /// use zki_sieve::structs::wire::WireListElement;
 /// use zki_sieve::wirelist;
-/// use zki_sieve::Header;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), Header::default());
+/// let mut b = GateBuilder::new(MemorySink::default(), &vec![vec![7]]);
 ///
 ///  let private_square = {
 ///     let mut fb = b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
@@ -709,11 +711,11 @@ fn test_builder_with_function() {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
-    use crate::producers::{examples, sink::MemorySink};
+    use crate::producers::sink::MemorySink;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
-    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
 
     let custom_sub = {
         let mut fb = b.new_function_builder(
@@ -801,13 +803,13 @@ fn test_builder_with_several_functions() {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
-    use crate::producers::{examples, sink::MemorySink};
+    use crate::producers::sink::MemorySink;
     use crate::structs::wire::expand_wirelist;
     use crate::wirelist;
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
 
     let private_square = {
         let mut fb =
@@ -897,12 +899,12 @@ fn test_builder_with_plugin() {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
     use crate::consumers::source::Source;
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
-    use crate::producers::{examples, sink::MemorySink};
+    use crate::producers::sink::MemorySink;
     use crate::structs::wire::expand_wirelist;
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), examples::example_header());
+    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
 
     let vector_len: u64 = 2;
     let vector_add_plugin = create_plugin_function(

@@ -1,4 +1,4 @@
-use crate::{Gate, Header, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, WireId};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -6,7 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use crate::consumers::evaluator::get_modulo;
 use crate::structs::count::{count_list_to_hashmap, wirelist_to_count_list, Count};
 use crate::structs::function::FunctionBody;
-use crate::structs::value::is_probably_prime;
+use crate::structs::value::{is_probably_prime, value_to_biguint};
 use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, WireList};
 use regex::Regex;
 use std::cmp::Ordering;
@@ -124,28 +124,28 @@ impl Validator {
         }
     }
 
-    fn ingest_header(&mut self, header: &Header) {
+    fn ingest_header(&mut self, version: &str, types: &[Value]) {
         if self.got_header {
             // in this case, ensure that headers are compatible
-            if self.moduli.len() != header.types.len() {
-                self.violate("The types are not consistent across headers.");
+            if self.moduli.len() != types.len() {
+                self.violate("The types are not consistent across ressources.");
             }
-            for (previous_modulo, new_modulo) in self.moduli.iter().zip(header.types.iter()) {
-                if previous_modulo != &BigUint::from_bytes_le(new_modulo) {
-                    self.violate("The types are not consistent across headers.");
+            for (previous_modulo, new_modulo) in self.moduli.iter().zip(types.iter()) {
+                if previous_modulo != &value_to_biguint(new_modulo) {
+                    self.violate("The types are not consistent across ressources.");
                     break;
                 }
             }
 
-            if self.header_version != header.version {
-                self.violate("The profile version is not consistent across headers.");
+            if self.header_version != *version {
+                self.violate("The profile version is not consistent across ressources.");
             }
         } else {
             self.got_header = true;
 
             // Check validity of type values
-            for modulo in &header.types {
-                let biguint_modulo = BigUint::from_bytes_le(modulo).clone();
+            for modulo in types {
+                let biguint_modulo = value_to_biguint(modulo);
                 self.moduli.push(biguint_modulo.clone());
                 if biguint_modulo.cmp(&One::one()) != Ordering::Greater {
                     self.violate("All type moduli should be > 1");
@@ -155,12 +155,12 @@ impl Validator {
                 }
             }
 
-            // check header version
+            // check version
             let re = Regex::new(VERSION_REGEX).unwrap();
-            if !re.is_match(header.version.trim()) {
+            if !re.is_match(version.trim()) {
                 self.violate("The profile version should match the following format <major>.<minor>.<patch>.");
             }
-            self.header_version = header.version.clone();
+            self.header_version = version.to_string();
 
             // Initialize public/private_inputs_queue_len
             self.public_inputs_queue_len = HashMap::new();
@@ -169,7 +169,7 @@ impl Validator {
     }
 
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        self.ingest_header(&public_inputs.header);
+        self.ingest_header(&public_inputs.version, &public_inputs.types);
 
         // Provide values on the queue available for PublicInput gates.
         for (i, public_inputs_per_type) in public_inputs.inputs.iter().enumerate() {
@@ -188,7 +188,7 @@ impl Validator {
         if !self.as_prover {
             self.violate("As verifier, got an unexpected PrivateInputs message.");
         }
-        self.ingest_header(&private_inputs.header);
+        self.ingest_header(&private_inputs.version, &private_inputs.types);
 
         // Provide values on the queue available for PrivateInput gates.
         for (i, private_inputs_per_type) in private_inputs.inputs.iter().enumerate() {
@@ -204,7 +204,7 @@ impl Validator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
-        self.ingest_header(&relation.header);
+        self.ingest_header(&relation.version, &relation.types);
 
         relation.plugins.iter().for_each(|plugin| {
             self.known_plugins.insert(plugin.clone());
@@ -335,10 +335,10 @@ impl Validator {
 
             New(type_id, first, last) => {
                 // Ensure first < last
-                if last <= first {
+                if *last <= *first {
                     self.violate(format!(
                         "For New gates, last WireId ({}) must be strictly greater than first WireId ({}).",
-                        last, first
+                        *last, *first
                     ));
                 }
                 // Ensure wires have not already been allocated by another New gate
@@ -359,24 +359,23 @@ impl Validator {
 
             Delete(type_id, first, last) => {
                 // first < last
-                if let Some(last_id) = last {
-                    if last_id <= first {
-                        self.violate(format!(
-                            "For Delete gates, last WireId ({}) must be strictly greater than first WireId ({}).",
-                            last_id, first
+                if *last < *first {
+                    self.violate(format!(
+                            "For Delete gates, last WireId ({}) must be greater than first WireId ({}).",
+                            *last, *first
                         ));
-                    }
-                    // Check whether the Delete gate match a preceding New gate
-                    // If so, remove the preceding New gate from new_wire_ranges
-                    if self.new_gates.contains(&(*type_id, *first, *last_id)) {
-                        self.new_gates.remove(&(*type_id, *first, *last_id));
-                    }
+                }
+
+                // Check whether the Delete gate match a preceding New gate
+                // If so, remove the preceding New gate from new_wire_ranges
+                if self.new_gates.contains(&(*type_id, *first, *last)) {
+                    self.new_gates.remove(&(*type_id, *first, *last));
                 }
 
                 // Check whether some wires belong to a New gate
                 // If a New gate matches this Delete gate, we have already removed it from new_gates HashSet.
                 // Thus, if a wire still belongs to a New gate, it means that we have a violation.
-                for wire_id in *first..=last.unwrap_or(*first) {
+                for wire_id in *first..=*last {
                     if self.belong_to_new_gates(type_id, &wire_id) {
                         self.violate(format!(
                             "For Delete gates, ({}:{}) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
@@ -389,7 +388,7 @@ impl Validator {
                 // For all wires between first and last INCLUSIVE
                 // - check that they are already set
                 // - delete them
-                for wire_id in *first..=last.unwrap_or(*first) {
+                for wire_id in *first..=*last {
                     self.ensure_defined_and_set(type_id, wire_id);
                     self.remove(type_id, wire_id);
                 }
@@ -693,7 +692,7 @@ impl Validator {
         let int = &TypeElement::from_bytes_le(value);
         if int >= modulo {
             let msg = format!(
-                "The {} cannot be represented in the type specified in Header ({} >= {}).",
+                "The {} cannot be represented in the type specified ({} >= {}).",
                 name(),
                 int,
                 modulo
@@ -785,11 +784,11 @@ fn test_validator_violations() -> Result<()> {
     let mut relation = example_relation();
 
     // Create a violation by using a value too big for the type.
-    public_inputs.inputs[0].values[0] = public_inputs.header.types[0].clone();
+    public_inputs.inputs[0].values[0] = public_inputs.types[0].clone();
     // Create a violation by omitting a private input value.
     private_inputs.inputs[0].values.pop().unwrap();
-    // Create a violation by using different headers.
-    relation.header.types = vec![vec![10]];
+    // Create a violation by using different types.
+    relation.types = vec![vec![10]];
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -800,8 +799,8 @@ fn test_validator_violations() -> Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The public value [101, 0, 0, 0] cannot be represented in the type specified in Header (101 >= 101).",
-            "The types are not consistent across headers.",
+            "The public value [101, 0, 0, 0] cannot be represented in the type specified (101 >= 101).",
+            "The types are not consistent across ressources.",
             "Not enough private input value to consume.",
         ]
     );
@@ -817,8 +816,8 @@ fn test_validator_delete_violations() -> Result<()> {
     let private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
-    relation.gates.push(Gate::Delete(0, 1, Some(2)));
-    relation.gates.push(Gate::Delete(0, 4, None));
+    relation.gates.push(Gate::Delete(0, 1, 2));
+    relation.gates.push(Gate::Delete(0, 4, 4));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -853,7 +852,7 @@ fn test_validator_new_violations() -> Result<()> {
     relation.gates.push(Gate::Constant(0, 101, vec![0]));
     relation.gates.push(Gate::Constant(0, 102, vec![0]));
     relation.gates.push(Gate::Constant(0, 103, vec![0]));
-    relation.gates.push(Gate::Delete(0, 99, Some(101)));
+    relation.gates.push(Gate::Delete(0, 99, 101));
 
     // Violation: New gate contains a wire already set
     relation.gates.push(Gate::Constant(0, 107, vec![0]));
