@@ -29,6 +29,9 @@ pub mod wirerange;
 /// It is used for all public/private count and for inputs/outputs count in function declarations
 pub mod count;
 
+/// Handle conversion declaration
+pub mod conversion;
+
 /// Handles the Call gate stuff
 pub mod function;
 

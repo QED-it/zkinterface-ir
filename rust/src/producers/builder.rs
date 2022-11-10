@@ -5,6 +5,7 @@ use std::mem::take;
 use super::build_gates::NO_OUTPUT;
 pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
+use crate::structs::conversion::Conversion;
 use crate::structs::count::Count;
 use crate::structs::function::{Function, FunctionBody, FunctionCounts};
 use crate::structs::gates::replace_output_wires;
@@ -72,8 +73,9 @@ impl<S: Sink> MessageBuilder<S> {
             },
             relation: Relation {
                 version: IR_VERSION.to_string(),
-                types: types.to_owned(),
                 plugins: vec![],
+                types: types.to_owned(),
+                conversions: vec![],
                 functions: vec![],
                 gates: vec![],
             },
@@ -120,7 +122,10 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn push_gate(&mut self, gate: Gate) {
         self.relation.gates.push(gate);
-        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+        if self.relation.gates.len()
+            + self.relation.plugins.len()
+            + self.relation.conversions.len()
+            + self.functions_size
             >= self.max_len
         {
             self.flush_relation();
@@ -129,7 +134,22 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn push_plugin(&mut self, plugin_name: String) {
         self.relation.plugins.push(plugin_name);
-        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+        if self.relation.gates.len()
+            + self.relation.plugins.len()
+            + self.relation.conversions.len()
+            + self.functions_size
+            >= self.max_len
+        {
+            self.flush_relation();
+        }
+    }
+
+    fn push_conversion(&mut self, conversion: Conversion) {
+        self.relation.conversions.push(conversion);
+        if self.relation.gates.len()
+            + self.relation.plugins.len()
+            + self.relation.conversions.len()
+            + self.functions_size
             >= self.max_len
         {
             self.flush_relation();
@@ -143,7 +163,10 @@ impl<S: Sink> MessageBuilder<S> {
         };
         self.functions_size += func_size;
         self.relation.functions.push(function);
-        if self.relation.gates.len() + self.relation.plugins.len() + self.functions_size
+        if self.relation.gates.len()
+            + self.relation.plugins.len()
+            + self.relation.conversions.len()
+            + self.functions_size
             >= self.max_len
         {
             self.flush_relation();
@@ -208,6 +231,7 @@ pub struct GateBuilder<S: Sink> {
     // name => FunctionCounts
     known_functions: HashMap<String, FunctionCounts>,
     known_plugins: HashSet<String>,
+    known_conversions: HashSet<Conversion>,
     next_available_id: HashMap<TypeId, WireId>,
 }
 
@@ -336,8 +360,22 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                 function_counts.output_count
             }
 
-            BuildComplexGate::Convert(type_id, output_wire_count, _, _, _) => {
-                // TODO convert_gate: check that the convert gate with this signature has already been declared
+            BuildComplexGate::Convert(
+                out_type_id,
+                output_wire_count,
+                in_type_id,
+                in_first_id,
+                in_last_id,
+            ) => {
+                // If the Convert gate has not yet been declared, do it
+                let conversion = Conversion::new(
+                    Count::new(out_type_id, output_wire_count),
+                    Count::new(in_type_id, in_last_id - in_first_id + 1),
+                );
+                if self.known_conversions.insert(conversion.clone()) {
+                    self.msg_build.push_conversion(conversion);
+                }
+
                 // Check that we have no public/private inputs
                 if !public_inputs.is_empty() {
                     return Err("A Convert gate does not contain a public input".into());
@@ -345,7 +383,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                 if !private_inputs.is_empty() {
                     return Err("A Convert gate does not contain a private_inputs".into());
                 }
-                vec![Count::new(type_id, output_wire_count)]
+                vec![Count::new(out_type_id, output_wire_count)]
             }
         };
 
@@ -380,6 +418,7 @@ impl<S: Sink> GateBuilder<S> {
         GateBuilder {
             msg_build: MessageBuilder::new(sink, types),
             known_plugins: HashSet::new(),
+            known_conversions: HashSet::new(),
             known_functions: HashMap::new(),
             next_available_id: HashMap::new(),
         }
@@ -408,6 +447,7 @@ impl<S: Sink> GateBuilder<S> {
             private_count: HashMap::new(),
             known_functions: &self.known_functions,
             next_available_id,
+            used_conversions: HashSet::new(),
         }
     }
 
@@ -419,38 +459,49 @@ impl<S: Sink> GateBuilder<S> {
         self.msg_build.push_public_input_value(type_id, val)
     }
 
-    pub fn push_function(&mut self, function_with_counts: FunctionWithInputsCounts) -> Result<()> {
+    pub fn push_function(&mut self, function_with_infos: FunctionWithInfos) -> Result<()> {
         // Check that there are no other functions with the same name
         if self
             .known_functions
-            .contains_key(&function_with_counts.function.name)
+            .contains_key(&function_with_infos.function.name)
         {
             return Err(format!(
                 "Function {} already exists !",
-                function_with_counts.function.name
+                function_with_infos.function.name
             )
             .into());
         }
 
         // Add the function into known_functions
         self.known_functions.insert(
-            function_with_counts.function.name.clone(),
+            function_with_infos.function.name.clone(),
             FunctionCounts {
-                input_count: function_with_counts.function.input_count.clone(),
-                output_count: function_with_counts.function.output_count.clone(),
-                public_count: function_with_counts.public_count.clone(),
-                private_count: function_with_counts.private_count.clone(),
+                input_count: function_with_infos.function.input_count.clone(),
+                output_count: function_with_infos.function.output_count.clone(),
+                public_count: function_with_infos.public_count.clone(),
+                private_count: function_with_infos.private_count.clone(),
             },
         );
 
         // If the function is a plugin function, add the plugin names into the list of used plugins
-        if let FunctionBody::PluginBody(plugin_body) = &function_with_counts.function.body {
+        if let FunctionBody::PluginBody(plugin_body) = &function_with_infos.function.body {
             if self.known_plugins.insert(plugin_body.name.clone()) {
                 self.msg_build.push_plugin(plugin_body.name.clone());
             }
         }
+
+        // If the function calls some Convert gates, add them the list of used conversions
+        function_with_infos
+            .used_conversions
+            .iter()
+            .for_each(|conversion| {
+                if self.known_conversions.insert(conversion.clone()) {
+                    self.msg_build.push_conversion(conversion.clone());
+                }
+            });
+
         // Add the function into the list of functions in the Relation
-        self.msg_build.push_function(function_with_counts.function);
+        self.msg_build.push_function(function_with_infos.function);
         Ok(())
     }
 
@@ -458,10 +509,11 @@ impl<S: Sink> GateBuilder<S> {
         if let FunctionBody::PluginBody(ref plugin_body) = function.body {
             let public_count = plugin_body.public_count.clone();
             let private_count = plugin_body.private_count.clone();
-            self.push_function(FunctionWithInputsCounts {
+            self.push_function(FunctionWithInfos {
                 function,
                 public_count,
                 private_count,
+                used_conversions: HashSet::new(),
             })
         } else {
             Err("push_plugin must be called with a plugin function".into())
@@ -477,10 +529,11 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
     GateBuilder::new(MemorySink::default(), &[vec![2]])
 }
 
-pub struct FunctionWithInputsCounts {
+pub struct FunctionWithInfos {
     function: Function,
     public_count: HashMap<TypeId, u64>,
     private_count: HashMap<TypeId, u64>,
+    used_conversions: HashSet<Conversion>,
 }
 
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
@@ -515,6 +568,8 @@ pub struct FunctionBuilder<'a> {
     private_count: HashMap<TypeId, u64>, // evaluated on the fly
     known_functions: &'a HashMap<String, FunctionCounts>,
     next_available_id: HashMap<TypeId, WireId>,
+
+    used_conversions: HashSet<Conversion>,
 }
 
 impl FunctionBuilder<'_> {
@@ -600,7 +655,19 @@ impl FunctionBuilder<'_> {
                     });
                 function_counts.output_count
             }
-            BuildComplexGate::Convert(out_type_id, out_wire_count, _, _, _) => {
+            BuildComplexGate::Convert(
+                out_type_id,
+                out_wire_count,
+                in_type_id,
+                in_first_id,
+                in_last_id,
+            ) => {
+                // If the Convert gate has not yet been declared, do it
+                let conversion = Conversion::new(
+                    Count::new(out_type_id, out_wire_count),
+                    Count::new(in_type_id, in_last_id - in_first_id + 1),
+                );
+                self.used_conversions.insert(conversion);
                 vec![Count::new(out_type_id, out_wire_count)]
             }
         };
@@ -616,7 +683,7 @@ impl FunctionBuilder<'_> {
     }
 
     // Creates and returns the Function as well as the number of public/private inputs consumed by this Function
-    pub fn finish(&mut self, out_ids: Vec<WireRange>) -> Result<FunctionWithInputsCounts> {
+    pub fn finish(&mut self, out_ids: Vec<WireRange>) -> Result<FunctionWithInfos> {
         if !check_wire_ranges_with_counts(&out_ids, &self.output_count) {
             return Err(format!(
                 "Function {} cannot be created (wrong number of output wires)",
@@ -631,7 +698,7 @@ impl FunctionBuilder<'_> {
             self.known_functions,
         )?;
 
-        Ok(FunctionWithInputsCounts {
+        Ok(FunctionWithInfos {
             function: Function::new(
                 self.name.clone(),
                 self.output_count.clone(),
@@ -640,6 +707,7 @@ impl FunctionBuilder<'_> {
             ),
             public_count: self.public_count.clone(),
             private_count: self.private_count.clone(),
+            used_conversions: self.used_conversions.clone(),
         })
     }
 }
@@ -675,7 +743,7 @@ fn test_builder_with_function() {
 
     // Try to push two functions with the same name
     // It should return an error
-    let custom_function = FunctionWithInputsCounts {
+    let custom_function = FunctionWithInfos {
         function: Function::new(
             "custom_sub".to_string(),
             vec![],
@@ -684,6 +752,7 @@ fn test_builder_with_function() {
         ),
         public_count: HashMap::new(),
         private_count: HashMap::new(),
+        used_conversions: HashSet::new(),
     };
     assert!(b.push_function(custom_function).is_err());
 

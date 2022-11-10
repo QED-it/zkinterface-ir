@@ -269,6 +269,7 @@ fn test_r1cs_stats() -> Result<()> {
             functions_called: 0,
             plugins_defined: 0,
             plugins_called: 0,
+            conversions_defined: 0,
             convert_gates: 0,
             public_inputs_messages: 1,
             private_inputs_messages: 1,

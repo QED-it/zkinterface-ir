@@ -32,6 +32,8 @@ pub struct GateStats {
     pub plugins_defined: usize,
     pub plugins_called: usize,
 
+    pub conversions_defined: usize,
+
     // The number of messages into which the statement was split.
     pub public_inputs_messages: usize,
     pub private_inputs_messages: usize,
@@ -111,6 +113,8 @@ impl Stats {
                 }
             }
         }
+
+        self.gate_stats.conversions_defined += relation.conversions.len();
 
         for gate in &relation.gates {
             self.gate_stats.ingest_gate(gate, &self.functions);
@@ -264,6 +268,7 @@ fn test_stats() -> Result<()> {
             functions_called: 3,
             plugins_defined: 0,
             plugins_called: 0,
+            conversions_defined: 0,
             convert_gates: 0,
             public_inputs_messages: 1,
             private_inputs_messages: 1,

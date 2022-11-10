@@ -1,4 +1,5 @@
 use crate::producers::examples::literal32;
+use crate::structs::conversion::Conversion;
 use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::wirerange::WireRange;
@@ -57,8 +58,12 @@ pub fn example_relation_with_several_types() -> Relation {
     let type_id_101: u8 = 1;
     Relation {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
         plugins: vec!["vector".to_string()],
+        types: vec![literal32(7), literal32(101)],
+        conversions: vec![Conversion::new(
+            Count::new(type_id_101, 1),
+            Count::new(type_id_7, 1),
+        )],
         functions: vec![
             Function::new(
                 "square".to_string(),
@@ -194,8 +199,9 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     // Test: impossible conversion
     let relation = Relation {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
         plugins: vec![],
+        types: vec![literal32(7), literal32(101)],
+        conversions: vec![],
         functions: vec![],
         gates: vec![
             Constant(type_id_101, 0, vec![25]),

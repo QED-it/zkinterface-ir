@@ -4,6 +4,7 @@ use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::consumers::evaluator::get_modulo;
+use crate::structs::conversion::Conversion;
 use crate::structs::count::{count_list_to_hashmap, Count};
 use crate::structs::function::{FunctionBody, FunctionCounts};
 use crate::structs::value::{is_probably_prime, value_to_biguint};
@@ -71,6 +72,7 @@ pub struct Validator {
     known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
     known_functions: HashMap<String, FunctionCounts>,
+    known_conversions: HashSet<Conversion>,
 
     violations: Vec<String>,
 }
@@ -200,6 +202,10 @@ impl Validator {
 
         relation.plugins.iter().for_each(|plugin| {
             self.known_plugins.insert(plugin.clone());
+        });
+
+        relation.conversions.iter().for_each(|conversion| {
+            self.known_conversions.insert(conversion.clone());
         });
 
         for f in relation.functions.iter() {
@@ -399,13 +405,29 @@ impl Validator {
                     self.violate(format!(
                         "Gate::Convert: Error with out_ids: first_id({}) > last_id({})",
                         *out_first_id, *out_last_id
-                    ))
+                    ));
+                    return;
                 }
                 // Check that in_ids is not empty
                 if *in_first_id > *in_last_id {
                     self.violate(format!(
                         "Gate::Convert: Error with in_ids: first_id({}) > last_id({})",
                         *in_first_id, *in_last_id
+                    ));
+                    return;
+                }
+
+                // Check conversion has been declared
+                if !self.known_conversions.contains(&Conversion::new(
+                    Count::new(*out_type_id, *out_last_id - out_first_id + 1),
+                    Count::new(*in_type_id, *in_last_id - *in_first_id + 1),
+                )) {
+                    self.violate(format!(
+                        "Gate::Convert: used an undeclared conversion Conversion({}:{}, {}:{})",
+                        *out_type_id,
+                        *out_last_id - *out_first_id + 1,
+                        *in_type_id,
+                        *in_last_id - *in_first_id + 1
                     ))
                 }
 
@@ -545,6 +567,7 @@ impl Validator {
             header_version: self.header_version.clone(),
             moduli: self.moduli.clone(),
             known_plugins: self.known_plugins.clone(),
+            known_conversions: self.known_conversions.clone(),
             known_functions: self.known_functions.clone(),
             violations: vec![],
         };
@@ -873,4 +896,65 @@ fn test_validator_new_violations() -> crate::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_validator_convert_violations() {
+    use crate::producers::examples::literal32;
+    use crate::structs::inputs::Inputs;
+    use crate::structs::IR_VERSION;
+
+    let public_inputs = PublicInputs {
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
+        inputs: vec![
+            Inputs {
+                values: vec![vec![5]],
+            },
+            Inputs { values: vec![] },
+        ],
+    };
+    let private_inputs = PrivateInputs {
+        version: IR_VERSION.to_string(),
+        types: vec![literal32(7), literal32(101)],
+        inputs: vec![
+            Inputs { values: vec![] },
+            Inputs {
+                values: vec![vec![10]],
+            },
+        ],
+    };
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec!["vector".to_string()],
+        types: vec![literal32(7), literal32(101)],
+        conversions: vec![Conversion::new(Count::new(1, 1), Count::new(0, 1))],
+        functions: vec![],
+        gates: vec![
+            Gate::PublicInput(0, 0),
+            // Violation: in_ids is empty (in_first_id > in_last_id)
+            Gate::Convert(1, 0, 0, 0, 1, 0),
+            Gate::Delete(0, 0, 0),
+            // Violation: use an undeclared conversion
+            Gate::PrivateInput(1, 10),
+            // Violation: use an undeclared conversion
+            Gate::Convert(0, 10, 10, 1, 10, 10),
+            Gate::Delete(1, 10, 10),
+            Gate::Delete(0, 10, 10),
+        ],
+    };
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
+    validator.ingest_relation(&relation);
+
+    let violations = validator.get_violations();
+    assert_eq!(
+        violations,
+        vec![
+            "Gate::Convert: Error with in_ids: first_id(1) > last_id(0)",
+            "Gate::Convert: used an undeclared conversion Conversion(0:1, 1:1)",
+        ]
+    );
 }

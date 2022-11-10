@@ -1,5 +1,5 @@
 use crate::Result;
-use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -8,14 +8,14 @@ use std::error::Error;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::TypeId;
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash)]
 pub struct Count {
     pub type_id: TypeId,
     pub count: u64,
 }
 
 /// This function imports a FBS binary Count declaration into a Rust equivalent.
-impl<'a> TryFrom<generated::Count<'a>> for Count {
+impl TryFrom<generated::Count> for Count {
     type Error = Box<dyn Error>;
 
     fn try_from(g_count: generated::Count) -> Result<Count> {
@@ -33,35 +33,24 @@ impl Count {
     }
 
     /// Serialize this structure into a Flatbuffer message
-    pub fn build<'a>(
-        &self,
-        builder: &mut FlatBufferBuilder<'a>,
-    ) -> WIPOffset<generated::Count<'a>> {
-        generated::Count::create(
-            builder,
-            &generated::CountArgs {
-                type_id: self.type_id,
-                count: self.count,
-            },
-        )
+    pub fn build(&self) -> generated::Count {
+        generated::Count::new(self.type_id, self.count)
     }
 
     /// Import a vector of binary Count into a Rust vector of Count declarations.
-    pub fn try_from_vector<'a>(
-        g_counts: Vector<'a, ForwardsUOffset<generated::Count<'a>>>,
-    ) -> Result<Vec<Count>> {
-        g_counts.into_iter().map(Count::try_from).collect()
+    pub fn try_from_vector(g_counts: &[generated::Count]) -> Result<Vec<Count>> {
+        g_counts
+            .iter()
+            .map(|g_count| Count::try_from(*g_count))
+            .collect()
     }
 
     /// Build a vector a Rust Count into the associated FBS structure.
     pub fn build_vector<'a>(
         builder: &mut FlatBufferBuilder<'a>,
         counts: &[Count],
-    ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Count<'a>>>> {
-        let g_counts = counts
-            .iter()
-            .map(|count| count.build(builder))
-            .collect::<Vec<_>>();
+    ) -> WIPOffset<Vector<'a, generated::Count>> {
+        let g_counts = counts.iter().map(|count| count.build()).collect::<Vec<_>>();
         builder.create_vector(&g_counts)
     }
 }

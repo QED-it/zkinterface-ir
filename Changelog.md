@@ -24,6 +24,7 @@ Rust:
 - in FBS, remove Header table and move its content into Relation, PublicInputs, PrivateInputs
 - in FBS, rename some field names in gates
 - in FBS, replace WireList by [WireRange] and remove type_id from WireRange
+- add conversion declarations in Relation
 
 # SIEVE IR v1.0.1, 2022-08
 

@@ -7,14 +7,16 @@ use std::io::Write;
 
 use super::gates::Gate;
 use crate::sieve_ir_generated::sieve_ir as generated;
+use crate::structs::conversion::Conversion;
 use crate::structs::function::Function;
 use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Relation {
     pub version: String,
-    pub types: Vec<Value>,
     pub plugins: Vec<String>,
+    pub types: Vec<Value>,
+    pub conversions: Vec<Conversion>,
     pub functions: Vec<Function>,
     pub gates: Vec<Gate>,
 }
@@ -39,8 +41,11 @@ impl<'a> TryFrom<generated::Relation<'a>> for Relation {
 
         Ok(Relation {
             version: g_relation.version().ok_or("Missing version")?.to_string(),
-            types: try_from_values_vector(g_relation.types().ok_or("Missing types")?)?,
             plugins,
+            types: try_from_values_vector(g_relation.types().ok_or("Missing types")?)?,
+            conversions: Conversion::try_from_vector(
+                g_relation.conversions().ok_or("Missing conversions")?,
+            )?,
             functions,
             gates: Gate::try_from_vector(g_gates)?,
         })
@@ -72,13 +77,15 @@ impl Relation {
             .map(|plugin| builder.create_string(plugin))
             .collect::<Vec<WIPOffset<&str>>>();
         let g_plugins_vec = builder.create_vector(&g_plugins);
+        let g_conversions = Conversion::build_vector(builder, &self.conversions);
 
         let relation = generated::Relation::create(
             builder,
             &generated::RelationArgs {
                 version: Some(g_version),
-                types: Some(g_types),
                 plugins: Some(g_plugins_vec),
+                types: Some(g_types),
+                conversions: Some(g_conversions),
                 functions: Some(functions),
                 directives: Some(directives),
             },

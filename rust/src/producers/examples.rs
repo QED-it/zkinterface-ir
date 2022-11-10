@@ -49,8 +49,9 @@ pub fn example_relation() -> Relation {
 
     Relation {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(EXAMPLE_MODULUS)],
         plugins: vec![],
+        types: vec![literal32(EXAMPLE_MODULUS)],
+        conversions: vec![],
         functions: vec![Function::new(
             "square".to_string(),
             vec![Count::new(type_id, 1)],

@@ -12,8 +12,9 @@ union Message {
 // The 'version' field should match the following regexp "^\d+.\d+.\d+$"
 table Relation {
    version              :string;
-   types                :[Value];
    plugins              :[string];
+   types                :[Value];
+   conversions          :[Conversion];
    functions            :[Function];
    directives           :[Directive];
 }
@@ -42,7 +43,7 @@ table Value {
     value        :[ubyte];
 }
 
-table Count {
+struct Count {
 	type_id    :ubyte;
 	count      :uint64;
 }
@@ -51,6 +52,12 @@ table Count {
 table WireRange {
     first_id   :uint64;
     last_id    :uint64;
+}
+
+// ==== Conversion ====
+struct Conversion {
+  output_count  :Count;
+  input_count   :Count;
 }
 
 // ==== Gate types ====

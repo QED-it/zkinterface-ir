@@ -245,6 +245,130 @@ pub fn enum_name_directive_set(e: DirectiveSet) -> &'static str {
 }
 
 pub struct DirectiveSetUnionTableOffset {}
+// struct Count, aligned to 8
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Count {
+  type_id_: u8,
+  padding0__: u8,  padding1__: u16,  padding2__: u32,
+  count_: u64,
+} // pub struct Count
+impl flatbuffers::SafeSliceAccess for Count {}
+impl<'a> flatbuffers::Follow<'a> for Count {
+  type Inner = &'a Count;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    <&'a Count>::follow(buf, loc)
+  }
+}
+impl<'a> flatbuffers::Follow<'a> for &'a Count {
+  type Inner = &'a Count;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::follow_cast_ref::<Count>(buf, loc)
+  }
+}
+impl<'b> flatbuffers::Push for Count {
+    type Output = Count;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(self as *const Count as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+impl<'b> flatbuffers::Push for &'b Count {
+    type Output = Count;
+
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(*self as *const Count as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+
+
+impl Count {
+  pub fn new<'a>(_type_id: u8, _count: u64) -> Self {
+    Count {
+      type_id_: _type_id.to_little_endian(),
+      count_: _count.to_little_endian(),
+
+      padding0__: 0,padding1__: 0,padding2__: 0,
+    }
+  }
+  pub fn type_id<'a>(&'a self) -> u8 {
+    self.type_id_.from_little_endian()
+  }
+  pub fn count<'a>(&'a self) -> u64 {
+    self.count_.from_little_endian()
+  }
+}
+
+// struct Conversion, aligned to 8
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Conversion {
+  output_count_: Count,
+  input_count_: Count,
+} // pub struct Conversion
+impl flatbuffers::SafeSliceAccess for Conversion {}
+impl<'a> flatbuffers::Follow<'a> for Conversion {
+  type Inner = &'a Conversion;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    <&'a Conversion>::follow(buf, loc)
+  }
+}
+impl<'a> flatbuffers::Follow<'a> for &'a Conversion {
+  type Inner = &'a Conversion;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::follow_cast_ref::<Conversion>(buf, loc)
+  }
+}
+impl<'b> flatbuffers::Push for Conversion {
+    type Output = Conversion;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(self as *const Conversion as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+impl<'b> flatbuffers::Push for &'b Conversion {
+    type Output = Conversion;
+
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(*self as *const Conversion as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+
+
+impl Conversion {
+  pub fn new<'a>(_output_count: &'a Count, _input_count: &'a Count) -> Self {
+    Conversion {
+      output_count_: *_output_count,
+      input_count_: *_input_count,
+
+    }
+  }
+  pub fn output_count<'a>(&'a self) -> &'a Count {
+    &self.output_count_
+  }
+  pub fn input_count<'a>(&'a self) -> &'a Count {
+    &self.input_count_
+  }
+}
+
 pub enum RelationOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
@@ -276,29 +400,35 @@ impl<'a> Relation<'a> {
       let mut builder = RelationBuilder::new(_fbb);
       if let Some(x) = args.directives { builder.add_directives(x); }
       if let Some(x) = args.functions { builder.add_functions(x); }
-      if let Some(x) = args.plugins { builder.add_plugins(x); }
+      if let Some(x) = args.conversions { builder.add_conversions(x); }
       if let Some(x) = args.types { builder.add_types(x); }
+      if let Some(x) = args.plugins { builder.add_plugins(x); }
       if let Some(x) = args.version { builder.add_version(x); }
       builder.finish()
     }
 
     pub const VT_VERSION: flatbuffers::VOffsetT = 4;
-    pub const VT_TYPES: flatbuffers::VOffsetT = 6;
-    pub const VT_PLUGINS: flatbuffers::VOffsetT = 8;
-    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 10;
-    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 12;
+    pub const VT_PLUGINS: flatbuffers::VOffsetT = 6;
+    pub const VT_TYPES: flatbuffers::VOffsetT = 8;
+    pub const VT_CONVERSIONS: flatbuffers::VOffsetT = 10;
+    pub const VT_FUNCTIONS: flatbuffers::VOffsetT = 12;
+    pub const VT_DIRECTIVES: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub fn version(&self) -> Option<&'a str> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Relation::VT_VERSION, None)
   }
   #[inline]
+  pub fn plugins(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<&'a str>>>>(Relation::VT_PLUGINS, None)
+  }
+  #[inline]
   pub fn types(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(Relation::VT_TYPES, None)
   }
   #[inline]
-  pub fn plugins(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<&'a str>>>>(Relation::VT_PLUGINS, None)
+  pub fn conversions(&self) -> Option<&'a [Conversion]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Conversion>>>(Relation::VT_CONVERSIONS, None).map(|v| v.safe_slice() )
   }
   #[inline]
   pub fn functions(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Function<'a>>>> {
@@ -312,8 +442,9 @@ impl<'a> Relation<'a> {
 
 pub struct RelationArgs<'a> {
     pub version: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub types: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
     pub plugins: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<&'a  str>>>>,
+    pub types: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
+    pub conversions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Conversion>>>,
     pub functions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Function<'a >>>>>,
     pub directives: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Directive<'a >>>>>,
 }
@@ -322,8 +453,9 @@ impl<'a> Default for RelationArgs<'a> {
     fn default() -> Self {
         RelationArgs {
             version: None,
-            types: None,
             plugins: None,
+            types: None,
+            conversions: None,
             functions: None,
             directives: None,
         }
@@ -339,12 +471,16 @@ impl<'a: 'b, 'b> RelationBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_VERSION, version);
   }
   #[inline]
+  pub fn add_plugins(&mut self, plugins: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_PLUGINS, plugins);
+  }
+  #[inline]
   pub fn add_types(&mut self, types: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_TYPES, types);
   }
   #[inline]
-  pub fn add_plugins(&mut self, plugins: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_PLUGINS, plugins);
+  pub fn add_conversions(&mut self, conversions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Conversion>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Relation::VT_CONVERSIONS, conversions);
   }
   #[inline]
   pub fn add_functions(&mut self, functions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Function<'b >>>>) {
@@ -716,94 +852,6 @@ impl<'a: 'b, 'b> ValueBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Value<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum CountOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Count<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Count<'a> {
-    type Inner = Count<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Count<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Count {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args CountArgs) -> flatbuffers::WIPOffset<Count<'bldr>> {
-      let mut builder = CountBuilder::new(_fbb);
-      builder.add_count(args.count);
-      builder.add_type_id(args.type_id);
-      builder.finish()
-    }
-
-    pub const VT_TYPE_ID: flatbuffers::VOffsetT = 4;
-    pub const VT_COUNT: flatbuffers::VOffsetT = 6;
-
-  #[inline]
-  pub fn type_id(&self) -> u8 {
-    self._tab.get::<u8>(Count::VT_TYPE_ID, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn count(&self) -> u64 {
-    self._tab.get::<u64>(Count::VT_COUNT, Some(0)).unwrap()
-  }
-}
-
-pub struct CountArgs {
-    pub type_id: u8,
-    pub count: u64,
-}
-impl<'a> Default for CountArgs {
-    #[inline]
-    fn default() -> Self {
-        CountArgs {
-            type_id: 0,
-            count: 0,
-        }
-    }
-}
-pub struct CountBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> CountBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_type_id(&mut self, type_id: u8) {
-    self.fbb_.push_slot::<u8>(Count::VT_TYPE_ID, type_id, 0);
-  }
-  #[inline]
-  pub fn add_count(&mut self, count: u64) {
-    self.fbb_.push_slot::<u64>(Count::VT_COUNT, count, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> CountBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    CountBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Count<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -2277,12 +2325,12 @@ impl<'a> PluginBody<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<&'a str>>>>(PluginBody::VT_PARAMS, None)
   }
   #[inline]
-  pub fn public_count(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Count<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Count<'a>>>>>(PluginBody::VT_PUBLIC_COUNT, None)
+  pub fn public_count(&self) -> Option<&'a [Count]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Count>>>(PluginBody::VT_PUBLIC_COUNT, None).map(|v| v.safe_slice() )
   }
   #[inline]
-  pub fn private_count(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Count<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Count<'a>>>>>(PluginBody::VT_PRIVATE_COUNT, None)
+  pub fn private_count(&self) -> Option<&'a [Count]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Count>>>(PluginBody::VT_PRIVATE_COUNT, None).map(|v| v.safe_slice() )
   }
 }
 
@@ -2290,8 +2338,8 @@ pub struct PluginBodyArgs<'a> {
     pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub operation: Option<flatbuffers::WIPOffset<&'a  str>>,
     pub params: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<&'a  str>>>>,
-    pub public_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Count<'a >>>>>,
-    pub private_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Count<'a >>>>>,
+    pub public_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Count>>>,
+    pub private_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Count>>>,
 }
 impl<'a> Default for PluginBodyArgs<'a> {
     #[inline]
@@ -2323,11 +2371,11 @@ impl<'a: 'b, 'b> PluginBodyBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_PARAMS, params);
   }
   #[inline]
-  pub fn add_public_count(&mut self, public_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Count<'b >>>>) {
+  pub fn add_public_count(&mut self, public_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Count>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_PUBLIC_COUNT, public_count);
   }
   #[inline]
-  pub fn add_private_count(&mut self, private_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Count<'b >>>>) {
+  pub fn add_private_count(&mut self, private_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Count>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PluginBody::VT_PRIVATE_COUNT, private_count);
   }
   #[inline]
@@ -2393,12 +2441,12 @@ impl<'a> Function<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(Function::VT_NAME, None)
   }
   #[inline]
-  pub fn output_count(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Count<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Count<'a>>>>>(Function::VT_OUTPUT_COUNT, None)
+  pub fn output_count(&self) -> Option<&'a [Count]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Count>>>(Function::VT_OUTPUT_COUNT, None).map(|v| v.safe_slice() )
   }
   #[inline]
-  pub fn input_count(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Count<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Count<'a>>>>>(Function::VT_INPUT_COUNT, None)
+  pub fn input_count(&self) -> Option<&'a [Count]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<Count>>>(Function::VT_INPUT_COUNT, None).map(|v| v.safe_slice() )
   }
   #[inline]
   pub fn body_type(&self) -> FunctionBody {
@@ -2432,8 +2480,8 @@ impl<'a> Function<'a> {
 
 pub struct FunctionArgs<'a> {
     pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub output_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Count<'a >>>>>,
-    pub input_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Count<'a >>>>>,
+    pub output_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Count>>>,
+    pub input_count: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , Count>>>,
     pub body_type: FunctionBody,
     pub body: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
 }
@@ -2459,11 +2507,11 @@ impl<'a: 'b, 'b> FunctionBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_NAME, name);
   }
   #[inline]
-  pub fn add_output_count(&mut self, output_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Count<'b >>>>) {
+  pub fn add_output_count(&mut self, output_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Count>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_OUTPUT_COUNT, output_count);
   }
   #[inline]
-  pub fn add_input_count(&mut self, input_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Count<'b >>>>) {
+  pub fn add_input_count(&mut self, input_count: flatbuffers::WIPOffset<flatbuffers::Vector<'b , Count>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Function::VT_INPUT_COUNT, input_count);
   }
   #[inline]
