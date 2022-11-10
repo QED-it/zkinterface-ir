@@ -2,7 +2,7 @@ use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
 use crate::structs::inputs::Inputs;
-use crate::structs::wire::WireListElement;
+use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
 use crate::{PrivateInputs, PublicInputs, Relation, TypeId};
 
@@ -65,18 +65,18 @@ pub fn example_relation() -> Relation {
             PrivateInput(type_id, 2),
             Call(
                 "square".to_string(),
-                vec![WireListElement::Wire(type_id, 3)],
-                vec![WireListElement::Wire(type_id, 0)],
+                vec![WireRange::new(3, 3)],
+                vec![WireRange::new(0, 0)],
             ),
             Call(
                 "square".to_string(),
-                vec![WireListElement::Wire(type_id, 4)],
-                vec![WireListElement::Wire(type_id, 1)],
+                vec![WireRange::new(4, 4)],
+                vec![WireRange::new(1, 1)],
             ),
             Call(
                 "square".to_string(),
-                vec![WireListElement::Wire(type_id, 5)],
-                vec![WireListElement::Wire(type_id, 2)],
+                vec![WireRange::new(5, 5)],
+                vec![WireRange::new(2, 2)],
             ),
             Add(type_id, 6, 4, 5),
             MulConstant(type_id, 7, 3, vec![100]),

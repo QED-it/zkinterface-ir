@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -7,7 +8,7 @@ use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 
 use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
-use crate::{Gate, Result};
+use crate::{Gate, Result, TypeId};
 
 // ******************************
 //
@@ -148,5 +149,75 @@ impl Function {
     ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Function<'a>>>> {
         let g_functions: Vec<_> = functions.iter().map(|gate| gate.build(builder)).collect();
         builder.create_vector(&g_functions)
+    }
+}
+
+/// FunctionCounts contains the number of inputs, outputs, public/private inputs of a function.
+#[derive(Clone)]
+pub struct FunctionCounts {
+    pub input_count: Vec<Count>,
+    pub output_count: Vec<Count>,
+    pub public_count: HashMap<TypeId, u64>,
+    pub private_count: HashMap<TypeId, u64>,
+}
+
+impl FunctionCounts {
+    /// This function returns the FunctionCounts of the function with name `name`.
+    /// If no function with name `name` belongs to the HashMap `known_functions`, then it returns an error.
+    pub fn get_function_counts(
+        known_functions: &HashMap<String, Self>,
+        name: &str,
+    ) -> Result<Self> {
+        match known_functions.get(name) {
+            None => Err(format!("Function {} does not exist !", name).into()),
+            Some(v) => Ok(v.clone()),
+        }
+    }
+
+    pub fn check(
+        &self,
+        name: &str,
+        input_count: Option<Vec<Count>>,
+        output_count: Option<Vec<Count>>,
+        public_count: Option<HashMap<TypeId, u64>>,
+        private_count: Option<HashMap<TypeId, u64>>,
+    ) -> Result<()> {
+        if let Some(count) = input_count {
+            if count != self.input_count {
+                return Err(format!(
+                    "Function {} has {:?} inputs and is called with {:?} inputs.",
+                    name, self.input_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = output_count {
+            if count != self.output_count {
+                return Err(format!(
+                    "Function {} has {:?} outputs and is called with {:?} outputs.",
+                    name, self.output_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = public_count {
+            if count != self.public_count {
+                return Err(format!(
+                    "Function {} has {:?} public inputs and is called with {:?} public inputs.",
+                    name, self.public_count, count
+                )
+                .into());
+            }
+        }
+        if let Some(count) = private_count {
+            if count != self.private_count {
+                return Err(format!(
+                    "Function {} has {:?} private inputs and is called with {:?} private inputs.",
+                    name, self.private_count, count
+                )
+                .into());
+            }
+        }
+        Ok(())
     }
 }

@@ -22,8 +22,8 @@ pub mod gates;
 /// Value holds a value assigned to a wire.
 pub mod value;
 
-/// WireList are used to defined a wire, a range of wires, or a mix of both
-pub mod wire;
+/// WireRange are used to defined a range of wires
+pub mod wirerange;
 
 /// Count are used to defined a (type_id, count)
 /// It is used for all public/private count and for inputs/outputs count in function declarations

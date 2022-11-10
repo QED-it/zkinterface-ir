@@ -1,13 +1,13 @@
-use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::consumers::evaluator::get_modulo;
-use crate::structs::count::{count_list_to_hashmap, wirelist_to_count_list, Count};
-use crate::structs::function::FunctionBody;
+use crate::structs::count::{count_list_to_hashmap, Count};
+use crate::structs::function::{FunctionBody, FunctionCounts};
 use crate::structs::value::{is_probably_prime, value_to_biguint};
-use crate::structs::wire::{expand_wirelist, is_one_type_wirelist, WireList};
+use crate::structs::wirerange::add_types_to_wire_ranges;
 use regex::Regex;
 use std::cmp::Ordering;
 
@@ -70,17 +70,9 @@ pub struct Validator {
 
     known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
-    known_functions: HashMap<String, FunctionCount>,
+    known_functions: HashMap<String, FunctionCounts>,
 
     violations: Vec<String>,
-}
-
-#[derive(Clone)]
-pub struct FunctionCount {
-    output_count: Vec<Count>,
-    input_count: Vec<Count>,
-    public_count: HashMap<TypeId, u64>,
-    private_count: HashMap<TypeId, u64>,
 }
 
 impl Validator {
@@ -258,7 +250,7 @@ impl Validator {
             } else {
                 self.known_functions.insert(
                     name.clone(),
-                    FunctionCount {
+                    FunctionCounts {
                         output_count: output_count.clone(),
                         input_count: input_count.clone(),
                         public_count: public_count.clone(),
@@ -394,99 +386,92 @@ impl Validator {
                 }
             }
 
-            Convert(output_wires, input_wires) => {
-                // Check that input_wires is not empty and all input wires belong to the same type
-                if let Err(err) = is_one_type_wirelist(input_wires) {
-                    self.violate(format!("Gate::Convert: Error with input wires: {}", err))
+            Convert(
+                out_type_id,
+                out_first_id,
+                out_last_id,
+                in_type_id,
+                in_first_id,
+                in_last_id,
+            ) => {
+                // Check that out_ids is not empty
+                if *out_first_id > *out_last_id {
+                    self.violate(format!(
+                        "Gate::Convert: Error with out_ids: first_id({}) > last_id({})",
+                        *out_first_id, *out_last_id
+                    ))
                 }
-
-                // Check that output_wires is not empty and all output wires belong to the same type
-                if let Err(err) = is_one_type_wirelist(output_wires) {
-                    self.violate(format!("Gate::Convert: Error with output wires: {}", err))
+                // Check that in_ids is not empty
+                if *in_first_id > *in_last_id {
+                    self.violate(format!(
+                        "Gate::Convert: Error with in_ids: first_id({}) > last_id({})",
+                        *in_first_id, *in_last_id
+                    ))
                 }
-
-                // Expand input and output wires
-                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
-                let expanded_inputs = expand_wirelist(input_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
 
                 // Check inputs are already set
-                expanded_inputs
-                    .iter()
-                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
+                (*in_first_id..=*in_last_id)
+                    .for_each(|wire_id| self.ensure_defined_and_set(in_type_id, wire_id));
 
                 // Set the output wires as defined
-                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
-                    self.ensure_undefined_and_set(type_id, *wire_id)
-                });
+                (*out_first_id..=*out_last_id)
+                    .for_each(|wire_id| self.ensure_undefined_and_set(out_type_id, wire_id));
             }
 
-            Call(name, output_wires, input_wires) => {
+            Call(name, out_ids, in_ids) => {
                 // - Check exists
                 // - Outputs and inputs match function signature
                 // - define outputs, check inputs
                 // - consume public/private inputs.
-                let expanded_outputs = expand_wirelist(output_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
-                let expanded_inputs = expand_wirelist(input_wires).unwrap_or_else(|err| {
-                    self.violate(err.to_string());
-                    vec![]
-                });
 
-                expanded_inputs
-                    .iter()
-                    .for_each(|(type_id, wire_id)| self.ensure_defined_and_set(type_id, *wire_id));
+                // Check that function is declared and retrieve its parameters
+                let function_counts_result =
+                    FunctionCounts::get_function_counts(&self.known_functions, name);
 
-                let (public_count, private_count) = self
-                    .ingest_call(name, output_wires, input_wires)
-                    .unwrap_or((HashMap::new(), HashMap::new()));
+                match function_counts_result {
+                    Err(_) => self.violate(format!("Unknown Function gate {}", name)),
+                    Ok(func_counts) => {
+                        // Ensure inputs are already set
+                        let in_ids_with_types_result =
+                            add_types_to_wire_ranges(in_ids, &func_counts.input_count);
+                        if let Ok(in_ids_with_types) = in_ids_with_types_result {
+                            in_ids_with_types.iter().for_each(|wire_range_with_type| {
+                                (wire_range_with_type.first_id..=wire_range_with_type.last_id)
+                                    .for_each(|wire_id| {
+                                        self.ensure_defined_and_set(
+                                            &wire_range_with_type.type_id,
+                                            wire_id,
+                                        );
+                                    })
+                            });
+                        } else {
+                            self.violate("Call: number of input wires mismatch.");
+                        }
 
-                // Now, consume public/private inputs from self.
-                self.consume_public_count(&public_count);
-                self.consume_private_count(&private_count);
+                        // Consume public/private inputs from self.
+                        self.consume_public_count(&func_counts.public_count);
+                        self.consume_private_count(&func_counts.private_count);
 
-                // set the output wires as defined, since we checked they were in each branch.
-                expanded_outputs.iter().for_each(|(type_id, wire_id)| {
-                    self.ensure_undefined_and_set(type_id, *wire_id)
-                });
+                        // Set the output wires as defined
+                        let out_ids_with_types_result =
+                            add_types_to_wire_ranges(out_ids, &func_counts.output_count);
+                        if let Ok(out_ids_with_types) = out_ids_with_types_result {
+                            out_ids_with_types.iter().for_each(|wire_range_with_type| {
+                                (wire_range_with_type.first_id..=wire_range_with_type.last_id)
+                                    .for_each(|wire_id| {
+                                        self.ensure_undefined_and_set(
+                                            &wire_range_with_type.type_id,
+                                            wire_id,
+                                        );
+                                    })
+                            });
+                        } else {
+                            self.violate("Call: number of output wires mismatch.");
+                        }
+                    }
+                }
             }
         }
-    }
-
-    /// Ingest an equivalent of the AbstractGateCall, along with the expanded outputs list.
-    /// It will not set the output_wires as defined in the current validator, as well as it will not
-    /// consume public and private inputs of the current validator. It's up to the caller
-    /// to do so whenever necessary.
-    /// It returns the tuple (public_count, private_count)
-    fn ingest_call(
-        &mut self,
-        name: &str,
-        output_wires: &WireList,
-        input_wires: &WireList,
-    ) -> Result<(HashMap<TypeId, u64>, HashMap<TypeId, u64>)> {
-        if !self.known_functions.contains_key(name) {
-            self.violate(format!("Unknown Function gate {}", name));
-            return Err("This function does not exist.".into());
-        }
-
-        let function_count = self.known_functions.get(name).cloned().unwrap();
-
-        if function_count.output_count != wirelist_to_count_list(output_wires) {
-            self.violate("Call: number of output wires mismatch.");
-        }
-
-        if function_count.input_count != wirelist_to_count_list(input_wires) {
-            self.violate("Call: number of input wires mismatch.");
-        }
-
-        Ok((function_count.public_count, function_count.private_count))
     }
 
     /// This function will check the semantic validity of all the gates in the subcircuit.
@@ -516,18 +501,29 @@ impl Validator {
                     *count += 1;
                 }
                 Gate::Call(name, _, _) => {
-                    if !self.known_functions.contains_key(name) {
-                        self.violate(format!("Unknown Function gate {}", name));
-                    }
+                    let function_counts_result =
+                        FunctionCounts::get_function_counts(&self.known_functions, name);
 
-                    let function_count = self.known_functions.get(name).unwrap().clone();
-                    for (type_id, count) in function_count.public_count.iter() {
-                        let curr_count = public_count.entry(*type_id).or_insert(0);
-                        *curr_count += *count;
-                    }
-                    for (type_id, count) in function_count.private_count.iter() {
-                        let curr_count = private_count.entry(*type_id).or_insert(0);
-                        *curr_count += *count;
+                    match function_counts_result {
+                        Err(_) => self.violate(format!("Unknown Function gate {}", name)),
+                        Ok(function_counts) => {
+                            // Update public_count with number of public inputs consumed by this function
+                            function_counts
+                                .public_count
+                                .iter()
+                                .for_each(|(type_id, count)| {
+                                    let curr_count = public_count.entry(*type_id).or_insert(0);
+                                    *curr_count += *count;
+                                });
+                            // Update private_count with number of private inputs consumed by this function
+                            function_counts
+                                .private_count
+                                .iter()
+                                .for_each(|(type_id, count)| {
+                                    let curr_count = private_count.entry(*type_id).or_insert(0);
+                                    *curr_count += *count;
+                                });
+                        }
                     }
                 }
                 _ => (), /* DO NOTHING */
@@ -740,7 +736,7 @@ impl Validator {
 }
 
 #[test]
-fn test_validator() -> Result<()> {
+fn test_validator() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -759,7 +755,7 @@ fn test_validator() -> Result<()> {
 }
 
 #[test]
-fn test_validator_as_verifier() -> Result<()> {
+fn test_validator_as_verifier() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -776,7 +772,7 @@ fn test_validator_as_verifier() -> Result<()> {
 }
 
 #[test]
-fn test_validator_violations() -> Result<()> {
+fn test_validator_violations() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let mut public_inputs = example_public_inputs();
@@ -809,7 +805,7 @@ fn test_validator_violations() -> Result<()> {
 }
 
 #[test]
-fn test_validator_delete_violations() -> Result<()> {
+fn test_validator_delete_violations() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -838,7 +834,7 @@ fn test_validator_delete_violations() -> Result<()> {
 }
 
 #[test]
-fn test_validator_new_violations() -> Result<()> {
+fn test_validator_new_violations() -> crate::Result<()> {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();

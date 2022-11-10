@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::structs::wire::WireList;
+use crate::structs::wirerange::WireRange;
 use crate::{Gate, TypeId, Value, WireId};
 
 /// BuildGate is similar to Gate but without output wires.
@@ -75,19 +75,34 @@ impl BuildGate {
 /// Useful in combination with GateBuilder.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum BuildComplexGate {
-    // Call(name, input_wires)
-    Call(String, WireList),
-    // Convert(output_type_id, count_output_wire, input_wires)
-    Convert(TypeId, u64, WireList),
+    // Call(name, in_ids)
+    Call(String, Vec<WireRange>),
+    // Convert(out_type_id, out_wire_count, in_first_id, in_last_id)
+    Convert(TypeId, u64, TypeId, WireId, WireId),
 }
 
 use BuildComplexGate::*;
 
 impl BuildComplexGate {
-    pub fn with_output(self, output: WireList) -> Gate {
+    pub fn with_output(self, out_ids: Vec<WireRange>) -> Gate {
         match self {
-            Call(name, input_wires) => Gate::Call(name, output, input_wires),
-            Convert(_, _, input) => Gate::Convert(output, input),
+            Call(name, in_ids) => Gate::Call(name, out_ids, in_ids),
+            Convert(out_type_id, _, in_type_id, in_first_id, in_last_id) => {
+                if out_ids.len() != 1 {
+                    panic!(
+                        "Not possible to create a Convert gate: out_ids must contain one WireRange"
+                    )
+                }
+                let out_range = out_ids.get(0).unwrap();
+                Gate::Convert(
+                    out_type_id,
+                    out_range.first_id,
+                    out_range.last_id,
+                    in_type_id,
+                    in_first_id,
+                    in_last_id,
+                )
+            }
         }
     }
 }

@@ -23,6 +23,7 @@ Rust:
 - in FBS, remove WireId and TypeId tables and use directly ubyte and uint64
 - in FBS, remove Header table and move its content into Relation, PublicInputs, PrivateInputs
 - in FBS, rename some field names in gates
+- in FBS, replace WireList by [WireRange] and remove type_id from WireRange
 
 # SIEVE IR v1.0.1, 2022-08
 

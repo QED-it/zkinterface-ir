@@ -1,10 +1,10 @@
 use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
-use crate::structs::count::{wirelist_to_count_list, Count};
+use crate::structs::count::Count;
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
 use crate::structs::value::value_to_biguint;
-use crate::structs::wire::{
-    expand_wirelist, is_one_type_wirelist, wirelist_len, wirelist_to_hashmap, WireList,
+use crate::structs::wirerange::{
+    add_types_to_wire_ranges, check_wire_ranges_with_counts, WireRangeWithType,
 };
 use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
 use num_bigint::BigUint;
@@ -398,70 +398,81 @@ impl<B: ZKBackend> Evaluator<B> {
                 }
             }
 
-            Convert(output_wires, input_wires) => {
-                let output_type = match is_one_type_wirelist(output_wires) {
-                    Err(err) => {
-                        return Err(
-                            format!("Error with output wires of a Convert gate: {}", err).into(),
-                        )
-                    }
-                    Ok(val) => val,
-                };
-
-                let input_type = match is_one_type_wirelist(input_wires) {
-                    Err(err) => {
-                        return Err(
-                            format!("Error with input wires of a Convert gate: {}", err).into()
-                        )
-                    }
-                    Ok(val) => val,
-                };
-
-                let expanded_input_wires = expand_wirelist(input_wires)?;
-                let mut input_values = vec![];
-                for (_, input_wire) in expanded_input_wires.iter() {
-                    let val = get!(input_type, *input_wire)?;
-                    input_values.push(val);
+            Convert(
+                out_type_id,
+                out_first_id,
+                out_last_id,
+                in_type_id,
+                in_first_id,
+                in_last_id,
+            ) => {
+                // Check ranges are correct (first <= last)
+                if out_first_id > out_last_id {
+                    return Err(format!(
+                        "Evaluation of a Convert gate:: out_last_id ({}) must be greater than out_first_id ({}).", out_last_id, out_first_id
+                    )
+                        .into());
                 }
-                let out: Vec<B::Wire> = backend.convert(
-                    &output_type,
-                    wirelist_len(output_wires),
-                    &input_type,
-                    &input_values,
-                )?;
+                if in_first_id > in_last_id {
+                    return Err(format!(
+                        "Evaluation of a Convert gate:: in_last_id ({}) must be greater than in_first_id ({}).", in_last_id, in_first_id
+                    )
+                        .into());
+                }
 
-                let expanded_output_wires = expand_wirelist(output_wires)?;
-                if expanded_output_wires.len() != out.len() {
+                // Retrieve input values
+                let input_values = (*in_first_id..=*in_last_id)
+                    .map(|wire_id| get::<B>(scope, *in_type_id, wire_id))
+                    .collect::<Result<Vec<_>>>()?;
+
+                // Evaluate the Convert gate
+                let expected_output_len = *out_last_id - *out_first_id + 1;
+                let out =
+                    backend.convert(out_type_id, expected_output_len, in_type_id, &input_values)?;
+
+                // Check out length
+                if expected_output_len != u64::try_from(out.len())? {
                     // It is not possible
-                    panic!("In a convert gate, out and expanded_output_wires have not the same length !");
+                    panic!("Evaluation of a Convert gate: number of output wires mismatch.");
                 }
-                out.iter().zip(expanded_output_wires.iter()).try_for_each(
-                    |(output_value, (_, output_wire))| {
-                        set::<B>(scope, output_type, *output_wire, output_value.clone())
+
+                // Store out values
+                out.iter().zip(*out_first_id..=*out_last_id).try_for_each(
+                    |(output_value, out_wire_id)| {
+                        set::<B>(scope, *out_type_id, out_wire_id, output_value.clone())
                     },
                 )?;
             }
 
-            Call(name, output_wires, input_wires) => {
+            Call(name, out_ids, in_ids) => {
                 let function = known_functions.get(name).ok_or("Unknown function")?;
 
                 // simple checks.
-                let output_count = wirelist_to_count_list(output_wires);
-                if output_count != function.output_count {
-                    return Err(format!("Wrong number of output variables in call to function {} (Expected {:?} / Got {:?}).", name, function.output_count, output_count).into());
+                if !check_wire_ranges_with_counts(out_ids, &function.output_count) {
+                    return Err(format!(
+                        "Evaluation of a Call gate ({}): number of output wires mismatch.",
+                        name
+                    )
+                    .into());
                 }
-                let input_count = wirelist_to_count_list(input_wires);
-                if input_count != function.input_count {
-                    return Err(format!("Wrong number of input variables in call to function {} (Expected {:?} / Got {:?}).", name, function.input_count, input_count).into());
+                if !check_wire_ranges_with_counts(in_ids, &function.input_count) {
+                    return Err(format!(
+                        "Evaluation of a Call gate ({}): number of input wires mismatch.",
+                        name
+                    )
+                    .into());
                 }
+
+                let out_ids_with_types = add_types_to_wire_ranges(out_ids, &function.output_count)?;
+                let in_ids_with_types = add_types_to_wire_ranges(in_ids, &function.input_count)?;
 
                 match &function.body {
                     FunctionBody::Gates(gates) => {
                         Self::ingest_subcircuit(
                             gates,
                             backend,
-                            output_wires,
-                            input_wires,
+                            &out_ids_with_types,
+                            &in_ids_with_types,
                             scope,
                             known_functions,
                             inputs,
@@ -470,30 +481,53 @@ impl<B: ZKBackend> Evaluator<B> {
                     FunctionBody::PluginBody(plugin_body) => {
                         // TODO add public/private inputs
                         // Retrieve input values
-                        let expanded_input_wires = expand_wirelist(input_wires)?;
                         let mut input_values = vec![];
-                        for (type_id, input_wire) in expanded_input_wires.iter() {
-                            let val = get!(*type_id, *input_wire)?;
-                            input_values.push(val);
-                        }
+                        in_ids_with_types
+                            .iter()
+                            .try_for_each(|wirerange_with_type| {
+                                (wirerange_with_type.first_id..=wirerange_with_type.last_id)
+                                    .try_for_each::<_, Result<()>>(|wire_id| {
+                                        let val =
+                                            get::<B>(scope, wirerange_with_type.type_id, wire_id)?;
+                                        input_values.push(val);
+                                        Ok(())
+                                    })
+                            })?;
+
                         // Evaluate plugin
                         let out: Vec<B::Wire> = backend.evaluate_plugin(
-                            &wirelist_to_count_list(output_wires),
-                            &wirelist_to_count_list(input_wires),
+                            &function.output_count,
+                            &function.input_count,
                             &input_values,
                             plugin_body,
                         )?;
+
                         // Store output values
-                        let expanded_output_wires = expand_wirelist(output_wires)?;
-                        if expanded_output_wires.len() != out.len() {
+                        // Check out length
+                        let expected_output_len = out_ids
+                            .iter()
+                            .map(|wirerange| wirerange.last_id - wirerange.first_id + 1)
+                            .sum::<u64>();
+                        if expected_output_len != u64::try_from(out.len())? {
                             // It is not possible
-                            panic!("During a plugin evaluation, out and expanded_output_wires have not the same length !");
+                            panic!(
+                                "Evaluation of a Call gate ({}): number of output wires mismatch.",
+                                name
+                            );
                         }
-                        out.iter().zip(expanded_output_wires.iter()).try_for_each(
-                            |(output_value, (type_id, output_wire))| {
+
+                        // Store output values
+                        let mut flatten_out_ids_with_types = vec![];
+                        out_ids_with_types.iter().for_each(|wirerange| {
+                            (wirerange.first_id..=wirerange.last_id).for_each(|wire_id| {
+                                flatten_out_ids_with_types.push((wirerange.type_id, wire_id))
+                            })
+                        });
+                        out.iter()
+                            .zip(flatten_out_ids_with_types.iter())
+                            .try_for_each(|(output_value, (type_id, output_wire))| {
                                 set::<B>(scope, *type_id, *output_wire, output_value.clone())
-                            },
-                        )?;
+                            })?;
                     }
                 };
             }
@@ -509,8 +543,8 @@ impl<B: ZKBackend> Evaluator<B> {
     fn ingest_subcircuit(
         subcircuit: &[Gate],
         backend: &mut B,
-        output_list: &WireList,
-        input_list: &WireList,
+        out_ids_with_types: &[WireRangeWithType],
+        in_ids_with_types: &[WireRangeWithType],
         scope: &mut HashMap<(TypeId, WireId), B::Wire>,
         known_functions: &HashMap<String, FunctionDeclaration>,
         inputs: &mut EvaluatorInputs<B>,
@@ -518,36 +552,50 @@ impl<B: ZKBackend> Evaluator<B> {
         let mut new_scope: HashMap<(TypeId, WireId), B::Wire> = HashMap::new();
 
         // copy the inputs required by this function into the new scope, at the proper index
-        let expanded_inputs = expand_wirelist(input_list)?;
-        let mut input_indexes = wirelist_to_hashmap(output_list);
-        for (input_type, input_wire) in expanded_inputs.iter() {
-            let idx = input_indexes.entry(*input_type).or_insert(0);
-            let i = get::<B>(scope, *input_type, *input_wire)?;
-            set::<B>(
-                &mut new_scope,
-                *input_type,
-                *idx,
-                backend.copy(input_type, i)?,
-            )?;
-            *idx += 1;
+        let mut input_indexes = HashMap::new();
+        out_ids_with_types.iter().for_each(|wirerange_with_type| {
+            let idx = input_indexes
+                .entry(wirerange_with_type.type_id)
+                .or_insert(0);
+            *idx += wirerange_with_type.last_id - wirerange_with_type.first_id + 1;
+        });
+        for wirerange_with_type in in_ids_with_types.iter() {
+            for wire_id in wirerange_with_type.first_id..=wirerange_with_type.last_id {
+                let idx = input_indexes
+                    .entry(wirerange_with_type.type_id)
+                    .or_insert(0);
+                let i = get::<B>(scope, wirerange_with_type.type_id, wire_id)?;
+                set::<B>(
+                    &mut new_scope,
+                    wirerange_with_type.type_id,
+                    *idx,
+                    backend.copy(&wirerange_with_type.type_id, i)?,
+                )?;
+                *idx += 1;
+            }
         }
+
         // evaluate the subcircuit in the new scope.
         for gate in subcircuit {
             Self::ingest_gate(gate, backend, &mut new_scope, known_functions, inputs)?;
         }
+
         // copy the outputs produced from 'new_scope', into 'scope'
-        let expanded_outputs = expand_wirelist(output_list)?;
         let mut output_indexes = HashMap::new();
-        for (output_type, output_wire) in expanded_outputs.iter() {
-            let idx = output_indexes.entry(*output_type).or_insert(0);
-            let w = get::<B>(&new_scope, *output_type, *idx)?;
-            set::<B>(
-                scope,
-                *output_type,
-                *output_wire,
-                backend.copy(output_type, w)?,
-            )?;
-            *idx += 1;
+        for wirerange_with_type in out_ids_with_types.iter() {
+            for wire_id in wirerange_with_type.first_id..=wirerange_with_type.last_id {
+                let idx = output_indexes
+                    .entry(wirerange_with_type.type_id)
+                    .or_insert(0);
+                let w = get::<B>(&new_scope, wirerange_with_type.type_id, *idx)?;
+                set::<B>(
+                    scope,
+                    wirerange_with_type.type_id,
+                    wire_id,
+                    backend.copy(&wirerange_with_type.type_id, w)?,
+                )?;
+                *idx += 1;
+            }
         }
 
         Ok(())

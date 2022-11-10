@@ -47,30 +47,10 @@ table Count {
 	count      :uint64;
 }
 
-table Wire {
-	type_id     :ubyte;
-    wire_id     :uint64;
-}
-
 // first/last are inclusive
 table WireRange {
-	type_id    :ubyte;
     first_id   :uint64;
     last_id    :uint64;
-}
-
-union WireListElementU {
-    Wire,
-    WireRange,
-}
-// This additional table is a workaround to the flatc compiler limitation for Rust, since it does not support the
-// definition of 'vector of unions' as required for the 'WireList' type.
-table WireListElement {
-    element   :WireListElementU;
-}
-
-table WireList {
-    elements    :[WireListElement];
 }
 
 // ==== Gate types ====
@@ -145,8 +125,12 @@ table GateDelete {
 }
 
 table GateConvert {
-	out_ids    :WireList;
-	in_ids     :WireList;
+  out_type_id  :ubyte;
+  out_first_id :uint64;
+  out_last_id  :uint64;
+  in_type_id   :ubyte;
+  in_first_id  :uint64;
+  in_last_id   :uint64;
 }
 
 union FunctionBody {
@@ -182,9 +166,9 @@ table Function {
 
 // Invokes a previously defined Function gate
 table GateCall {
-    name              :string;
-    out_ids      :WireList;
-    in_ids       :WireList;
+    name         :string;
+    out_ids      :[WireRange];
+    in_ids       :[WireRange];
 }
 
 union DirectiveSet {

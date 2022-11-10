@@ -15,6 +15,7 @@ pub extern crate flatbuffers;
 pub extern crate serde;
 
 /// Message reader and writer code generated from the FlatBuffers schema (../sieve_ir.fbs).
+#[rustfmt::skip]
 #[allow(unused_imports, clippy::all)]
 pub mod sieve_ir_generated;
 
@@ -42,43 +43,9 @@ pub use producers::sink::{clean_workspace, FilesSink, Sink};
 /// The extension of files containing messages encoded in FlatBuffers-binary.
 pub use sieve_ir_generated::sieve_ir::ROOT_EXTENSION as FILE_EXTENSION;
 pub use structs::{
-    gates::Gate, message::Message, messages::Messages, private_inputs::PrivateInputs,
+    count::Count, gates::Gate, message::Message, messages::Messages, private_inputs::PrivateInputs,
     public_inputs::PublicInputs, relation::Relation, value::Value, TypeId, WireId,
 };
 
 /// Common definition of Result with generic errors.
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-/// Creates a `WireList` containing the WireIds.
-///
-/// `wirelist!` allows `WireList` to be defined with the same syntax as array expressions.
-/// There are two forms of this macro:
-///
-/// - Create a `WireList` containing a given list of WireIds:
-///
-/// ```
-/// use zki_sieve::structs::wire::WireListElement;
-/// use zki_sieve::wirelist;
-/// let v = wirelist![5; 1, 2, 3];
-/// assert_eq!(v[0], WireListElement::Wire(5, 1));
-/// assert_eq!(v[1], WireListElement::Wire(5, 2));
-/// assert_eq!(v[2], WireListElement::Wire(5, 3));
-/// ```
-///
-/// - Create a `WireList` from a given WireId and size:
-///
-/// ```
-/// use zki_sieve::structs::wire::WireListElement;
-/// use zki_sieve::wirelist;
-/// let v = wirelist![2; 1; 3];
-/// assert_eq!(v, [WireListElement::Wire(2, 1), WireListElement::Wire(2, 1), WireListElement::Wire(2, 1)]);
-/// ```
-#[macro_export]
-macro_rules! wirelist {
-    ($type_id:expr; $elem:expr; $n:expr) => (
-        vec![WireListElement::Wire($type_id, $elem); $n]
-    );
-    ($type_id:expr;  $( $x:expr ),*) => (
-        vec![$(WireListElement::Wire($type_id, $x)),*]
-    );
-}

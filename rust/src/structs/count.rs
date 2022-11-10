@@ -6,7 +6,6 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::structs::wire::{WireList, WireListElement};
 use crate::TypeId;
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -81,33 +80,5 @@ fn test_count_list_to_hashmap() {
     let countlist = vec![Count::new(1, 5), Count::new(0, 3), Count::new(1, 2)];
     let result = count_list_to_hashmap(&countlist);
     let expected_result: HashMap<TypeId, u64> = HashMap::from([(0, 3), (1, 7)]);
-    assert_eq!(result, expected_result);
-}
-
-pub fn wirelist_to_count_list(wirelist: &WireList) -> Vec<Count> {
-    wirelist
-        .iter()
-        .map(|wire_list_el| match wire_list_el {
-            WireListElement::Wire(type_id, _) => Count {
-                type_id: *type_id,
-                count: 1,
-            },
-            WireListElement::WireRange(type_id, first, last) => Count {
-                type_id: *type_id,
-                count: *last - *first + 1,
-            },
-        })
-        .collect()
-}
-
-#[test]
-fn test_wirelist_to_count_list() {
-    let wirelist = vec![
-        WireListElement::WireRange(0, 0, 2),
-        WireListElement::Wire(1, 1),
-        WireListElement::Wire(0, 4),
-    ];
-    let result = wirelist_to_count_list(&wirelist);
-    let expected_result = vec![Count::new(0, 3), Count::new(1, 1), Count::new(0, 1)];
     assert_eq!(result, expected_result);
 }
