@@ -1,52 +1,47 @@
 use crate::producers::examples::literal32;
 use crate::structs::conversion::Conversion;
-use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
 use crate::{PrivateInputs, PublicInputs, Relation};
 use std::collections::HashMap;
 
-pub fn example_public_inputs_with_several_types() -> PublicInputs {
-    PublicInputs {
+pub fn example_public_inputs_with_several_types() -> Vec<PublicInputs> {
+    vec![PublicInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
-        inputs: vec![
-            Inputs {
-                values: vec![vec![5]],
-            },
-            Inputs { values: vec![] },
-        ],
-    }
+        type_: literal32(7),
+        inputs: vec![vec![5]],
+    }]
 }
 
-pub fn example_private_inputs_with_several_types() -> PrivateInputs {
-    PrivateInputs {
-        version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
-        inputs: vec![
-            Inputs {
-                values: vec![vec![3], vec![4]],
-            },
-            Inputs { values: vec![] },
-        ],
-    }
+pub fn example_private_inputs_with_several_types() -> Vec<PrivateInputs> {
+    vec![
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_: literal32(7),
+            inputs: vec![vec![3], vec![4]],
+        },
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_: literal32(101),
+            inputs: vec![vec![25]],
+        },
+    ]
 }
 
-pub fn example_incorrect_private_inputs_with_several_types() -> PrivateInputs {
-    PrivateInputs {
-        version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
-        inputs: vec![
-            Inputs {
-                values: vec![
-                    vec![3],
-                    vec![5], // incorrect
-                ],
-            },
-            Inputs { values: vec![] },
-        ],
-    }
+pub fn example_incorrect_private_inputs_with_several_types() -> Vec<PrivateInputs> {
+    vec![
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_: literal32(7),
+            inputs: vec![vec![3], vec![5]], // instead of [3, 4]
+        },
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_: literal32(101),
+            inputs: vec![vec![25]],
+        },
+    ]
 }
 
 pub fn example_relation_with_several_types() -> Relation {
@@ -108,7 +103,11 @@ pub fn example_relation_with_several_types() -> Relation {
             MulConstant(type_id_101, 7, 3, vec![100]),
             Add(type_id_101, 8, 6, 7),
             AssertZero(type_id_101, 8),
+            PrivateInput(type_id_101, 9),
+            Add(type_id_101, 10, 9, 7),
+            AssertZero(type_id_101, 10),
             Delete(type_id_101, 0, 8),
+            Delete(type_id_101, 9, 10),
         ],
     }
 }
@@ -118,17 +117,18 @@ fn test_examples_with_several_types() {
     use crate::Source;
 
     let mut common_buf = Vec::<u8>::new();
+
     example_public_inputs_with_several_types()
-        .write_into(&mut common_buf)
-        .unwrap();
+        .iter()
+        .for_each(|message| message.write_into(&mut common_buf).unwrap());
     example_relation_with_several_types()
         .write_into(&mut common_buf)
         .unwrap();
 
     let mut prover_buf = Vec::<u8>::new();
     example_private_inputs_with_several_types()
-        .write_into(&mut prover_buf)
-        .unwrap();
+        .iter()
+        .for_each(|message| message.write_into(&mut prover_buf).unwrap());
 
     let source = Source::from_buffers(vec![common_buf, prover_buf]);
     let messages = source.read_all_messages().unwrap();
@@ -138,11 +138,11 @@ fn test_examples_with_several_types() {
     );
     assert_eq!(
         messages.public_inputs,
-        vec![example_public_inputs_with_several_types()]
+        example_public_inputs_with_several_types()
     );
     assert_eq!(
         messages.private_inputs,
-        vec![example_private_inputs_with_several_types()]
+        example_private_inputs_with_several_types()
     );
 }
 
@@ -156,8 +156,12 @@ fn test_validator_with_several_types() -> crate::Result<()> {
 
     let mut validator = Validator::new_as_prover();
 
-    validator.ingest_public_inputs(&public_inputs);
-    validator.ingest_private_inputs(&private_inputs);
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_private_inputs(inputs));
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
@@ -176,8 +180,12 @@ fn test_evaluator_with_several_types() -> crate::Result<()> {
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator: Evaluator<PlaintextBackend> = Evaluator::default();
 
-    simulator.ingest_public_inputs(&public_inputs)?;
-    simulator.ingest_private_inputs(&private_inputs)?;
+    public_inputs
+        .iter()
+        .try_for_each(|inputs| simulator.ingest_public_inputs(inputs))?;
+    private_inputs
+        .iter()
+        .try_for_each(|inputs| simulator.ingest_private_inputs(inputs))?;
     simulator.ingest_relation(&relation, &mut zkbackend)?;
 
     assert_eq!(simulator.get_violations(), Vec::<String>::new());
@@ -215,8 +223,12 @@ fn test_evaluator_with_incorrect_convert_gates() -> crate::Result<()> {
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator: Evaluator<PlaintextBackend> = Evaluator::default();
 
-    simulator.ingest_public_inputs(&public_inputs)?;
-    simulator.ingest_private_inputs(&private_inputs)?;
+    public_inputs
+        .iter()
+        .try_for_each(|inputs| simulator.ingest_public_inputs(inputs))?;
+    private_inputs
+        .iter()
+        .try_for_each(|inputs| simulator.ingest_private_inputs(inputs))?;
     let should_be_err = simulator.ingest_relation(&relation, &mut zkbackend);
     assert!(should_be_err.is_err());
     assert_eq!(

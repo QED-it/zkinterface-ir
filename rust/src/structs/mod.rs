@@ -1,6 +1,3 @@
-/// A common structure for inputs (used in public and private inputs).
-pub mod inputs;
-
 /// A structure representing a message of type PublicInputs.
 pub mod public_inputs;
 

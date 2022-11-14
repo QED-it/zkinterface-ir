@@ -514,9 +514,6 @@ fn assert_same_io_values(
         .flat_map(|pub_inp| {
             pub_inp
                 .inputs
-                .get(0)
-                .unwrap()
-                .values
                 .iter()
                 .map(|v| value_to_biguint(v))
                 .collect::<Vec<BigUint>>()
@@ -552,9 +549,6 @@ fn assert_same_witness_values(
         .flat_map(|priv_inp| {
             priv_inp
                 .inputs
-                .get(0)
-                .unwrap()
-                .values
                 .iter()
                 .map(|v| value_to_biguint(v))
                 .collect::<Vec<BigUint>>()

@@ -5,15 +5,16 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
 
-use super::value::{build_values_vector, try_from_values_vector, Value};
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::structs::inputs::Inputs;
+use crate::structs::value::{
+    build_value, build_values_vector, try_from_value, try_from_values_vector, Value,
+};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct PrivateInputs {
     pub version: String,
-    pub types: Vec<Value>,
-    pub inputs: Vec<Inputs>,
+    pub type_: Value,
+    pub inputs: Vec<Value>,
 }
 
 impl<'a> TryFrom<generated::PrivateInputs<'a>> for PrivateInputs {
@@ -21,18 +22,15 @@ impl<'a> TryFrom<generated::PrivateInputs<'a>> for PrivateInputs {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_private_inputs: generated::PrivateInputs) -> Result<PrivateInputs> {
-        let fbs_vector = g_private_inputs.inputs().ok_or("Missing private_inputs")?;
-        let mut private_inputs: Vec<Inputs> = vec![];
-        for g_inputs in fbs_vector {
-            private_inputs.push(Inputs::try_from(g_inputs)?);
-        }
         Ok(PrivateInputs {
             version: g_private_inputs
                 .version()
                 .ok_or("Missing version")?
                 .to_string(),
-            types: try_from_values_vector(g_private_inputs.types().ok_or("Missing types")?)?,
-            inputs: private_inputs,
+            type_: try_from_value(g_private_inputs.type_().ok_or("Missing type")?)?,
+            inputs: try_from_values_vector(
+                g_private_inputs.inputs().ok_or("Missing private inputs")?,
+            )?,
         })
     }
 }
@@ -53,20 +51,15 @@ impl PrivateInputs {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
         let g_version = builder.create_string(&self.version);
-        let g_types = build_values_vector(builder, &self.types);
-        let g_inputs: Vec<_> = self
-            .inputs
-            .iter()
-            .map(|inputs| inputs.build(builder))
-            .collect();
-        let g_vector = builder.create_vector(&g_inputs);
+        let g_type = build_value(builder, &self.type_);
+        let g_inputs = build_values_vector(builder, &self.inputs);
 
         let private_inputs = generated::PrivateInputs::create(
             builder,
             &generated::PrivateInputsArgs {
                 version: Some(g_version),
-                types: Some(g_types),
-                inputs: Some(g_vector),
+                type_: Some(g_type),
+                inputs: Some(g_inputs),
             },
         );
 
@@ -98,9 +91,5 @@ impl PrivateInputs {
         generated::finish_size_prefixed_root_buffer(&mut builder, message);
         writer.write_all(builder.finished_data())?;
         Ok(())
-    }
-
-    pub fn get_private_inputs_len(&self) -> usize {
-        self.inputs.iter().map(|inputs| inputs.values.len()).sum()
     }
 }

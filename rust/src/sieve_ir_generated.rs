@@ -535,13 +535,13 @@ impl<'a> PublicInputs<'a> {
         args: &'args PublicInputsArgs<'args>) -> flatbuffers::WIPOffset<PublicInputs<'bldr>> {
       let mut builder = PublicInputsBuilder::new(_fbb);
       if let Some(x) = args.inputs { builder.add_inputs(x); }
-      if let Some(x) = args.types { builder.add_types(x); }
+      if let Some(x) = args.type_ { builder.add_type_(x); }
       if let Some(x) = args.version { builder.add_version(x); }
       builder.finish()
     }
 
     pub const VT_VERSION: flatbuffers::VOffsetT = 4;
-    pub const VT_TYPES: flatbuffers::VOffsetT = 6;
+    pub const VT_TYPE_: flatbuffers::VOffsetT = 6;
     pub const VT_INPUTS: flatbuffers::VOffsetT = 8;
 
   #[inline]
@@ -549,26 +549,26 @@ impl<'a> PublicInputs<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(PublicInputs::VT_VERSION, None)
   }
   #[inline]
-  pub fn types(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(PublicInputs::VT_TYPES, None)
+  pub fn type_(&self) -> Option<Value<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Value<'a>>>(PublicInputs::VT_TYPE_, None)
   }
   #[inline]
-  pub fn inputs(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Inputs<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Inputs<'a>>>>>(PublicInputs::VT_INPUTS, None)
+  pub fn inputs(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(PublicInputs::VT_INPUTS, None)
   }
 }
 
 pub struct PublicInputsArgs<'a> {
     pub version: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub types: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
-    pub inputs: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Inputs<'a >>>>>,
+    pub type_: Option<flatbuffers::WIPOffset<Value<'a >>>,
+    pub inputs: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
 }
 impl<'a> Default for PublicInputsArgs<'a> {
     #[inline]
     fn default() -> Self {
         PublicInputsArgs {
             version: None,
-            types: None,
+            type_: None,
             inputs: None,
         }
     }
@@ -583,11 +583,11 @@ impl<'a: 'b, 'b> PublicInputsBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PublicInputs::VT_VERSION, version);
   }
   #[inline]
-  pub fn add_types(&mut self, types: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PublicInputs::VT_TYPES, types);
+  pub fn add_type_(&mut self, type_: flatbuffers::WIPOffset<Value<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Value>>(PublicInputs::VT_TYPE_, type_);
   }
   #[inline]
-  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Inputs<'b >>>>) {
+  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PublicInputs::VT_INPUTS, inputs);
   }
   #[inline]
@@ -635,13 +635,13 @@ impl<'a> PrivateInputs<'a> {
         args: &'args PrivateInputsArgs<'args>) -> flatbuffers::WIPOffset<PrivateInputs<'bldr>> {
       let mut builder = PrivateInputsBuilder::new(_fbb);
       if let Some(x) = args.inputs { builder.add_inputs(x); }
-      if let Some(x) = args.types { builder.add_types(x); }
+      if let Some(x) = args.type_ { builder.add_type_(x); }
       if let Some(x) = args.version { builder.add_version(x); }
       builder.finish()
     }
 
     pub const VT_VERSION: flatbuffers::VOffsetT = 4;
-    pub const VT_TYPES: flatbuffers::VOffsetT = 6;
+    pub const VT_TYPE_: flatbuffers::VOffsetT = 6;
     pub const VT_INPUTS: flatbuffers::VOffsetT = 8;
 
   #[inline]
@@ -649,26 +649,26 @@ impl<'a> PrivateInputs<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(PrivateInputs::VT_VERSION, None)
   }
   #[inline]
-  pub fn types(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(PrivateInputs::VT_TYPES, None)
+  pub fn type_(&self) -> Option<Value<'a>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<Value<'a>>>(PrivateInputs::VT_TYPE_, None)
   }
   #[inline]
-  pub fn inputs(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Inputs<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Inputs<'a>>>>>(PrivateInputs::VT_INPUTS, None)
+  pub fn inputs(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(PrivateInputs::VT_INPUTS, None)
   }
 }
 
 pub struct PrivateInputsArgs<'a> {
     pub version: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub types: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
-    pub inputs: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Inputs<'a >>>>>,
+    pub type_: Option<flatbuffers::WIPOffset<Value<'a >>>,
+    pub inputs: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
 }
 impl<'a> Default for PrivateInputsArgs<'a> {
     #[inline]
     fn default() -> Self {
         PrivateInputsArgs {
             version: None,
-            types: None,
+            type_: None,
             inputs: None,
         }
     }
@@ -683,11 +683,11 @@ impl<'a: 'b, 'b> PrivateInputsBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PrivateInputs::VT_VERSION, version);
   }
   #[inline]
-  pub fn add_types(&mut self, types: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PrivateInputs::VT_TYPES, types);
+  pub fn add_type_(&mut self, type_: flatbuffers::WIPOffset<Value<'b >>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Value>>(PrivateInputs::VT_TYPE_, type_);
   }
   #[inline]
-  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Inputs<'b >>>>) {
+  pub fn add_inputs(&mut self, inputs: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(PrivateInputs::VT_INPUTS, inputs);
   }
   #[inline]
@@ -700,82 +700,6 @@ impl<'a: 'b, 'b> PrivateInputsBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<PrivateInputs<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum InputsOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct Inputs<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for Inputs<'a> {
-    type Inner = Inputs<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> Inputs<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        Inputs {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args InputsArgs<'args>) -> flatbuffers::WIPOffset<Inputs<'bldr>> {
-      let mut builder = InputsBuilder::new(_fbb);
-      if let Some(x) = args.values { builder.add_values(x); }
-      builder.finish()
-    }
-
-    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
-
-  #[inline]
-  pub fn values(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<Value<'a>>>>>(Inputs::VT_VALUES, None)
-  }
-}
-
-pub struct InputsArgs<'a> {
-    pub values: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<Value<'a >>>>>,
-}
-impl<'a> Default for InputsArgs<'a> {
-    #[inline]
-    fn default() -> Self {
-        InputsArgs {
-            values: None,
-        }
-    }
-}
-pub struct InputsBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> InputsBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_values(&mut self, values: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<Value<'b >>>>) {
-    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(Inputs::VT_VALUES, values);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> InputsBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    InputsBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<Inputs<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }

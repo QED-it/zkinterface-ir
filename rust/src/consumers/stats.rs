@@ -11,8 +11,10 @@ use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, Value}
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
     // Inputs.
-    pub public_variables: u64,
-    pub private_variables: u64,
+    pub public_inputs_consumed: u64,
+    pub private_inputs_consumed: u64,
+    pub public_inputs_provided: usize,
+    pub private_inputs_provided: usize,
 
     // Gates.
     pub constants_gates: usize,
@@ -72,12 +74,12 @@ impl Stats {
     }
 
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        self.ingest_types(&public_inputs.types);
+        self.gate_stats.public_inputs_provided += public_inputs.inputs.len();
         self.gate_stats.public_inputs_messages += 1;
     }
 
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) {
-        self.ingest_types(&private_inputs.types);
+        self.gate_stats.private_inputs_provided += private_inputs.inputs.len();
         self.gate_stats.private_inputs_messages += 1;
     }
 
@@ -176,11 +178,11 @@ impl GateStats {
             }
 
             PublicInput(_type_id, _out) => {
-                self.public_variables += 1;
+                self.public_inputs_consumed += 1;
             }
 
             PrivateInput(_type_id, _out) => {
-                self.private_variables += 1;
+                self.private_inputs_consumed += 1;
             }
 
             New(_type_id, first, last) => {
@@ -204,8 +206,8 @@ impl GateStats {
                         }
                         FunctionContent::Plugin(pub_count, priv_count) => {
                             self.plugins_called += 1;
-                            self.public_variables += pub_count;
-                            self.private_variables += priv_count;
+                            self.public_inputs_consumed += pub_count;
+                            self.private_inputs_consumed += priv_count;
                         }
                     };
                 } else {
@@ -217,8 +219,8 @@ impl GateStats {
 
     fn ingest_call_stats(&mut self, other: &GateStats) {
         // Inputs
-        self.public_variables += other.public_variables;
-        self.private_variables += other.private_variables;
+        self.public_inputs_consumed += other.public_inputs_consumed;
+        self.private_inputs_consumed += other.private_inputs_consumed;
 
         // Gates.
         self.constants_gates += other.constants_gates;
@@ -253,8 +255,10 @@ fn test_stats() -> Result<()> {
     let mut expected_stats = Stats {
         moduli: vec![literal(EXAMPLE_MODULUS)],
         gate_stats: GateStats {
-            public_variables: 1,
-            private_variables: 2,
+            public_inputs_consumed: 1,
+            private_inputs_consumed: 2,
+            public_inputs_provided: 1,
+            private_inputs_provided: 2,
             constants_gates: 0,
             assert_zero_gates: 1,
             copy_gates: 0,

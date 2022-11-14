@@ -66,3 +66,24 @@ fn test_is_probably_prime() {
 pub fn value_to_biguint(value: &[u8]) -> BigUint {
     BigUint::from_bytes_le(value)
 }
+
+pub fn remove_trailing_zeros(value: &Value) -> Value {
+    if let Some(last) = value.iter().rposition(|c| *c != 0) {
+        value[0..=last].to_vec()
+    } else {
+        vec![]
+    }
+}
+
+#[test]
+fn test_remove_trailing_zeros() {
+    let value: Value = vec![187, 5, 0, 0];
+    let clean_value = remove_trailing_zeros(&value);
+    let expected_value = vec![187, 5];
+    assert_eq!(clean_value, expected_value);
+
+    let value: Value = vec![0, 187, 0, 5, 0, 0];
+    let clean_value = remove_trailing_zeros(&value);
+    let expected_value = vec![0, 187, 0, 5];
+    assert_eq!(clean_value, expected_value);
+}

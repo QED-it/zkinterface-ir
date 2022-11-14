@@ -2,7 +2,7 @@ use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::Count;
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
-use crate::structs::value::value_to_biguint;
+use crate::structs::value::{remove_trailing_zeros, value_to_biguint};
 use crate::structs::wirerange::{
     add_types_to_wire_ranges, check_wire_ranges_with_counts, WireRangeWithType,
 };
@@ -166,13 +166,15 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 }
 
 pub struct EvaluatorInputs<B: ZKBackend> {
-    public_inputs_queue: HashMap<TypeId, VecDeque<B::TypeElement>>,
-    private_inputs_queue: HashMap<TypeId, VecDeque<B::TypeElement>>,
+    types: Vec<Value>,
+    public_inputs_queue: HashMap<Value, VecDeque<B::TypeElement>>,
+    private_inputs_queue: HashMap<Value, VecDeque<B::TypeElement>>,
 }
 
 impl<B: ZKBackend> Default for EvaluatorInputs<B> {
     fn default() -> Self {
         EvaluatorInputs {
+            types: vec![],
             public_inputs_queue: Default::default(),
             private_inputs_queue: Default::default(),
         }
@@ -227,37 +229,49 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `PublicInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the public input values in a pool.
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) -> Result<()> {
-        for (i, inputs) in public_inputs.inputs.iter().enumerate() {
-            let values = self
-                .inputs
-                .public_inputs_queue
-                .entry(u8::try_from(i)?)
-                .or_insert_with(VecDeque::new);
-            for value in &inputs.values {
-                values.push_back(B::from_bytes_le(value)?);
-            }
-        }
+        let type_value = remove_trailing_zeros(&public_inputs.type_);
+        let inputs = self
+            .inputs
+            .public_inputs_queue
+            .entry(type_value)
+            .or_insert_with(VecDeque::new);
+        public_inputs
+            .inputs
+            .iter()
+            .try_for_each::<_, Result<()>>(|value| {
+                inputs.push_back(B::from_bytes_le(value)?);
+                Ok(())
+            })?;
         Ok(())
     }
 
     /// Ingest a `PrivateInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the private input values in a pool.
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) -> Result<()> {
-        for (i, inputs) in private_inputs.inputs.iter().enumerate() {
-            let values = self
-                .inputs
-                .private_inputs_queue
-                .entry(u8::try_from(i)?)
-                .or_insert_with(VecDeque::new);
-            for value in &inputs.values {
-                values.push_back(B::from_bytes_le(value)?);
-            }
-        }
+        let type_value = remove_trailing_zeros(&private_inputs.type_);
+        let inputs = self
+            .inputs
+            .private_inputs_queue
+            .entry(type_value)
+            .or_insert_with(VecDeque::new);
+        private_inputs
+            .inputs
+            .iter()
+            .try_for_each::<_, Result<()>>(|value| {
+                inputs.push_back(B::from_bytes_le(value)?);
+                Ok(())
+            })?;
         Ok(())
     }
 
     /// Ingest a `Relation` message
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
+        if self.inputs.types.is_empty() {
+            relation.types.iter().for_each(|type_value| {
+                let clean_type_value = remove_trailing_zeros(type_value);
+                self.inputs.types.push(clean_type_value);
+            });
+        }
         backend.set_types(&relation.types)?;
 
         if !relation.gates.is_empty() {
@@ -368,9 +382,13 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             PublicInput(type_id, out) => {
+                let type_value = inputs
+                    .types
+                    .get(usize::try_from(*type_id)?)
+                    .ok_or(format!("Unknown type id ({})", type_id))?;
                 let public_inputs_for_type = inputs
                     .public_inputs_queue
-                    .get_mut(type_id)
+                    .get_mut(type_value)
                     .ok_or("Not enough public inputs to consume")?;
                 let val = public_inputs_for_type
                     .pop_front()
@@ -379,7 +397,11 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             PrivateInput(type_id, out) => {
-                let private_inputs_for_type = inputs.private_inputs_queue.get_mut(type_id);
+                let type_value = inputs
+                    .types
+                    .get(usize::try_from(*type_id)?)
+                    .ok_or(format!("Unknown type id ({})", type_id))?;
+                let private_inputs_for_type = inputs.private_inputs_queue.get_mut(type_value);
                 if let Some(priv_inputs_for_type) = private_inputs_for_type {
                     let val = priv_inputs_for_type.pop_front();
                     set_private_input(backend, scope, *type_id, *out, val)?;

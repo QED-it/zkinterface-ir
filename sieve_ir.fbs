@@ -4,35 +4,31 @@ namespace sieve_ir;
 
 // ==== Message types that can be exchanged. ====
 union Message {
-   Relation,
-   PublicInputs,
-   PrivateInputs,
+  Relation,
+  PublicInputs,
+  PrivateInputs,
 }
 
 // The 'version' field should match the following regexp "^\d+.\d+.\d+$"
 table Relation {
-   version              :string;
-   plugins              :[string];
-   types                :[Value];
-   conversions          :[Conversion];
-   functions            :[Function];
-   directives           :[Directive];
+  version      :string;
+  plugins      :[string];
+  types        :[Value];
+  conversions  :[Conversion];
+  functions    :[Function];
+  directives   :[Directive];
 }
 
 table PublicInputs {
-   version              :string;
-   types                :[Value];
-   inputs               :[Inputs];
+  version  :string;
+  type     :Value;
+  inputs   :[Value];
 }
 
 table PrivateInputs {
-   version              :string;
-   types                :[Value];
-   inputs               :[Inputs];
-}
-
-table Inputs {
-	values              :[Value];
+  version  :string;
+  type     :Value;
+  inputs   :[Value];
 }
 
 // ==== Helper types ====
@@ -40,18 +36,18 @@ table Inputs {
 // Type element is encoded in a vector of bytes in little-endian order.
 // There is no minimum or maximum length; trailing zeros may be omitted.
 table Value {
-    value        :[ubyte];
+  value  :[ubyte];
 }
 
 struct Count {
-	type_id    :ubyte;
-	count      :uint64;
+  type_id  :ubyte;
+  count    :uint64;
 }
 
 // first/last are inclusive
 table WireRange {
-    first_id   :uint64;
-    last_id    :uint64;
+  first_id  :uint64;
+  last_id   :uint64;
 }
 
 // ==== Conversion ====
@@ -63,146 +59,147 @@ struct Conversion {
 // ==== Gate types ====
 
 table GateConstant {
-   type_id     :ubyte;
-   out_id      :uint64;
-   constant    :[ubyte];
+  type_id   :ubyte;
+  out_id    :uint64;
+  constant  :[ubyte];
 }
 
 table GateAssertZero {
-   type_id     :ubyte;
-   in_id       :uint64;
+  type_id  :ubyte;
+  in_id    :uint64;
 }
 
 table GateCopy {
-   type_id     :ubyte;
-   out_id      :uint64;
-   in_id       :uint64;
+  type_id  :ubyte;
+  out_id   :uint64;
+  in_id    :uint64;
 }
 
 table GateAdd {
-   type_id     :ubyte;
-   out_id      :uint64;
-   left_id     :uint64;
-   right_id    :uint64;
+  type_id   :ubyte;
+  out_id    :uint64;
+  left_id   :uint64;
+  right_id  :uint64;
 }
 
 table GateMul {
-   type_id     :ubyte;
-   out_id      :uint64;
-   left_id     :uint64;
-   right_id    :uint64;
+  type_id   :ubyte;
+  out_id    :uint64;
+  left_id   :uint64;
+  right_id  :uint64;
 }
 
 table GateAddConstant {
-   type_id     :ubyte;
-   out_id      :uint64;
-   in_id       :uint64;
-   constant    :[ubyte];
+  type_id   :ubyte;
+  out_id    :uint64;
+  in_id     :uint64;
+  constant  :[ubyte];
 }
 
 table GateMulConstant {
-   type_id     :ubyte;
-   out_id      :uint64;
-   in_id       :uint64;
-   constant    :[ubyte];
+  type_id   :ubyte;
+  out_id    :uint64;
+  in_id     :uint64;
+  constant  :[ubyte];
 }
 
 table GatePublicInput {
-   type_id     :ubyte;
-   out_id      :uint64;
+  type_id  :ubyte;
+  out_id   :uint64;
 }
 
 table GatePrivateInput {
-   type_id     :ubyte;
-   out_id      :uint64;
+  type_id  :ubyte;
+  out_id   :uint64;
 }
 
-// To allocate in a contiguous space all wires between the first and the last inclusive.
+// To allocate in a contiguous space all wires
+// between the first and the last inclusive.
 table GateNew {
-   type_id     :ubyte;
-   first_id    :uint64;
-   last_id     :uint64;
+  type_id   :ubyte;
+  first_id  :uint64;
+  last_id   :uint64;
 }
 
 // To deallocate wires between first and last inclusive
 table GateDelete {
-   type_id     :ubyte;
-   first_id    :uint64;
-   last_id     :uint64;
+  type_id   :ubyte;
+  first_id  :uint64;
+  last_id   :uint64;
 }
 
 table GateConvert {
-  out_type_id  :ubyte;
-  out_first_id :uint64;
-  out_last_id  :uint64;
-  in_type_id   :ubyte;
-  in_first_id  :uint64;
-  in_last_id   :uint64;
+  out_type_id   :ubyte;
+  out_first_id  :uint64;
+  out_last_id   :uint64;
+  in_type_id    :ubyte;
+  in_first_id   :uint64;
+  in_last_id    :uint64;
 }
 
 union FunctionBody {
-	Gates,
-	PluginBody,
+  Gates,
+  PluginBody,
 }
 
 table Gates {
-	gates          :[Directive];
+  gates  :[Directive];
 }
 
 table PluginBody {
-	name          :string;
-	operation     :string;
-	params        :[string];
-    public_count    :[Count]; // Each type_id must be unique
-    private_count   :[Count]; // Each type_id must be unique
+  name           :string;
+  operation      :string;
+  params         :[string];
+  public_count   :[Count]; // Each type_id must be unique
+  private_count  :[Count]; // Each type_id must be unique
 }
 
-// Function declaration. The 'name' field is string matching the following pattern
+// Function declaration.
+// The 'name' field is string matching the following pattern
 //   [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
 //   (
 //       [`.' | `::']
 //       [`a'-`z' | `A'-`Z' | `_']  [`a'-`z' | `A'-`Z' | `0'-`9' | `_']*
 //   )*
 table Function {
-    // Declare a Function gate as a custom computation
-    name            :string;
-    output_count    :[Count];
-    input_count     :[Count];
-    body            :FunctionBody;
+  name          :string;
+  output_count  :[Count];
+  input_count   :[Count];
+  body          :FunctionBody;
 }
 
 // Invokes a previously defined Function gate
 table GateCall {
-    name         :string;
-    out_ids      :[WireRange];
-    in_ids       :[WireRange];
+  name     :string;
+  out_ids  :[WireRange];
+  in_ids   :[WireRange];
 }
 
 union DirectiveSet {
-   GateConstant,
-   GateAssertZero,
-   GateCopy,
-   GateAdd,
-   GateMul,
-   GateAddConstant,
-   GateMulConstant,
-   GatePublicInput,
-   GatePrivateInput,
-   GateNew,
-   GateDelete,
-   GateConvert,
-   GateCall,
+  GateConstant,
+  GateAssertZero,
+  GateCopy,
+  GateAdd,
+  GateMul,
+  GateAddConstant,
+  GateMulConstant,
+  GatePublicInput,
+  GatePrivateInput,
+  GateNew,
+  GateDelete,
+  GateConvert,
+  GateCall,
 }
 
 table Directive {
-    directive      :DirectiveSet;
+  directive  :DirectiveSet;
 }
 
 // ==== Flatbuffers details ====
 
 // All message types are encapsulated in the FlatBuffers root table.
 table Root {
-    message                 :Message;
+  message  :Message;
 }
 root_type Root;
 

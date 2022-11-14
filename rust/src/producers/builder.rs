@@ -9,7 +9,6 @@ use crate::structs::conversion::Conversion;
 use crate::structs::count::Count;
 use crate::structs::function::{Function, FunctionBody, FunctionCounts};
 use crate::structs::gates::replace_output_wires;
-use crate::structs::inputs::Inputs;
 use crate::structs::plugin::PluginBody;
 use crate::structs::value::Value;
 use crate::structs::wirerange::{
@@ -42,8 +41,8 @@ pub trait GateBuilderT {
 struct MessageBuilder<S: Sink> {
     sink: S,
 
-    public_inputs: PublicInputs,
-    private_inputs: PrivateInputs,
+    public_inputs: HashMap<TypeId, PublicInputs>,
+    private_inputs: HashMap<TypeId, PrivateInputs>,
     relation: Relation,
 
     /// Current size (sum of the number of gates) of the relation's functions vector
@@ -57,20 +56,10 @@ struct MessageBuilder<S: Sink> {
 
 impl<S: Sink> MessageBuilder<S> {
     fn new(sink: S, types: &[Value]) -> Self {
-        let public_inputs = vec![Inputs { values: vec![] }; types.len()];
-        let private_inputs = vec![Inputs { values: vec![] }; types.len()];
         Self {
             sink,
-            public_inputs: PublicInputs {
-                version: IR_VERSION.to_string(),
-                types: types.to_owned(),
-                inputs: public_inputs,
-            },
-            private_inputs: PrivateInputs {
-                version: IR_VERSION.to_string(),
-                types: types.to_owned(),
-                inputs: private_inputs,
-            },
+            public_inputs: HashMap::new(),
+            private_inputs: HashMap::new(),
             relation: Relation {
                 version: IR_VERSION.to_string(),
                 plugins: vec![],
@@ -85,37 +74,49 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_public_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        if let Some(inputs) = self.public_inputs.inputs.get_mut(usize::try_from(type_id)?) {
-            inputs.values.push(value);
-        } else {
-            return Err(format!(
-                "Type id {} is not defined, cannot push public input value.",
+        let type_value = self
+            .relation
+            .types
+            .get(usize::try_from(type_id)?)
+            .ok_or(format!(
+                "When pushing a public input value, the type id ({}) is unknown.",
                 type_id
-            )
-            .into());
-        }
-        if self.public_inputs.get_public_inputs_len() == self.max_len {
-            self.flush_public_inputs();
+            ))?;
+
+        // Push value into the PublicInputs corresponding to type_id
+        let public_input = self.public_inputs.entry(type_id).or_insert(PublicInputs {
+            version: self.relation.version.clone(),
+            type_: type_value.clone(),
+            inputs: vec![],
+        });
+        public_input.inputs.push(value);
+
+        if public_input.inputs.len() == self.max_len {
+            self.flush_public_inputs(type_id);
         }
         Ok(())
     }
 
     fn push_private_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        if let Some(inputs) = self
-            .private_inputs
-            .inputs
-            .get_mut(usize::try_from(type_id)?)
-        {
-            inputs.values.push(value);
-        } else {
-            return Err(format!(
-                "Type id {} is not defined, cannot push private input value.",
+        let type_value = self
+            .relation
+            .types
+            .get(usize::try_from(type_id)?)
+            .ok_or(format!(
+                "When pushing a public input value, the type id ({}) is unknown.",
                 type_id
-            )
-            .into());
-        }
-        if self.private_inputs.get_private_inputs_len() == self.max_len {
-            self.flush_private_inputs();
+            ))?;
+
+        // Push value into the PrivateInputs corresponding to type_id
+        let private_input = self.private_inputs.entry(type_id).or_insert(PrivateInputs {
+            version: self.relation.version.clone(),
+            type_: type_value.clone(),
+            inputs: vec![],
+        });
+        private_input.inputs.push(value);
+
+        if private_input.inputs.len() == self.max_len {
+            self.flush_private_inputs(type_id);
         }
         Ok(())
     }
@@ -173,21 +174,39 @@ impl<S: Sink> MessageBuilder<S> {
         }
     }
 
-    fn flush_public_inputs(&mut self) {
-        self.sink
-            .push_public_inputs_message(&self.public_inputs)
-            .unwrap();
-        for inputs in &mut self.public_inputs.inputs {
-            inputs.values.clear();
+    fn flush_public_inputs(&mut self, type_id: TypeId) {
+        let public_input = self.public_inputs.get(&type_id).unwrap();
+        self.sink.push_public_inputs_message(public_input).unwrap();
+        self.public_inputs.remove(&type_id);
+    }
+
+    fn flush_all_public_inputs(&mut self) {
+        let type_ids = self
+            .public_inputs
+            .iter()
+            .map(|(type_id, _)| *type_id)
+            .collect::<Vec<_>>();
+        for type_id in type_ids.iter() {
+            self.flush_public_inputs(*type_id);
         }
     }
 
-    fn flush_private_inputs(&mut self) {
+    fn flush_private_inputs(&mut self, type_id: TypeId) {
+        let private_input = self.private_inputs.get(&type_id).unwrap();
         self.sink
-            .push_private_inputs_message(&self.private_inputs)
+            .push_private_inputs_message(private_input)
             .unwrap();
-        for inputs in &mut self.private_inputs.inputs {
-            inputs.values.clear();
+        self.private_inputs.remove(&type_id);
+    }
+
+    fn flush_all_private_inputs(&mut self) {
+        let type_ids = self
+            .private_inputs
+            .iter()
+            .map(|(type_id, _)| *type_id)
+            .collect::<Vec<_>>();
+        for type_id in type_ids.iter() {
+            self.flush_private_inputs(*type_id);
         }
     }
 
@@ -199,12 +218,8 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn finish(mut self) -> S {
-        if !self.public_inputs.inputs.is_empty() {
-            self.flush_public_inputs();
-        }
-        if !self.private_inputs.inputs.is_empty() {
-            self.flush_private_inputs();
-        }
+        self.flush_all_public_inputs();
+        self.flush_all_private_inputs();
         if !self.relation.gates.is_empty() || !self.relation.functions.is_empty() {
             self.flush_relation();
         }

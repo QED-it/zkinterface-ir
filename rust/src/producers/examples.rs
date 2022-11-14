@@ -1,7 +1,6 @@
 use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
-use crate::structs::inputs::Inputs;
 use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
 use crate::{PrivateInputs, PublicInputs, Relation, TypeId};
@@ -10,33 +9,27 @@ use crate::{PrivateInputs, PublicInputs, Relation, TypeId};
 pub fn example_public_inputs() -> PublicInputs {
     PublicInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(EXAMPLE_MODULUS)],
-        inputs: vec![Inputs {
-            values: vec![literal32(5)],
-        }],
+        type_: literal32(EXAMPLE_MODULUS),
+        inputs: vec![literal32(5)],
     }
 }
 
 pub fn example_private_inputs() -> PrivateInputs {
     PrivateInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(EXAMPLE_MODULUS)],
-        inputs: vec![Inputs {
-            values: vec![literal32(3), literal32(4)],
-        }],
+        type_: literal32(EXAMPLE_MODULUS),
+        inputs: vec![literal32(3), literal32(4)],
     }
 }
 
 pub fn example_private_inputs_incorrect() -> PrivateInputs {
     PrivateInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(EXAMPLE_MODULUS)],
-        inputs: vec![Inputs {
-            values: vec![
-                literal32(3),
-                literal32(4 + 1), // incorrect.
-            ],
-        }],
+        type_: literal32(EXAMPLE_MODULUS),
+        inputs: vec![
+            literal32(3),
+            literal32(4 + 1), // incorrect.
+        ],
     }
 }
 

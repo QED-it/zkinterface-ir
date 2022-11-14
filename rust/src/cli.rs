@@ -158,7 +158,7 @@ fn main_example(opts: &Options) -> Result<()> {
     } else {
         example_private_inputs()
     };
-    write_example(opts, &public_inputs, &private_inputs, &relation)?;
+    write_example(opts, &[public_inputs], &[private_inputs], &relation)?;
     Ok(())
 }
 
@@ -178,8 +178,8 @@ fn main_several_types_example(opts: &Options) -> Result<()> {
 
 fn write_example(
     opts: &Options,
-    public_inputs: &PublicInputs,
-    private_inputs: &PrivateInputs,
+    public_inputs: &[PublicInputs],
+    private_inputs: &[PrivateInputs],
     relation: &Relation,
 ) -> Result<()> {
     if opts.paths.len() != 1 {
@@ -188,13 +188,21 @@ fn write_example(
     let out_dir = &opts.paths[0];
 
     if out_dir == Path::new("-") {
-        public_inputs.write_into(&mut stdout())?;
-        private_inputs.write_into(&mut stdout())?;
+        public_inputs
+            .iter()
+            .try_for_each(|inputs| inputs.write_into(&mut stdout()))?;
+        private_inputs
+            .iter()
+            .try_for_each(|inputs| inputs.write_into(&mut stdout()))?;
         relation.write_into(&mut stdout())?;
     } else if has_sieve_extension(out_dir) {
         let mut file = File::create(out_dir)?;
-        public_inputs.write_into(&mut file)?;
-        private_inputs.write_into(&mut file)?;
+        public_inputs
+            .iter()
+            .try_for_each(|inputs| inputs.write_into(&mut file))?;
+        private_inputs
+            .iter()
+            .try_for_each(|inputs| inputs.write_into(&mut file))?;
         relation.write_into(&mut file)?;
         eprintln!(
             "Written PublicInputs, PrivateInputs, and Relation into {}",
@@ -203,8 +211,12 @@ fn write_example(
     } else {
         let mut sink = FilesSink::new_clean(out_dir)?;
         sink.print_filenames();
-        sink.push_public_inputs_message(public_inputs)?;
-        sink.push_private_inputs_message(private_inputs)?;
+        public_inputs
+            .iter()
+            .try_for_each(|inputs| sink.push_public_inputs_message(inputs))?;
+        private_inputs
+            .iter()
+            .try_for_each(|inputs| sink.push_private_inputs_message(inputs))?;
         sink.push_relation_message(relation)?;
     }
     Ok(())

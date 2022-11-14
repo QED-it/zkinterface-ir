@@ -105,52 +105,52 @@ The command below reads the statement and prints a textual representation of it.
     Reading ./002_relation.sieve
     ---
     public_inputs:
-      - header:
-          version: 1.0.0
-          types:
-            - - 7
-              - 0
-              - 0
-              - 0
-            - - 101
-              - 0
-              - 0
-              - 0
+      - version: 2.0.0
+        type_:
+          - 7
+          - 0
+          - 0
+          - 0
         inputs:
-          - values:
-              - - 5
-          - values: []
+          - - 5
     private_inputs:
-      - header:
-          version: 1.0.0
-          types:
-            - - 7
-              - 0
-              - 0
-              - 0
-            - - 101
-              - 0
-              - 0
-              - 0
+      - version: 2.0.0
+        type_:
+          - 7
+          - 0
+          - 0
+          - 0
         inputs:
-          - values:
-              - - 3
-              - - 4
-          - values: []
+          - - 3
+          - - 4
+      - version: 2.0.0
+        type_:
+          - 101
+          - 0
+          - 0
+          - 0
+        inputs:
+          - - 25
     relations:
-      - header:
-          version: 1.0.0
-          types:
-            - - 7
-              - 0
-              - 0
-              - 0
-            - - 101
-              - 0
-              - 0
-              - 0
+      - version: 2.0.0
         plugins:
           - vector
+        types:
+          - - 7
+            - 0
+            - 0
+            - 0
+          - - 101
+            - 0
+            - 0
+            - 0
+        conversions:
+          - output_count:
+              type_id: 1
+              count: 1
+            input_count:
+              type_id: 0
+              count: 1
         functions:
           - name: square
             output_count:
@@ -199,52 +199,44 @@ The command below reads the statement and prints a textual representation of it.
               - 0
               - 2
           - Convert:
-              - - Wire:
-                    - 1
-                    - 0
-              - - Wire:
-                    - 0
-                    - 0
+              - 1
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
           - Convert:
-              - - Wire:
-                    - 1
-                    - 1
-              - - Wire:
-                    - 0
-                    - 1
+              - 1
+              - 1
+              - 1
+              - 0
+              - 1
+              - 1
           - Convert:
-              - - Wire:
-                    - 1
-                    - 2
-              - - Wire:
-                    - 0
-                    - 2
+              - 1
+              - 2
+              - 2
+              - 0
+              - 2
+              - 2
           - Delete:
               - 0
               - 0
               - 2
           - Call:
               - square
-              - - Wire:
-                    - 1
-                    - 3
-              - - Wire:
-                    - 1
-                    - 0
+              - - first_id: 3
+                  last_id: 3
+              - - first_id: 0
+                  last_id: 0
           - Call:
               - vector_mul_7_2
-              - - WireRange:
-                    - 1
-                    - 4
-                    - 5
-              - - WireRange:
-                    - 1
-                    - 1
-                    - 2
-                - WireRange:
-                    - 1
-                    - 1
-                    - 2
+              - - first_id: 4
+                  last_id: 5
+              - - first_id: 1
+                  last_id: 2
+                - first_id: 1
+                  last_id: 2
           - Add:
               - 1
               - 6
@@ -263,10 +255,25 @@ The command below reads the statement and prints a textual representation of it.
           - AssertZero:
               - 1
               - 8
+          - PrivateInput:
+              - 1
+              - 9
+          - Add:
+              - 1
+              - 10
+              - 9
+              - 7
+          - AssertZero:
+              - 1
+              - 10
           - Delete:
               - 1
               - 0
               - 8
+          - Delete:
+              - 1
+              - 9
+              - 10
 
 
 

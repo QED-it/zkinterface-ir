@@ -11,6 +11,7 @@ use crate::structs::value::{is_probably_prime, value_to_biguint};
 use crate::structs::wirerange::add_types_to_wire_ranges;
 use regex::Regex;
 use std::cmp::Ordering;
+use std::convert::TryFrom;
 
 type TypeElement = BigUint;
 
@@ -58,8 +59,8 @@ WireRange Validation
 pub struct Validator {
     as_prover: bool,
 
-    public_inputs_queue_len: HashMap<TypeId, u64>,
-    private_inputs_queue_len: HashMap<TypeId, u64>,
+    public_inputs_queue_len: HashMap<TypeElement, u64>,
+    private_inputs_queue_len: HashMap<TypeElement, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
     new_gates: HashSet<(TypeId, WireId, WireId)>,
@@ -155,46 +156,31 @@ impl Validator {
                 self.violate("The profile version should match the following format <major>.<minor>.<patch>.");
             }
             self.header_version = version.to_string();
-
-            // Initialize public/private_inputs_queue_len
-            self.public_inputs_queue_len = HashMap::new();
-            self.private_inputs_queue_len = HashMap::new();
         }
     }
 
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        self.ingest_header(&public_inputs.version, &public_inputs.types);
-
+        let modulo = value_to_biguint(&public_inputs.type_);
         // Provide values on the queue available for PublicInput gates.
-        for (i, public_inputs_per_type) in public_inputs.inputs.iter().enumerate() {
-            assert!(i <= u8::MAX as usize);
-            let i = i as u8;
-            // Check values.
-            for value in &public_inputs_per_type.values {
-                self.ensure_value_in_type(&i, value, || format!("public value {:?}", value));
-            }
-            let count = self.public_inputs_queue_len.entry(i).or_insert(0);
-            *count += public_inputs_per_type.values.len() as u64;
-        }
+        public_inputs.inputs.iter().for_each(|value| {
+            self.ensure_value_in_type(&modulo, value, || format!("public value {:?}", value))
+        });
+        let count = self.public_inputs_queue_len.entry(modulo).or_insert(0);
+        *count += public_inputs.inputs.len() as u64;
     }
 
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) {
         if !self.as_prover {
             self.violate("As verifier, got an unexpected PrivateInputs message.");
         }
-        self.ingest_header(&private_inputs.version, &private_inputs.types);
 
+        let modulo = value_to_biguint(&private_inputs.type_);
         // Provide values on the queue available for PrivateInput gates.
-        for (i, private_inputs_per_type) in private_inputs.inputs.iter().enumerate() {
-            assert!(i <= u8::MAX as usize);
-            let i = i as u8;
-            // Check values.
-            for value in &private_inputs_per_type.values {
-                self.ensure_value_in_type(&i, value, || format!("private value {:?}", value));
-            }
-            let count = self.private_inputs_queue_len.entry(i).or_insert(0);
-            *count += private_inputs_per_type.values.len() as u64;
-        }
+        private_inputs.inputs.iter().for_each(|value| {
+            self.ensure_value_in_type(&modulo, value, || format!("private value {:?}", value))
+        });
+        let count = self.private_inputs_queue_len.entry(modulo).or_insert(0);
+        *count += private_inputs.inputs.len() as u64;
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
@@ -276,7 +262,9 @@ impl Validator {
 
         match gate {
             Constant(type_id, out, value) => {
-                self.ensure_value_in_type(type_id, value, || "Gate::Constant constant".to_string());
+                self.ensure_value_in_type_id(type_id, value, || {
+                    "Gate::Constant constant".to_string()
+                });
                 self.ensure_undefined_and_set(type_id, *out);
             }
 
@@ -304,7 +292,7 @@ impl Validator {
             }
 
             AddConstant(type_id, out, inp, constant) => {
-                self.ensure_value_in_type(type_id, constant, || {
+                self.ensure_value_in_type_id(type_id, constant, || {
                     format!("Gate::AddConstant_{}", *out)
                 });
                 self.ensure_defined_and_set(type_id, *inp);
@@ -312,7 +300,7 @@ impl Validator {
             }
 
             MulConstant(type_id, out, inp, constant) => {
-                self.ensure_value_in_type(type_id, constant, || {
+                self.ensure_value_in_type_id(type_id, constant, || {
                     format!("Gate::MulConstant_{}", *out)
                 });
                 self.ensure_defined_and_set(type_id, *inp);
@@ -552,12 +540,38 @@ impl Validator {
             };
         }
 
+        // Type Value => count
+        let mut public_count_with_type_value = HashMap::new();
+        let mut private_count_with_type_value = HashMap::new();
+        for (type_id, count) in public_count.iter() {
+            let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
+            match modulo_option {
+                Some(modulo) => {
+                    public_count_with_type_value.insert(modulo.clone(), *count);
+                }
+                None => {
+                    self.violate(format!("Unknown type_id {}", type_id));
+                }
+            }
+        }
+        for (type_id, count) in private_count.iter() {
+            let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
+            match modulo_option {
+                Some(modulo) => {
+                    private_count_with_type_value.insert(modulo.clone(), *count);
+                }
+                None => {
+                    self.violate(format!("Unknown type_id {}", type_id));
+                }
+            }
+        }
+
         // Create a new validator to evaluate the custom function circuit
         let mut current_validator = Validator {
             as_prover: self.as_prover,
-            public_inputs_queue_len: public_count.clone(),
+            public_inputs_queue_len: public_count_with_type_value.clone(),
             private_inputs_queue_len: if self.as_prover {
-                private_count.clone()
+                private_count_with_type_value.clone()
             } else {
                 HashMap::new()
             },
@@ -614,20 +628,45 @@ impl Validator {
         }
     }
 
-    fn consume_public_inputs(&mut self, type_id: &TypeId, how_many: u64) {
+    fn consume_inputs(
+        &mut self,
+        type_id: &TypeId,
+        how_many: u64,
+        is_public: bool, // public or private inputs ?
+    ) {
+        let err_message = if is_public {
+            "Not enough public input value to consume."
+        } else {
+            "Not enough private input value to consume."
+        };
         if how_many == 0 {
             return;
         }
-        if let Some(count) = self.public_inputs_queue_len.get_mut(type_id) {
-            if *count >= how_many {
-                *count -= how_many;
-            } else {
-                *count = 0;
-                self.violate("Not enough public input value to consume.");
+        let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
+        match modulo_option {
+            Some(modulo) => {
+                let count_option = if is_public {
+                    self.public_inputs_queue_len.get_mut(modulo)
+                } else {
+                    self.private_inputs_queue_len.get_mut(modulo)
+                };
+                if let Some(count) = count_option {
+                    if *count >= how_many {
+                        *count -= how_many;
+                    } else {
+                        *count = 0;
+                        self.violate(err_message);
+                    }
+                } else {
+                    self.violate(err_message);
+                }
             }
-        } else {
-            self.violate("Not enough public input value to consume.");
+            None => self.violate(format!("Unknown type_id {}", type_id)),
         }
+    }
+
+    fn consume_public_inputs(&mut self, type_id: &TypeId, how_many: u64) {
+        self.consume_inputs(type_id, how_many, true);
     }
 
     fn consume_public_count(&mut self, public_count: &HashMap<TypeId, u64>) {
@@ -638,19 +677,7 @@ impl Validator {
 
     fn consume_private_inputs(&mut self, type_id: &TypeId, how_many: u64) {
         if self.as_prover {
-            if how_many == 0 {
-                return;
-            }
-            if let Some(count) = self.private_inputs_queue_len.get_mut(type_id) {
-                if *count >= how_many {
-                    *count -= how_many;
-                } else {
-                    *count = 0;
-                    self.violate("Not enough private input value to consume.");
-                }
-            } else {
-                self.violate("Not enough private input value to consume.");
-            }
+            self.consume_inputs(type_id, how_many, false);
         }
     }
 
@@ -695,19 +722,28 @@ impl Validator {
         self.declare(type_id, id);
     }
 
-    fn ensure_value_in_type(&mut self, type_id: &TypeId, value: &[u8], name: impl Fn() -> String) {
-        if value.is_empty() {
-            self.violate(format!("The {} is empty.", name()));
-        }
-
+    fn ensure_value_in_type_id(
+        &mut self,
+        type_id: &TypeId,
+        value: &[u8],
+        name: impl Fn() -> String,
+    ) {
         let modulo = get_modulo(type_id, &self.moduli);
         let modulo = match modulo {
             Err(_) => {
                 self.violate(format!("Type id {} is not defined.", *type_id));
                 return;
             }
-            Ok(modulo) => modulo,
+            Ok(modulo) => modulo.clone(),
         };
+        self.ensure_value_in_type(&modulo, value, name);
+    }
+
+    fn ensure_value_in_type(&mut self, modulo: &BigUint, value: &[u8], name: impl Fn() -> String) {
+        if value.is_empty() {
+            self.violate(format!("The {} is empty.", name()));
+        }
+
         let int = &TypeElement::from_bytes_le(value);
         if int >= modulo {
             let msg = format!(
@@ -800,14 +836,12 @@ fn test_validator_violations() -> crate::Result<()> {
 
     let mut public_inputs = example_public_inputs();
     let mut private_inputs = example_private_inputs();
-    let mut relation = example_relation();
+    let relation = example_relation();
 
     // Create a violation by using a value too big for the type.
-    public_inputs.inputs[0].values[0] = public_inputs.types[0].clone();
+    public_inputs.inputs[0] = public_inputs.type_.clone();
     // Create a violation by omitting a private input value.
-    private_inputs.inputs[0].values.pop().unwrap();
-    // Create a violation by using different types.
-    relation.types = vec![vec![10]];
+    private_inputs.inputs.pop().unwrap();
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -819,7 +853,6 @@ fn test_validator_violations() -> crate::Result<()> {
         violations,
         vec![
             "The public value [101, 0, 0, 0] cannot be represented in the type specified (101 >= 101).",
-            "The types are not consistent across ressources.",
             "Not enough private input value to consume.",
         ]
     );
@@ -901,28 +934,17 @@ fn test_validator_new_violations() -> crate::Result<()> {
 #[test]
 fn test_validator_convert_violations() {
     use crate::producers::examples::literal32;
-    use crate::structs::inputs::Inputs;
     use crate::structs::IR_VERSION;
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
-        inputs: vec![
-            Inputs {
-                values: vec![vec![5]],
-            },
-            Inputs { values: vec![] },
-        ],
+        type_: literal32(7),
+        inputs: vec![vec![5]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        types: vec![literal32(7), literal32(101)],
-        inputs: vec![
-            Inputs { values: vec![] },
-            Inputs {
-                values: vec![vec![10]],
-            },
-        ],
+        type_: literal32(101),
+        inputs: vec![vec![10]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),

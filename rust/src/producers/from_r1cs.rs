@@ -254,8 +254,10 @@ fn test_r1cs_stats() -> Result<()> {
     let expected_stats = Stats {
         moduli: vec![vec![101]],
         gate_stats: GateStats {
-            public_variables: 3,
-            private_variables: 2,
+            public_inputs_consumed: 3,
+            private_inputs_consumed: 2,
+            public_inputs_provided: 3,
+            private_inputs_provided: 2,
             constants_gates: 12,
             assert_zero_gates: 3,
             copy_gates: 0,
