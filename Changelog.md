@@ -14,7 +14,7 @@ Rust:
 - rename Instance/Witness by PublicInputs/PrivateInputs
 - rename Free gate by Delete gate
 - add New gate
-- add plugins
+- add plugin functions
 - rename FieldId by TypeId
 - remove AnonCall gate
 - in FBS, remove CountList table and use directly [Count]

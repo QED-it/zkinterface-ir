@@ -101,17 +101,19 @@ pub trait ZKBackend {
         inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>>;
 
-    /// Evaluate plugin defined in `plugin_body` on `inputs`
+    /// Evaluate plugin defined in `plugin_body` on `inputs`, `public_inputs` and `private_inputs`
     /// The result is stored in new wires.
     /// The result must be compliant with `output_wire_count`.
-    /// If the plugin is unknown or if `input_count`, `output_count`, `inputs` or `plugin_body`
-    /// are not compliant with the plugin specifications,
+    /// If the plugin is unknown or if `input_count`, `output_count`, `inputs`, `public_inputs`,
+    /// `private_inputs` or `plugin_body` are not compliant with the plugin specifications,
     /// then `evaluate_plugin` returns an error.
     fn evaluate_plugin(
         &mut self,
         output_count: &[Count],
         input_count: &[Count],
         inputs: &[&Self::Wire],
+        public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>>;
 }
@@ -302,6 +304,42 @@ impl<B: ZKBackend> Evaluator<B> {
         Ok(())
     }
 
+    /// This function consumes and returns some public/private inputs
+    /// - `inputs` contains the available public/private inputs
+    /// - `type_id` contains the TypeId of the public/private inputs we would like to consume
+    /// - `count` contains the number of public/private inputs we would like to consume
+    /// - `is_public` is true if we would like to consume public inputs and false if we would like
+    /// to consume private inputs
+    fn get_input_values(
+        inputs: &mut EvaluatorInputs<B>,
+        type_id: &TypeId,
+        count: u64,
+        is_public: bool,
+    ) -> Result<Vec<B::TypeElement>> {
+        let type_value = inputs
+            .types
+            .get(usize::try_from(*type_id)?)
+            .ok_or(format!("Unknown type id ({})", type_id))?;
+        let (inputs_queue, err_message) = if is_public {
+            (
+                &mut inputs.public_inputs_queue,
+                "Not enough public inputs to consume",
+            )
+        } else {
+            (
+                &mut inputs.private_inputs_queue,
+                "Not enough private inputs to consume",
+            )
+        };
+        let inputs_queue_for_type = inputs_queue.get_mut(type_value).ok_or(err_message)?;
+        let mut values = vec![];
+        for _ in 0..count {
+            let val = inputs_queue_for_type.pop_front().ok_or(err_message)?;
+            values.push(val);
+        }
+        Ok(values)
+    }
+
     /// This function ingests one gate at a time (but can call itself recursively)
     /// - `scope` contains the list of existing wires with their respective value. It will be
     ///    augmented if this gate produces outputs, or reduced if this is a `GateDelete`
@@ -383,32 +421,26 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             PublicInput(type_id, out) => {
-                let type_value = inputs
-                    .types
-                    .get(usize::try_from(*type_id)?)
-                    .ok_or(format!("Unknown type id ({})", type_id))?;
-                let public_inputs_for_type = inputs
-                    .public_inputs_queue
-                    .get_mut(type_value)
-                    .ok_or("Not enough public inputs to consume")?;
-                let val = public_inputs_for_type
-                    .pop_front()
-                    .ok_or("Not enough public inputs to consume")?;
-                set_public_input(backend, scope, *type_id, *out, val)?;
+                let mut val = Self::get_input_values(inputs, type_id, 1, true)?;
+                set_public_input(backend, scope, *type_id, *out, val.pop().unwrap())?;
             }
 
             PrivateInput(type_id, out) => {
-                let type_value = inputs
-                    .types
-                    .get(usize::try_from(*type_id)?)
-                    .ok_or(format!("Unknown type id ({})", type_id))?;
-                let private_inputs_for_type = inputs.private_inputs_queue.get_mut(type_value);
-                if let Some(priv_inputs_for_type) = private_inputs_for_type {
-                    let val = priv_inputs_for_type.pop_front();
-                    set_private_input(backend, scope, *type_id, *out, val)?;
-                } else {
-                    set_private_input(backend, scope, *type_id, *out, None)?;
-                }
+                let val_result = Self::get_input_values(inputs, type_id, 1, false);
+                match val_result {
+                    Ok(mut values) => {
+                        set_private_input(
+                            backend,
+                            scope,
+                            *type_id,
+                            *out,
+                            Some(values.pop().unwrap()),
+                        )?;
+                    }
+                    // It is not always possible to retrieve private values (e.g. for verifier).
+                    // It is managed in `set_private_input` by a value input equal to `None`.
+                    Err(_) => set_private_input(backend, scope, *type_id, *out, None)?,
+                };
             }
 
             New(type_id, first, last) => {
@@ -502,7 +534,6 @@ impl<B: ZKBackend> Evaluator<B> {
                         )?;
                     }
                     FunctionBody::PluginBody(plugin_body) => {
-                        // TODO add public/private inputs
                         // Retrieve input values
                         let mut input_values = vec![];
                         in_ids_with_types
@@ -517,11 +548,35 @@ impl<B: ZKBackend> Evaluator<B> {
                                     })
                             })?;
 
+                        // Retrieve public inputs
+                        let mut public_inputs = HashMap::new();
+                        plugin_body
+                            .public_count
+                            .iter()
+                            .try_for_each::<_, Result<()>>(|(type_id, count)| {
+                                let values = Self::get_input_values(inputs, type_id, *count, true)?;
+                                public_inputs.insert(*type_id, values);
+                                Ok(())
+                            })?;
+                        // Retrieve private inputs
+                        let mut private_inputs = HashMap::new();
+                        plugin_body
+                            .private_count
+                            .iter()
+                            .try_for_each::<_, Result<()>>(|(type_id, count)| {
+                                let values =
+                                    Self::get_input_values(inputs, type_id, *count, false)?;
+                                private_inputs.insert(*type_id, values);
+                                Ok(())
+                            })?;
+
                         // Evaluate plugin
                         let out: Vec<B::Wire> = backend.evaluate_plugin(
                             &function.output_count,
                             &function.input_count,
                             &input_values,
+                            &public_inputs,
+                            &private_inputs,
                             plugin_body,
                         )?;
 
@@ -858,12 +913,16 @@ impl ZKBackend for PlaintextBackend {
         output_count: &[Count],
         input_count: &[Count],
         inputs: &[&Self::Wire],
+        public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
         evaluate_plugin_for_plaintext_backend(
             output_count,
             input_count,
             inputs,
+            public_inputs,
+            private_inputs,
             plugin_body,
             &self.m,
         )
@@ -992,6 +1051,8 @@ fn test_evaluator_as_verifier() -> Result<()> {
             output_count: &[Count],
             _input_count: &[Count],
             _inputs: &[&Self::Wire],
+            _public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+            _private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
             _plugin_body: &PluginBody,
         ) -> Result<Vec<Self::Wire>> {
             let count = output_count.iter().map(|count| count.count).sum::<u64>();

@@ -9,7 +9,7 @@ use zkinterface::{BilinearConstraint, Sink, StatementBuilder, Variables};
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub struct ToR1CSConverter<S: Sink> {
     builder: StatementBuilder<S>,
@@ -446,6 +446,8 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         _output_count: &[Count],
         _input_count: &[Count],
         _inputs: &[&Self::Wire],
+        _public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        _private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
         _plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to convert to R1CS circuit circuit containing plugin calls".into())

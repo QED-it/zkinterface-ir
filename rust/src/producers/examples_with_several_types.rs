@@ -53,7 +53,7 @@ pub fn example_relation_with_several_types() -> Relation {
     let type_id_101: u8 = 1;
     Relation {
         version: IR_VERSION.to_string(),
-        plugins: vec!["vector".to_string()],
+        plugins: vec!["vector".to_string(), "assert_equal".to_string()],
         types: vec![literal32(7), literal32(101)],
         conversions: vec![Conversion::new(
             Count::new(type_id_101, 1),
@@ -76,6 +76,18 @@ pub fn example_relation_with_several_types() -> Relation {
                     params: vec![type_id_101.to_string(), "2".to_string()],
                     public_count: HashMap::new(),
                     private_count: HashMap::new(),
+                }),
+            ),
+            Function::new(
+                "assert_equal_private".to_string(),
+                vec![],
+                vec![Count::new(type_id_101, 1)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "assert_equal".to_string(),
+                    operation: "private".to_string(),
+                    params: vec![type_id_101.to_string(), "1".to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::from([(type_id_101, 1)]),
                 }),
             ),
         ],
@@ -103,11 +115,12 @@ pub fn example_relation_with_several_types() -> Relation {
             MulConstant(type_id_101, 7, 3, vec![100]),
             Add(type_id_101, 8, 6, 7),
             AssertZero(type_id_101, 8),
-            PrivateInput(type_id_101, 9),
-            Add(type_id_101, 10, 9, 7),
-            AssertZero(type_id_101, 10),
+            Call(
+                "assert_equal_private".to_string(),
+                vec![],
+                vec![WireRange::new(3, 3)],
+            ),
             Delete(type_id_101, 0, 8),
-            Delete(type_id_101, 9, 10),
         ],
     }
 }

@@ -7,6 +7,7 @@ use crate::structs::value::value_to_biguint;
 use crate::{Result, Sink, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
+use std::collections::HashMap;
 
 // TODO instead of using WireId, use something implementing Drop, which will call the corresponding
 // Delete gate when the wire is no more needed.
@@ -199,6 +200,8 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         _output_count: &[Count],
         _input_count: &[Count],
         _inputs: &[&Self::Wire],
+        _public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        _private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
         _plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to flatten circuit containing plugin calls".into())
