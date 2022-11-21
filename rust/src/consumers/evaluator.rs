@@ -9,6 +9,7 @@ use crate::structs::wirerange::{
 use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
+use num_traits::Pow;
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
 
@@ -813,6 +814,13 @@ impl ZKBackend for PlaintextBackend {
         Ok(())
     }
 
+    /// See specs Section 3.5
+    /// Inputs and outputs are expressed in big-endian representation.
+    /// To convert `p` wires `x1...xp` in field `A` into `q` wires `y1...yq` in field `B`,
+    /// we first convert the `p` wires in field `A` into a natural number
+    /// `N =\sum_{i=1}^p x_i A^{p-1} mod B^q`.
+    /// Then we represent `N` into `q` wires in field `B` `y1...yq`:
+    /// `N = \sum{i=1}^q y_i B^{q-1}`.
     fn convert(
         &mut self,
         output_type: &TypeId,
@@ -831,16 +839,17 @@ impl ZKBackend for PlaintextBackend {
             number += *input;
         }
 
-        // Convert BigUint value into output element
+        // Take the modulo (to avoid overflow)
+        // number = number mod  (output_modulo ^ output_wire_count)
+        number %= Pow::pow(output_modulo, output_wire_count);
+
+        // Convert BigUint value into output elements
         let mut result = vec![];
         for _ in 0..output_wire_count {
             result.insert(0, &number % output_modulo);
             number = &number / output_modulo;
         }
 
-        if !number.is_zero() {
-            return Err("Impossible conversion".into());
-        }
         Ok(result)
     }
 
@@ -1022,4 +1031,98 @@ fn test_evaluator_wrong_result() -> Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_evaluator_conversion() {
+    use crate::consumers::evaluator::Evaluator;
+    use crate::producers::examples::literal32;
+    use crate::structs::conversion::Conversion;
+    use crate::structs::IR_VERSION;
+
+    let public_inputs = PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_: literal32(7),
+        inputs: vec![vec![2], vec![4]],
+    };
+    let private_inputs = PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_: literal32(101),
+        inputs: vec![vec![2], vec![81]],
+    };
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![literal32(7), literal32(101)],
+        conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
+        functions: vec![],
+        gates: vec![
+            Gate::PrivateInput(1, 0), // 2
+            Gate::PrivateInput(1, 1), // 81
+            // (2*101 + 81) mod 7^2 = 38
+            // 38 = 5*7 + 3
+            Gate::Convert(0, 0, 1, 1, 0, 1),
+            Gate::PublicInput(0, 2), // 6
+            Gate::Add(0, 3, 0, 2),   // 5 + 2 = 0 mod 7
+            Gate::AssertZero(0, 3),
+            Gate::PublicInput(0, 4), // 2
+            Gate::Add(0, 5, 1, 4),   // 3 + 4 = 0 mod 7
+            Gate::AssertZero(0, 5),
+            Gate::Delete(0, 0, 5),
+            Gate::Delete(1, 0, 0),
+        ],
+    };
+
+    let mut zkbackend = PlaintextBackend::default();
+    let mut simulator = Evaluator::default();
+    simulator.ingest_public_inputs(&public_inputs).unwrap();
+    simulator.ingest_private_inputs(&private_inputs).unwrap();
+    simulator
+        .ingest_relation(&relation, &mut zkbackend)
+        .unwrap();
+
+    let public_inputs = PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_: literal32(7),
+        inputs: vec![vec![2], vec![4]],
+    };
+    let private_inputs = PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_: literal32(101),
+        inputs: vec![vec![2], vec![81]],
+    };
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![literal32(7), literal32(101)],
+        conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
+        functions: vec![],
+        gates: vec![
+            Gate::PrivateInput(1, 0), // 2
+            Gate::PrivateInput(1, 1), // 81
+            // (2*101 + 81) mod 7^2 = 38
+            // 38 = 5*7 + 3
+            // Violation: in_ids is empty (in_first_id > in_last_id)
+            Gate::Convert(0, 0, 1, 1, 1, 0),
+            Gate::PublicInput(0, 2), // 6
+            Gate::Add(0, 3, 0, 2),   // 5 + 2 = 0 mod 7
+            Gate::AssertZero(0, 3),
+            Gate::PublicInput(0, 4), // 2
+            Gate::Add(0, 5, 1, 4),   // 3 + 4 = 0 mod 7
+            Gate::AssertZero(0, 5),
+            Gate::Delete(0, 0, 5),
+            Gate::Delete(1, 0, 0),
+        ],
+    };
+
+    let mut zkbackend = PlaintextBackend::default();
+    let mut simulator = Evaluator::default();
+    simulator.ingest_public_inputs(&public_inputs).unwrap();
+    simulator.ingest_private_inputs(&private_inputs).unwrap();
+    let should_be_err = simulator.ingest_relation(&relation, &mut zkbackend);
+    assert!(should_be_err.is_err());
+    assert_eq!(
+        "Evaluation of a Convert gate:: in_last_id (0) must be greater than in_first_id (1).",
+        should_be_err.err().unwrap().to_string()
+    );
 }
