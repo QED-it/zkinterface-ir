@@ -1,7 +1,7 @@
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
 use crate::{Count, TypeId, WireId};
-use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
+use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
@@ -13,7 +13,7 @@ pub struct WireRange {
 }
 
 /// This function imports a FBS binary WireRange declaration into a Rust equivalent.
-impl<'a> TryFrom<generated::WireRange<'a>> for WireRange {
+impl TryFrom<generated::WireRange> for WireRange {
     type Error = Box<dyn Error>;
 
     fn try_from(g_wire_range: generated::WireRange) -> Result<WireRange> {
@@ -31,34 +31,26 @@ impl WireRange {
     }
 
     /// Serialize this structure into a Flatbuffer message
-    pub fn build<'a>(
-        &self,
-        builder: &mut FlatBufferBuilder<'a>,
-    ) -> WIPOffset<generated::WireRange<'a>> {
-        generated::WireRange::create(
-            builder,
-            &generated::WireRangeArgs {
-                first_id: self.first_id,
-                last_id: self.last_id,
-            },
-        )
+    pub fn build(&self) -> generated::WireRange {
+        generated::WireRange::new(self.first_id, self.last_id)
     }
 
     /// Import a vector of binary WireRange into a Rust vector of WireRange declarations.
-    pub fn try_from_vector<'a>(
-        g_wire_ranges: Vector<'a, ForwardsUOffset<generated::WireRange<'a>>>,
-    ) -> Result<Vec<WireRange>> {
-        g_wire_ranges.into_iter().map(WireRange::try_from).collect()
+    pub fn try_from_vector(g_wire_ranges: &[generated::WireRange]) -> Result<Vec<WireRange>> {
+        g_wire_ranges
+            .iter()
+            .map(|g_wire_range| WireRange::try_from(*g_wire_range))
+            .collect()
     }
 
     /// Build a vector a Rust WireRange into the associated FBS structure.
     pub fn build_vector<'a>(
         builder: &mut FlatBufferBuilder<'a>,
         wire_ranges: &[WireRange],
-    ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::WireRange<'a>>>> {
+    ) -> WIPOffset<Vector<'a, generated::WireRange>> {
         let g_wire_ranges = wire_ranges
             .iter()
-            .map(|wire_range| wire_range.build(builder))
+            .map(|wire_range| wire_range.build())
             .collect::<Vec<_>>();
         builder.create_vector(&g_wire_ranges)
     }

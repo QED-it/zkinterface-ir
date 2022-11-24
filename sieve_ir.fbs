@@ -44,7 +44,7 @@ struct Count {
 }
 
 // first/last are inclusive
-table WireRange {
+struct WireRange {
   first_id  :uint64;
   last_id   :uint64;
 }

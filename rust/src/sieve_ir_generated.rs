@@ -436,6 +436,67 @@ impl Count {
   }
 }
 
+// struct WireRange, aligned to 8
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WireRange {
+  first_id_: u64,
+  last_id_: u64,
+} // pub struct WireRange
+impl flatbuffers::SafeSliceAccess for WireRange {}
+impl<'a> flatbuffers::Follow<'a> for WireRange {
+  type Inner = &'a WireRange;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    <&'a WireRange>::follow(buf, loc)
+  }
+}
+impl<'a> flatbuffers::Follow<'a> for &'a WireRange {
+  type Inner = &'a WireRange;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::follow_cast_ref::<WireRange>(buf, loc)
+  }
+}
+impl<'b> flatbuffers::Push for WireRange {
+    type Output = WireRange;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(self as *const WireRange as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+impl<'b> flatbuffers::Push for &'b WireRange {
+    type Output = WireRange;
+
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(*self as *const WireRange as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+
+
+impl WireRange {
+  pub fn new<'a>(_first_id: u64, _last_id: u64) -> Self {
+    WireRange {
+      first_id_: _first_id.to_little_endian(),
+      last_id_: _last_id.to_little_endian(),
+
+    }
+  }
+  pub fn first_id<'a>(&'a self) -> u64 {
+    self.first_id_.from_little_endian()
+  }
+  pub fn last_id<'a>(&'a self) -> u64 {
+    self.last_id_.from_little_endian()
+  }
+}
+
 // struct Conversion, aligned to 8
 #[repr(C, align(8))]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -892,94 +953,6 @@ impl<'a: 'b, 'b> ValueBuilder<'a, 'b> {
   }
   #[inline]
   pub fn finish(self) -> flatbuffers::WIPOffset<Value<'a>> {
-    let o = self.fbb_.end_table(self.start_);
-    flatbuffers::WIPOffset::new(o.value())
-  }
-}
-
-pub enum WireRangeOffset {}
-#[derive(Copy, Clone, Debug, PartialEq)]
-
-pub struct WireRange<'a> {
-  pub _tab: flatbuffers::Table<'a>,
-}
-
-impl<'a> flatbuffers::Follow<'a> for WireRange<'a> {
-    type Inner = WireRange<'a>;
-    #[inline]
-    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-        Self {
-            _tab: flatbuffers::Table { buf: buf, loc: loc },
-        }
-    }
-}
-
-impl<'a> WireRange<'a> {
-    #[inline]
-    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        WireRange {
-            _tab: table,
-        }
-    }
-    #[allow(unused_mut)]
-    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args WireRangeArgs) -> flatbuffers::WIPOffset<WireRange<'bldr>> {
-      let mut builder = WireRangeBuilder::new(_fbb);
-      builder.add_last_id(args.last_id);
-      builder.add_first_id(args.first_id);
-      builder.finish()
-    }
-
-    pub const VT_FIRST_ID: flatbuffers::VOffsetT = 4;
-    pub const VT_LAST_ID: flatbuffers::VOffsetT = 6;
-
-  #[inline]
-  pub fn first_id(&self) -> u64 {
-    self._tab.get::<u64>(WireRange::VT_FIRST_ID, Some(0)).unwrap()
-  }
-  #[inline]
-  pub fn last_id(&self) -> u64 {
-    self._tab.get::<u64>(WireRange::VT_LAST_ID, Some(0)).unwrap()
-  }
-}
-
-pub struct WireRangeArgs {
-    pub first_id: u64,
-    pub last_id: u64,
-}
-impl<'a> Default for WireRangeArgs {
-    #[inline]
-    fn default() -> Self {
-        WireRangeArgs {
-            first_id: 0,
-            last_id: 0,
-        }
-    }
-}
-pub struct WireRangeBuilder<'a: 'b, 'b> {
-  fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-  start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-}
-impl<'a: 'b, 'b> WireRangeBuilder<'a, 'b> {
-  #[inline]
-  pub fn add_first_id(&mut self, first_id: u64) {
-    self.fbb_.push_slot::<u64>(WireRange::VT_FIRST_ID, first_id, 0);
-  }
-  #[inline]
-  pub fn add_last_id(&mut self, last_id: u64) {
-    self.fbb_.push_slot::<u64>(WireRange::VT_LAST_ID, last_id, 0);
-  }
-  #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> WireRangeBuilder<'a, 'b> {
-    let start = _fbb.start_table();
-    WireRangeBuilder {
-      fbb_: _fbb,
-      start_: start,
-    }
-  }
-  #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<WireRange<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -3013,19 +2986,19 @@ impl<'a> GateCall<'a> {
     self._tab.get::<flatbuffers::ForwardsUOffset<&str>>(GateCall::VT_NAME, None)
   }
   #[inline]
-  pub fn out_ids(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<WireRange<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<WireRange<'a>>>>>(GateCall::VT_OUT_IDS, None)
+  pub fn out_ids(&self) -> Option<&'a [WireRange]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<WireRange>>>(GateCall::VT_OUT_IDS, None).map(|v| v.safe_slice() )
   }
   #[inline]
-  pub fn in_ids(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<WireRange<'a>>>> {
-    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<flatbuffers::ForwardsUOffset<WireRange<'a>>>>>(GateCall::VT_IN_IDS, None)
+  pub fn in_ids(&self) -> Option<&'a [WireRange]> {
+    self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<WireRange>>>(GateCall::VT_IN_IDS, None).map(|v| v.safe_slice() )
   }
 }
 
 pub struct GateCallArgs<'a> {
     pub name: Option<flatbuffers::WIPOffset<&'a  str>>,
-    pub out_ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<WireRange<'a >>>>>,
-    pub in_ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , flatbuffers::ForwardsUOffset<WireRange<'a >>>>>,
+    pub out_ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , WireRange>>>,
+    pub in_ids: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a , WireRange>>>,
 }
 impl<'a> Default for GateCallArgs<'a> {
     #[inline]
@@ -3047,11 +3020,11 @@ impl<'a: 'b, 'b> GateCallBuilder<'a, 'b> {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_NAME, name);
   }
   #[inline]
-  pub fn add_out_ids(&mut self, out_ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<WireRange<'b >>>>) {
+  pub fn add_out_ids(&mut self, out_ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , WireRange>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_OUT_IDS, out_ids);
   }
   #[inline]
-  pub fn add_in_ids(&mut self, in_ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<WireRange<'b >>>>) {
+  pub fn add_in_ids(&mut self, in_ids: flatbuffers::WIPOffset<flatbuffers::Vector<'b , WireRange>>) {
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(GateCall::VT_IN_IDS, in_ids);
   }
   #[inline]
