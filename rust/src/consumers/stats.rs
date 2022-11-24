@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::structs::function::FunctionBody;
-use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, Value};
+use crate::structs::types::Type;
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result};
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct GateStats {
@@ -51,7 +52,7 @@ pub enum FunctionContent {
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct Stats {
     // Types.
-    pub moduli: Vec<Value>,
+    pub types: Vec<Type>,
 
     pub gate_stats: GateStats,
 
@@ -123,12 +124,12 @@ impl Stats {
         }
     }
 
-    fn ingest_types(&mut self, types: &[Value]) {
-        if self.moduli.is_empty() {
+    fn ingest_types(&mut self, types: &[Type]) {
+        if self.types.is_empty() {
             // Types have not yet been ingested
             types
                 .iter()
-                .for_each(|modulo| self.moduli.push(modulo.clone()));
+                .for_each(|type_value| self.types.push(type_value.clone()));
         }
     }
 }
@@ -253,7 +254,7 @@ fn test_stats() -> Result<()> {
     stats.ingest_relation(&relation);
 
     let mut expected_stats = Stats {
-        moduli: vec![literal(EXAMPLE_MODULUS)],
+        types: vec![Type::Field(literal(EXAMPLE_MODULUS))],
         gate_stats: GateStats {
             public_inputs_consumed: 1,
             private_inputs_consumed: 2,

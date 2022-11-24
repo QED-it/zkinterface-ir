@@ -1,30 +1,51 @@
 use crate::producers::examples::literal32;
 use crate::structs::conversion::Conversion;
 use crate::structs::plugin::PluginBody;
+use crate::structs::types::Type;
 use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
 use crate::{PrivateInputs, PublicInputs, Relation};
 use std::collections::HashMap;
 
 pub fn example_public_inputs_with_several_types() -> Vec<PublicInputs> {
-    vec![PublicInputs {
-        version: IR_VERSION.to_string(),
-        type_: literal32(7),
-        inputs: vec![vec![5]],
-    }]
+    vec![
+        PublicInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::Field(literal32(7)),
+            inputs: vec![vec![5]],
+        },
+        PublicInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::PluginType(
+                "ring".to_string(),
+                "type".to_string(),
+                vec!["2".to_string(), "8".to_string()],
+            ),
+            inputs: vec![vec![30]],
+        },
+    ]
 }
 
 pub fn example_private_inputs_with_several_types() -> Vec<PrivateInputs> {
     vec![
         PrivateInputs {
             version: IR_VERSION.to_string(),
-            type_: literal32(7),
+            type_value: Type::Field(literal32(7)),
             inputs: vec![vec![3], vec![4]],
         },
         PrivateInputs {
             version: IR_VERSION.to_string(),
-            type_: literal32(101),
+            type_value: Type::Field(literal32(101)),
             inputs: vec![vec![25]],
+        },
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::PluginType(
+                "ring".to_string(),
+                "type".to_string(),
+                vec!["2".to_string(), "8".to_string()],
+            ),
+            inputs: vec![vec![5], vec![10], vec![2]],
         },
     ]
 }
@@ -33,13 +54,22 @@ pub fn example_incorrect_private_inputs_with_several_types() -> Vec<PrivateInput
     vec![
         PrivateInputs {
             version: IR_VERSION.to_string(),
-            type_: literal32(7),
+            type_value: Type::Field(literal32(7)),
             inputs: vec![vec![3], vec![5]], // instead of [3, 4]
         },
         PrivateInputs {
             version: IR_VERSION.to_string(),
-            type_: literal32(101),
+            type_value: Type::Field(literal32(101)),
             inputs: vec![vec![25]],
+        },
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::PluginType(
+                "ring".to_string(),
+                "type".to_string(),
+                vec!["2".to_string(), "8".to_string()],
+            ),
+            inputs: vec![vec![5], vec![10], vec![2]],
         },
     ]
 }
@@ -51,10 +81,23 @@ pub fn example_relation_with_several_types() -> Relation {
 
     let type_id_7: u8 = 0;
     let type_id_101: u8 = 1;
+    let type_id_ring: u8 = 2;
     Relation {
         version: IR_VERSION.to_string(),
-        plugins: vec!["vector".to_string(), "assert_equal".to_string()],
-        types: vec![literal32(7), literal32(101)],
+        plugins: vec![
+            "vector".to_string(),
+            "assert_equal".to_string(),
+            "ring".to_string(),
+        ],
+        types: vec![
+            Type::Field(literal32(7)),
+            Type::Field(literal32(101)),
+            Type::PluginType(
+                "ring".to_string(),
+                "type".to_string(),
+                vec!["2".to_string(), "8".to_string()],
+            ),
+        ],
         conversions: vec![Conversion::new(
             Count::new(type_id_101, 1),
             Count::new(type_id_7, 1),
@@ -90,6 +133,42 @@ pub fn example_relation_with_several_types() -> Relation {
                     private_count: HashMap::from([(type_id_101, 1)]),
                 }),
             ),
+            Function::new(
+                "ring_add".to_string(),
+                vec![Count::new(type_id_ring, 1)],
+                vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "ring".to_string(),
+                    operation: "add".to_string(),
+                    params: vec![type_id_ring.to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
+                }),
+            ),
+            Function::new(
+                "ring_mul".to_string(),
+                vec![Count::new(type_id_ring, 1)],
+                vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "ring".to_string(),
+                    operation: "mul".to_string(),
+                    params: vec![type_id_ring.to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
+                }),
+            ),
+            Function::new(
+                "ring_equal".to_string(),
+                vec![],
+                vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "ring".to_string(),
+                    operation: "equal".to_string(),
+                    params: vec![type_id_ring.to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
+                }),
+            ),
         ],
         gates: vec![
             // Right-triangle example
@@ -121,6 +200,27 @@ pub fn example_relation_with_several_types() -> Relation {
                 vec![WireRange::new(3, 3)],
             ),
             Delete(type_id_101, 0, 8),
+            // Test ring type
+            PrivateInput(type_id_ring, 0),
+            PrivateInput(type_id_ring, 1),
+            PrivateInput(type_id_ring, 2),
+            Call(
+                "ring_add".to_string(),
+                vec![WireRange::new(3, 3)],
+                vec![WireRange::new(0, 0), WireRange::new(1, 1)],
+            ),
+            Call(
+                "ring_mul".to_string(),
+                vec![WireRange::new(4, 4)],
+                vec![WireRange::new(2, 2), WireRange::new(3, 3)],
+            ),
+            PublicInput(type_id_ring, 5),
+            Call(
+                "ring_equal".to_string(),
+                vec![],
+                vec![WireRange::new(4, 4), WireRange::new(5, 5)],
+            ),
+            Delete(type_id_ring, 0, 5),
         ],
     }
 }

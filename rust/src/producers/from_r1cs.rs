@@ -3,7 +3,8 @@ use num_traits::One;
 use std::ops::Add;
 
 use crate::producers::builder::{BuildGate, GateBuilder, GateBuilderT};
-use crate::{Result, Sink, Value, WireId};
+use crate::structs::types::Type;
+use crate::{Result, Sink, WireId};
 use BuildGate::*;
 
 use std::collections::BTreeMap;
@@ -144,7 +145,7 @@ impl<S: Sink> FromR1CSConverter<S> {
     }
 }
 
-fn zki_header_to_types(zki_header: &zkiCircuitHeader) -> Result<Vec<Value>> {
+fn zki_header_to_types(zki_header: &zkiCircuitHeader) -> Result<Vec<Type>> {
     match &zki_header.field_maximum {
         None => Err("field_maximum must be provided".into()),
 
@@ -153,7 +154,7 @@ fn zki_header_to_types(zki_header: &zkiCircuitHeader) -> Result<Vec<Value>> {
             let one: u8 = 1;
             fc = fc.add(one);
 
-            Ok(vec![fc.to_bytes_le()])
+            Ok(vec![Type::new_field_type(fc.to_bytes_le())])
         }
     }
 }
@@ -222,12 +223,19 @@ fn test_r1cs_to_gates() -> Result<()> {
 }
 
 #[cfg(test)]
-fn assert_types(types: &[Value]) {
+fn assert_types(types: &[Type]) {
     use num_traits::ToPrimitive;
 
     assert_eq!(types.len(), 1);
-    let fc = BigUint::from_bytes_le(&types[0]);
-    assert_eq!(fc.to_u32().unwrap(), 101);
+    match &types[0] {
+        Type::Field(modulo) => {
+            let fc = BigUint::from_bytes_le(modulo);
+            assert_eq!(fc.to_u32().unwrap(), 101);
+        }
+        Type::PluginType(_, _, _) => {
+            panic!("When converting from R1CS to IR, all types in the IR must be Field type.")
+        }
+    }
 }
 
 #[test]
@@ -252,7 +260,7 @@ fn test_r1cs_stats() -> Result<()> {
     let stats = stats(converter);
 
     let expected_stats = Stats {
-        moduli: vec![vec![101]],
+        types: vec![Type::Field(vec![101])],
         gate_stats: GateStats {
             public_inputs_consumed: 3,
             private_inputs_consumed: 2,

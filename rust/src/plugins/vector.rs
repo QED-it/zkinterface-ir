@@ -2,12 +2,14 @@ use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
+use crate::consumers::evaluator::PlaintextType;
 use crate::structs::count::Count;
 use crate::{Result, TypeId};
 
 /// This function performs the following checks on vector_add/mul inputs.
 /// - there is no public/private inputs
 /// - `params` are compliant with the plugin vector and the operation add/mul
+/// - `type_id` is defined and is a Field type
 /// - `output_count` and `input_count` are compliant with `plugin(vector, add/mul, params)`
 /// - `inputs` is compliant with `plugin(vector, add/mul, params)`
 fn vector_check<'a>(
@@ -17,7 +19,7 @@ fn vector_check<'a>(
     public_inputs: &HashMap<TypeId, Vec<BigUint>>,
     private_inputs: &HashMap<TypeId, Vec<BigUint>>,
     params: &'a [String],
-    moduli: &'a [BigUint],
+    types: &'a [PlaintextType],
 ) -> Result<(usize, &'a BigUint)> {
     // Check that there is no public/private inputs
     if !public_inputs.is_empty() {
@@ -38,12 +40,19 @@ fn vector_check<'a>(
     if param_len == 0 {
         return Err("plugin(vector, add/mul) cannot be called without inputs.".into());
     }
-    let modulo = moduli.get(param_type_id as usize).ok_or_else(|| {
+    // Check that `type_id` is defined and is a Field type.
+    let type_ = types.get(param_type_id as usize).ok_or_else(|| {
         format!(
             "plugin(vector, add/mul) cannot be called with a type id ({}) which is not defined.",
             param_type_id
         )
     })?;
+    let modulo = match type_ {
+        PlaintextType::Field(modulo) => modulo,
+        PlaintextType::PluginType(_, _, _) => {
+            return Err("plugin(vector, add/mul) cannot be called on a PluginType.".into())
+        }
+    };
 
     // Check that `output_count` and `input_count` are compliant with `plugin(vector, add/mul, params)`
     let expected_output_count = vec![Count::new(param_type_id, u64::try_from(param_len)?)];
@@ -88,7 +97,7 @@ pub fn vector_add(
     public_inputs: &HashMap<TypeId, Vec<BigUint>>,
     private_inputs: &HashMap<TypeId, Vec<BigUint>>,
     params: &[String],
-    moduli: &[BigUint],
+    types: &[PlaintextType],
 ) -> Result<Vec<BigUint>> {
     let (param_len, modulo) = vector_check(
         output_count,
@@ -97,7 +106,7 @@ pub fn vector_add(
         public_inputs,
         private_inputs,
         params,
-        moduli,
+        types,
     )?;
 
     // Evaluate plugin(vector, add)
@@ -118,7 +127,7 @@ pub fn vector_mul(
     public_inputs: &HashMap<TypeId, Vec<BigUint>>,
     private_inputs: &HashMap<TypeId, Vec<BigUint>>,
     params: &[String],
-    moduli: &[BigUint],
+    types: &[PlaintextType],
 ) -> Result<Vec<BigUint>> {
     let (param_len, modulo) = vector_check(
         output_count,
@@ -127,7 +136,7 @@ pub fn vector_mul(
         public_inputs,
         private_inputs,
         params,
-        moduli,
+        types,
     )?;
 
     // Evaluate plugin(vector, mul)
@@ -148,7 +157,7 @@ fn test_vector_check() {
         &BigUint::from_bytes_le(&[3]),
         &BigUint::from_bytes_le(&[4]),
     ];
-    let moduli = [BigUint::from_bytes_le(&[7])];
+    let types = [PlaintextType::Field(BigUint::from_bytes_le(&[7]))];
     let params = ["0".to_string(), "2".to_string()];
     let result = vector_check(
         &output_count,
@@ -157,7 +166,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     )
     .unwrap();
     let expected_result = (2_usize, &BigUint::from_bytes_le(&[7]));
@@ -172,7 +181,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &incorrect_params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 
@@ -185,7 +194,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &incorrect_params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 
@@ -198,7 +207,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &incorrect_params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 
@@ -211,7 +220,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 
@@ -224,7 +233,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 
@@ -241,7 +250,7 @@ fn test_vector_check() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 }
@@ -256,7 +265,7 @@ fn test_vector_add() {
         &BigUint::from_bytes_le(&[3]),
         &BigUint::from_bytes_le(&[4]),
     ];
-    let moduli = [BigUint::from_bytes_le(&[7])];
+    let types = [PlaintextType::Field(BigUint::from_bytes_le(&[7]))];
     let params = ["0".to_string(), "2".to_string()];
     let result = vector_add(
         &output_count,
@@ -265,7 +274,7 @@ fn test_vector_add() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     )
     .unwrap();
     let expected_result = vec![BigUint::from_bytes_le(&[4]), BigUint::from_bytes_le(&[6])];
@@ -280,7 +289,7 @@ fn test_vector_add() {
         &HashMap::new(),
         &HashMap::new(),
         &incorrect_params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 }
@@ -295,7 +304,7 @@ fn test_vector_mul() {
         &BigUint::from_bytes_le(&[3]),
         &BigUint::from_bytes_le(&[4]),
     ];
-    let moduli = [BigUint::from_bytes_le(&[7])];
+    let types = [PlaintextType::Field(BigUint::from_bytes_le(&[7]))];
     let params = ["0".to_string(), "2".to_string()];
     let result = vector_mul(
         &output_count,
@@ -304,7 +313,7 @@ fn test_vector_mul() {
         &HashMap::new(),
         &HashMap::new(),
         &params,
-        &moduli,
+        &types,
     )
     .unwrap();
     let expected_result = vec![BigUint::from_bytes_le(&[3]), BigUint::from_bytes_le(&[1])];
@@ -319,7 +328,7 @@ fn test_vector_mul() {
         &HashMap::new(),
         &HashMap::new(),
         &incorrect_params,
-        &moduli,
+        &types,
     );
     assert!(result.is_err());
 }

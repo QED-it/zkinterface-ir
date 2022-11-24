@@ -35,6 +35,9 @@ pub mod function;
 /// Handles the plugin stuff
 pub mod plugin;
 
+/// Type is an enum that can represent a Field or a PluginType.
+pub mod types;
+
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
 

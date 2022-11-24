@@ -1,6 +1,7 @@
 use crate::consumers::evaluator::ZKBackend;
 use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
+use crate::structs::types::Type;
 use crate::{Result, TypeId, Value, WireId};
 use zkinterface::ConstraintSystem as zkiConstraintSystem;
 use zkinterface::Variables as zkiVariables;
@@ -101,13 +102,22 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         Ok(value_to_biguint(val))
     }
 
-    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
-        if moduli.len() != 1 {
+    fn set_types(&mut self, types: &[Type]) -> Result<()> {
+        if types.len() != 1 {
             return Err("One type must be defined to convert to R1CS.".into());
         }
-        let mut modulus: &[u8] = moduli
+        let first_type = types
             .get(0)
             .ok_or("One type must be defined to convert to R1CS.")?;
+        let mut modulus: &[u8] = match first_type {
+            Type::Field(modulo) => modulo,
+            Type::PluginType(_, _, _) => {
+                return Err(
+                    "To convert to R1CS, one type must be defined and it must be a Field type."
+                        .into(),
+                )
+            }
+        };
         // This assumes that finite field elements can be zero padded in their byte reprs. For prime
         // types, this assumes that the byte representation is little-endian.
         while modulus.last() == Some(&0) {

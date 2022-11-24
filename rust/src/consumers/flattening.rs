@@ -1,10 +1,11 @@
-use crate::consumers::evaluator::{get_modulo, ZKBackend};
+use crate::consumers::evaluator::ZKBackend;
 use crate::producers::build_gates::BuildGate;
 use crate::producers::builder::{GateBuilder, GateBuilderT};
 use crate::structs::count::Count;
 use crate::structs::plugin::PluginBody;
+use crate::structs::types::Type;
 use crate::structs::value::value_to_biguint;
-use crate::{Result, Sink, TypeId, Value, WireId};
+use crate::{Result, Sink, TypeId, WireId};
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
 use std::collections::HashMap;
@@ -15,7 +16,7 @@ use std::collections::HashMap;
 #[derive(Default)]
 pub struct IRFlattener<S: Sink> {
     sink: Option<S>,
-    b: Option<GateBuilder<S>>,
+    gate_builder: Option<GateBuilder<S>>,
     moduli: Vec<BigUint>,
 }
 
@@ -23,20 +24,20 @@ impl<S: Sink> IRFlattener<S> {
     pub fn new(sink: S) -> Self {
         IRFlattener {
             sink: Some(sink),
-            b: None,
+            gate_builder: None,
             moduli: vec![],
         }
     }
 
     pub fn finish(mut self) -> S {
-        self.b.take().unwrap().finish()
+        self.gate_builder.take().unwrap().finish()
     }
 }
 
 impl<S: Sink> Drop for IRFlattener<S> {
     fn drop(&mut self) {
-        if self.b.is_some() {
-            self.b.take().unwrap().finish();
+        if self.gate_builder.is_some() {
+            self.gate_builder.take().unwrap().finish();
         }
     }
 }
@@ -49,12 +50,20 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         Ok(value_to_biguint(val))
     }
 
-    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
-        if self.b.is_none() {
-            moduli
+    fn set_types(&mut self, types: &[Type]) -> Result<()> {
+        if self.gate_builder.is_none() {
+            types
                 .iter()
-                .for_each(|modulo| self.moduli.push(value_to_biguint(modulo)));
-            self.b = Some(GateBuilder::new(self.sink.take().unwrap(), moduli));
+                .try_for_each::<_, Result<()>>(|type_value| match type_value {
+                    Type::Field(modulo) => {
+                        self.moduli.push(value_to_biguint(modulo));
+                        Ok(())
+                    }
+                    Type::PluginType(_, _, _) => {
+                        Err("Not possible to flatten circuit containing plugin types".into())
+                    }
+                })?;
+            self.gate_builder = Some(GateBuilder::new(self.sink.take().unwrap(), types));
         }
         Ok(())
     }
@@ -67,7 +76,10 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         if self.moduli.is_empty() {
             return Err("Moduli is not initiated, used `set_types()` before calling.".into());
         }
-        let modulo = get_modulo(type_id, &self.moduli)?;
+        let modulo = self
+            .moduli
+            .get(*type_id as usize)
+            .ok_or(format!("Type id {} is not defined.", *type_id))?;
         Ok(modulo - self.one()?)
     }
 
@@ -76,30 +88,30 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     }
 
     fn copy(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::Copy(*type_id, *wire))
     }
 
     fn constant(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::Constant(*type_id, val.to_bytes_le()))
     }
 
     fn assert_zero(&mut self, type_id: &TypeId, wire: &Self::Wire) -> Result<()> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::AssertZero(*type_id, *wire))?;
@@ -107,20 +119,20 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
     }
 
     fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::Add(*type_id, *a, *b))
     }
 
     fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::Mul(*type_id, *a, *b))
@@ -132,10 +144,10 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         a: &Self::Wire,
         b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::AddConstant(*type_id, *a, b.to_bytes_le()))
@@ -147,20 +159,20 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         a: &Self::Wire,
         b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::MulConstant(*type_id, *a, b.to_bytes_le()))
     }
 
     fn public_input(&mut self, type_id: &TypeId, val: Self::TypeElement) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::PublicInput(*type_id, Some(val.to_bytes_le())))
@@ -171,11 +183,11 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         type_id: &TypeId,
         val: Option<Self::TypeElement>,
     ) -> Result<Self::Wire> {
-        if self.b.is_none() {
+        if self.gate_builder.is_none() {
             panic!("Builder has not been properly initialized.");
         }
         let value = val.map(|v| v.to_bytes_le());
-        self.b
+        self.gate_builder
             .as_mut()
             .unwrap()
             .create_gate(BuildGate::PrivateInput(*type_id, value))

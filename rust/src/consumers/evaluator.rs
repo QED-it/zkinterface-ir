@@ -2,11 +2,12 @@ use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::Count;
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
-use crate::structs::value::{remove_trailing_zeros, value_to_biguint};
+use crate::structs::types::Type;
+use crate::structs::value::value_to_biguint;
 use crate::structs::wirerange::{
     add_types_to_wire_ranges, check_wire_ranges_with_counts, WireRangeWithType,
 };
-use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, Value, WireId};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use num_traits::Pow;
@@ -30,7 +31,7 @@ pub trait ZKBackend {
     fn from_bytes_le(val: &[u8]) -> Result<Self::TypeElement>;
     /// Set the underlying type of the running backend.
     /// If the type is not compatible with this ZKBackend, then it should return Err
-    fn set_types(&mut self, moduli: &[Value]) -> Result<()>;
+    fn set_types(&mut self, types: &[Type]) -> Result<()>;
 
     /// Returns a `TypeElement` representing '1' in the underlying type.
     fn one(&self) -> Result<Self::TypeElement>;
@@ -169,9 +170,9 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 }
 
 pub struct EvaluatorInputs<B: ZKBackend> {
-    types: Vec<Value>,
-    public_inputs_queue: HashMap<Value, VecDeque<B::TypeElement>>,
-    private_inputs_queue: HashMap<Value, VecDeque<B::TypeElement>>,
+    types: Vec<Type>,
+    public_inputs_queue: HashMap<Type, VecDeque<B::TypeElement>>,
+    private_inputs_queue: HashMap<Type, VecDeque<B::TypeElement>>,
 }
 
 impl<B: ZKBackend> Default for EvaluatorInputs<B> {
@@ -232,11 +233,11 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `PublicInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the public input values in a pool.
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) -> Result<()> {
-        let type_value = remove_trailing_zeros(&public_inputs.type_);
+        let cleaned_type = public_inputs.type_value.cleaned_type();
         let inputs = self
             .inputs
             .public_inputs_queue
-            .entry(type_value)
+            .entry(cleaned_type)
             .or_insert_with(VecDeque::new);
         public_inputs
             .inputs
@@ -251,11 +252,11 @@ impl<B: ZKBackend> Evaluator<B> {
     /// Ingest a `PrivateInputs` message, and returns a `Result` whether ot nor an error
     /// was encountered. It stores the private input values in a pool.
     pub fn ingest_private_inputs(&mut self, private_inputs: &PrivateInputs) -> Result<()> {
-        let type_value = remove_trailing_zeros(&private_inputs.type_);
+        let cleaned_type = private_inputs.type_value.cleaned_type();
         let inputs = self
             .inputs
             .private_inputs_queue
-            .entry(type_value)
+            .entry(cleaned_type)
             .or_insert_with(VecDeque::new);
         private_inputs
             .inputs
@@ -271,8 +272,7 @@ impl<B: ZKBackend> Evaluator<B> {
     pub fn ingest_relation(&mut self, relation: &Relation, backend: &mut B) -> Result<()> {
         if self.inputs.types.is_empty() {
             relation.types.iter().for_each(|type_value| {
-                let clean_type_value = remove_trailing_zeros(type_value);
-                self.inputs.types.push(clean_type_value);
+                self.inputs.types.push(type_value.cleaned_type());
             });
         }
         backend.set_types(&relation.types)?;
@@ -745,15 +745,6 @@ fn remove<I: ZKBackend>(
         .ok_or_else(|| format!("No value given for wire ({}: {})", type_id, wire_id).into())
 }
 
-pub fn get_modulo<'a>(type_id: &'a TypeId, moduli: &'a [BigUint]) -> Result<&'a BigUint> {
-    let modulo = moduli.get(*type_id as usize);
-    if let Some(value) = modulo {
-        Ok(value)
-    } else {
-        Err(format!("Type id {} is not defined.", *type_id).into())
-    }
-}
-
 /// This is the default backend, evaluating a IR circuit in plaintext, meaning that it is not meant
 /// for security purposes, will never ensure ZK properties, ...
 /// It's used only for demo or tests.
@@ -763,7 +754,15 @@ pub fn get_modulo<'a>(type_id: &'a TypeId, moduli: &'a [BigUint]) -> Result<&'a 
 /// Currently, this backend does not support 'verifier' mode, and requires private inputs to be provided.
 #[derive(Default)]
 pub struct PlaintextBackend {
-    pub m: Vec<BigUint>,
+    pub types: Vec<PlaintextType>,
+}
+
+/// A `PlaintextType` is similar to a `Type` except that the value in `Type::Field` is a `BigUint` instead of a `Value`
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub enum PlaintextType {
+    Field(BigUint),
+    // PluginType(name, operation, params)
+    PluginType(String, String, Vec<String>),
 }
 
 impl ZKBackend for PlaintextBackend {
@@ -774,17 +773,30 @@ impl ZKBackend for PlaintextBackend {
         Ok(value_to_biguint(val))
     }
 
-    fn set_types(&mut self, moduli: &[Value]) -> Result<()> {
-        if !self.m.is_empty() {
-            self.m = vec![];
+    fn set_types(&mut self, types: &[Type]) -> Result<()> {
+        if !self.types.is_empty() {
+            self.types = vec![];
         }
-        for val in moduli {
-            let biguint_val = &value_to_biguint(val);
-            if biguint_val.is_zero() {
-                return Err("Modulus cannot be zero.".into());
-            }
-            self.m.push(biguint_val.clone());
-        }
+        types
+            .iter()
+            .try_for_each::<_, Result<()>>(|type_value| match type_value {
+                Type::Field(modulo) => {
+                    let biguint_val = &value_to_biguint(modulo);
+                    if biguint_val.is_zero() {
+                        return Err("Modulus cannot be zero.".into());
+                    }
+                    self.types.push(PlaintextType::Field(biguint_val.clone()));
+                    Ok(())
+                }
+                Type::PluginType(name, operation, params) => {
+                    self.types.push(PlaintextType::PluginType(
+                        name.clone(),
+                        operation.clone(),
+                        params.clone(),
+                    ));
+                    Ok(())
+                }
+            })?;
         Ok(())
     }
 
@@ -793,7 +805,7 @@ impl ZKBackend for PlaintextBackend {
     }
 
     fn minus_one(&self, type_id: &TypeId) -> Result<Self::TypeElement> {
-        let modulo = get_modulo(type_id, &self.m)?;
+        let modulo = self.get_modulo(type_id)?;
         if modulo.is_zero() {
             return Err("Modulus is equal to zero.".into());
         }
@@ -821,12 +833,12 @@ impl ZKBackend for PlaintextBackend {
     }
 
     fn add(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let modulo = get_modulo(type_id, &self.m)?;
+        let modulo = self.get_modulo(type_id)?;
         Ok((a + b) % modulo)
     }
 
     fn multiply(&mut self, type_id: &TypeId, a: &Self::Wire, b: &Self::Wire) -> Result<Self::Wire> {
-        let modulo = get_modulo(type_id, &self.m)?;
+        let modulo = self.get_modulo(type_id)?;
         Ok((a * b) % modulo)
     }
 
@@ -836,7 +848,7 @@ impl ZKBackend for PlaintextBackend {
         a: &Self::Wire,
         b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        let modulo = get_modulo(type_id, &self.m)?;
+        let modulo = self.get_modulo(type_id)?;
         Ok((a + b) % modulo)
     }
 
@@ -846,7 +858,7 @@ impl ZKBackend for PlaintextBackend {
         a: &Self::Wire,
         b: Self::TypeElement,
     ) -> Result<Self::Wire> {
-        let modulo = get_modulo(type_id, &self.m)?;
+        let modulo = self.get_modulo(type_id)?;
         Ok((a * b) % modulo)
     }
 
@@ -884,8 +896,8 @@ impl ZKBackend for PlaintextBackend {
         inputs: &[&Self::Wire],
     ) -> Result<Vec<Self::Wire>> {
         // Retrieve input/output moduli
-        let input_modulo = get_modulo(input_type, &self.m)?;
-        let output_modulo = get_modulo(output_type, &self.m)?;
+        let input_modulo = self.get_modulo(input_type)?;
+        let output_modulo = self.get_modulo(output_type)?;
 
         // Convert input to BigUint
         let mut number: BigUint = BigUint::zero();
@@ -924,8 +936,23 @@ impl ZKBackend for PlaintextBackend {
             public_inputs,
             private_inputs,
             plugin_body,
-            &self.m,
+            &self.types,
         )
+    }
+}
+
+impl PlaintextBackend {
+    fn get_modulo<'a>(&'a self, type_id: &'a TypeId) -> Result<&'a BigUint> {
+        let plaintext_type = self
+            .types
+            .get(*type_id as usize)
+            .ok_or(format!("Type id {} is not defined.", *type_id))?;
+        match plaintext_type {
+            PlaintextType::Field(modulo) => Ok(modulo),
+            PlaintextType::PluginType(_, _, _) => {
+                Err("Cannot retrieve a modulo from a PluginType".into())
+            }
+        }
     }
 }
 
@@ -967,7 +994,7 @@ fn test_evaluator_as_verifier() -> Result<()> {
         fn from_bytes_le(_val: &[u8]) -> Result<Self::TypeElement> {
             Ok(BigUint::zero())
         }
-        fn set_types(&mut self, _moduli: &[Value]) -> Result<()> {
+        fn set_types(&mut self, _moduli: &[Type]) -> Result<()> {
             Ok(())
         }
         fn one(&self) -> Result<Self::TypeElement> {
@@ -1103,18 +1130,18 @@ fn test_evaluator_conversion() {
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(7),
+        type_value: Type::Field(literal32(7)),
         inputs: vec![vec![2], vec![4]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(101),
+        type_value: Type::Field(literal32(101)),
         inputs: vec![vec![2], vec![81]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec![],
-        types: vec![literal32(7), literal32(101)],
+        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         functions: vec![],
         gates: vec![
@@ -1144,18 +1171,18 @@ fn test_evaluator_conversion() {
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(7),
+        type_value: Type::Field(literal32(7)),
         inputs: vec![vec![2], vec![4]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(101),
+        type_value: Type::Field(literal32(101)),
         inputs: vec![vec![2], vec![81]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec![],
-        types: vec![literal32(7), literal32(101)],
+        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         functions: vec![],
         gates: vec![

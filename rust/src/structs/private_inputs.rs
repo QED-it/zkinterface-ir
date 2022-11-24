@@ -6,14 +6,13 @@ use std::error::Error;
 use std::io::Write;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::structs::value::{
-    build_value, build_values_vector, try_from_value, try_from_values_vector, Value,
-};
+use crate::structs::types::Type;
+use crate::structs::value::{build_values_vector, try_from_values_vector, Value};
 
-#[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct PrivateInputs {
     pub version: String,
-    pub type_: Value,
+    pub type_value: Type,
     pub inputs: Vec<Value>,
 }
 
@@ -27,7 +26,7 @@ impl<'a> TryFrom<generated::PrivateInputs<'a>> for PrivateInputs {
                 .version()
                 .ok_or("Missing version")?
                 .to_string(),
-            type_: try_from_value(g_private_inputs.type_().ok_or("Missing type")?)?,
+            type_value: Type::try_from(g_private_inputs.type_().ok_or("Missing type")?)?,
             inputs: try_from_values_vector(
                 g_private_inputs.inputs().ok_or("Missing private inputs")?,
             )?,
@@ -51,7 +50,7 @@ impl PrivateInputs {
     /// Add this structure into a Flatbuffers message builder.
     pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
         let g_version = builder.create_string(&self.version);
-        let g_type = build_value(builder, &self.type_);
+        let g_type = self.type_value.build(builder);
         let g_inputs = build_values_vector(builder, &self.inputs);
 
         let private_inputs = generated::PrivateInputs::create(
@@ -77,9 +76,18 @@ impl PrivateInputs {
     /// # Examples
     /// ```
     /// use zki_sieve::PrivateInputs;
+    /// use zki_sieve::structs::types::Type;
+    /// use zki_sieve::structs::IR_VERSION;
     /// use std::convert::TryFrom;
     ///
-    /// let private_inputs = PrivateInputs::default();
+    /// let private_inputs = PrivateInputs {
+    ///         version: IR_VERSION.to_string(),
+    ///         type_value: Type::Field(vec![101]),
+    ///         inputs: vec![
+    ///             vec![3],
+    ///             vec![4],
+    ///         ],
+    ///     };
     /// let mut buf = Vec::<u8>::new();
     /// private_inputs.write_into(&mut buf).unwrap();
     /// let private_inputs2 = PrivateInputs::try_from(&buf[..]).unwrap();

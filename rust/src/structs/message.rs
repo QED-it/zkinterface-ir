@@ -42,9 +42,18 @@ impl Message {
     /// # Examples
     /// ```
     /// use zki_sieve::{PublicInputs, Message};
+    /// use zki_sieve::structs::types::Type;
+    /// use zki_sieve::structs::IR_VERSION;
     /// use std::convert::TryFrom;
     ///
-    /// let message = Message::PublicInputs(PublicInputs::default());
+    /// let message = Message::PublicInputs(PublicInputs {
+    ///         version: IR_VERSION.to_string(),
+    ///         type_value: Type::Field(vec![101]),
+    ///         inputs: vec![
+    ///             vec![3],
+    ///             vec![4],
+    ///         ],
+    ///     });
     /// let mut buf = Vec::<u8>::new();
     /// message.write_into(&mut buf).unwrap();
     /// let message2 = Message::try_from(&buf[..]).unwrap();

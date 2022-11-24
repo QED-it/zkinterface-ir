@@ -1,12 +1,12 @@
-use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, TypeId, Value, WireId};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, TypeId, WireId};
 use num_bigint::BigUint;
 use num_traits::identities::One;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::consumers::evaluator::get_modulo;
 use crate::structs::conversion::Conversion;
 use crate::structs::count::{count_list_to_hashmap, Count};
 use crate::structs::function::{FunctionBody, FunctionCounts};
+use crate::structs::types::Type;
 use crate::structs::value::{is_probably_prime, value_to_biguint};
 use crate::structs::wirerange::add_types_to_wire_ranges;
 use regex::Regex;
@@ -59,8 +59,8 @@ WireRange Validation
 pub struct Validator {
     as_prover: bool,
 
-    public_inputs_queue_len: HashMap<TypeElement, u64>,
-    private_inputs_queue_len: HashMap<TypeElement, u64>,
+    public_inputs_counts: HashMap<ValidatorType, u64>,
+    private_inputs_counts: HashMap<ValidatorType, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
     new_gates: HashSet<(TypeId, WireId, WireId)>,
@@ -68,7 +68,7 @@ pub struct Validator {
     got_header: bool,
     header_version: String,
 
-    moduli: Vec<TypeElement>,
+    types: Vec<ValidatorType>,
 
     known_plugins: HashSet<String>,
     // name => (output_count, input_count, public_count, private_count)
@@ -76,6 +76,13 @@ pub struct Validator {
     known_conversions: HashSet<Conversion>,
 
     violations: Vec<String>,
+}
+
+/// A `ValidatorType` is similar to a `Type` except that the value in `Type::Field` is a `TypeElement` instead of a `Value`
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub enum ValidatorType {
+    Field(TypeElement),
+    PluginType(String, String, Vec<String>),
 }
 
 impl Validator {
@@ -119,35 +126,65 @@ impl Validator {
         }
     }
 
-    fn ingest_header(&mut self, version: &str, types: &[Value]) {
+    fn ingest_header(&mut self, version: &str, types: &[Type]) {
         if self.got_header {
             // in this case, ensure that headers are compatible
-            if self.moduli.len() != types.len() {
-                self.violate("The types are not consistent across ressources.");
+            if self.types.len() != types.len() {
+                self.violate("The types are not consistent across resources.");
             }
-            for (previous_modulo, new_modulo) in self.moduli.iter().zip(types.iter()) {
-                if previous_modulo != &value_to_biguint(new_modulo) {
-                    self.violate("The types are not consistent across ressources.");
-                    break;
-                }
+            let equal_types =
+                self.types
+                    .iter()
+                    .zip(types.iter())
+                    .all(
+                        |(previous_type, new_type)| match (previous_type, new_type) {
+                            (ValidatorType::Field(previous_modulo), Type::Field(new_modulo)) => {
+                                previous_modulo == &value_to_biguint(new_modulo)
+                            }
+                            (
+                                ValidatorType::PluginType(
+                                    previous_name,
+                                    previous_operation,
+                                    previous_params,
+                                ),
+                                Type::PluginType(new_name, new_operation, new_params),
+                            ) => {
+                                previous_name == new_name
+                                    && previous_operation == new_operation
+                                    && previous_params == new_params
+                            }
+                            (ValidatorType::Field(_), Type::PluginType(_, _, _)) => false,
+                            (ValidatorType::PluginType(_, _, _), Type::Field(_)) => false,
+                        },
+                    );
+            if !equal_types {
+                self.violate("The types are not consistent across resources.");
             }
 
             if self.header_version != *version {
-                self.violate("The profile version is not consistent across ressources.");
+                self.violate("The profile version is not consistent across resources.");
             }
         } else {
             self.got_header = true;
 
             // Check validity of type values
-            for modulo in types {
-                let biguint_modulo = value_to_biguint(modulo);
-                self.moduli.push(biguint_modulo.clone());
-                if biguint_modulo.cmp(&One::one()) != Ordering::Greater {
-                    self.violate("All type moduli should be > 1");
-                }
-                if !is_probably_prime(modulo) {
-                    self.violate("All type moduli should be a prime.")
-                }
+            for type_value in types {
+                match type_value {
+                    Type::Field(modulo) => {
+                        let biguint_modulo = value_to_biguint(modulo);
+                        self.types
+                            .push(ValidatorType::Field(biguint_modulo.clone()));
+                        if biguint_modulo.cmp(&One::one()) != Ordering::Greater {
+                            self.violate("All Field type should have a modulo > 1");
+                        }
+                        if !is_probably_prime(modulo) {
+                            self.violate("All Field type should should have a prime modulo.")
+                        }
+                    }
+                    Type::PluginType(name, operation, params) => self.types.push(
+                        ValidatorType::PluginType(name.clone(), operation.clone(), params.clone()),
+                    ),
+                };
             }
 
             // check version
@@ -160,12 +197,24 @@ impl Validator {
     }
 
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        let modulo = value_to_biguint(&public_inputs.type_);
-        // Provide values on the queue available for PublicInput gates.
-        public_inputs.inputs.iter().for_each(|value| {
-            self.ensure_value_in_type(&modulo, value, || format!("public value {:?}", value))
-        });
-        let count = self.public_inputs_queue_len.entry(modulo).or_insert(0);
+        // If the type is a Field, ensure that all values belong to this field.
+        let validator_type = match &public_inputs.type_value {
+            Type::Field(modulo) => {
+                let biguint_modulo = value_to_biguint(modulo);
+                let validator_type = ValidatorType::Field(biguint_modulo);
+                public_inputs.inputs.iter().for_each(|value| {
+                    self.ensure_value_in_type(&validator_type, value, || {
+                        format!("public value {:?}", value)
+                    })
+                });
+                validator_type
+            }
+            Type::PluginType(name, operation, params) => {
+                ValidatorType::PluginType(name.clone(), operation.clone(), params.clone())
+            }
+        };
+        // Update public_inputs_counts
+        let count = self.public_inputs_counts.entry(validator_type).or_insert(0);
         *count += public_inputs.inputs.len() as u64;
     }
 
@@ -174,12 +223,27 @@ impl Validator {
             self.violate("As verifier, got an unexpected PrivateInputs message.");
         }
 
-        let modulo = value_to_biguint(&private_inputs.type_);
-        // Provide values on the queue available for PrivateInput gates.
-        private_inputs.inputs.iter().for_each(|value| {
-            self.ensure_value_in_type(&modulo, value, || format!("private value {:?}", value))
-        });
-        let count = self.private_inputs_queue_len.entry(modulo).or_insert(0);
+        // If the type is a Field, ensure that all values belong to this field.
+        let validator_type = match &private_inputs.type_value {
+            Type::Field(modulo) => {
+                let biguint_modulo = value_to_biguint(modulo);
+                let validator_type = ValidatorType::Field(biguint_modulo);
+                private_inputs.inputs.iter().for_each(|value| {
+                    self.ensure_value_in_type(&validator_type, value, || {
+                        format!("private value {:?}", value)
+                    })
+                });
+                validator_type
+            }
+            Type::PluginType(name, operation, params) => {
+                ValidatorType::PluginType(name.clone(), operation.clone(), params.clone())
+            }
+        };
+        // Update private_inputs_counts
+        let count = self
+            .private_inputs_counts
+            .entry(validator_type)
+            .or_insert(0);
         *count += private_inputs.inputs.len() as u64;
     }
 
@@ -327,6 +391,7 @@ impl Validator {
                         *last, *first
                     ));
                 }
+
                 // Ensure wires have not already been allocated by another New gate
                 for wire_id in *first..=*last {
                     if self.belong_to_new_gates(type_id, &wire_id) {
@@ -540,14 +605,14 @@ impl Validator {
             };
         }
 
-        // Type Value => count
-        let mut public_count_with_type_value = HashMap::new();
-        let mut private_count_with_type_value = HashMap::new();
+        // Type => count
+        let mut public_count_with_type = HashMap::new();
+        let mut private_count_with_type = HashMap::new();
         for (type_id, count) in public_count.iter() {
-            let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
-            match modulo_option {
-                Some(modulo) => {
-                    public_count_with_type_value.insert(modulo.clone(), *count);
+            let type_option = self.types.get(usize::try_from(*type_id).unwrap());
+            match type_option {
+                Some(validator_type) => {
+                    public_count_with_type.insert(validator_type.clone(), *count);
                 }
                 None => {
                     self.violate(format!("Unknown type_id {}", type_id));
@@ -555,10 +620,10 @@ impl Validator {
             }
         }
         for (type_id, count) in private_count.iter() {
-            let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
-            match modulo_option {
-                Some(modulo) => {
-                    private_count_with_type_value.insert(modulo.clone(), *count);
+            let type_option = self.types.get(usize::try_from(*type_id).unwrap());
+            match type_option {
+                Some(validator_type) => {
+                    private_count_with_type.insert(validator_type.clone(), *count);
                 }
                 None => {
                     self.violate(format!("Unknown type_id {}", type_id));
@@ -569,9 +634,9 @@ impl Validator {
         // Create a new validator to evaluate the custom function circuit
         let mut current_validator = Validator {
             as_prover: self.as_prover,
-            public_inputs_queue_len: public_count_with_type_value.clone(),
-            private_inputs_queue_len: if self.as_prover {
-                private_count_with_type_value.clone()
+            public_inputs_counts: public_count_with_type.clone(),
+            private_inputs_counts: if self.as_prover {
+                private_count_with_type.clone()
             } else {
                 HashMap::new()
             },
@@ -579,7 +644,7 @@ impl Validator {
             new_gates: Default::default(),
             got_header: self.got_header,
             header_version: self.header_version.clone(),
-            moduli: self.moduli.clone(),
+            types: self.types.clone(),
             known_plugins: self.known_plugins.clone(),
             known_conversions: self.known_conversions.clone(),
             known_functions: self.known_functions.clone(),
@@ -642,13 +707,13 @@ impl Validator {
         if how_many == 0 {
             return;
         }
-        let modulo_option = self.moduli.get(usize::try_from(*type_id).unwrap());
-        match modulo_option {
-            Some(modulo) => {
+        let type_option = self.types.get(usize::try_from(*type_id).unwrap());
+        match type_option {
+            Some(validator_type) => {
                 let count_option = if is_public {
-                    self.public_inputs_queue_len.get_mut(modulo)
+                    self.public_inputs_counts.get_mut(validator_type)
                 } else {
-                    self.private_inputs_queue_len.get_mut(modulo)
+                    self.private_inputs_counts.get_mut(validator_type)
                 };
                 if let Some(count) = count_option {
                     if *count >= how_many {
@@ -722,42 +787,52 @@ impl Validator {
         self.declare(type_id, id);
     }
 
+    /// This function checks that the `value` belong to the type `type_id`.
     fn ensure_value_in_type_id(
         &mut self,
         type_id: &TypeId,
         value: &[u8],
         name: impl Fn() -> String,
     ) {
-        let modulo = get_modulo(type_id, &self.moduli);
-        let modulo = match modulo {
-            Err(_) => {
+        let type_option = self.types.get(usize::try_from(*type_id).unwrap());
+        let validator_type = match type_option {
+            Some(validator_type) => validator_type.clone(),
+            None => {
                 self.violate(format!("Type id {} is not defined.", *type_id));
                 return;
             }
-            Ok(modulo) => modulo.clone(),
         };
-        self.ensure_value_in_type(&modulo, value, name);
+        self.ensure_value_in_type(&validator_type, value, name);
     }
 
-    fn ensure_value_in_type(&mut self, modulo: &BigUint, value: &[u8], name: impl Fn() -> String) {
+    /// This function checks that the `value` belong to the ValidatorType `validator_type`.
+    fn ensure_value_in_type(
+        &mut self,
+        validator_type: &ValidatorType,
+        value: &[u8],
+        name: impl Fn() -> String,
+    ) {
         if value.is_empty() {
             self.violate(format!("The {} is empty.", name()));
         }
 
-        let int = &TypeElement::from_bytes_le(value);
-        if int >= modulo {
-            let msg = format!(
-                "The {} cannot be represented in the type specified ({} >= {}).",
-                name(),
-                int,
-                modulo
-            );
-            self.violate(msg);
+        // If `validator_type` is a Field type, check that `value` belongs to this field.
+        if let ValidatorType::Field(modulo) = validator_type {
+            let int = &TypeElement::from_bytes_le(value);
+            if int >= modulo {
+                let msg = format!(
+                    "The {} cannot be represented in the Field type specified ({} >= {}).",
+                    name(),
+                    int,
+                    modulo
+                );
+                self.violate(msg);
+            }
         }
     }
 
     fn ensure_all_public_values_consumed(&mut self) {
-        let public_inputs_not_consumed: u64 = self.public_inputs_queue_len.values().sum::<u64>();
+        let public_inputs_not_consumed: u64 = self.public_inputs_counts.values().sum::<u64>();
         if public_inputs_not_consumed != 0 {
             self.violate(format!(
                 "Too many public input values ({} not consumed)",
@@ -770,7 +845,7 @@ impl Validator {
         if !self.as_prover {
             return;
         }
-        let private_inputs_not_consumed: u64 = self.private_inputs_queue_len.values().sum::<u64>();
+        let private_inputs_not_consumed: u64 = self.private_inputs_counts.values().sum::<u64>();
         if private_inputs_not_consumed != 0 {
             self.violate(format!(
                 "Too many private input values ({} not consumed)",
@@ -839,7 +914,7 @@ fn test_validator_violations() -> crate::Result<()> {
     let relation = example_relation();
 
     // Create a violation by using a value too big for the type.
-    public_inputs.inputs[0] = public_inputs.type_.clone();
+    public_inputs.inputs[0] = literal32(EXAMPLE_MODULUS);
     // Create a violation by omitting a private input value.
     private_inputs.inputs.pop().unwrap();
 
@@ -852,7 +927,7 @@ fn test_validator_violations() -> crate::Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The public value [101, 0, 0, 0] cannot be represented in the type specified (101 >= 101).",
+            "The public value [101, 0, 0, 0] cannot be represented in the Field type specified (101 >= 101).",
             "Not enough private input value to consume.",
         ]
     );
@@ -938,18 +1013,18 @@ fn test_validator_convert_violations() {
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(7),
+        type_value: Type::Field(literal32(7)),
         inputs: vec![vec![5]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_: literal32(101),
+        type_value: Type::Field(literal32(101)),
         inputs: vec![vec![10]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec!["vector".to_string()],
-        types: vec![literal32(7), literal32(101)],
+        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(1, 1), Count::new(0, 1))],
         functions: vec![],
         gates: vec![

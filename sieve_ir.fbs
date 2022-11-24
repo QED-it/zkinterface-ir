@@ -13,7 +13,7 @@ union Message {
 table Relation {
   version      :string;
   plugins      :[string];
-  types        :[Value];
+  types        :[Type];
   conversions  :[Conversion];
   functions    :[Function];
   directives   :[Directive];
@@ -21,13 +21,13 @@ table Relation {
 
 table PublicInputs {
   version  :string;
-  type     :Value;
+  type     :Type;
   inputs   :[Value];
 }
 
 table PrivateInputs {
   version  :string;
-  type     :Value;
+  type     :Type;
   inputs   :[Value];
 }
 
@@ -55,6 +55,27 @@ struct Conversion {
   output_count  :Count;
   input_count   :Count;
 }
+
+// ==== Type ====
+union TypeU {
+  Field,
+  PluginType
+}
+
+table Type {
+  element  :TypeU;
+}
+
+table Field {
+  modulo  :Value;
+}
+
+table PluginType {
+  name       :string;
+  operation  :string;
+  params     :[string];
+}
+
 
 // ==== Gate types ====
 

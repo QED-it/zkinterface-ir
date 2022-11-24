@@ -27,6 +27,7 @@ Rust:
 - add conversion declarations in Relation
 - split public/private inputs files into one file per type
 - update conversion to be compliant with the last version of the specs
+- add plugin types
 
 # SIEVE IR v1.0.1, 2022-08
 

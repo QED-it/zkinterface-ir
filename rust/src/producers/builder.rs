@@ -10,6 +10,7 @@ use crate::structs::count::Count;
 use crate::structs::function::{Function, FunctionBody, FunctionCounts};
 use crate::structs::gates::replace_output_wires;
 use crate::structs::plugin::PluginBody;
+use crate::structs::types::Type;
 use crate::structs::value::Value;
 use crate::structs::wirerange::{
     add_types_to_wire_ranges, check_wire_ranges_with_counts, WireRange,
@@ -55,7 +56,7 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-    fn new(sink: S, types: &[Value]) -> Self {
+    fn new(sink: S, types: &[Type]) -> Self {
         Self {
             sink,
             public_inputs: HashMap::new(),
@@ -86,7 +87,7 @@ impl<S: Sink> MessageBuilder<S> {
         // Push value into the PublicInputs corresponding to type_id
         let public_input = self.public_inputs.entry(type_id).or_insert(PublicInputs {
             version: self.relation.version.clone(),
-            type_: type_value.clone(),
+            type_value: type_value.clone(),
             inputs: vec![],
         });
         public_input.inputs.push(value);
@@ -110,7 +111,7 @@ impl<S: Sink> MessageBuilder<S> {
         // Push value into the PrivateInputs corresponding to type_id
         let private_input = self.private_inputs.entry(type_id).or_insert(PrivateInputs {
             version: self.relation.version.clone(),
-            type_: type_value.clone(),
+            type_value: type_value.clone(),
             inputs: vec![],
         });
         private_input.inputs.push(value);
@@ -233,8 +234,9 @@ impl<S: Sink> MessageBuilder<S> {
 /// ```
 /// use zki_sieve::producers::builder::{GateBuilderT, GateBuilder, BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
+/// use zki_sieve::structs::types::Type;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), &vec![vec![2]]);
+/// let mut b = GateBuilder::new(MemorySink::default(), &vec![Type::new_field_type(vec![2])]);
 ///
 /// let type_id = 0;
 /// let my_id = b.create_gate(Constant(type_id, vec![0])).unwrap();
@@ -429,7 +431,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
-    pub fn new(sink: S, types: &[Value]) -> Self {
+    pub fn new(sink: S, types: &[Type]) -> Self {
         GateBuilder {
             msg_build: MessageBuilder::new(sink, types),
             known_plugins: HashSet::new(),
@@ -541,7 +543,7 @@ impl<S: Sink> GateBuilder<S> {
 }
 
 pub fn new_example_builder() -> GateBuilder<MemorySink> {
-    GateBuilder::new(MemorySink::default(), &[vec![2]])
+    GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![2])])
 }
 
 pub struct FunctionWithInfos {
@@ -561,9 +563,10 @@ pub struct FunctionWithInfos {
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder,  BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::structs::count::Count;
+/// use zki_sieve::structs::types::Type;
 /// use zki_sieve::structs::wirerange::WireRange;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), &vec![vec![7]]);
+/// let mut b = GateBuilder::new(MemorySink::default(), &vec![Type::new_field_type(vec![7])]);
 ///
 ///  let private_square = {
 ///     let mut fb = b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
@@ -734,7 +737,7 @@ fn test_builder_with_function() {
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::sink::MemorySink;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
+    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
 
     let custom_sub = {
         let mut fb = b.new_function_builder(
@@ -830,7 +833,7 @@ fn test_builder_with_several_functions() {
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
+    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
 
     let private_square = {
         let mut fb =
@@ -935,7 +938,13 @@ fn test_builder_with_conversion() {
     let type_id_7: TypeId = 0;
     let type_id_101: TypeId = 1;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[vec![7], vec![101]]);
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &[
+            Type::new_field_type(vec![7]),
+            Type::new_field_type(vec![101]),
+        ],
+    );
 
     let id_0 = b
         .create_gate(PrivateInput(type_id_7, Some(vec![1])))
@@ -977,7 +986,7 @@ fn test_builder_with_plugin() {
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[vec![101]]);
+    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
 
     let vector_len: u64 = 2;
     let vector_add_plugin = create_plugin_function(
