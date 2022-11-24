@@ -288,8 +288,8 @@ pub enum GateSet {
   GateMul = 5,
   GateAddConstant = 6,
   GateMulConstant = 7,
-  GatePublicInput = 8,
-  GatePrivateInput = 9,
+  GatePublic = 8,
+  GatePrivate = 9,
   GateNew = 10,
   GateDelete = 11,
   GateConvert = 12,
@@ -341,8 +341,8 @@ pub const ENUM_VALUES_GATE_SET:[GateSet; 14] = [
   GateSet::GateMul,
   GateSet::GateAddConstant,
   GateSet::GateMulConstant,
-  GateSet::GatePublicInput,
-  GateSet::GatePrivateInput,
+  GateSet::GatePublic,
+  GateSet::GatePrivate,
   GateSet::GateNew,
   GateSet::GateDelete,
   GateSet::GateConvert,
@@ -359,8 +359,8 @@ pub const ENUM_NAMES_GATE_SET:[&'static str; 14] = [
     "GateMul",
     "GateAddConstant",
     "GateMulConstant",
-    "GatePublicInput",
-    "GatePrivateInput",
+    "GatePublic",
+    "GatePrivate",
     "GateNew",
     "GateDelete",
     "GateConvert",
@@ -2113,15 +2113,15 @@ impl<'a: 'b, 'b> GateMulConstantBuilder<'a, 'b> {
   }
 }
 
-pub enum GatePublicInputOffset {}
+pub enum GatePublicOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct GatePublicInput<'a> {
+pub struct GatePublic<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for GatePublicInput<'a> {
-    type Inner = GatePublicInput<'a>;
+impl<'a> flatbuffers::Follow<'a> for GatePublic<'a> {
+    type Inner = GatePublic<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2130,18 +2130,18 @@ impl<'a> flatbuffers::Follow<'a> for GatePublicInput<'a> {
     }
 }
 
-impl<'a> GatePublicInput<'a> {
+impl<'a> GatePublic<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GatePublicInput {
+        GatePublic {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GatePublicInputArgs) -> flatbuffers::WIPOffset<GatePublicInput<'bldr>> {
-      let mut builder = GatePublicInputBuilder::new(_fbb);
+        args: &'args GatePublicArgs) -> flatbuffers::WIPOffset<GatePublic<'bldr>> {
+      let mut builder = GatePublicBuilder::new(_fbb);
       builder.add_out_id(args.out_id);
       builder.add_type_id(args.type_id);
       builder.finish()
@@ -2152,64 +2152,64 @@ impl<'a> GatePublicInput<'a> {
 
   #[inline]
   pub fn type_id(&self) -> u8 {
-    self._tab.get::<u8>(GatePublicInput::VT_TYPE_ID, Some(0)).unwrap()
+    self._tab.get::<u8>(GatePublic::VT_TYPE_ID, Some(0)).unwrap()
   }
   #[inline]
   pub fn out_id(&self) -> u64 {
-    self._tab.get::<u64>(GatePublicInput::VT_OUT_ID, Some(0)).unwrap()
+    self._tab.get::<u64>(GatePublic::VT_OUT_ID, Some(0)).unwrap()
   }
 }
 
-pub struct GatePublicInputArgs {
+pub struct GatePublicArgs {
     pub type_id: u8,
     pub out_id: u64,
 }
-impl<'a> Default for GatePublicInputArgs {
+impl<'a> Default for GatePublicArgs {
     #[inline]
     fn default() -> Self {
-        GatePublicInputArgs {
+        GatePublicArgs {
             type_id: 0,
             out_id: 0,
         }
     }
 }
-pub struct GatePublicInputBuilder<'a: 'b, 'b> {
+pub struct GatePublicBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> GatePublicInputBuilder<'a, 'b> {
+impl<'a: 'b, 'b> GatePublicBuilder<'a, 'b> {
   #[inline]
   pub fn add_type_id(&mut self, type_id: u8) {
-    self.fbb_.push_slot::<u8>(GatePublicInput::VT_TYPE_ID, type_id, 0);
+    self.fbb_.push_slot::<u8>(GatePublic::VT_TYPE_ID, type_id, 0);
   }
   #[inline]
   pub fn add_out_id(&mut self, out_id: u64) {
-    self.fbb_.push_slot::<u64>(GatePublicInput::VT_OUT_ID, out_id, 0);
+    self.fbb_.push_slot::<u64>(GatePublic::VT_OUT_ID, out_id, 0);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GatePublicInputBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GatePublicBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    GatePublicInputBuilder {
+    GatePublicBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GatePublicInput<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<GatePublic<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
 }
 
-pub enum GatePrivateInputOffset {}
+pub enum GatePrivateOffset {}
 #[derive(Copy, Clone, Debug, PartialEq)]
 
-pub struct GatePrivateInput<'a> {
+pub struct GatePrivate<'a> {
   pub _tab: flatbuffers::Table<'a>,
 }
 
-impl<'a> flatbuffers::Follow<'a> for GatePrivateInput<'a> {
-    type Inner = GatePrivateInput<'a>;
+impl<'a> flatbuffers::Follow<'a> for GatePrivate<'a> {
+    type Inner = GatePrivate<'a>;
     #[inline]
     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
         Self {
@@ -2218,18 +2218,18 @@ impl<'a> flatbuffers::Follow<'a> for GatePrivateInput<'a> {
     }
 }
 
-impl<'a> GatePrivateInput<'a> {
+impl<'a> GatePrivate<'a> {
     #[inline]
     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-        GatePrivateInput {
+        GatePrivate {
             _tab: table,
         }
     }
     #[allow(unused_mut)]
     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-        args: &'args GatePrivateInputArgs) -> flatbuffers::WIPOffset<GatePrivateInput<'bldr>> {
-      let mut builder = GatePrivateInputBuilder::new(_fbb);
+        args: &'args GatePrivateArgs) -> flatbuffers::WIPOffset<GatePrivate<'bldr>> {
+      let mut builder = GatePrivateBuilder::new(_fbb);
       builder.add_out_id(args.out_id);
       builder.add_type_id(args.type_id);
       builder.finish()
@@ -2240,50 +2240,50 @@ impl<'a> GatePrivateInput<'a> {
 
   #[inline]
   pub fn type_id(&self) -> u8 {
-    self._tab.get::<u8>(GatePrivateInput::VT_TYPE_ID, Some(0)).unwrap()
+    self._tab.get::<u8>(GatePrivate::VT_TYPE_ID, Some(0)).unwrap()
   }
   #[inline]
   pub fn out_id(&self) -> u64 {
-    self._tab.get::<u64>(GatePrivateInput::VT_OUT_ID, Some(0)).unwrap()
+    self._tab.get::<u64>(GatePrivate::VT_OUT_ID, Some(0)).unwrap()
   }
 }
 
-pub struct GatePrivateInputArgs {
+pub struct GatePrivateArgs {
     pub type_id: u8,
     pub out_id: u64,
 }
-impl<'a> Default for GatePrivateInputArgs {
+impl<'a> Default for GatePrivateArgs {
     #[inline]
     fn default() -> Self {
-        GatePrivateInputArgs {
+        GatePrivateArgs {
             type_id: 0,
             out_id: 0,
         }
     }
 }
-pub struct GatePrivateInputBuilder<'a: 'b, 'b> {
+pub struct GatePrivateBuilder<'a: 'b, 'b> {
   fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
   start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
 }
-impl<'a: 'b, 'b> GatePrivateInputBuilder<'a, 'b> {
+impl<'a: 'b, 'b> GatePrivateBuilder<'a, 'b> {
   #[inline]
   pub fn add_type_id(&mut self, type_id: u8) {
-    self.fbb_.push_slot::<u8>(GatePrivateInput::VT_TYPE_ID, type_id, 0);
+    self.fbb_.push_slot::<u8>(GatePrivate::VT_TYPE_ID, type_id, 0);
   }
   #[inline]
   pub fn add_out_id(&mut self, out_id: u64) {
-    self.fbb_.push_slot::<u64>(GatePrivateInput::VT_OUT_ID, out_id, 0);
+    self.fbb_.push_slot::<u64>(GatePrivate::VT_OUT_ID, out_id, 0);
   }
   #[inline]
-  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GatePrivateInputBuilder<'a, 'b> {
+  pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>) -> GatePrivateBuilder<'a, 'b> {
     let start = _fbb.start_table();
-    GatePrivateInputBuilder {
+    GatePrivateBuilder {
       fbb_: _fbb,
       start_: start,
     }
   }
   #[inline]
-  pub fn finish(self) -> flatbuffers::WIPOffset<GatePrivateInput<'a>> {
+  pub fn finish(self) -> flatbuffers::WIPOffset<GatePrivate<'a>> {
     let o = self.fbb_.end_table(self.start_);
     flatbuffers::WIPOffset::new(o.value())
   }
@@ -3186,9 +3186,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_public_input(&self) -> Option<GatePublicInput<'a>> {
-    if self.gate_type() == GateSet::GatePublicInput {
-      self.gate().map(|u| GatePublicInput::init_from_table(u))
+  pub fn gate_as_gate_public(&self) -> Option<GatePublic<'a>> {
+    if self.gate_type() == GateSet::GatePublic {
+      self.gate().map(|u| GatePublic::init_from_table(u))
     } else {
       None
     }
@@ -3196,9 +3196,9 @@ impl<'a> Gate<'a> {
 
   #[inline]
   #[allow(non_snake_case)]
-  pub fn gate_as_gate_private_input(&self) -> Option<GatePrivateInput<'a>> {
-    if self.gate_type() == GateSet::GatePrivateInput {
-      self.gate().map(|u| GatePrivateInput::init_from_table(u))
+  pub fn gate_as_gate_private(&self) -> Option<GatePrivate<'a>> {
+    if self.gate_type() == GateSet::GatePrivate {
+      self.gate().map(|u| GatePrivate::init_from_table(u))
     } else {
       None
     }

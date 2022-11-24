@@ -56,9 +56,9 @@ pub fn example_relation() -> Relation {
             )),
             // Right-triangle example
             Directive::Gate(New(type_id, 0, 2)),
-            Directive::Gate(PublicInput(type_id, 0)),
-            Directive::Gate(PrivateInput(type_id, 1)),
-            Directive::Gate(PrivateInput(type_id, 2)),
+            Directive::Gate(Public(type_id, 0)),
+            Directive::Gate(Private(type_id, 1)),
+            Directive::Gate(Private(type_id, 2)),
             Directive::Gate(Call(
                 "square".to_string(),
                 vec![WireRange::new(3, 3)],

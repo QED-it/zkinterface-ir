@@ -133,12 +133,12 @@ table GateMulConstant {
   constant  :[ubyte];
 }
 
-table GatePublicInput {
+table GatePublic {
   type_id  :ubyte;
   out_id   :uint64;
 }
 
-table GatePrivateInput {
+table GatePrivate {
   type_id  :ubyte;
   out_id   :uint64;
 }
@@ -213,8 +213,8 @@ union GateSet {
   GateMul,
   GateAddConstant,
   GateMulConstant,
-  GatePublicInput,
-  GatePrivateInput,
+  GatePublic,
+  GatePrivate,
   GateNew,
   GateDelete,
   GateConvert,

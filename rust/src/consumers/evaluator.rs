@@ -416,12 +416,12 @@ impl<B: ZKBackend> Evaluator<B> {
                 set!(*type_id, *out, prod)?;
             }
 
-            PublicInput(type_id, out) => {
+            Public(type_id, out) => {
                 let mut val = Self::get_input_values(inputs, type_id, 1, true)?;
                 set_public_input(backend, scope, *type_id, *out, val.pop().unwrap())?;
             }
 
-            PrivateInput(type_id, out) => {
+            Private(type_id, out) => {
                 let val_result = Self::get_input_values(inputs, type_id, 1, false);
                 match val_result {
                     Ok(mut values) => {
@@ -1140,16 +1140,16 @@ fn test_evaluator_conversion() {
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         directives: vec![
-            Directive::Gate(Gate::PrivateInput(1, 0)), // 2
-            Directive::Gate(Gate::PrivateInput(1, 1)), // 81
+            Directive::Gate(Gate::Private(1, 0)), // 2
+            Directive::Gate(Gate::Private(1, 1)), // 81
             // (2*101 + 81) mod 7^2 = 38
             // 38 = 5*7 + 3
             Directive::Gate(Gate::Convert(0, 0, 1, 1, 0, 1)),
-            Directive::Gate(Gate::PublicInput(0, 2)), // 6
-            Directive::Gate(Gate::Add(0, 3, 0, 2)),   // 5 + 2 = 0 mod 7
+            Directive::Gate(Gate::Public(0, 2)),    // 6
+            Directive::Gate(Gate::Add(0, 3, 0, 2)), // 5 + 2 = 0 mod 7
             Directive::Gate(Gate::AssertZero(0, 3)),
-            Directive::Gate(Gate::PublicInput(0, 4)), // 2
-            Directive::Gate(Gate::Add(0, 5, 1, 4)),   // 3 + 4 = 0 mod 7
+            Directive::Gate(Gate::Public(0, 4)),    // 2
+            Directive::Gate(Gate::Add(0, 5, 1, 4)), // 3 + 4 = 0 mod 7
             Directive::Gate(Gate::AssertZero(0, 5)),
             Directive::Gate(Gate::Delete(0, 0, 5)),
             Directive::Gate(Gate::Delete(1, 0, 0)),
@@ -1180,17 +1180,17 @@ fn test_evaluator_conversion() {
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         directives: vec![
-            Directive::Gate(Gate::PrivateInput(1, 0)), // 2
-            Directive::Gate(Gate::PrivateInput(1, 1)), // 81
+            Directive::Gate(Gate::Private(1, 0)), // 2
+            Directive::Gate(Gate::Private(1, 1)), // 81
             // (2*101 + 81) mod 7^2 = 38
             // 38 = 5*7 + 3
             // Violation: in_ids is empty (in_first_id > in_last_id)
             Directive::Gate(Gate::Convert(0, 0, 1, 1, 1, 0)),
-            Directive::Gate(Gate::PublicInput(0, 2)), // 6
-            Directive::Gate(Gate::Add(0, 3, 0, 2)),   // 5 + 2 = 0 mod 7
+            Directive::Gate(Gate::Public(0, 2)),    // 6
+            Directive::Gate(Gate::Add(0, 3, 0, 2)), // 5 + 2 = 0 mod 7
             Directive::Gate(Gate::AssertZero(0, 3)),
-            Directive::Gate(Gate::PublicInput(0, 4)), // 2
-            Directive::Gate(Gate::Add(0, 5, 1, 4)),   // 3 + 4 = 0 mod 7
+            Directive::Gate(Gate::Public(0, 4)),    // 2
+            Directive::Gate(Gate::Add(0, 5, 1, 4)), // 3 + 4 = 0 mod 7
             Directive::Gate(Gate::AssertZero(0, 5)),
             Directive::Gate(Gate::Delete(0, 0, 5)),
             Directive::Gate(Gate::Delete(1, 0, 0)),

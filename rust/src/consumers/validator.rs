@@ -35,8 +35,8 @@ Header Validation
      - Type moduli should be the same.
 
 Inputs Validation (PublicInputs / PrivateInputs)
- - Ensure that PublicInput gates are given a value in public_inputs messages.
- - Ensure that PrivateInput gates are given a value in private_inputs messages (prover only).
+ - Ensure that Public gates are given a value in public_inputs messages.
+ - Ensure that Private gates are given a value in private_inputs messages (prover only).
  - Ensure that all public and private inputs are consumed at the end of the circuit
  - Ensure that the value they are set to is indeed encoding an element lying in the underlying type.
    It can be achieved by ensuring that the encoded value is strictly smaller than the type modulo.
@@ -375,13 +375,13 @@ impl Validator {
                 self.ensure_undefined_and_set(type_id, *out);
             }
 
-            PublicInput(type_id, out) => {
+            Public(type_id, out) => {
                 self.declare(type_id, *out);
                 // Consume value.
                 self.consume_public_inputs(type_id, 1);
             }
 
-            PrivateInput(type_id, out) => {
+            Private(type_id, out) => {
                 self.declare(type_id, *out);
                 // Consume value.
                 self.consume_private_inputs(type_id, 1);
@@ -607,11 +607,11 @@ impl Validator {
         let mut private_count = HashMap::new();
         for gate in subcircuit.iter() {
             match gate {
-                Gate::PublicInput(type_id, _) => {
+                Gate::Public(type_id, _) => {
                     let count = public_count.entry(*type_id).or_insert(0);
                     *count += 1;
                 }
-                Gate::PrivateInput(type_id, _) => {
+                Gate::Private(type_id, _) => {
                     let count = private_count.entry(*type_id).or_insert(0);
                     *count += 1;
                 }
@@ -1162,12 +1162,12 @@ fn test_validator_convert_violations() {
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(1, 1), Count::new(0, 1))],
         directives: vec![
-            Directive::Gate(Gate::PublicInput(0, 0)),
+            Directive::Gate(Gate::Public(0, 0)),
             // Violation: in_ids is empty (in_first_id > in_last_id)
             Directive::Gate(Gate::Convert(1, 0, 0, 0, 1, 0)),
             Directive::Gate(Gate::Delete(0, 0, 0)),
             // Violation: use an undeclared conversion
-            Directive::Gate(Gate::PrivateInput(1, 10)),
+            Directive::Gate(Gate::Private(1, 10)),
             // Violation: use an undeclared conversion
             Directive::Gate(Gate::Convert(0, 10, 10, 1, 10, 10)),
             Directive::Gate(Gate::Delete(1, 10, 10)),

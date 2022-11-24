@@ -14,8 +14,8 @@ pub enum BuildGate {
     Mul(TypeId, WireId, WireId),
     AddConstant(TypeId, WireId, Value),
     MulConstant(TypeId, WireId, Value),
-    PublicInput(TypeId, Option<Value>),
-    PrivateInput(TypeId, Option<Value>),
+    Public(TypeId, Option<Value>),
+    Private(TypeId, Option<Value>),
     New(TypeId, WireId, WireId),
     Delete(TypeId, WireId, WireId),
 }
@@ -37,8 +37,8 @@ impl BuildGate {
             Mul(type_id, left, right) => Gate::Mul(type_id, output, left, right),
             AddConstant(type_id, left, value) => Gate::AddConstant(type_id, output, left, value),
             MulConstant(type_id, left, value) => Gate::MulConstant(type_id, output, left, value),
-            PublicInput(type_id, _) => Gate::PublicInput(type_id, output),
-            PrivateInput(type_id, _) => Gate::PrivateInput(type_id, output),
+            Public(type_id, _) => Gate::Public(type_id, output),
+            Private(type_id, _) => Gate::Private(type_id, output),
             New(type_id, first, last) => {
                 assert_eq!(output, NO_OUTPUT);
                 Gate::New(type_id, first, last)
@@ -63,8 +63,8 @@ impl BuildGate {
             Mul(type_id, _, _) => type_id,
             AddConstant(type_id, _, _) => type_id,
             MulConstant(type_id, _, _) => type_id,
-            PublicInput(type_id, _) => type_id,
-            PrivateInput(type_id, _) => type_id,
+            Public(type_id, _) => type_id,
+            Private(type_id, _) => type_id,
             New(type_id, _, _) => type_id,
             Delete(type_id, _, _) => type_id,
         }

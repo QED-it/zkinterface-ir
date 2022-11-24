@@ -175,7 +175,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.gate_builder
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::PublicInput(*type_id, Some(val.to_bytes_le())))
+            .create_gate(BuildGate::Public(*type_id, Some(val.to_bytes_le())))
     }
 
     fn private_input(
@@ -190,7 +190,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
         self.gate_builder
             .as_mut()
             .unwrap()
-            .create_gate(BuildGate::PrivateInput(*type_id, value))
+            .create_gate(BuildGate::Private(*type_id, value))
     }
 
     fn gate_new(&mut self, _: &TypeId, _: WireId, _: WireId) -> Result<()> {

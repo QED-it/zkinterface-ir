@@ -312,10 +312,10 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
         };
 
         match gate {
-            BuildGate::PublicInput(_, Some(ref mut value)) => {
+            BuildGate::Public(_, Some(ref mut value)) => {
                 self.push_public_input_value(type_id, take(value))?;
             }
-            BuildGate::PrivateInput(_, Some(ref mut value)) => {
+            BuildGate::Private(_, Some(ref mut value)) => {
                 self.push_private_input_value(type_id, take(value))?;
             }
             _ => {}
@@ -569,7 +569,7 @@ pub struct FunctionWithInfos {
 ///
 ///  let private_square = {
 ///     let mut fb = b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
-///     let private_input_wire = fb.create_gate(PrivateInput(0, None));
+///     let private_input_wire = fb.create_gate(Private(0, None));
 ///     let output_wire = fb.create_gate(Mul(0, private_input_wire, private_input_wire));
 ///
 ///     fb.finish(vec![WireRange::new(output_wire, output_wire)]).unwrap()
@@ -618,11 +618,11 @@ impl FunctionBuilder<'_> {
         };
 
         match gate {
-            BuildGate::PublicInput(type_id, _) => {
+            BuildGate::Public(type_id, _) => {
                 let count = self.public_count.entry(type_id).or_insert(0);
                 *count += 1;
             }
-            BuildGate::PrivateInput(type_id, _) => {
+            BuildGate::Private(type_id, _) => {
                 let count = self.private_count.entry(type_id).or_insert(0);
                 *count += 1;
             }
@@ -790,8 +790,8 @@ fn test_builder_with_function() {
     let out = (out[0].first_id..=out[0].last_id).collect::<Vec<_>>();
     assert_eq!(out.len(), 2);
 
-    let private_0 = b.create_gate(PrivateInput(0, Some(vec![30]))).unwrap();
-    let private_1 = b.create_gate(PrivateInput(0, Some(vec![25]))).unwrap();
+    let private_0 = b.create_gate(Private(0, Some(vec![30]))).unwrap();
+    let private_1 = b.create_gate(Private(0, Some(vec![25]))).unwrap();
 
     let neg_private_0 = b.create_gate(MulConstant(0, private_0, vec![100])).unwrap(); // *(-1)
     let neg_private_1 = b.create_gate(MulConstant(0, private_1, vec![100])).unwrap(); // *(-1)
@@ -837,7 +837,7 @@ fn test_builder_with_several_functions() {
     let private_square = {
         let mut fb =
             b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
-        let private_wire = fb.create_gate(PrivateInput(type_id, None));
+        let private_wire = fb.create_gate(Private(type_id, None));
         let output_wire = fb.create_gate(Mul(type_id, private_wire, private_wire));
 
         fb.finish(vec![WireRange::new(output_wire, output_wire)])
@@ -852,7 +852,7 @@ fn test_builder_with_several_functions() {
             vec![Count::new(0, 1)],
             vec![],
         );
-        let public_wire = fb.create_gate(PublicInput(type_id, None));
+        let public_wire = fb.create_gate(Public(type_id, None));
 
         // Try to call a function with a wrong number of inputs
         // Should return an error
@@ -945,12 +945,8 @@ fn test_builder_with_conversion() {
         ],
     );
 
-    let id_0 = b
-        .create_gate(PrivateInput(type_id_7, Some(vec![1])))
-        .unwrap();
-    let id_1 = b
-        .create_gate(PrivateInput(type_id_7, Some(vec![3])))
-        .unwrap();
+    let id_0 = b.create_gate(Private(type_id_7, Some(vec![1]))).unwrap();
+    let id_1 = b.create_gate(Private(type_id_7, Some(vec![3]))).unwrap();
     let out = b
         .create_complex_gate(
             Convert(type_id_101, 3, type_id_7, id_0, id_1),
@@ -1007,10 +1003,10 @@ fn test_builder_with_plugin() {
 
     b.push_plugin(vector_add_plugin).unwrap();
 
-    let private_0 = b.create_gate(PrivateInput(type_id, Some(vec![1]))).unwrap();
-    let private_1 = b.create_gate(PrivateInput(type_id, Some(vec![2]))).unwrap();
-    let public_0 = b.create_gate(PrivateInput(type_id, Some(vec![3]))).unwrap();
-    let public_1 = b.create_gate(PrivateInput(type_id, Some(vec![4]))).unwrap();
+    let private_0 = b.create_gate(Private(type_id, Some(vec![1]))).unwrap();
+    let private_1 = b.create_gate(Private(type_id, Some(vec![2]))).unwrap();
+    let public_0 = b.create_gate(Private(type_id, Some(vec![3]))).unwrap();
+    let public_1 = b.create_gate(Private(type_id, Some(vec![4]))).unwrap();
 
     let out = b
         .create_complex_gate(

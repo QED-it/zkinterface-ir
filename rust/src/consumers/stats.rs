@@ -182,11 +182,11 @@ impl GateStats {
                 self.mul_constant_gates += 1;
             }
 
-            PublicInput(_type_id, _out) => {
+            Public(_type_id, _out) => {
                 self.public_inputs_consumed += 1;
             }
 
-            PrivateInput(_type_id, _out) => {
+            Private(_type_id, _out) => {
                 self.private_inputs_consumed += 1;
             }
 

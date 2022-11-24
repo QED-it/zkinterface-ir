@@ -28,10 +28,10 @@ pub enum Gate {
     AddConstant(TypeId, WireId, WireId, Value),
     /// MulConstant(type_id, output, input, constant)
     MulConstant(TypeId, WireId, WireId, Value),
-    /// PublicInput(type_id, output)
-    PublicInput(TypeId, WireId),
-    /// PrivateInput(type_id, output)
-    PrivateInput(TypeId, WireId),
+    /// Public(type_id, output)
+    Public(TypeId, WireId),
+    /// Private(type_id, output)
+    Private(TypeId, WireId),
     /// New(type_id, first, last)
     /// Allocate in a contiguous space all wires between the first and the last INCLUSIVE.
     New(TypeId, WireId, WireId),
@@ -114,14 +114,14 @@ impl<'a> TryFrom<generated::Gate<'a>> for Gate {
                 )
             }
 
-            gs::GatePublicInput => {
-                let gate = gen_gate.gate_as_gate_public_input().unwrap();
-                PublicInput(gate.type_id(), gate.out_id())
+            gs::GatePublic => {
+                let gate = gen_gate.gate_as_gate_public().unwrap();
+                Public(gate.type_id(), gate.out_id())
             }
 
-            gs::GatePrivateInput => {
-                let gate = gen_gate.gate_as_gate_private_input().unwrap();
-                PrivateInput(gate.type_id(), gate.out_id())
+            gs::GatePrivate => {
+                let gate = gen_gate.gate_as_gate_private().unwrap();
+                Private(gate.type_id(), gate.out_id())
             }
 
             gs::GateNew => {
@@ -296,10 +296,10 @@ impl Gate {
                 )
             }
 
-            PublicInput(type_id, output) => {
-                let gate = generated::GatePublicInput::create(
+            Public(type_id, output) => {
+                let gate = generated::GatePublic::create(
                     builder,
-                    &generated::GatePublicInputArgs {
+                    &generated::GatePublicArgs {
                         type_id: *type_id,
                         out_id: *output,
                     },
@@ -307,16 +307,16 @@ impl Gate {
                 generated::Gate::create(
                     builder,
                     &generated::GateArgs {
-                        gate_type: gs::GatePublicInput,
+                        gate_type: gs::GatePublic,
                         gate: Some(gate.as_union_value()),
                     },
                 )
             }
 
-            PrivateInput(type_id, output) => {
-                let gate = generated::GatePrivateInput::create(
+            Private(type_id, output) => {
+                let gate = generated::GatePrivate::create(
                     builder,
-                    &generated::GatePrivateInputArgs {
+                    &generated::GatePrivateArgs {
                         type_id: *type_id,
                         out_id: *output,
                     },
@@ -324,7 +324,7 @@ impl Gate {
                 generated::Gate::create(
                     builder,
                     &generated::GateArgs {
-                        gate_type: gs::GatePrivateInput,
+                        gate_type: gs::GatePrivate,
                         gate: Some(gate.as_union_value()),
                     },
                 )
@@ -453,8 +453,8 @@ impl Gate {
             Mul(_, w, _, _) => Some(w),
             AddConstant(_, w, _, _) => Some(w),
             MulConstant(_, w, _, _) => Some(w),
-            PublicInput(_, w) => Some(w),
-            PrivateInput(_, w) => Some(w),
+            Public(_, w) => Some(w),
+            Private(_, w) => Some(w),
 
             AssertZero(_, _) => None,
             Delete(_, _, _) => None,
@@ -566,10 +566,10 @@ pub fn replace_output_wires(
                         replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                         replace_wire_id(type_id, &old_type_id, input, old_wire, new_wire);
                     }
-                    PublicInput(ref type_id, ref mut output) => {
+                    Public(ref type_id, ref mut output) => {
                         replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                     }
-                    PrivateInput(ref type_id, ref mut output) => {
+                    Private(ref type_id, ref mut output) => {
                         replace_wire_id(type_id, &old_type_id, output, old_wire, new_wire);
                     }
                     AssertZero(ref type_id, ref mut wire) => {
@@ -596,10 +596,10 @@ fn test_replace_output_wires() {
 
     let mut gates = vec![
         New(0, 4, 4),
-        PublicInput(0, 4),
-        PrivateInput(0, 5),
+        Public(0, 4),
+        Private(0, 5),
         Constant(0, 6, vec![15]),
-        PublicInput(1, 6),
+        Public(1, 6),
         Add(0, 7, 4, 5),
         Delete(0, 4, 4),
         Mul(0, 8, 6, 7),
@@ -626,10 +626,10 @@ fn test_replace_output_wires() {
     replace_output_wires(&mut gates, &output_wires, &known_functions).unwrap();
     let correct_gates = vec![
         New(0, 4, 4),
-        PublicInput(0, 4),
-        PrivateInput(0, 1),
+        Public(0, 4),
+        Private(0, 1),
         Constant(0, 2, vec![15]),
-        PublicInput(1, 6),
+        Public(1, 6),
         Add(0, 7, 4, 1),
         Delete(0, 4, 4),
         Mul(0, 8, 2, 7),

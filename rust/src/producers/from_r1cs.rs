@@ -57,7 +57,7 @@ impl<S: Sink> FromR1CSConverter<S> {
             } else {
                 let wire = conv
                     .b
-                    .create_gate(PublicInput(TYPE_ID, Some(var.value.to_vec())))
+                    .create_gate(Public(TYPE_ID, Some(var.value.to_vec())))
                     .unwrap();
                 conv.r1cs_to_ir_wire.insert(var.id, wire);
             }
@@ -65,7 +65,7 @@ impl<S: Sink> FromR1CSConverter<S> {
 
         // preallocate wire id which will contain witness variables.
         for var in zki_header.list_witness_ids() {
-            let wire = conv.b.create_gate(PrivateInput(TYPE_ID, None)).unwrap();
+            let wire = conv.b.create_gate(Private(TYPE_ID, None)).unwrap();
             conv.r1cs_to_ir_wire.insert(var, wire);
         }
 
