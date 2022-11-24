@@ -1,6 +1,7 @@
 use flatbuffers::{emplace_scalar, read_scalar, EndianScalar};
 use std::mem::size_of;
 
+use crate::structs::directives::Directive;
 use crate::structs::types::Type;
 use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
@@ -46,39 +47,39 @@ pub fn example_relation() -> Relation {
         plugins: vec![],
         types: vec![Type::Field(literal32(EXAMPLE_MODULUS))],
         conversions: vec![],
-        functions: vec![Function::new(
-            "square".to_string(),
-            vec![Count::new(type_id, 1)],
-            vec![Count::new(type_id, 1)],
-            FunctionBody::Gates(vec![Mul(type_id, 0, 1, 1)]),
-        )],
-        gates: vec![
+        directives: vec![
+            Directive::Function(Function::new(
+                "square".to_string(),
+                vec![Count::new(type_id, 1)],
+                vec![Count::new(type_id, 1)],
+                FunctionBody::Gates(vec![Mul(type_id, 0, 1, 1)]),
+            )),
             // Right-triangle example
-            New(type_id, 0, 2),
-            PublicInput(type_id, 0),
-            PrivateInput(type_id, 1),
-            PrivateInput(type_id, 2),
-            Call(
+            Directive::Gate(New(type_id, 0, 2)),
+            Directive::Gate(PublicInput(type_id, 0)),
+            Directive::Gate(PrivateInput(type_id, 1)),
+            Directive::Gate(PrivateInput(type_id, 2)),
+            Directive::Gate(Call(
                 "square".to_string(),
                 vec![WireRange::new(3, 3)],
                 vec![WireRange::new(0, 0)],
-            ),
-            Call(
+            )),
+            Directive::Gate(Call(
                 "square".to_string(),
                 vec![WireRange::new(4, 4)],
                 vec![WireRange::new(1, 1)],
-            ),
-            Call(
+            )),
+            Directive::Gate(Call(
                 "square".to_string(),
                 vec![WireRange::new(5, 5)],
                 vec![WireRange::new(2, 2)],
-            ),
-            Add(type_id, 6, 4, 5),
-            MulConstant(type_id, 7, 3, vec![100]),
-            Add(type_id, 8, 6, 7),
-            AssertZero(type_id, 8),
-            Delete(type_id, 0, 2),
-            Delete(type_id, 3, 8),
+            )),
+            Directive::Gate(Add(type_id, 6, 4, 5)),
+            Directive::Gate(MulConstant(type_id, 7, 3, vec![100])),
+            Directive::Gate(Add(type_id, 8, 6, 7)),
+            Directive::Gate(AssertZero(type_id, 8)),
+            Directive::Gate(Delete(type_id, 0, 2)),
+            Directive::Gate(Delete(type_id, 3, 8)),
         ],
     }
 }

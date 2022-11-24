@@ -7,6 +7,7 @@ pub use super::build_gates::{BuildComplexGate, BuildGate};
 use crate::producers::sink::MemorySink;
 use crate::structs::conversion::Conversion;
 use crate::structs::count::Count;
+use crate::structs::directives::Directive;
 use crate::structs::function::{Function, FunctionBody, FunctionCounts};
 use crate::structs::gates::replace_output_wires;
 use crate::structs::plugin::PluginBody;
@@ -66,8 +67,7 @@ impl<S: Sink> MessageBuilder<S> {
                 plugins: vec![],
                 types: types.to_owned(),
                 conversions: vec![],
-                functions: vec![],
-                gates: vec![],
+                directives: vec![],
             },
             functions_size: 0,
             max_len: 100 * 1000,
@@ -123,8 +123,8 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_gate(&mut self, gate: Gate) {
-        self.relation.gates.push(gate);
-        if self.relation.gates.len()
+        self.relation.directives.push(Directive::Gate(gate));
+        if self.relation.directives.len()
             + self.relation.plugins.len()
             + self.relation.conversions.len()
             + self.functions_size
@@ -136,7 +136,7 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn push_plugin(&mut self, plugin_name: String) {
         self.relation.plugins.push(plugin_name);
-        if self.relation.gates.len()
+        if self.relation.directives.len()
             + self.relation.plugins.len()
             + self.relation.conversions.len()
             + self.functions_size
@@ -148,7 +148,7 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn push_conversion(&mut self, conversion: Conversion) {
         self.relation.conversions.push(conversion);
-        if self.relation.gates.len()
+        if self.relation.directives.len()
             + self.relation.plugins.len()
             + self.relation.conversions.len()
             + self.functions_size
@@ -164,8 +164,8 @@ impl<S: Sink> MessageBuilder<S> {
             FunctionBody::PluginBody(_) => 1,
         };
         self.functions_size += func_size;
-        self.relation.functions.push(function);
-        if self.relation.gates.len()
+        self.relation.directives.push(Directive::Function(function));
+        if self.relation.directives.len()
             + self.relation.plugins.len()
             + self.relation.conversions.len()
             + self.functions_size
@@ -213,15 +213,14 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn flush_relation(&mut self) {
         self.sink.push_relation_message(&self.relation).unwrap();
-        self.relation.gates.clear();
-        self.relation.functions.clear();
+        self.relation.directives.clear();
         self.functions_size = 0;
     }
 
     fn finish(mut self) -> S {
         self.flush_all_public_inputs();
         self.flush_all_private_inputs();
-        if !self.relation.gates.is_empty() || !self.relation.functions.is_empty() {
+        if !self.relation.directives.is_empty() {
             self.flush_relation();
         }
         self.sink

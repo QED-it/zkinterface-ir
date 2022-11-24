@@ -38,6 +38,9 @@ pub mod plugin;
 /// Type is an enum that can represent a Field or a PluginType.
 pub mod types;
 
+/// Directive is an enum that can represent a Gate or a Function.
+pub mod directives;
+
 /// Wires are identified by a numerical ID.
 pub type WireId = u64;
 

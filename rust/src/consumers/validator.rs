@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use crate::structs::conversion::Conversion;
 use crate::structs::count::{count_list_to_hashmap, Count};
+use crate::structs::directives::Directive;
 use crate::structs::function::{FunctionBody, FunctionCounts};
 use crate::structs::types::Type;
 use crate::structs::value::{is_probably_prime, value_to_biguint};
@@ -258,66 +259,69 @@ impl Validator {
             self.known_conversions.insert(conversion.clone());
         });
 
-        for f in relation.functions.iter() {
-            let (name, output_count, input_count) = (
-                f.name.clone(),
-                f.output_count.clone(),
-                f.input_count.clone(),
-            );
+        for directive in relation.directives.iter() {
+            match directive {
+                Directive::Function(function) => {
+                    let (name, output_count, input_count) = (
+                        function.name.clone(),
+                        function.output_count.clone(),
+                        function.input_count.clone(),
+                    );
 
-            // Check that the name follows the proper REGEX
-            let re = Regex::new(NAMES_REGEX).unwrap();
-            if !re.is_match(name.trim()) {
-                self.violate(format!(
-                    "The function name ({}) should match the proper format ({}).",
-                    name, NAMES_REGEX
-                ));
-            }
-
-            // Validate the body
-            let (public_count, private_count) = match &f.body {
-                FunctionBody::Gates(gates) => {
-                    // Validate the subcircuit for custom functions
-                    // And return public_count and private_count
-                    self.ingest_custom_function(gates, &output_count, &input_count)
-                }
-                FunctionBody::PluginBody(plugin_body) => {
-                    // Check that the plugin name has been declared
-                    if !self.known_plugins.contains(&plugin_body.name) {
+                    // Check that the name follows the proper REGEX
+                    let re = Regex::new(NAMES_REGEX).unwrap();
+                    if !re.is_match(name.trim()) {
                         self.violate(format!(
-                            "The plugin '{}' has not been declared",
-                            plugin_body.name
+                            "The function name ({}) should match the proper format ({}).",
+                            name, NAMES_REGEX
                         ));
                     }
-                    (
-                        plugin_body.public_count.clone(),
-                        plugin_body.private_count.clone(),
-                    )
+
+                    // Validate the body
+                    let (public_count, private_count) = match &function.body {
+                        FunctionBody::Gates(gates) => {
+                            // Validate the subcircuit for custom functions
+                            // And return public_count and private_count
+                            self.ingest_custom_function(gates, &output_count, &input_count)
+                        }
+                        FunctionBody::PluginBody(plugin_body) => {
+                            // Check that the plugin name has been declared
+                            if !self.known_plugins.contains(&plugin_body.name) {
+                                self.violate(format!(
+                                    "The plugin '{}' has not been declared",
+                                    plugin_body.name
+                                ));
+                            }
+                            (
+                                plugin_body.public_count.clone(),
+                                plugin_body.private_count.clone(),
+                            )
+                        }
+                    };
+
+                    // Record the signature first.
+                    if self.known_functions.contains_key(&name) {
+                        self.violate(format!(
+                            "A function with the name '{}' already exists",
+                            name
+                        ));
+                        continue;
+                    } else {
+                        self.known_functions.insert(
+                            name.clone(),
+                            FunctionCounts {
+                                output_count: output_count.clone(),
+                                input_count: input_count.clone(),
+                                public_count: public_count.clone(),
+                                private_count: private_count.clone(),
+                            },
+                        );
+                    }
+                }
+                Directive::Gate(gate) => {
+                    self.ingest_gate(gate);
                 }
             };
-
-            // Record the signature first.
-            if self.known_functions.contains_key(&name) {
-                self.violate(format!(
-                    "A function with the name '{}' already exists",
-                    name
-                ));
-                continue;
-            } else {
-                self.known_functions.insert(
-                    name.clone(),
-                    FunctionCounts {
-                        output_count: output_count.clone(),
-                        input_count: input_count.clone(),
-                        public_count: public_count.clone(),
-                        private_count: private_count.clone(),
-                    },
-                );
-            }
-        }
-
-        for gate in &relation.gates {
-            self.ingest_gate(gate);
         }
     }
 
@@ -1002,8 +1006,12 @@ fn test_validator_delete_violations() -> crate::Result<()> {
     let private_inputs = example_private_inputs();
     let mut relation = example_relation();
 
-    relation.gates.push(Gate::Delete(0, 1, 2));
-    relation.gates.push(Gate::Delete(0, 4, 4));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Delete(0, 1, 2)));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Delete(0, 4, 4)));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -1036,14 +1044,14 @@ fn test_validator_memory_management_violations() -> crate::Result<()> {
         plugins: vec!["vector".to_string()],
         types: vec![Type::Field(literal32(101))],
         conversions: vec![],
-        functions: vec![
-            Function::new(
+        directives: vec![
+            Directive::Function(Function::new(
                 "square".to_string(),
                 vec![Count::new(0, 1)],
                 vec![Count::new(0, 1)],
                 FunctionBody::Gates(vec![Gate::Mul(0, 0, 1, 1)]),
-            ),
-            Function::new(
+            )),
+            Directive::Function(Function::new(
                 "vector_add_2".to_string(),
                 vec![Count::new(0, 2)],
                 vec![Count::new(0, 2), Count::new(0, 2)],
@@ -1054,38 +1062,67 @@ fn test_validator_memory_management_violations() -> crate::Result<()> {
                     public_count: HashMap::new(),
                     private_count: HashMap::new(),
                 }),
-            ),
+            )),
         ],
-        gates: vec![],
     };
 
     // Violation: Try to delete a portion of an allocation
-    relation.gates.push(Gate::Constant(0, 0, vec![0]));
-    relation.gates.push(Gate::New(0, 1, 4));
-    relation.gates.push(Gate::Constant(0, 1, vec![0]));
-    relation.gates.push(Gate::Constant(0, 2, vec![0]));
-    relation.gates.push(Gate::Constant(0, 3, vec![0]));
-    relation.gates.push(Gate::Constant(0, 4, vec![0]));
-    relation.gates.push(Gate::Delete(0, 0, 2));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 0, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::New(0, 1, 4)));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 1, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 2, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 3, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 4, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Delete(0, 0, 2)));
 
     // Violation: New gate contains a wire already set
-    relation.gates.push(Gate::Constant(0, 8, vec![0]));
-    relation.gates.push(Gate::New(0, 6, 10));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 8, vec![0])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::New(0, 6, 10)));
 
     // Violation: New gate contains a wire already allocated
-    relation.gates.push(Gate::New(0, 10, 11));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::New(0, 10, 11)));
 
     // Violation: in an input WireRange of a Call gate, all wires do not belong to the same allocation
-    relation.gates.push(Gate::New(0, 20, 22));
-    relation.gates.push(Gate::Constant(0, 20, vec![1]));
-    relation.gates.push(Gate::Constant(0, 21, vec![1]));
-    relation.gates.push(Gate::Constant(0, 22, vec![1]));
-    relation.gates.push(Gate::Constant(0, 23, vec![1]));
-    relation.gates.push(Gate::Call(
+    relation
+        .directives
+        .push(Directive::Gate(Gate::New(0, 20, 22)));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 20, vec![1])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 21, vec![1])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 22, vec![1])));
+    relation
+        .directives
+        .push(Directive::Gate(Gate::Constant(0, 23, vec![1])));
+    relation.directives.push(Directive::Gate(Gate::Call(
         "vector_add_2".to_string(),
         vec![WireRange::new(24, 25)],
         vec![WireRange::new(20, 21), WireRange::new(22, 23)],
-    ));
+    )));
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_relation(&relation);
@@ -1124,18 +1161,17 @@ fn test_validator_convert_violations() {
         plugins: vec!["vector".to_string()],
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(1, 1), Count::new(0, 1))],
-        functions: vec![],
-        gates: vec![
-            Gate::PublicInput(0, 0),
+        directives: vec![
+            Directive::Gate(Gate::PublicInput(0, 0)),
             // Violation: in_ids is empty (in_first_id > in_last_id)
-            Gate::Convert(1, 0, 0, 0, 1, 0),
-            Gate::Delete(0, 0, 0),
+            Directive::Gate(Gate::Convert(1, 0, 0, 0, 1, 0)),
+            Directive::Gate(Gate::Delete(0, 0, 0)),
             // Violation: use an undeclared conversion
-            Gate::PrivateInput(1, 10),
+            Directive::Gate(Gate::PrivateInput(1, 10)),
             // Violation: use an undeclared conversion
-            Gate::Convert(0, 10, 10, 1, 10, 10),
-            Gate::Delete(1, 10, 10),
-            Gate::Delete(0, 10, 10),
+            Directive::Gate(Gate::Convert(0, 10, 10, 1, 10, 10)),
+            Directive::Gate(Gate::Delete(1, 10, 10)),
+            Directive::Gate(Gate::Delete(0, 10, 10)),
         ],
     };
 

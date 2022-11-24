@@ -15,7 +15,6 @@ table Relation {
   plugins      :[string];
   types        :[Type];
   conversions  :[Conversion];
-  functions    :[Function];
   directives   :[Directive];
 }
 
@@ -48,6 +47,16 @@ struct Count {
 table WireRange {
   first_id  :uint64;
   last_id   :uint64;
+}
+
+// ==== Directive ====
+union DirectiveSet {
+	Gate,
+	Function,
+}
+
+table Directive {
+	directive  :DirectiveSet;
 }
 
 // ==== Conversion ====
@@ -164,7 +173,7 @@ union FunctionBody {
 }
 
 table Gates {
-  gates  :[Directive];
+  gates  :[Gate];
 }
 
 table PluginBody {
@@ -196,7 +205,7 @@ table GateCall {
   in_ids   :[WireRange];
 }
 
-union DirectiveSet {
+union GateSet {
   GateConstant,
   GateAssertZero,
   GateCopy,
@@ -212,8 +221,8 @@ union DirectiveSet {
   GateCall,
 }
 
-table Directive {
-  directive  :DirectiveSet;
+table Gate {
+  gate  :GateSet;
 }
 
 // ==== Flatbuffers details ====

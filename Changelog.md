@@ -29,6 +29,7 @@ Rust:
 - update conversion to be compliant with the last version of the specs
 - add plugin types
 - update validity checks on memory management
+- intermingle gates and function declarations into a list of directives
 
 # SIEVE IR v1.0.1, 2022-08
 

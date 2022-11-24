@@ -1,5 +1,6 @@
 use crate::plugins::evaluate_plugin::evaluate_plugin_for_plaintext_backend;
 use crate::structs::count::Count;
+use crate::structs::directives::Directive;
 use crate::structs::function::FunctionBody;
 use crate::structs::plugin::PluginBody;
 use crate::structs::types::Type;
@@ -153,7 +154,6 @@ pub struct Evaluator<B: ZKBackend> {
     // name => (body, output_count, input_count)
     known_functions: HashMap<String, FunctionDeclaration>,
 
-    verified_at_least_one_gate: bool,
     found_error: Option<String>,
 }
 
@@ -163,7 +163,6 @@ impl<B: ZKBackend> Default for Evaluator<B> {
             values: Default::default(),
             known_functions: Default::default(),
             inputs: Default::default(),
-            verified_at_least_one_gate: false,
             found_error: None,
         }
     }
@@ -199,9 +198,6 @@ impl<B: ZKBackend> Evaluator<B> {
     /// It consumes `self`.
     pub fn get_violations(self) -> Vec<String> {
         let mut violations = vec![];
-        if !self.verified_at_least_one_gate {
-            violations.push("Did not receive any gate to verify.".to_string());
-        }
         if let Some(err) = self.found_error {
             violations.push(err);
         }
@@ -277,30 +273,30 @@ impl<B: ZKBackend> Evaluator<B> {
         }
         backend.set_types(&relation.types)?;
 
-        if !relation.gates.is_empty() {
-            self.verified_at_least_one_gate = true;
+        for directive in relation.directives.iter() {
+            match directive {
+                Directive::Function(function) => {
+                    self.known_functions.insert(
+                        function.name.clone(),
+                        FunctionDeclaration {
+                            body: function.body.clone(),
+                            output_count: function.output_count.clone(),
+                            input_count: function.input_count.clone(),
+                        },
+                    );
+                }
+                Directive::Gate(gate) => {
+                    Self::ingest_gate(
+                        gate,
+                        backend,
+                        &mut self.values,
+                        &self.known_functions,
+                        &mut self.inputs,
+                    )?;
+                }
+            };
         }
 
-        for f in relation.functions.iter() {
-            self.known_functions.insert(
-                f.name.clone(),
-                FunctionDeclaration {
-                    body: f.body.clone(),
-                    output_count: f.output_count.clone(),
-                    input_count: f.input_count.clone(),
-                },
-            );
-        }
-
-        for gate in &relation.gates {
-            Self::ingest_gate(
-                gate,
-                backend,
-                &mut self.values,
-                &self.known_functions,
-                &mut self.inputs,
-            )?;
-        }
         Ok(())
     }
 
@@ -1143,21 +1139,20 @@ fn test_evaluator_conversion() {
         plugins: vec![],
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
-        functions: vec![],
-        gates: vec![
-            Gate::PrivateInput(1, 0), // 2
-            Gate::PrivateInput(1, 1), // 81
+        directives: vec![
+            Directive::Gate(Gate::PrivateInput(1, 0)), // 2
+            Directive::Gate(Gate::PrivateInput(1, 1)), // 81
             // (2*101 + 81) mod 7^2 = 38
             // 38 = 5*7 + 3
-            Gate::Convert(0, 0, 1, 1, 0, 1),
-            Gate::PublicInput(0, 2), // 6
-            Gate::Add(0, 3, 0, 2),   // 5 + 2 = 0 mod 7
-            Gate::AssertZero(0, 3),
-            Gate::PublicInput(0, 4), // 2
-            Gate::Add(0, 5, 1, 4),   // 3 + 4 = 0 mod 7
-            Gate::AssertZero(0, 5),
-            Gate::Delete(0, 0, 5),
-            Gate::Delete(1, 0, 0),
+            Directive::Gate(Gate::Convert(0, 0, 1, 1, 0, 1)),
+            Directive::Gate(Gate::PublicInput(0, 2)), // 6
+            Directive::Gate(Gate::Add(0, 3, 0, 2)),   // 5 + 2 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 3)),
+            Directive::Gate(Gate::PublicInput(0, 4)), // 2
+            Directive::Gate(Gate::Add(0, 5, 1, 4)),   // 3 + 4 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 5)),
+            Directive::Gate(Gate::Delete(0, 0, 5)),
+            Directive::Gate(Gate::Delete(1, 0, 0)),
         ],
     };
 
@@ -1184,22 +1179,21 @@ fn test_evaluator_conversion() {
         plugins: vec![],
         types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
-        functions: vec![],
-        gates: vec![
-            Gate::PrivateInput(1, 0), // 2
-            Gate::PrivateInput(1, 1), // 81
+        directives: vec![
+            Directive::Gate(Gate::PrivateInput(1, 0)), // 2
+            Directive::Gate(Gate::PrivateInput(1, 1)), // 81
             // (2*101 + 81) mod 7^2 = 38
             // 38 = 5*7 + 3
             // Violation: in_ids is empty (in_first_id > in_last_id)
-            Gate::Convert(0, 0, 1, 1, 1, 0),
-            Gate::PublicInput(0, 2), // 6
-            Gate::Add(0, 3, 0, 2),   // 5 + 2 = 0 mod 7
-            Gate::AssertZero(0, 3),
-            Gate::PublicInput(0, 4), // 2
-            Gate::Add(0, 5, 1, 4),   // 3 + 4 = 0 mod 7
-            Gate::AssertZero(0, 5),
-            Gate::Delete(0, 0, 5),
-            Gate::Delete(1, 0, 0),
+            Directive::Gate(Gate::Convert(0, 0, 1, 1, 1, 0)),
+            Directive::Gate(Gate::PublicInput(0, 2)), // 6
+            Directive::Gate(Gate::Add(0, 3, 0, 2)),   // 5 + 2 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 3)),
+            Directive::Gate(Gate::PublicInput(0, 4)), // 2
+            Directive::Gate(Gate::Add(0, 5, 1, 4)),   // 3 + 4 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 5)),
+            Directive::Gate(Gate::Delete(0, 0, 5)),
+            Directive::Gate(Gate::Delete(1, 0, 0)),
         ],
     };
 

@@ -5,10 +5,9 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::io::Write;
 
-use super::gates::Gate;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::conversion::Conversion;
-use crate::structs::function::Function;
+use crate::structs::directives::Directive;
 use crate::structs::types::Type;
 
 #[derive(Clone, Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -17,8 +16,7 @@ pub struct Relation {
     pub plugins: Vec<String>,
     pub types: Vec<Type>,
     pub conversions: Vec<Conversion>,
-    pub functions: Vec<Function>,
-    pub gates: Vec<Gate>,
+    pub directives: Vec<Directive>,
 }
 
 impl<'a> TryFrom<generated::Relation<'a>> for Relation {
@@ -26,12 +24,6 @@ impl<'a> TryFrom<generated::Relation<'a>> for Relation {
 
     /// Convert from Flatbuffers references to owned structure.
     fn try_from(g_relation: generated::Relation) -> Result<Relation> {
-        let g_gates = g_relation.directives().ok_or("Missing directives")?;
-        let functions = if let Some(g_functions) = g_relation.functions() {
-            Function::try_from_vector(g_functions)?
-        } else {
-            vec![]
-        };
         let mut plugins = Vec::new();
         if let Some(g_plugins) = g_relation.plugins() {
             g_plugins
@@ -46,8 +38,9 @@ impl<'a> TryFrom<generated::Relation<'a>> for Relation {
             conversions: Conversion::try_from_vector(
                 g_relation.conversions().ok_or("Missing conversions")?,
             )?,
-            functions,
-            gates: Gate::try_from_vector(g_gates)?,
+            directives: Directive::try_from_vector(
+                g_relation.directives().ok_or("Missing directives")?,
+            )?,
         })
     }
 }
@@ -69,8 +62,7 @@ impl Relation {
     pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Root<'a>> {
         let g_version = builder.create_string(&self.version);
         let g_types = Type::build_vector(builder, &self.types);
-        let directives = Gate::build_vector(builder, &self.gates);
-        let functions = Function::build_vector(builder, &self.functions);
+        let g_directives = Directive::build_vector(builder, &self.directives);
         let g_plugins = self
             .plugins
             .iter()
@@ -86,8 +78,7 @@ impl Relation {
                 plugins: Some(g_plugins_vec),
                 types: Some(g_types),
                 conversions: Some(g_conversions),
-                functions: Some(functions),
-                directives: Some(directives),
+                directives: Some(g_directives),
             },
         );
 

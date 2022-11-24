@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::structs::directives::Directive;
 use crate::structs::function::FunctionBody;
 use crate::structs::types::Type;
 use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result};
@@ -88,39 +89,42 @@ impl Stats {
         self.ingest_types(&relation.types);
         self.gate_stats.relation_messages += 1;
 
-        for f in relation.functions.iter() {
-            let name = f.name.clone();
-            match &f.body {
-                FunctionBody::Gates(gates) => {
-                    self.gate_stats.functions_defined += 1;
-                    let func_stats = ingest_subcircuit(gates, &self.functions);
-                    self.functions
-                        .insert(name.clone(), FunctionContent::Function(func_stats));
-                }
-                FunctionBody::PluginBody(plugin_body) => {
-                    let public_count = plugin_body
-                        .public_count
-                        .iter()
-                        .map(|(_, count)| *count)
-                        .sum();
-                    let private_count = plugin_body
-                        .private_count
-                        .iter()
-                        .map(|(_, count)| *count)
-                        .sum();
-                    self.gate_stats.plugins_defined += 1;
-                    self.functions.insert(
-                        name.clone(),
-                        FunctionContent::Plugin(public_count, private_count),
-                    );
-                }
-            }
-        }
-
         self.gate_stats.conversions_defined += relation.conversions.len();
 
-        for gate in &relation.gates {
-            self.gate_stats.ingest_gate(gate, &self.functions);
+        for directive in relation.directives.iter() {
+            match directive {
+                Directive::Function(function) => {
+                    let name = function.name.clone();
+                    match &function.body {
+                        FunctionBody::Gates(gates) => {
+                            self.gate_stats.functions_defined += 1;
+                            let func_stats = ingest_subcircuit(gates, &self.functions);
+                            self.functions
+                                .insert(name.clone(), FunctionContent::Function(func_stats));
+                        }
+                        FunctionBody::PluginBody(plugin_body) => {
+                            let public_count = plugin_body
+                                .public_count
+                                .iter()
+                                .map(|(_, count)| *count)
+                                .sum();
+                            let private_count = plugin_body
+                                .private_count
+                                .iter()
+                                .map(|(_, count)| *count)
+                                .sum();
+                            self.gate_stats.plugins_defined += 1;
+                            self.functions.insert(
+                                name.clone(),
+                                FunctionContent::Plugin(public_count, private_count),
+                            );
+                        }
+                    }
+                }
+                Directive::Gate(gate) => {
+                    self.gate_stats.ingest_gate(gate, &self.functions);
+                }
+            }
         }
     }
 

@@ -6,12 +6,12 @@ use std::convert::TryFrom;
 use std::error::Error;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
-use crate::sieve_ir_generated::sieve_ir::DirectiveSet as ds;
+use crate::sieve_ir_generated::sieve_ir::GateSet as gs;
 use crate::structs::function::FunctionCounts;
 use crate::structs::wirerange::{add_types_to_wire_ranges, WireRange, WireRangeWithType};
 use crate::{TypeId, Value, WireId};
 
-/// This one correspond to Directive in the FlatBuffers schema
+/// This one correspond to Gate in the FlatBuffers schema
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum Gate {
     /// Constant(type_id, output, constant)
@@ -47,16 +47,16 @@ pub enum Gate {
 
 use Gate::*;
 
-impl<'a> TryFrom<generated::Directive<'a>> for Gate {
+impl<'a> TryFrom<generated::Gate<'a>> for Gate {
     type Error = Box<dyn Error>;
 
     /// Convert from Flatbuffers references to owned structure.
-    fn try_from(gen_gate: generated::Directive) -> Result<Gate> {
-        Ok(match gen_gate.directive_type() {
-            ds::NONE => return Err("No gate type".into()),
+    fn try_from(gen_gate: generated::Gate) -> Result<Gate> {
+        Ok(match gen_gate.gate_type() {
+            gs::NONE => return Err("No gate type".into()),
 
-            ds::GateConstant => {
-                let gate = gen_gate.directive_as_gate_constant().unwrap();
+            gs::GateConstant => {
+                let gate = gen_gate.gate_as_gate_constant().unwrap();
                 Constant(
                     gate.type_id(),
                     gate.out_id(),
@@ -64,18 +64,18 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateAssertZero => {
-                let gate = gen_gate.directive_as_gate_assert_zero().unwrap();
+            gs::GateAssertZero => {
+                let gate = gen_gate.gate_as_gate_assert_zero().unwrap();
                 AssertZero(gate.type_id(), gate.in_id())
             }
 
-            ds::GateCopy => {
-                let gate = gen_gate.directive_as_gate_copy().unwrap();
+            gs::GateCopy => {
+                let gate = gen_gate.gate_as_gate_copy().unwrap();
                 Copy(gate.type_id(), gate.out_id(), gate.in_id())
             }
 
-            ds::GateAdd => {
-                let gate = gen_gate.directive_as_gate_add().unwrap();
+            gs::GateAdd => {
+                let gate = gen_gate.gate_as_gate_add().unwrap();
                 Add(
                     gate.type_id(),
                     gate.out_id(),
@@ -84,8 +84,8 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateMul => {
-                let gate = gen_gate.directive_as_gate_mul().unwrap();
+            gs::GateMul => {
+                let gate = gen_gate.gate_as_gate_mul().unwrap();
                 Mul(
                     gate.type_id(),
                     gate.out_id(),
@@ -94,8 +94,8 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateAddConstant => {
-                let gate = gen_gate.directive_as_gate_add_constant().unwrap();
+            gs::GateAddConstant => {
+                let gate = gen_gate.gate_as_gate_add_constant().unwrap();
                 AddConstant(
                     gate.type_id(),
                     gate.out_id(),
@@ -104,8 +104,8 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateMulConstant => {
-                let gate = gen_gate.directive_as_gate_mul_constant().unwrap();
+            gs::GateMulConstant => {
+                let gate = gen_gate.gate_as_gate_mul_constant().unwrap();
                 MulConstant(
                     gate.type_id(),
                     gate.out_id(),
@@ -114,28 +114,28 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GatePublicInput => {
-                let gate = gen_gate.directive_as_gate_public_input().unwrap();
+            gs::GatePublicInput => {
+                let gate = gen_gate.gate_as_gate_public_input().unwrap();
                 PublicInput(gate.type_id(), gate.out_id())
             }
 
-            ds::GatePrivateInput => {
-                let gate = gen_gate.directive_as_gate_private_input().unwrap();
+            gs::GatePrivateInput => {
+                let gate = gen_gate.gate_as_gate_private_input().unwrap();
                 PrivateInput(gate.type_id(), gate.out_id())
             }
 
-            ds::GateNew => {
-                let gate = gen_gate.directive_as_gate_new().unwrap();
+            gs::GateNew => {
+                let gate = gen_gate.gate_as_gate_new().unwrap();
                 New(gate.type_id(), gate.first_id(), gate.last_id())
             }
 
-            ds::GateDelete => {
-                let gate = gen_gate.directive_as_gate_delete().unwrap();
+            gs::GateDelete => {
+                let gate = gen_gate.gate_as_gate_delete().unwrap();
                 Delete(gate.type_id(), gate.first_id(), gate.last_id())
             }
 
-            ds::GateConvert => {
-                let gate = gen_gate.directive_as_gate_convert().unwrap();
+            gs::GateConvert => {
+                let gate = gen_gate.gate_as_gate_convert().unwrap();
                 Convert(
                     gate.out_type_id(),
                     gate.out_first_id(),
@@ -146,8 +146,8 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
                 )
             }
 
-            ds::GateCall => {
-                let gate = gen_gate.directive_as_gate_call().unwrap();
+            gs::GateCall => {
+                let gate = gen_gate.gate_as_gate_call().unwrap();
 
                 Call(
                     gate.name().ok_or("Missing function name.")?.into(),
@@ -161,10 +161,7 @@ impl<'a> TryFrom<generated::Directive<'a>> for Gate {
 
 impl Gate {
     /// Add this structure into a Flatbuffers message builder.
-    pub fn build<'a>(
-        &self,
-        builder: &mut FlatBufferBuilder<'a>,
-    ) -> WIPOffset<generated::Directive<'a>> {
+    pub fn build<'a>(&self, builder: &mut FlatBufferBuilder<'a>) -> WIPOffset<generated::Gate<'a>> {
         match self {
             Constant(type_id, output, constant) => {
                 let g_constant = builder.create_vector(constant);
@@ -177,11 +174,11 @@ impl Gate {
                         constant: Some(g_constant),
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateConstant,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateConstant,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -194,11 +191,11 @@ impl Gate {
                         in_id: *input,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateAssertZero,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateAssertZero,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -212,11 +209,11 @@ impl Gate {
                         in_id: *input,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateCopy,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateCopy,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -231,11 +228,11 @@ impl Gate {
                         right_id: *right,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateAdd,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateAdd,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -250,11 +247,11 @@ impl Gate {
                         right_id: *right,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateMul,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateMul,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -270,11 +267,11 @@ impl Gate {
                         constant: Some(constant),
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateAddConstant,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateAddConstant,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -290,11 +287,11 @@ impl Gate {
                         constant: Some(constant),
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateMulConstant,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateMulConstant,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -307,11 +304,11 @@ impl Gate {
                         out_id: *output,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GatePublicInput,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GatePublicInput,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -324,11 +321,11 @@ impl Gate {
                         out_id: *output,
                     },
                 );
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GatePrivateInput,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GatePrivateInput,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -343,11 +340,11 @@ impl Gate {
                     },
                 );
 
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateNew,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateNew,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -362,11 +359,11 @@ impl Gate {
                     },
                 );
 
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateDelete,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateDelete,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -391,11 +388,11 @@ impl Gate {
                     },
                 );
 
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateConvert,
-                        directive: Some(gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateConvert,
+                        gate: Some(gate.as_union_value()),
                     },
                 )
             }
@@ -414,11 +411,11 @@ impl Gate {
                     },
                 );
 
-                generated::Directive::create(
+                generated::Gate::create(
                     builder,
-                    &generated::DirectiveArgs {
-                        directive_type: ds::GateCall,
-                        directive: Some(g_gate.as_union_value()),
+                    &generated::GateArgs {
+                        gate_type: gs::GateCall,
+                        gate: Some(g_gate.as_union_value()),
                     },
                 )
             }
@@ -427,7 +424,7 @@ impl Gate {
 
     /// Convert from a Flatbuffers vector of gates to owned structures.
     pub fn try_from_vector<'a>(
-        g_vector: Vector<'a, ForwardsUOffset<generated::Directive<'a>>>,
+        g_vector: Vector<'a, ForwardsUOffset<generated::Gate<'a>>>,
     ) -> Result<Vec<Gate>> {
         let mut gates = vec![];
         for i in 0..g_vector.len() {
@@ -441,7 +438,7 @@ impl Gate {
     pub fn build_vector<'a>(
         builder: &mut FlatBufferBuilder<'a>,
         gates: &[Gate],
-    ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Directive<'a>>>> {
+    ) -> WIPOffset<Vector<'a, ForwardsUOffset<generated::Gate<'a>>>> {
         let g_gates: Vec<_> = gates.iter().map(|gate| gate.build(builder)).collect();
         builder.create_vector(&g_gates)
     }

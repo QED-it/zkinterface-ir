@@ -1,5 +1,6 @@
 use crate::producers::examples::literal32;
 use crate::structs::conversion::Conversion;
+use crate::structs::directives::Directive;
 use crate::structs::plugin::PluginBody;
 use crate::structs::types::Type;
 use crate::structs::wirerange::WireRange;
@@ -102,26 +103,8 @@ pub fn example_relation_with_several_types() -> Relation {
             Count::new(type_id_101, 1),
             Count::new(type_id_7, 1),
         )],
-        functions: vec![
-            Function::new(
-                "square".to_string(),
-                vec![Count::new(type_id_101, 1)],
-                vec![Count::new(type_id_101, 1)],
-                FunctionBody::Gates(vec![Mul(type_id_101, 0, 1, 1)]),
-            ),
-            Function::new(
-                "vector_mul_7_2".to_string(),
-                vec![Count::new(type_id_101, 2)],
-                vec![Count::new(type_id_101, 2), Count::new(type_id_101, 2)],
-                FunctionBody::PluginBody(PluginBody {
-                    name: "vector".to_string(),
-                    operation: "mul".to_string(),
-                    params: vec![type_id_101.to_string(), "2".to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
-                }),
-            ),
-            Function::new(
+        directives: vec![
+            Directive::Function(Function::new(
                 "assert_equal_private".to_string(),
                 vec![],
                 vec![Count::new(type_id_101, 1)],
@@ -132,8 +115,56 @@ pub fn example_relation_with_several_types() -> Relation {
                     public_count: HashMap::new(),
                     private_count: HashMap::from([(type_id_101, 1)]),
                 }),
-            ),
-            Function::new(
+            )),
+            // Right-triangle example
+            Directive::Gate(New(type_id_101, 0, 8)),
+            Directive::Gate(PublicInput(type_id_7, 0)),
+            Directive::Gate(PrivateInput(type_id_7, 1)),
+            Directive::Gate(PrivateInput(type_id_7, 2)),
+            Directive::Gate(Convert(type_id_101, 0, 0, type_id_7, 0, 0)),
+            Directive::Gate(Convert(type_id_101, 1, 1, type_id_7, 1, 1)),
+            Directive::Gate(Convert(type_id_101, 2, 2, type_id_7, 2, 2)),
+            Directive::Gate(Delete(type_id_7, 0, 2)),
+            Directive::Function(Function::new(
+                "square".to_string(),
+                vec![Count::new(type_id_101, 1)],
+                vec![Count::new(type_id_101, 1)],
+                FunctionBody::Gates(vec![Mul(type_id_101, 0, 1, 1)]),
+            )),
+            Directive::Gate(Call(
+                "square".to_string(),
+                vec![WireRange::new(3, 3)],
+                vec![WireRange::new(0, 0)],
+            )),
+            Directive::Function(Function::new(
+                "vector_mul_7_2".to_string(),
+                vec![Count::new(type_id_101, 2)],
+                vec![Count::new(type_id_101, 2), Count::new(type_id_101, 2)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "vector".to_string(),
+                    operation: "mul".to_string(),
+                    params: vec![type_id_101.to_string(), "2".to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
+                }),
+            )),
+            Directive::Gate(Call(
+                "vector_mul_7_2".to_string(),
+                vec![WireRange::new(4, 5)],
+                vec![WireRange::new(1, 2), WireRange::new(1, 2)],
+            )),
+            Directive::Gate(Add(type_id_101, 6, 4, 5)),
+            Directive::Gate(MulConstant(type_id_101, 7, 3, vec![100])),
+            Directive::Gate(Add(type_id_101, 8, 6, 7)),
+            Directive::Gate(AssertZero(type_id_101, 8)),
+            Directive::Gate(Call(
+                "assert_equal_private".to_string(),
+                vec![],
+                vec![WireRange::new(3, 3)],
+            )),
+            Directive::Gate(Delete(type_id_101, 0, 8)),
+            // Test ring type
+            Directive::Function(Function::new(
                 "ring_add".to_string(),
                 vec![Count::new(type_id_ring, 1)],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
@@ -144,8 +175,8 @@ pub fn example_relation_with_several_types() -> Relation {
                     public_count: HashMap::new(),
                     private_count: HashMap::new(),
                 }),
-            ),
-            Function::new(
+            )),
+            Directive::Function(Function::new(
                 "ring_mul".to_string(),
                 vec![Count::new(type_id_ring, 1)],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
@@ -156,8 +187,8 @@ pub fn example_relation_with_several_types() -> Relation {
                     public_count: HashMap::new(),
                     private_count: HashMap::new(),
                 }),
-            ),
-            Function::new(
+            )),
+            Directive::Function(Function::new(
                 "ring_equal".to_string(),
                 vec![],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
@@ -168,59 +199,27 @@ pub fn example_relation_with_several_types() -> Relation {
                     public_count: HashMap::new(),
                     private_count: HashMap::new(),
                 }),
-            ),
-        ],
-        gates: vec![
-            // Right-triangle example
-            New(type_id_101, 0, 8),
-            PublicInput(type_id_7, 0),
-            PrivateInput(type_id_7, 1),
-            PrivateInput(type_id_7, 2),
-            Convert(type_id_101, 0, 0, type_id_7, 0, 0),
-            Convert(type_id_101, 1, 1, type_id_7, 1, 1),
-            Convert(type_id_101, 2, 2, type_id_7, 2, 2),
-            Delete(type_id_7, 0, 2),
-            Call(
-                "square".to_string(),
-                vec![WireRange::new(3, 3)],
-                vec![WireRange::new(0, 0)],
-            ),
-            Call(
-                "vector_mul_7_2".to_string(),
-                vec![WireRange::new(4, 5)],
-                vec![WireRange::new(1, 2), WireRange::new(1, 2)],
-            ),
-            Add(type_id_101, 6, 4, 5),
-            MulConstant(type_id_101, 7, 3, vec![100]),
-            Add(type_id_101, 8, 6, 7),
-            AssertZero(type_id_101, 8),
-            Call(
-                "assert_equal_private".to_string(),
-                vec![],
-                vec![WireRange::new(3, 3)],
-            ),
-            Delete(type_id_101, 0, 8),
-            // Test ring type
-            PrivateInput(type_id_ring, 0),
-            PrivateInput(type_id_ring, 1),
-            PrivateInput(type_id_ring, 2),
-            Call(
+            )),
+            Directive::Gate(PrivateInput(type_id_ring, 0)),
+            Directive::Gate(PrivateInput(type_id_ring, 1)),
+            Directive::Gate(PrivateInput(type_id_ring, 2)),
+            Directive::Gate(Call(
                 "ring_add".to_string(),
                 vec![WireRange::new(3, 3)],
                 vec![WireRange::new(0, 0), WireRange::new(1, 1)],
-            ),
-            Call(
+            )),
+            Directive::Gate(Call(
                 "ring_mul".to_string(),
                 vec![WireRange::new(4, 4)],
                 vec![WireRange::new(2, 2), WireRange::new(3, 3)],
-            ),
-            PublicInput(type_id_ring, 5),
-            Call(
+            )),
+            Directive::Gate(PublicInput(type_id_ring, 5)),
+            Directive::Gate(Call(
                 "ring_equal".to_string(),
                 vec![],
                 vec![WireRange::new(4, 4), WireRange::new(5, 5)],
-            ),
-            Delete(type_id_ring, 0, 5),
+            )),
+            Directive::Gate(Delete(type_id_ring, 0, 5)),
         ],
     }
 }
