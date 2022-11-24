@@ -63,7 +63,7 @@ pub struct Validator {
     private_inputs_counts: HashMap<ValidatorType, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
-    new_gates: HashSet<(TypeId, WireId, WireId)>,
+    allocations: HashSet<(TypeId, WireId, WireId)>,
 
     got_header: bool,
     header_version: String,
@@ -387,53 +387,47 @@ impl Validator {
                 // Ensure first < last
                 if *last <= *first {
                     self.violate(format!(
-                        "For New gates, last WireId ({}) must be strictly greater than first WireId ({}).",
+                        "For New gates, last WireId ({}) should be strictly greater than first WireId ({}).",
                         *last, *first
                     ));
                 }
-
-                // Ensure wires have not already been allocated by another New gate
-                for wire_id in *first..=*last {
-                    if self.belong_to_new_gates(type_id, &wire_id) {
-                        self.violate(
-                            "For New gates, wires must not have already been allocated by another New gate.");
-                        break;
-                    }
+                // Ensure wires have not already been allocated
+                if self.belong_to_allocations(type_id, first, last) {
+                    self.violate("For New gates, wires should not have already been allocated.");
                 }
+
                 // Ensure wires are not already set
                 for wire_id in *first..=*last {
                     self.ensure_undefined(type_id, wire_id);
                 }
-                // Add this new wire range into new_gates
-                self.new_gates.insert((*type_id, *first, *last));
+                // Add this new wire range into wire_allocations
+                self.allocations.insert((*type_id, *first, *last));
             }
 
             Delete(type_id, first, last) => {
                 // first < last
                 if *last < *first {
                     self.violate(format!(
-                            "For Delete gates, last WireId ({}) must be greater than first WireId ({}).",
+                            "For Delete gates, last WireId ({}) should be greater than first WireId ({}).",
                             *last, *first
                         ));
                 }
 
-                // Check whether the Delete gate match a preceding New gate
-                // If so, remove the preceding New gate from new_wire_ranges
-                if self.new_gates.contains(&(*type_id, *first, *last)) {
-                    self.new_gates.remove(&(*type_id, *first, *last));
-                }
+                // Check whether some whole allocations belong to Delete WireRange
+                // If so, remove those allocations from the list of allocations `self.allocations`
+                self.allocations
+                    .retain(|(alloc_type_id, alloc_first, alloc_last)| {
+                        !(*alloc_type_id == *type_id
+                            && *first <= *alloc_first
+                            && *alloc_last <= *last)
+                    });
 
-                // Check whether some wires belong to a New gate
-                // If a New gate matches this Delete gate, we have already removed it from new_gates HashSet.
-                // Thus, if a wire still belongs to a New gate, it means that we have a violation.
-                for wire_id in *first..=*last {
-                    if self.belong_to_new_gates(type_id, &wire_id) {
-                        self.violate(format!(
-                            "For Delete gates, ({}:{}) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
-                            type_id, wire_id
-                        ));
-                        break;
-                    }
+                // Check whether some wires belong to an allocation
+                // If it is the case, we have a violation (we try to delete a portion of an allocation)
+                if self.belong_to_allocations(type_id, first, last) {
+                    self.violate(
+                        "For Delete gates, we should not delete a portion of an allocation.",
+                    );
                 }
 
                 // For all wires between first and last INCLUSIVE
@@ -488,6 +482,26 @@ impl Validator {
                 (*in_first_id..=*in_last_id)
                     .for_each(|wire_id| self.ensure_defined_and_set(in_type_id, wire_id));
 
+                // Check inputs belong to a single allocation
+                if !self.belong_to_a_single_allocation(in_type_id, in_first_id, in_last_id) {
+                    self.violate("Gate::Convert: all inputs do not belong to the same allocation)")
+                }
+
+                // Check that all outputs belong to a single allocation or no output belongs to an allocation
+                // If no output belongs to allocations, add this output WireRange to the list of allocations
+                // If outputs belong to different allocations, we have a violation
+                if !self.belong_to_a_single_allocation(out_type_id, out_first_id, out_last_id) {
+                    if self.belong_to_allocations(out_type_id, out_first_id, out_last_id) {
+                        self.violate(
+                            "Gate::Convert: outputs should not belong to different allocations)",
+                        )
+                    } else {
+                        // No output belongs to allocations
+                        self.allocations
+                            .insert((*out_type_id, *out_first_id, *out_last_id));
+                    }
+                }
+
                 // Set the output wires as defined
                 (*out_first_id..=*out_last_id)
                     .for_each(|wire_id| self.ensure_undefined_and_set(out_type_id, wire_id));
@@ -506,18 +520,24 @@ impl Validator {
                 match function_counts_result {
                     Err(_) => self.violate(format!("Unknown Function gate {}", name)),
                     Ok(func_counts) => {
-                        // Ensure inputs are already set
+                        // Ensure inputs are already set and all wires in an input WireRange belongs
+                        // to the same allocation
                         let in_ids_with_types_result =
                             add_types_to_wire_ranges(in_ids, &func_counts.input_count);
                         if let Ok(in_ids_with_types) = in_ids_with_types_result {
                             in_ids_with_types.iter().for_each(|wire_range_with_type| {
+                                // Ensure inputs are already set
                                 (wire_range_with_type.first_id..=wire_range_with_type.last_id)
                                     .for_each(|wire_id| {
                                         self.ensure_defined_and_set(
                                             &wire_range_with_type.type_id,
                                             wire_id,
                                         );
-                                    })
+                                    });
+                                // Ensure all wires in an input WireRange belong to the same allocation
+                                if !self.belong_to_a_single_allocation(&wire_range_with_type.type_id, &wire_range_with_type.first_id, &wire_range_with_type.last_id) {
+                                    self.violate("Call: all wires in an input WireRange should belong to the same allocation");
+                                }
                             });
                         } else {
                             self.violate("Call: number of input wires mismatch.");
@@ -527,10 +547,11 @@ impl Validator {
                         self.consume_public_count(&func_counts.public_count);
                         self.consume_private_count(&func_counts.private_count);
 
-                        // Set the output wires as defined
+                        // Set the output wires as defined and check out_ids WireRange allocations
                         let out_ids_with_types_result =
                             add_types_to_wire_ranges(out_ids, &func_counts.output_count);
                         if let Ok(out_ids_with_types) = out_ids_with_types_result {
+                            // Set the output wires as defined
                             out_ids_with_types.iter().for_each(|wire_range_with_type| {
                                 (wire_range_with_type.first_id..=wire_range_with_type.last_id)
                                     .for_each(|wire_id| {
@@ -538,7 +559,22 @@ impl Validator {
                                             &wire_range_with_type.type_id,
                                             wire_id,
                                         );
-                                    })
+                                    });
+                                // Check that for each output WireRange, all wires belong to a
+                                // single allocation or no wire belongs to an allocation.
+                                // If for an output WireRange, no wire belongs to allocations, add
+                                // this output WireRange to the list of allocations
+                                // If for an output WireRange, wires belong to different allocations, we have a violation
+                                if !self.belong_to_a_single_allocation(&wire_range_with_type.type_id, &wire_range_with_type.first_id, &wire_range_with_type.last_id) {
+                                    if self.belong_to_allocations(&wire_range_with_type.type_id, &wire_range_with_type.first_id, &wire_range_with_type.last_id) {
+                                        self.violate(
+                                            "Call: in an output WireRange, wires should not belong to different allocations)")
+                                    } else {
+                                        // No wire belongs to allocations
+                                        self.allocations
+                                            .insert((wire_range_with_type.type_id, wire_range_with_type.first_id, wire_range_with_type.last_id));
+                                    }
+                                }
                             });
                         } else {
                             self.violate("Call: number of output wires mismatch.");
@@ -641,7 +677,7 @@ impl Validator {
                 HashMap::new()
             },
             live_wires: Default::default(),
-            new_gates: Default::default(),
+            allocations: Default::default(),
             got_header: self.got_header,
             header_version: self.header_version.clone(),
             types: self.types.clone(),
@@ -856,12 +892,35 @@ impl Validator {
 
     fn violate(&mut self, msg: impl Into<String>) {
         self.violations.push(msg.into());
-        // println!("{}", msg.into());
     }
 
-    fn belong_to_new_gates(&self, type_id: &TypeId, wire_id: &WireId) -> bool {
-        for (new_type_id, first, last) in self.new_gates.iter() {
-            if (*new_type_id == *type_id) && *first <= *wire_id && *last >= *wire_id {
+    /// This function checks whether all wires between first_id and last_id belongs to the same allocation
+    fn belong_to_a_single_allocation(
+        &self,
+        type_id: &TypeId,
+        first_id: &WireId,
+        last_id: &WireId,
+    ) -> bool {
+        if *first_id == *last_id {
+            return true;
+        }
+        self.allocations
+            .iter()
+            .any(|(alloc_type_id, alloc_first, alloc_last)| {
+                *alloc_type_id == *type_id && *alloc_first <= *first_id && *last_id <= *alloc_last
+            })
+    }
+
+    /// This function checks whether at least one wire between first_id and last_id belongs to an allocation
+    fn belong_to_allocations(&self, type_id: &TypeId, first_id: &WireId, last_id: &WireId) -> bool {
+        for wire_id in *first_id..=*last_id {
+            if self
+                .allocations
+                .iter()
+                .any(|(alloc_type_id, alloc_first, alloc_last)| {
+                    *alloc_type_id == *type_id && *alloc_first <= wire_id && wire_id <= *alloc_last
+                })
+            {
                 return true;
             }
         }
@@ -965,41 +1024,80 @@ fn test_validator_delete_violations() -> crate::Result<()> {
 }
 
 #[test]
-fn test_validator_new_violations() -> crate::Result<()> {
-    use crate::producers::examples::*;
+fn test_validator_memory_management_violations() -> crate::Result<()> {
+    use crate::producers::examples::literal32;
+    use crate::structs::function::Function;
+    use crate::structs::plugin::PluginBody;
+    use crate::structs::wirerange::WireRange;
+    use crate::structs::IR_VERSION;
 
-    let public_inputs = example_public_inputs();
-    let private_inputs = example_private_inputs();
-    let mut relation = example_relation();
+    let mut relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec!["vector".to_string()],
+        types: vec![Type::Field(literal32(101))],
+        conversions: vec![],
+        functions: vec![
+            Function::new(
+                "square".to_string(),
+                vec![Count::new(0, 1)],
+                vec![Count::new(0, 1)],
+                FunctionBody::Gates(vec![Gate::Mul(0, 0, 1, 1)]),
+            ),
+            Function::new(
+                "vector_add_2".to_string(),
+                vec![Count::new(0, 2)],
+                vec![Count::new(0, 2), Count::new(0, 2)],
+                FunctionBody::PluginBody(PluginBody {
+                    name: "vector".to_string(),
+                    operation: "add".to_string(),
+                    params: vec!["0".to_string(), "2".to_string()],
+                    public_count: HashMap::new(),
+                    private_count: HashMap::new(),
+                }),
+            ),
+        ],
+        gates: vec![],
+    };
 
-    // Violation: Delete contains a wire allocated with a New gate but does not match this New gate
-    relation.gates.push(Gate::Constant(0, 99, vec![0]));
-    relation.gates.push(Gate::New(0, 100, 103));
-    relation.gates.push(Gate::Constant(0, 100, vec![0]));
-    relation.gates.push(Gate::Constant(0, 101, vec![0]));
-    relation.gates.push(Gate::Constant(0, 102, vec![0]));
-    relation.gates.push(Gate::Constant(0, 103, vec![0]));
-    relation.gates.push(Gate::Delete(0, 99, 101));
+    // Violation: Try to delete a portion of an allocation
+    relation.gates.push(Gate::Constant(0, 0, vec![0]));
+    relation.gates.push(Gate::New(0, 1, 4));
+    relation.gates.push(Gate::Constant(0, 1, vec![0]));
+    relation.gates.push(Gate::Constant(0, 2, vec![0]));
+    relation.gates.push(Gate::Constant(0, 3, vec![0]));
+    relation.gates.push(Gate::Constant(0, 4, vec![0]));
+    relation.gates.push(Gate::Delete(0, 0, 2));
 
     // Violation: New gate contains a wire already set
-    relation.gates.push(Gate::Constant(0, 107, vec![0]));
-    relation.gates.push(Gate::New(0, 105, 109));
+    relation.gates.push(Gate::Constant(0, 8, vec![0]));
+    relation.gates.push(Gate::New(0, 6, 10));
 
-    // Violation: New gate contains a wire already allocated in another New gate
-    relation.gates.push(Gate::New(0, 109, 110));
+    // Violation: New gate contains a wire already allocated
+    relation.gates.push(Gate::New(0, 10, 11));
+
+    // Violation: in an input WireRange of a Call gate, all wires do not belong to the same allocation
+    relation.gates.push(Gate::New(0, 20, 22));
+    relation.gates.push(Gate::Constant(0, 20, vec![1]));
+    relation.gates.push(Gate::Constant(0, 21, vec![1]));
+    relation.gates.push(Gate::Constant(0, 22, vec![1]));
+    relation.gates.push(Gate::Constant(0, 23, vec![1]));
+    relation.gates.push(Gate::Call(
+        "vector_add_2".to_string(),
+        vec![WireRange::new(24, 25)],
+        vec![WireRange::new(20, 21), WireRange::new(22, 23)],
+    ));
 
     let mut validator = Validator::new_as_prover();
-    validator.ingest_public_inputs(&public_inputs);
-    validator.ingest_private_inputs(&private_inputs);
     validator.ingest_relation(&relation);
 
     let violations = validator.get_violations();
     assert_eq!(
         violations,
         vec![
-            "For Delete gates, (0:100) cannot be deleted because it has been allocated by a New gate and this Delete gate does not match it.",
-            "The wire (0: 107) has already been initialized before. This violates the SSA property.",
-            "For New gates, wires must not have already been allocated by another New gate."
+            "For Delete gates, we should not delete a portion of an allocation.",
+            "The wire (0: 8) has already been initialized before. This violates the SSA property.",
+            "For New gates, wires should not have already been allocated.",
+            "Call: all wires in an input WireRange should belong to the same allocation"
         ]
     );
 
