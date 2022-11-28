@@ -1228,7 +1228,7 @@ fn test_validator_violations() -> crate::Result<()> {
             // Create a violation by omitting a private input value.
             Directive::Gate(Gate::Private(0, 1)),
             // Consume all public inputs
-            Directive::Gate(Gate::Public(0, 0)),
+            Directive::Gate(Gate::Public(0, 2)),
         ],
     };
 
