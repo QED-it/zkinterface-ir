@@ -664,14 +664,14 @@ fn test_to_r1cs_validate_two_ways_conversion_same_field() -> Result<()> {
 #[test]
 fn test_to_r1cs_validate_converted_circuit_same_field() -> Result<()> {
     // This time use an example in straight IR
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
 
     let output_directory = "local/test_to_r1cs_validate_converted_circuit_same_field";
 
     let messages = vec![
-        Ok(Message::PublicInputs(example_public_inputs())),
-        Ok(Message::PrivateInputs(example_private_inputs())),
-        Ok(Message::Relation(example_relation())),
+        Ok(Message::PublicInputs(simple_example_public_inputs())),
+        Ok(Message::PrivateInputs(simple_example_private_inputs())),
+        Ok(Message::Relation(simple_example_relation())),
     ];
 
     let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(&output_directory)?, true, false);
@@ -767,14 +767,14 @@ fn test_to_r1cs_validate_two_ways_conversion_bigger_field() -> Result<()> {
 #[test]
 fn test_to_r1cs_validate_converted_circuit_bigger_field() -> Result<()> {
     // This time use an example in straight IR
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
 
     let output_directory = "local/test_to_r1cs_validate_converted_circuit_bigger_field";
 
     let messages = vec![
-        Ok(Message::PublicInputs(example_public_inputs())),
-        Ok(Message::PrivateInputs(example_private_inputs())),
-        Ok(Message::Relation(example_relation())),
+        Ok(Message::PublicInputs(simple_example_public_inputs())),
+        Ok(Message::PrivateInputs(simple_example_private_inputs())),
+        Ok(Message::Relation(simple_example_relation())),
     ];
 
     let mut to_r1cs = ToR1CSConverter::new(WorkspaceSink::new(&output_directory)?, true, true);

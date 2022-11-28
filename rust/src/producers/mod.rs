@@ -1,7 +1,7 @@
-/// Example statements generator.
-pub mod examples;
 /// Example statements generator with several types.
-pub mod examples_with_several_types;
+pub mod examples;
+/// Example statements generator.
+pub mod simple_examples;
 
 /// A Sink stores produced messages, e.g. in files.
 pub mod sink;

@@ -152,7 +152,7 @@ pub fn clean_workspace(workspace: impl AsRef<Path>) -> Result<()> {
 #[test]
 fn test_sink() {
     use crate::consumers::stats::Stats;
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
 
     let workspace = PathBuf::from("local/test_sink");
 
@@ -190,13 +190,14 @@ fn test_sink() {
     assert_eq!(filenames.as_slice(), expected_filenames);
     assert_eq!(sizes, vec![0, 0, 0]);
 
-    sink.push_public_inputs_message(&example_public_inputs())
+    sink.push_public_inputs_message(&simple_example_public_inputs())
         .unwrap();
 
-    sink.push_private_inputs_message(&example_private_inputs())
+    sink.push_private_inputs_message(&simple_example_private_inputs())
         .unwrap();
 
-    sink.push_relation_message(&example_relation()).unwrap();
+    sink.push_relation_message(&simple_example_relation())
+        .unwrap();
 
     let (filenames, sizes1) = get_file_sizes();
     assert_eq!(filenames.as_slice(), expected_filenames);
@@ -204,13 +205,14 @@ fn test_sink() {
     assert!(sizes[1] < sizes1[1]);
     assert!(sizes[2] < sizes1[2]);
 
-    sink.push_public_inputs_message(&example_public_inputs())
+    sink.push_public_inputs_message(&simple_example_public_inputs())
         .unwrap();
 
-    sink.push_private_inputs_message(&example_private_inputs())
+    sink.push_private_inputs_message(&simple_example_private_inputs())
         .unwrap();
 
-    sink.push_relation_message(&example_relation()).unwrap();
+    sink.push_relation_message(&simple_example_relation())
+        .unwrap();
 
     let (filenames, sizes2) = get_file_sizes();
     assert_eq!(filenames.as_slice(), expected_filenames);

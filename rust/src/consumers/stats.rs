@@ -46,8 +46,8 @@ pub struct GateStats {
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum FunctionContent {
-    Plugin(u64, u64),    // (public_count, private_count)
-    Function(GateStats), // (stats)
+    Plugin(String, String, Vec<String>, u64, u64), // (name, operation, params, public_count, private_count)
+    Function(GateStats),                           // (stats)
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -116,7 +116,13 @@ impl Stats {
                             self.gate_stats.plugins_defined += 1;
                             self.functions.insert(
                                 name.clone(),
-                                FunctionContent::Plugin(public_count, private_count),
+                                FunctionContent::Plugin(
+                                    plugin_body.name.clone(),
+                                    plugin_body.operation.clone(),
+                                    plugin_body.params.clone(),
+                                    public_count,
+                                    private_count,
+                                ),
                             );
                         }
                     }
@@ -209,7 +215,7 @@ impl GateStats {
                             self.functions_called += 1;
                             self.ingest_call_stats(stats);
                         }
-                        FunctionContent::Plugin(pub_count, priv_count) => {
+                        FunctionContent::Plugin(_, _, _, pub_count, priv_count) => {
                             self.plugins_called += 1;
                             self.public_inputs_consumed += pub_count;
                             self.private_inputs_consumed += priv_count;
@@ -245,7 +251,7 @@ impl GateStats {
 }
 
 #[test]
-fn test_stats() -> Result<()> {
+fn test_stats() {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -253,38 +259,60 @@ fn test_stats() -> Result<()> {
     let relation = example_relation();
 
     let mut stats = Stats::default();
-    stats.ingest_public_inputs(&public_inputs);
-    stats.ingest_private_inputs(&private_inputs);
+    public_inputs
+        .iter()
+        .for_each(|inputs| stats.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| stats.ingest_private_inputs(inputs));
     stats.ingest_relation(&relation);
 
     let mut expected_stats = Stats {
-        types: vec![Type::Field(literal(EXAMPLE_MODULUS))],
+        types: vec![
+            Type::Field(vec![7]),
+            Type::Field(vec![101]),
+            Type::PluginType(
+                "ring".to_string(),
+                "type".to_string(),
+                vec!["2".to_string(), "8".to_string()],
+            ),
+        ],
         gate_stats: GateStats {
-            public_inputs_consumed: 1,
-            private_inputs_consumed: 2,
-            public_inputs_provided: 1,
-            private_inputs_provided: 2,
+            public_inputs_consumed: 2,
+            private_inputs_consumed: 6,
+            public_inputs_provided: 2,
+            private_inputs_provided: 6,
             constants_gates: 0,
             assert_zero_gates: 1,
             copy_gates: 0,
             add_gates: 2,
-            mul_gates: 3,
+            mul_gates: 1,
             add_constant_gates: 0,
             mul_constant_gates: 1,
-            variables_allocated_with_new: 3,
-            variables_deleted: 9,
+            variables_allocated_with_new: 9,
+            variables_deleted: 18,
             functions_defined: 1,
-            functions_called: 3,
-            plugins_defined: 0,
-            plugins_called: 0,
-            conversions_defined: 0,
-            convert_gates: 0,
-            public_inputs_messages: 1,
-            private_inputs_messages: 1,
+            functions_called: 1,
+            plugins_defined: 5,
+            plugins_called: 5,
+            conversions_defined: 1,
+            convert_gates: 3,
+            public_inputs_messages: 2,
+            private_inputs_messages: 3,
             relation_messages: 1,
         },
         functions: HashMap::new(),
     };
+    expected_stats.functions.insert(
+        "assert_equal_private".to_string(),
+        FunctionContent::Plugin(
+            "assert_equal".to_string(),
+            "private".to_string(),
+            vec!["1".to_string(), "1".to_string()],
+            0,
+            1,
+        ),
+    );
     expected_stats.functions.insert(
         "square".to_string(),
         FunctionContent::Function(GateStats {
@@ -292,8 +320,46 @@ fn test_stats() -> Result<()> {
             ..GateStats::default()
         }),
     );
+    expected_stats.functions.insert(
+        "vector_mul_7_2".to_string(),
+        FunctionContent::Plugin(
+            "vector".to_string(),
+            "mul".to_string(),
+            vec!["1".to_string(), "2".to_string()],
+            0,
+            0,
+        ),
+    );
+    expected_stats.functions.insert(
+        "ring_add".to_string(),
+        FunctionContent::Plugin(
+            "ring".to_string(),
+            "add".to_string(),
+            vec!["2".to_string()],
+            0,
+            0,
+        ),
+    );
+    expected_stats.functions.insert(
+        "ring_mul".to_string(),
+        FunctionContent::Plugin(
+            "ring".to_string(),
+            "mul".to_string(),
+            vec!["2".to_string()],
+            0,
+            0,
+        ),
+    );
+    expected_stats.functions.insert(
+        "ring_equal".to_string(),
+        FunctionContent::Plugin(
+            "ring".to_string(),
+            "equal".to_string(),
+            vec!["2".to_string()],
+            0,
+            0,
+        ),
+    );
 
     assert_eq!(expected_stats, stats);
-
-    Ok(())
 }

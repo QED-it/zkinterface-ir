@@ -1171,8 +1171,12 @@ fn test_validator() -> crate::Result<()> {
 
     let mut validator = Validator::new_as_prover();
 
-    validator.ingest_public_inputs(&public_inputs);
-    validator.ingest_private_inputs(&private_inputs);
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_private_inputs(inputs));
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
@@ -1189,7 +1193,9 @@ fn test_validator_as_verifier() -> crate::Result<()> {
 
     let mut validator = Validator::new_as_verifier();
 
-    validator.ingest_public_inputs(&public_inputs);
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
@@ -1199,16 +1205,32 @@ fn test_validator_as_verifier() -> crate::Result<()> {
 
 #[test]
 fn test_validator_violations() -> crate::Result<()> {
-    use crate::producers::examples::*;
+    use crate::structs::IR_VERSION;
 
-    let mut public_inputs = example_public_inputs();
-    let mut private_inputs = example_private_inputs();
-    let relation = example_relation();
-
-    // Create a violation by using a value too big for the type.
-    public_inputs.inputs[0] = literal32(EXAMPLE_MODULUS);
-    // Create a violation by omitting a private input value.
-    private_inputs.inputs.pop().unwrap();
+    let public_inputs = PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        // Create a violation by using a value too big for the type.
+        inputs: vec![vec![7]],
+    };
+    let private_inputs = PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![3]],
+    };
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![Type::Field(vec![7])],
+        conversions: vec![],
+        directives: vec![
+            Directive::Gate(Gate::Private(0, 0)),
+            // Create a violation by omitting a private input value.
+            Directive::Gate(Gate::Private(0, 1)),
+            // Consume all public inputs
+            Directive::Gate(Gate::Public(0, 0)),
+        ],
+    };
 
     let mut validator = Validator::new_as_prover();
     validator.ingest_public_inputs(&public_inputs);
@@ -1219,7 +1241,7 @@ fn test_validator_violations() -> crate::Result<()> {
     assert_eq!(
         violations,
         vec![
-            "The public value [101, 0, 0, 0] cannot be represented in the Field type specified (101 >= 101).",
+            "The public value [7] cannot be represented in the Field type specified (7 >= 7).",
             "Not enough private input value to consume.",
         ]
     );
@@ -1229,11 +1251,11 @@ fn test_validator_violations() -> crate::Result<()> {
 
 #[test]
 fn test_validator_delete_violations() -> crate::Result<()> {
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
 
-    let public_inputs = example_public_inputs();
-    let private_inputs = example_private_inputs();
-    let mut relation = example_relation();
+    let public_inputs = simple_example_public_inputs();
+    let private_inputs = simple_example_private_inputs();
+    let mut relation = simple_example_relation();
 
     relation
         .directives
@@ -1262,7 +1284,6 @@ fn test_validator_delete_violations() -> crate::Result<()> {
 
 #[test]
 fn test_validator_memory_management_violations() -> crate::Result<()> {
-    use crate::producers::examples::literal32;
     use crate::structs::function::Function;
     use crate::structs::plugin::PluginBody;
     use crate::structs::wirerange::WireRange;
@@ -1271,7 +1292,7 @@ fn test_validator_memory_management_violations() -> crate::Result<()> {
     let mut relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec!["vector".to_string()],
-        types: vec![Type::Field(literal32(101))],
+        types: vec![Type::Field(vec![101])],
         conversions: vec![],
         directives: vec![
             Directive::Function(Function::new(
@@ -1372,23 +1393,22 @@ fn test_validator_memory_management_violations() -> crate::Result<()> {
 
 #[test]
 fn test_validator_convert_violations() {
-    use crate::producers::examples::literal32;
     use crate::structs::IR_VERSION;
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(7)),
+        type_value: Type::Field(vec![7]),
         inputs: vec![vec![5]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(101)),
+        type_value: Type::Field(vec![101]),
         inputs: vec![vec![10]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec!["vector".to_string()],
-        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
+        types: vec![Type::Field(vec![7]), Type::Field(vec![101])],
         conversions: vec![Conversion::new(Count::new(1, 1), Count::new(0, 1))],
         directives: vec![
             Directive::Gate(Gate::Public(0, 0)),

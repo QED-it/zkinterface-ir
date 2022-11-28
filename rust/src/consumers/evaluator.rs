@@ -136,11 +136,11 @@ struct FunctionDeclaration {
 /// # Example
 /// ```
 /// use zki_sieve::consumers::evaluator::{PlaintextBackend, Evaluator};
-/// use zki_sieve::producers::examples::*;
+/// use zki_sieve::producers::simple_examples::*;
 ///
-/// let relation = example_relation();
-/// let public_inputs = example_public_inputs();
-/// let private_inputs = example_private_inputs();
+/// let relation = simple_example_relation();
+/// let public_inputs = simple_example_public_inputs();
+/// let private_inputs = simple_example_private_inputs();
 ///
 /// let mut zkbackend = PlaintextBackend::default();
 /// let mut simulator = Evaluator::default();
@@ -957,7 +957,7 @@ impl PlaintextBackend {
 }
 
 #[test]
-fn test_evaluator() -> Result<()> {
+fn test_evaluator() {
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
 
@@ -968,17 +968,21 @@ fn test_evaluator() -> Result<()> {
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator: Evaluator<PlaintextBackend> = Evaluator::default();
 
-    simulator.ingest_public_inputs(&public_inputs)?;
-    simulator.ingest_private_inputs(&private_inputs)?;
-    simulator.ingest_relation(&relation, &mut zkbackend)?;
+    public_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_public_inputs(inputs).unwrap());
+    private_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_private_inputs(inputs).unwrap());
+    simulator
+        .ingest_relation(&relation, &mut zkbackend)
+        .unwrap();
 
     assert_eq!(simulator.get_violations(), Vec::<String>::new());
-
-    Ok(())
 }
 
 #[test]
-fn test_evaluator_as_verifier() -> Result<()> {
+fn test_evaluator_as_verifier() {
     /// This test simply checks that the Evaluator code could run with any ZKInterpreter without issue
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
@@ -986,6 +990,7 @@ fn test_evaluator_as_verifier() -> Result<()> {
 
     let relation = example_relation();
     let public_inputs = example_public_inputs();
+    let private_inputs = example_private_inputs();
 
     struct VerifierInterpreter {}
     impl ZKBackend for VerifierInterpreter {
@@ -1089,59 +1094,65 @@ fn test_evaluator_as_verifier() -> Result<()> {
 
     let mut zkbackend = VerifierInterpreter {};
     let mut simulator = Evaluator::default();
-    simulator.ingest_public_inputs(&public_inputs)?;
-    simulator.ingest_relation(&relation, &mut zkbackend)?;
+    public_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_public_inputs(inputs).unwrap());
+    private_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_private_inputs(inputs).unwrap());
+    simulator
+        .ingest_relation(&relation, &mut zkbackend)
+        .unwrap();
 
     assert_eq!(simulator.get_violations(), Vec::<String>::new());
-
-    Ok(())
 }
 
 #[test]
-fn test_evaluator_wrong_result() -> Result<()> {
+fn test_evaluator_wrong_result() {
     use crate::consumers::evaluator::Evaluator;
     use crate::producers::examples::*;
 
     let relation = example_relation();
     let public_inputs = example_public_inputs();
-    let private_inputs = example_private_inputs_incorrect();
+    let private_inputs = example_incorrect_private_inputs();
 
     let mut zkbackend = PlaintextBackend::default();
     let mut simulator = Evaluator::default();
-    let _ = simulator.ingest_public_inputs(&public_inputs);
-    let _ = simulator.ingest_private_inputs(&private_inputs);
+    public_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_public_inputs(inputs).unwrap());
+    private_inputs
+        .iter()
+        .for_each(|inputs| simulator.ingest_private_inputs(inputs).unwrap());
     let should_be_err = simulator.ingest_relation(&relation, &mut zkbackend);
 
     assert!(should_be_err.is_err());
     assert_eq!(
-        "Wire (0: 8) should be 0, while it is not",
+        "Wire (1: 8) should be 0, while it is not",
         should_be_err.err().unwrap().to_string()
     );
-
-    Ok(())
 }
 
 #[test]
 fn test_evaluator_conversion() {
     use crate::consumers::evaluator::Evaluator;
-    use crate::producers::examples::literal32;
     use crate::structs::conversion::Conversion;
     use crate::structs::IR_VERSION;
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(7)),
+        type_value: Type::Field(vec![7]),
         inputs: vec![vec![2], vec![4]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(101)),
+        type_value: Type::Field(vec![101]),
         inputs: vec![vec![2], vec![81]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec![],
-        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
+        types: vec![Type::Field(vec![7]), Type::Field(vec![101])],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         directives: vec![
             Directive::Gate(Gate::Private(1, 0)), // 2
@@ -1170,18 +1181,18 @@ fn test_evaluator_conversion() {
 
     let public_inputs = PublicInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(7)),
+        type_value: Type::Field(vec![7]),
         inputs: vec![vec![2], vec![4]],
     };
     let private_inputs = PrivateInputs {
         version: IR_VERSION.to_string(),
-        type_value: Type::Field(literal32(101)),
+        type_value: Type::Field(vec![101]),
         inputs: vec![vec![2], vec![81]],
     };
     let relation = Relation {
         version: IR_VERSION.to_string(),
         plugins: vec![],
-        types: vec![Type::Field(literal32(7)), Type::Field(literal32(101))],
+        types: vec![Type::Field(vec![7]), Type::Field(vec![101])],
         conversions: vec![Conversion::new(Count::new(0, 2), Count::new(1, 2))],
         directives: vec![
             Directive::Gate(Gate::Private(1, 0)), // 2

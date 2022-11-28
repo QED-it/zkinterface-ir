@@ -224,13 +224,13 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
 fn test_validate_flattening() -> crate::Result<()> {
     use crate::consumers::evaluator::Evaluator;
     use crate::consumers::validator::Validator;
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
     use crate::producers::sink::MemorySink;
     use crate::Source;
 
-    let public_inputs = example_public_inputs();
-    let private_inputs = example_private_inputs();
-    let relation = example_relation();
+    let public_inputs = simple_example_public_inputs();
+    let private_inputs = simple_example_private_inputs();
+    let relation = simple_example_relation();
 
     let mut flattener = IRFlattener::new(MemorySink::default());
     let mut evaluator = Evaluator::default();
@@ -254,13 +254,13 @@ fn test_validate_flattening() -> crate::Result<()> {
 #[test]
 fn test_evaluate_flattening() -> crate::Result<()> {
     use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
-    use crate::producers::examples::*;
+    use crate::producers::simple_examples::*;
     use crate::producers::sink::MemorySink;
     use crate::Source;
 
-    let relation = example_relation();
-    let public_inputs = example_public_inputs();
-    let private_inputs = example_private_inputs();
+    let relation = simple_example_relation();
+    let public_inputs = simple_example_public_inputs();
+    let private_inputs = simple_example_private_inputs();
 
     let mut flattener = IRFlattener::new(MemorySink::default());
     let mut evaluator = Evaluator::default();

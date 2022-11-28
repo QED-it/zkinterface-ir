@@ -15,17 +15,17 @@ use std::path::{Path, PathBuf};
 /// # Example
 /// ```
 /// use zki_sieve::{Source, FilesSink, Sink, Message};
-/// use zki_sieve::producers::examples::*;
+/// use zki_sieve::producers::simple_examples::*;
 /// use std::path::PathBuf;
 ///
 /// // Create an example workspace including multiple constraints files.
 /// let dir = PathBuf::from("local/test_source");
 /// let mut sink = FilesSink::new_clean(&dir).unwrap();
-/// sink.push_public_inputs_message(&example_public_inputs());
-/// sink.push_private_inputs_message(&example_private_inputs());
-/// sink.push_relation_message(&example_relation());
-/// sink.push_private_inputs_message(&example_private_inputs());
-/// sink.push_relation_message(&example_relation());
+/// sink.push_public_inputs_message(&simple_example_public_inputs());
+/// sink.push_private_inputs_message(&simple_example_private_inputs());
+/// sink.push_relation_message(&simple_example_relation());
+/// sink.push_private_inputs_message(&simple_example_private_inputs());
+/// sink.push_relation_message(&simple_example_relation());
 ///
 /// // Iterate over the files and observe the messages.
 /// let mut got = vec![];

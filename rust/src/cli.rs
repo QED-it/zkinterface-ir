@@ -50,9 +50,9 @@ setting(ColoredHelp)
 pub struct Options {
     /// Which tool to run.
     ///
-    /// example       Produce arithmetic example statements.
+    /// example       Produce example statements (with conversions and plugins).
     ///
-    /// several-types-example Produce example statements with several types.
+    /// simple-example Produce simple example statements (possible to flatten it or convert it to R1CS) with only one Field type, no conversions, no plugins.
     ///
     /// to-text       Print the content in a human-readable form.
     ///
@@ -108,7 +108,7 @@ pub struct Options {
 pub fn cli(options: &Options) -> Result<()> {
     match &options.tool[..] {
         "example" => main_example(options),
-        "several-types-example" => main_several_types_example(options),
+        "simple-example" => main_simple_example(options),
         "to-text" => main_text(&load_messages(options)?),
         "to-json" => main_json(&load_messages(options)?),
         "from-json" => from_json(options),
@@ -154,25 +154,25 @@ fn main_example(opts: &Options) -> Result<()> {
     let public_inputs = example_public_inputs();
     let relation = example_relation();
     let private_inputs = if opts.incorrect {
-        example_private_inputs_incorrect()
+        example_incorrect_private_inputs()
     } else {
         example_private_inputs()
     };
-    write_example(opts, &[public_inputs], &[private_inputs], &relation)?;
+    write_example(opts, &public_inputs, &private_inputs, &relation)?;
     Ok(())
 }
 
-fn main_several_types_example(opts: &Options) -> Result<()> {
-    use crate::producers::examples_with_several_types::*;
+fn main_simple_example(opts: &Options) -> Result<()> {
+    use crate::producers::simple_examples::*;
 
-    let public_inputs = example_public_inputs_with_several_types();
-    let relation = example_relation_with_several_types();
+    let public_inputs = simple_example_public_inputs();
+    let relation = simple_example_relation();
     let private_inputs = if opts.incorrect {
-        example_incorrect_private_inputs_with_several_types()
+        simple_example_incorrect_private_inputs()
     } else {
-        example_private_inputs_with_several_types()
+        simple_example_private_inputs()
     };
-    write_example(opts, &public_inputs, &private_inputs, &relation)?;
+    write_example(opts, &[public_inputs], &[private_inputs], &relation)?;
     Ok(())
 }
 
@@ -545,11 +545,31 @@ fn test_cli() -> Result<()> {
     use std::fs::remove_dir_all;
 
     let _ = remove_dir_all(PathBuf::from("local/test_cli"));
-    let arithmetic_workspace = PathBuf::from("local/test_cli/arithmetic_example");
+    let simple_workspace = PathBuf::from("local/test_cli/simple_example");
+
+    cli(&Options {
+        tool: "simple-example".to_string(),
+        paths: vec![simple_workspace.clone()],
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+    })?;
+
+    cli(&Options {
+        tool: "valid-eval-metrics".to_string(),
+        paths: vec![simple_workspace],
+        incorrect: false,
+        resource: "-".to_string(),
+        modular_reduce: false,
+        out: PathBuf::from("-"),
+    })?;
+
+    let example_workspace = PathBuf::from("local/test_cli/example");
 
     cli(&Options {
         tool: "example".to_string(),
-        paths: vec![arithmetic_workspace.clone()],
+        paths: vec![example_workspace.clone()],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
@@ -558,27 +578,7 @@ fn test_cli() -> Result<()> {
 
     cli(&Options {
         tool: "valid-eval-metrics".to_string(),
-        paths: vec![arithmetic_workspace],
-        incorrect: false,
-        resource: "-".to_string(),
-        modular_reduce: false,
-        out: PathBuf::from("-"),
-    })?;
-
-    let several_types_workspace = PathBuf::from("local/test_cli/several_types_example");
-
-    cli(&Options {
-        tool: "several-types-example".to_string(),
-        paths: vec![several_types_workspace.clone()],
-        incorrect: false,
-        resource: "-".to_string(),
-        modular_reduce: false,
-        out: PathBuf::from("-"),
-    })?;
-
-    cli(&Options {
-        tool: "valid-eval-metrics".to_string(),
-        paths: vec![several_types_workspace],
+        paths: vec![example_workspace],
         incorrect: false,
         resource: "-".to_string(),
         modular_reduce: false,
