@@ -2,8 +2,6 @@ use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use num_bigint::BigUint;
-use num_bigint_dig;
-use num_bigint_dig::prime::probably_prime;
 
 /// A Value is a type element encoded least-significant-byte-first (little-endian). Trailing zeros may be omitted.
 ///
@@ -47,20 +45,6 @@ pub fn build_values_vector<'a>(
         .map(|g_value| build_value(builder, g_value))
         .collect();
     builder.create_vector(&g_values)
-}
-
-pub fn is_probably_prime(value: &Value) -> bool {
-    let value = num_bigint_dig::BigUint::from_bytes_le(value);
-    probably_prime(&value, 10)
-}
-
-#[test]
-fn test_is_probably_prime() {
-    let value: Value = vec![187]; // 187=11*17
-    assert!(!is_probably_prime(&value));
-
-    let value: Value = vec![101];
-    assert!(is_probably_prime(&value));
 }
 
 pub fn value_to_biguint(value: &[u8]) -> BigUint {

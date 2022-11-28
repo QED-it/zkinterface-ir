@@ -32,6 +32,7 @@ Rust:
 - intermingle gates and function declarations into a list of directives
 - rename Public/PrivateInput gates by Public/Private
 - replace table by struct for WireRange in Flatbuffers schema
+- update validator with all new validity checks
 
 # SIEVE IR v1.0.1, 2022-08
 

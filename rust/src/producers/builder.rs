@@ -57,16 +57,16 @@ struct MessageBuilder<S: Sink> {
 }
 
 impl<S: Sink> MessageBuilder<S> {
-    fn new(sink: S, types: &[Type]) -> Self {
+    fn new(sink: S, plugins: &[String], types: &[Type], conversions: &[Conversion]) -> Self {
         Self {
             sink,
             public_inputs: HashMap::new(),
             private_inputs: HashMap::new(),
             relation: Relation {
                 version: IR_VERSION.to_string(),
-                plugins: vec![],
+                plugins: plugins.to_owned(),
                 types: types.to_owned(),
-                conversions: vec![],
+                conversions: conversions.to_owned(),
                 directives: vec![],
             },
             functions_size: 0,
@@ -134,30 +134,6 @@ impl<S: Sink> MessageBuilder<S> {
         }
     }
 
-    fn push_plugin(&mut self, plugin_name: String) {
-        self.relation.plugins.push(plugin_name);
-        if self.relation.directives.len()
-            + self.relation.plugins.len()
-            + self.relation.conversions.len()
-            + self.functions_size
-            >= self.max_len
-        {
-            self.flush_relation();
-        }
-    }
-
-    fn push_conversion(&mut self, conversion: Conversion) {
-        self.relation.conversions.push(conversion);
-        if self.relation.directives.len()
-            + self.relation.plugins.len()
-            + self.relation.conversions.len()
-            + self.functions_size
-            >= self.max_len
-        {
-            self.flush_relation();
-        }
-    }
-
     fn push_function(&mut self, function: Function) {
         let func_size = match &function.body {
             FunctionBody::Gates(gates) => gates.len(),
@@ -213,6 +189,9 @@ impl<S: Sink> MessageBuilder<S> {
 
     fn flush_relation(&mut self) {
         self.sink.push_relation_message(&self.relation).unwrap();
+        self.relation.plugins.clear();
+        self.relation.types.clear();
+        self.relation.conversions.clear();
         self.relation.directives.clear();
         self.functions_size = 0;
     }
@@ -235,7 +214,7 @@ impl<S: Sink> MessageBuilder<S> {
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::structs::types::Type;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), &vec![Type::new_field_type(vec![2])]);
+/// let mut b = GateBuilder::new(MemorySink::default(), &[], &[Type::new_field_type(vec![2])], &[]);
 ///
 /// let type_id = 0;
 /// let my_id = b.create_gate(Constant(type_id, vec![0])).unwrap();
@@ -383,13 +362,13 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                 in_first_id,
                 in_last_id,
             ) => {
-                // If the Convert gate has not yet been declared, do it
+                // Check that the convert gate has been declared
                 let conversion = Conversion::new(
                     Count::new(out_type_id, output_wire_count),
                     Count::new(in_type_id, in_last_id - in_first_id + 1),
                 );
-                if self.known_conversions.insert(conversion.clone()) {
-                    self.msg_build.push_conversion(conversion);
+                if !self.known_conversions.contains(&conversion) {
+                    return Err("Impossible to call an undeclared conversion".into());
                 }
 
                 // Check that we have no public/private inputs
@@ -430,11 +409,22 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
 
 impl<S: Sink> GateBuilder<S> {
     /// new creates a new builder.
-    pub fn new(sink: S, types: &[Type]) -> Self {
+    pub fn new(sink: S, plugins: &[String], types: &[Type], conversions: &[Conversion]) -> Self {
+        // Plugins and conversion cannot be filled on the fly
+        // because they must be flushed in the first relation message
+        let mut known_plugins = HashSet::new();
+        plugins.iter().for_each(|plugin_name| {
+            known_plugins.insert(plugin_name.clone());
+        });
+        let mut known_conversions = HashSet::new();
+        conversions.iter().for_each(|conversion| {
+            known_conversions.insert(conversion.clone());
+        });
+
         GateBuilder {
-            msg_build: MessageBuilder::new(sink, types),
-            known_plugins: HashSet::new(),
-            known_conversions: HashSet::new(),
+            msg_build: MessageBuilder::new(sink, plugins, types, conversions),
+            known_plugins,
+            known_conversions,
             known_functions: HashMap::new(),
             next_available_id: HashMap::new(),
         }
@@ -461,9 +451,9 @@ impl<S: Sink> GateBuilder<S> {
             gates: vec![],
             public_count: HashMap::new(),
             private_count: HashMap::new(),
+            known_conversions: &self.known_conversions,
             known_functions: &self.known_functions,
             next_available_id,
-            used_conversions: HashSet::new(),
         }
     }
 
@@ -499,29 +489,19 @@ impl<S: Sink> GateBuilder<S> {
             },
         );
 
-        // If the function is a plugin function, add the plugin names into the list of used plugins
+        // If the function is a plugin function, check that the plugin name have been declared
         if let FunctionBody::PluginBody(plugin_body) = &function_with_infos.function.body {
-            if self.known_plugins.insert(plugin_body.name.clone()) {
-                self.msg_build.push_plugin(plugin_body.name.clone());
+            if !self.known_plugins.contains(&plugin_body.name) {
+                return Err("The plugin name of a Plugin function should be declared".into());
             }
         }
-
-        // If the function calls some Convert gates, add them the list of used conversions
-        function_with_infos
-            .used_conversions
-            .iter()
-            .for_each(|conversion| {
-                if self.known_conversions.insert(conversion.clone()) {
-                    self.msg_build.push_conversion(conversion.clone());
-                }
-            });
 
         // Add the function into the list of functions in the Relation
         self.msg_build.push_function(function_with_infos.function);
         Ok(())
     }
 
-    pub fn push_plugin(&mut self, function: Function) -> Result<()> {
+    pub fn push_plugin_function(&mut self, function: Function) -> Result<()> {
         if let FunctionBody::PluginBody(ref plugin_body) = function.body {
             let public_count = plugin_body.public_count.clone();
             let private_count = plugin_body.private_count.clone();
@@ -529,7 +509,6 @@ impl<S: Sink> GateBuilder<S> {
                 function,
                 public_count,
                 private_count,
-                used_conversions: HashSet::new(),
             })
         } else {
             Err("push_plugin must be called with a plugin function".into())
@@ -542,14 +521,18 @@ impl<S: Sink> GateBuilder<S> {
 }
 
 pub fn new_example_builder() -> GateBuilder<MemorySink> {
-    GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![2])])
+    GateBuilder::new(
+        MemorySink::default(),
+        &[],
+        &[Type::new_field_type(vec![2])],
+        &[],
+    )
 }
 
 pub struct FunctionWithInfos {
     function: Function,
     public_count: HashMap<TypeId, u64>,
     private_count: HashMap<TypeId, u64>,
-    used_conversions: HashSet<Conversion>,
 }
 
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
@@ -565,7 +548,7 @@ pub struct FunctionWithInfos {
 /// use zki_sieve::structs::types::Type;
 /// use zki_sieve::structs::wirerange::WireRange;
 ///
-/// let mut b = GateBuilder::new(MemorySink::default(), &vec![Type::new_field_type(vec![7])]);
+/// let mut b = GateBuilder::new(MemorySink::default(), &[], &[Type::new_field_type(vec![7])], &[]);
 ///
 ///  let private_square = {
 ///     let mut fb = b.new_function_builder("private_square".to_string(), vec![Count::new(0, 1)], vec![]);
@@ -583,10 +566,9 @@ pub struct FunctionBuilder<'a> {
 
     public_count: HashMap<TypeId, u64>,  // evaluated on the fly
     private_count: HashMap<TypeId, u64>, // evaluated on the fly
+    known_conversions: &'a HashSet<Conversion>,
     known_functions: &'a HashMap<String, FunctionCounts>,
     next_available_id: HashMap<TypeId, WireId>,
-
-    used_conversions: HashSet<Conversion>,
 }
 
 impl FunctionBuilder<'_> {
@@ -679,12 +661,15 @@ impl FunctionBuilder<'_> {
                 in_first_id,
                 in_last_id,
             ) => {
-                // If the Convert gate has not yet been declared, do it
+                // Check that the convert gate has been declared
                 let conversion = Conversion::new(
                     Count::new(out_type_id, out_wire_count),
                     Count::new(in_type_id, in_last_id - in_first_id + 1),
                 );
-                self.used_conversions.insert(conversion);
+                if !self.known_conversions.contains(&conversion) {
+                    return Err("Impossible to call an undeclared conversion".into());
+                }
+
                 vec![Count::new(out_type_id, out_wire_count)]
             }
         };
@@ -724,7 +709,6 @@ impl FunctionBuilder<'_> {
             ),
             public_count: self.public_count.clone(),
             private_count: self.private_count.clone(),
-            used_conversions: self.used_conversions.clone(),
         })
     }
 }
@@ -736,7 +720,12 @@ fn test_builder_with_function() {
     use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
     use crate::producers::sink::MemorySink;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &[],
+        &[Type::new_field_type(vec![101])],
+        &[],
+    );
 
     let custom_sub = {
         let mut fb = b.new_function_builder(
@@ -769,7 +758,6 @@ fn test_builder_with_function() {
         ),
         public_count: HashMap::new(),
         private_count: HashMap::new(),
-        used_conversions: HashSet::new(),
     };
     assert!(b.push_function(custom_function).is_err());
 
@@ -832,7 +820,12 @@ fn test_builder_with_several_functions() {
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &[],
+        &[Type::new_field_type(vec![101])],
+        &[],
+    );
 
     let private_square = {
         let mut fb =
@@ -939,10 +932,15 @@ fn test_builder_with_conversion() {
 
     let mut b = GateBuilder::new(
         MemorySink::default(),
+        &[],
         &[
             Type::new_field_type(vec![7]),
             Type::new_field_type(vec![101]),
         ],
+        &[Conversion::new(
+            Count::new(type_id_101, 3),
+            Count::new(type_id_7, 2),
+        )],
     );
 
     let id_0 = b.create_gate(Private(type_id_7, Some(vec![1]))).unwrap();
@@ -981,7 +979,12 @@ fn test_builder_with_plugin() {
 
     let type_id: TypeId = 0;
 
-    let mut b = GateBuilder::new(MemorySink::default(), &[Type::new_field_type(vec![101])]);
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &["vector".to_string()],
+        &[Type::new_field_type(vec![101])],
+        &[],
+    );
 
     let vector_len: u64 = 2;
     let vector_add_plugin = create_plugin_function(
@@ -1001,7 +1004,7 @@ fn test_builder_with_plugin() {
     )
     .unwrap();
 
-    b.push_plugin(vector_add_plugin).unwrap();
+    b.push_plugin_function(vector_add_plugin).unwrap();
 
     let private_0 = b.create_gate(Private(type_id, Some(vec![1]))).unwrap();
     let private_1 = b.create_gate(Private(type_id, Some(vec![2]))).unwrap();
@@ -1034,6 +1037,94 @@ fn test_builder_with_plugin() {
 
     b.create_gate(AssertZero(type_id, out_0)).unwrap();
     b.create_gate(AssertZero(type_id, out_1)).unwrap();
+
+    let sink = b.finish();
+
+    let mut zkbackend = PlaintextBackend::default();
+    let source: Source = sink.into();
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkbackend);
+    assert_eq!(evaluator.get_violations(), Vec::<String>::new());
+}
+
+#[test]
+fn test_builder_with_plugin_type() {
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::sink::MemorySink;
+
+    let type_id: TypeId = 0;
+
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &["ring".to_string()],
+        &[Type::new_plugin_type(
+            "ring".to_string(),
+            "type".to_string(),
+            vec!["2".to_string(), "4".to_string()],
+        )],
+        &[],
+    );
+
+    let ring_add = create_plugin_function(
+        "ring_add".to_string(),
+        vec![Count::new(type_id, 1)],
+        vec![Count::new(type_id, 1), Count::new(type_id, 1)],
+        PluginBody {
+            name: "ring".to_string(),
+            operation: "add".to_string(),
+            params: vec![type_id.to_string()],
+            public_count: HashMap::new(),
+            private_count: HashMap::new(),
+        },
+    )
+    .unwrap();
+    b.push_plugin_function(ring_add).unwrap();
+
+    let id_0 = b.create_gate(Private(type_id, Some(vec![10]))).unwrap();
+    let id_1 = b.create_gate(Private(type_id, Some(vec![8]))).unwrap();
+    let out = b
+        .create_complex_gate(
+            Call(
+                "ring_add".to_string(),
+                vec![WireRange::new(id_0, id_0), WireRange::new(id_1, id_1)],
+            ),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(out.len(), 1);
+    let out = (out[0].first_id..=out[0].last_id).collect::<Vec<_>>();
+    assert_eq!(out.len(), 1);
+    let out = out[0];
+
+    let ring_equal = create_plugin_function(
+        "ring_equal".to_string(),
+        vec![],
+        vec![Count::new(type_id, 1), Count::new(type_id, 1)],
+        PluginBody {
+            name: "ring".to_string(),
+            operation: "equal".to_string(),
+            params: vec![type_id.to_string()],
+            public_count: HashMap::new(),
+            private_count: HashMap::new(),
+        },
+    )
+    .unwrap();
+    b.push_plugin_function(ring_equal).unwrap();
+
+    let pub_0 = b.create_gate(Public(type_id, Some(vec![2]))).unwrap();
+    let res = b
+        .create_complex_gate(
+            Call(
+                "ring_equal".to_string(),
+                vec![WireRange::new(out, out), WireRange::new(pub_0, pub_0)],
+            ),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(res.len(), 0);
 
     let sink = b.finish();
 

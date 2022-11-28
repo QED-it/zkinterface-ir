@@ -63,7 +63,7 @@ impl<S: Sink> ZKBackend for IRFlattener<S> {
                         Err("Not possible to flatten circuit containing plugin types".into())
                     }
                 })?;
-            self.gate_builder = Some(GateBuilder::new(self.sink.take().unwrap(), types));
+            self.gate_builder = Some(GateBuilder::new(self.sink.take().unwrap(), &[], types, &[]));
         }
         Ok(())
     }

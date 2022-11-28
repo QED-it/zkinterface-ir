@@ -1,59 +1,109 @@
-use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, TypeId, WireId};
 use num_bigint::BigUint;
-use num_traits::identities::One;
+use num_bigint_dig;
+use num_bigint_dig::prime::probably_prime;
+use regex::Regex;
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::convert::TryFrom;
 
 use crate::structs::conversion::Conversion;
 use crate::structs::count::{count_list_to_hashmap, Count};
 use crate::structs::directives::Directive;
 use crate::structs::function::{FunctionBody, FunctionCounts};
 use crate::structs::types::Type;
-use crate::structs::value::{is_probably_prime, value_to_biguint};
-use crate::structs::wirerange::add_types_to_wire_ranges;
-use regex::Regex;
-use std::cmp::Ordering;
-use std::convert::TryFrom;
+use crate::structs::value::value_to_biguint;
+use crate::structs::wirerange::{add_types_to_wire_ranges, WireRange};
+use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, TypeId, WireId};
 
 type TypeElement = BigUint;
 
 // Tips: to write regex, use the following website (and select Python as the type of REGEX
-//    https://regex101.com/r/V3ROjH/1
+//    https://regex101.com/r/AHPOmp/1
 
 /// Used to check the validity of the version.
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
-/// Used to check the validity of names of functions / iterators
+/// Used to check the validity of names of functions, names of plugins, names of operation, string params in plugin
 const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
+const NUMERICAL_REGEX: &str = r"^[0-9]+$";
 const IMPLEMENTED_CHECKS: &str = r"
+VERSION_REGEX = “^\d+.\d+.\d+“
+STRING_REGEX = “^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$“
+INTEGER_REGEX = “^[0-9]+“
+
 Here is the list of implemented semantic/syntactic checks:
 
 Header Validation
- - Ensure that the characteristic is strictly greater than 1.
- - Ensure that the characteristic is a prime.
- - Ensure that the version string has the correct format (e.g. matches the following regular expression “^\d+.\d+.\d+$”).
- - Ensure header messages are coherent.
-     - Versions should be identical.
-     - Type moduli should be the same.
+ - Ensure that the version string matches VERSION_REGEX
+ - Ensure that all messages (Relation, PublicInputs, PrivateInputs) have the same version
 
-Inputs Validation (PublicInputs / PrivateInputs)
- - Ensure that Public gates are given a value in public_inputs messages.
- - Ensure that Private gates are given a value in private_inputs messages (prover only).
+Type Validation
+ - Ensure that for Field type, modulo is prime (that implies modulo is strictly greater than 1)
+ - Ensure for Plugin type, that
+     - plugin name has been declared
+     - name, operation and string parameters match STRING_REGEX
+     - numerical parameters match INTEGER_REGEX
+
+Inputs Validation (PublicInputs / PrivateInputs Messages)
+ - Ensure that there are enough values in PublicInputs messages for the evaluation of the circuit.
+ - Ensure that there are enough values in PrivateInputs messages for the evaluation of the circuit (prover only).
  - Ensure that all public and private inputs are consumed at the end of the circuit
- - Ensure that the value they are set to is indeed encoding an element lying in the underlying type.
-   It can be achieved by ensuring that the encoded value is strictly smaller than the type modulo.
+ - Ensure that all public and private inputs are encoding elements lying in the underlying type.
+   It can be achieved by ensuring that for Field type, the encoded value is strictly smaller than the type modulo.
 
-Gates Validation
- - Ensure constants given in @addc/@mulc are actual type elements.
- - Ensure input wires of gates map to an already set variable.
- - Enforce Single Static Assignment by checking that the same wire is used only once as an output wire.
- - Ensure that for New gates of the format @new(first, last), we have (last > first).
- - Ensure that for New gates of the format @(first, last), all wires between first and last inclusive
-   are not already set.
- - Ensure that for Delete gates of the format @delete(first, last), we have (last > first).
- - Ensure that when deleting contiguous space wires (previously allocated with @new), the first and
-   the last parameters match the preceding new directive.
+Plugin declaration Validation
+ - Ensure that all declared plugin names match STRING_REGEX
 
-WireRange Validation
- - Ensure that for WireRange(first, last) that (last > first).
+Conversion declaration Validation
+ - Ensure that for each conversion declaration, input and output types have been defined in types and are Field types
+ - Ensure that for each conversion declaration, input and output counts are strictly greater than 0
+
+Count Validation
+ - Ensure that Count.count is strictly greater than 0
+ - Ensure that Count.type is defined in types
+
+Function declaration Validation
+ - Ensure that the function name matches STRING_REGEX
+ - Ensure that input and output counts are correct
+   - Count.count is strictly greated than 0
+   - Count.type is defined in types
+ - Ensure for Plugin function, that
+     - plugin name has been declared
+     - name, operation and string parameters match STRING_REGEX
+     - numerical parameters match INTEGER_REGEX
+
+Standard Gate Validation (@add, @mul, @addc, @mulc, @copy, @constant, @assert_zero)
+ - Ensure that the type index refers to a Field type
+ - Ensure that constants given in @addc/@mulc/@constant are actual type elements
+   (i.e. the encoded value is strictly smaller than the type modulo)
+ - Ensure that input wires of gates map to an already set variable.
+ - Ensure that output wires of gates are unset and have not been previously deleted (Single Static Assignment)
+
+Memory Management Validation
+ - Ensure for New/Delete gates of the format @new/delete(type_id, first, last), that we have (last >= first).
+ - Ensure for New gates of the format @new(type_id, first, last), that all wires between first and
+   last inclusive are not already allocated, set or have not been previously deleted.
+ - Ensure for Delete gates of the format @delete(type_id, first, last), that all wires between first
+   and last inclusive are previously been set and have not been previously deleted.
+ - Ensure that no Delete gate deallocates only part of an allocation. 
+
+WireRange Validation (used in @convert and @call gates)
+ - Ensure for WireRange(first, last) that (last >= first).
+
+Convert Gate Validation
+ - Ensure that each convert gate maps to a declared conversion
+ - Ensure that input and output types are Field types
+ - Ensure that input wires are set
+ - Ensure that input wires are part of a single allocation
+ - Ensure that output wires are unset and have not been previously deleted
+ - Ensure that output wires are either part of a single allocation or are all unallocated
+   (if they are unallocated, the output range will be implicitly allocated as with @new gate)
+
+Call Gate Validation
+ - Ensure that each call gate maps to a declared function
+ - Ensure that input wires are set
+ - Ensure for each input range, that wires are part of a single allocation
+ - Ensure that output wires are unset and have not been previously deleted
+ - Ensure for each output range, that wires are either part of a single allocation or are all unallocated
+   (if they are unallocated, the output range will be implicitly allocated as with @new gate)
 ";
 
 #[derive(Clone, Default)]
@@ -63,18 +113,18 @@ pub struct Validator {
     public_inputs_counts: HashMap<ValidatorType, u64>,
     private_inputs_counts: HashMap<ValidatorType, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
+    deleted_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
     allocations: HashSet<(TypeId, WireId, WireId)>,
 
-    got_header: bool,
-    header_version: String,
+    version: String,
 
     types: Vec<ValidatorType>,
 
     known_plugins: HashSet<String>,
+    known_conversions: HashSet<Conversion>,
     // name => (output_count, input_count, public_count, private_count)
     known_functions: HashMap<String, FunctionCounts>,
-    known_conversions: HashSet<Conversion>,
 
     violations: Vec<String>,
 }
@@ -111,10 +161,6 @@ impl Validator {
         self.violations
     }
 
-    pub fn get_strict_violations(&self) -> &Vec<String> {
-        &self.violations
-    }
-
     pub fn how_many_violations(&self) -> usize {
         self.violations.len()
     }
@@ -127,80 +173,14 @@ impl Validator {
         }
     }
 
-    fn ingest_header(&mut self, version: &str, types: &[Type]) {
-        if self.got_header {
-            // in this case, ensure that headers are compatible
-            if self.types.len() != types.len() {
-                self.violate("The types are not consistent across resources.");
-            }
-            let equal_types =
-                self.types
-                    .iter()
-                    .zip(types.iter())
-                    .all(
-                        |(previous_type, new_type)| match (previous_type, new_type) {
-                            (ValidatorType::Field(previous_modulo), Type::Field(new_modulo)) => {
-                                previous_modulo == &value_to_biguint(new_modulo)
-                            }
-                            (
-                                ValidatorType::PluginType(
-                                    previous_name,
-                                    previous_operation,
-                                    previous_params,
-                                ),
-                                Type::PluginType(new_name, new_operation, new_params),
-                            ) => {
-                                previous_name == new_name
-                                    && previous_operation == new_operation
-                                    && previous_params == new_params
-                            }
-                            (ValidatorType::Field(_), Type::PluginType(_, _, _)) => false,
-                            (ValidatorType::PluginType(_, _, _), Type::Field(_)) => false,
-                        },
-                    );
-            if !equal_types {
-                self.violate("The types are not consistent across resources.");
-            }
-
-            if self.header_version != *version {
-                self.violate("The profile version is not consistent across resources.");
-            }
-        } else {
-            self.got_header = true;
-
-            // Check validity of type values
-            for type_value in types {
-                match type_value {
-                    Type::Field(modulo) => {
-                        let biguint_modulo = value_to_biguint(modulo);
-                        self.types
-                            .push(ValidatorType::Field(biguint_modulo.clone()));
-                        if biguint_modulo.cmp(&One::one()) != Ordering::Greater {
-                            self.violate("All Field type should have a modulo > 1");
-                        }
-                        if !is_probably_prime(modulo) {
-                            self.violate("All Field type should should have a prime modulo.")
-                        }
-                    }
-                    Type::PluginType(name, operation, params) => self.types.push(
-                        ValidatorType::PluginType(name.clone(), operation.clone(), params.clone()),
-                    ),
-                };
-            }
-
-            // check version
-            let re = Regex::new(VERSION_REGEX).unwrap();
-            if !re.is_match(version.trim()) {
-                self.violate("The profile version should match the following format <major>.<minor>.<patch>.");
-            }
-            self.header_version = version.to_string();
-        }
-    }
-
     pub fn ingest_public_inputs(&mut self, public_inputs: &PublicInputs) {
-        // If the type is a Field, ensure that all values belong to this field.
+        // Check version
+        self.check_version(&public_inputs.version);
+
+        // Convert Type into ValidatorType and check inputs if the type is a Field type
         let validator_type = match &public_inputs.type_value {
             Type::Field(modulo) => {
+                // If the type is a Field, ensure that all values belong to this field.
                 let biguint_modulo = value_to_biguint(modulo);
                 let validator_type = ValidatorType::Field(biguint_modulo);
                 public_inputs.inputs.iter().for_each(|value| {
@@ -214,6 +194,12 @@ impl Validator {
                 ValidatorType::PluginType(name.clone(), operation.clone(), params.clone())
             }
         };
+
+        // Check ValidatorType
+        // (normally, we ingest public inputs before ingesting relations. Thus, no plugin has already
+        // been declared)
+        self.check_validator_type(&validator_type);
+
         // Update public_inputs_counts
         let count = self.public_inputs_counts.entry(validator_type).or_insert(0);
         *count += public_inputs.inputs.len() as u64;
@@ -224,9 +210,13 @@ impl Validator {
             self.violate("As verifier, got an unexpected PrivateInputs message.");
         }
 
-        // If the type is a Field, ensure that all values belong to this field.
+        // Check version
+        self.check_version(&private_inputs.version);
+
+        // Convert Type into ValidatorType and check inputs if the type is a Field type
         let validator_type = match &private_inputs.type_value {
             Type::Field(modulo) => {
+                // If the type is a Field, ensure that all values belong to this field.
                 let biguint_modulo = value_to_biguint(modulo);
                 let validator_type = ValidatorType::Field(biguint_modulo);
                 private_inputs.inputs.iter().for_each(|value| {
@@ -240,6 +230,12 @@ impl Validator {
                 ValidatorType::PluginType(name.clone(), operation.clone(), params.clone())
             }
         };
+
+        // Check ValidatorType
+        // (normally, we ingest public inputs before ingesting relations. Thus, no plugin has already
+        // been declared)
+        self.check_validator_type(&validator_type);
+
         // Update private_inputs_counts
         let count = self
             .private_inputs_counts
@@ -249,15 +245,79 @@ impl Validator {
     }
 
     pub fn ingest_relation(&mut self, relation: &Relation) {
-        self.ingest_header(&relation.version, &relation.types);
+        // Check version
+        self.check_version(&relation.version);
 
-        relation.plugins.iter().for_each(|plugin| {
-            self.known_plugins.insert(plugin.clone());
-        });
-
-        relation.conversions.iter().for_each(|conversion| {
-            self.known_conversions.insert(conversion.clone());
-        });
+        // If it is the first relation (types is empty), we have to check and ingest types, plugins and conversions
+        if self.types.is_empty() {
+            // Check and ingest plugins
+            relation.plugins.iter().for_each(|plugin_name| {
+                // Check plugin name
+                let re_str = Regex::new(NAMES_REGEX).unwrap();
+                if !re_str.is_match(plugin_name) {
+                    self.violate(format!(
+                        "The plugin name ({}) should match the proper format ({}).",
+                        plugin_name, NAMES_REGEX
+                    ));
+                }
+                // Insert plugin name into known_plugins
+                self.known_plugins.insert(plugin_name.clone());
+            });
+            // Check and ingest types
+            relation.types.iter().for_each(|ir_type| {
+                // Convert IR type into ValidatorType
+                let validator_type = match &ir_type {
+                    Type::Field(modulo) => {
+                        let biguint_modulo = value_to_biguint(modulo);
+                        ValidatorType::Field(biguint_modulo)
+                    }
+                    Type::PluginType(name, operation, params) => {
+                        ValidatorType::PluginType(name.clone(), operation.clone(), params.clone())
+                    }
+                };
+                // Check type
+                if !self.check_validator_type(&validator_type) {
+                    self.violate(
+                        "When declaring a Plugin type, the plugin name should be declared",
+                    );
+                }
+                // Insert ValidatorType into types
+                self.types.push(validator_type);
+            });
+            // Check and ingest conversions
+            relation.conversions.iter().for_each(|conversion| {
+                // Check conversion
+                // Check input type is defined and is a Field type
+                self.ensure_field_type(&conversion.input_count.type_id);
+                // Check output type is defined and is a Field type
+                self.ensure_field_type(&conversion.output_count.type_id);
+                // Check input count > 0
+                if conversion.input_count.count == 0 {
+                    self.violate(
+                        "When declaring a conversion, the input count should be strictly greater than 0.",
+                    );
+                }
+                // Check output count > 0
+                if conversion.output_count.count == 0 {
+                    self.violate(
+                        "When declaring a conversion, the output count should be strictly greater than 0.",
+                    );
+                }
+                // Insert conversion into conversions
+                self.known_conversions.insert(conversion.clone());
+            });
+        } else {
+            // It is not the first relation that we ingest, plugins, types and conversion must be empty
+            if !relation.plugins.is_empty() {
+                self.violate("It is not the first ingested relation, plugins should be empty.");
+            }
+            if !relation.types.is_empty() {
+                self.violate("It is not the first ingested relation, types should be empty.");
+            }
+            if !relation.conversions.is_empty() {
+                self.violate("It is not the first ingested relation, conversions should be empty.");
+            }
+        }
 
         for directive in relation.directives.iter() {
             match directive {
@@ -277,6 +337,14 @@ impl Validator {
                         ));
                     }
 
+                    // Check input_count
+                    input_count.iter().for_each(|count| self.check_count(count));
+
+                    // Check output_count
+                    output_count
+                        .iter()
+                        .for_each(|count| self.check_count(count));
+
                     // Validate the body
                     let (public_count, private_count) = match &function.body {
                         FunctionBody::Gates(gates) => {
@@ -285,6 +353,27 @@ impl Validator {
                             self.ingest_custom_function(gates, &output_count, &input_count)
                         }
                         FunctionBody::PluginBody(plugin_body) => {
+                            // Check plugin name, operation and params have the correct format
+                            self.check_plugin_content(
+                                &plugin_body.name,
+                                &plugin_body.operation,
+                                &plugin_body.params,
+                            );
+
+                            // Check plugin public and private counts
+                            plugin_body
+                                .public_count
+                                .iter()
+                                .for_each(|(type_id, count)| {
+                                    self.check_count(&Count::new(*type_id, *count))
+                                });
+                            plugin_body
+                                .private_count
+                                .iter()
+                                .for_each(|(type_id, count)| {
+                                    self.check_count(&Count::new(*type_id, *count))
+                                });
+
                             // Check that the plugin name has been declared
                             if !self.known_plugins.contains(&plugin_body.name) {
                                 self.violate(format!(
@@ -299,7 +388,7 @@ impl Validator {
                         }
                     };
 
-                    // Record the signature first.
+                    // Record the signature
                     if self.known_functions.contains_key(&name) {
                         self.violate(format!(
                             "A function with the name '{}' already exists",
@@ -330,59 +419,66 @@ impl Validator {
 
         match gate {
             Constant(type_id, out, value) => {
+                self.ensure_field_type(type_id);
                 self.ensure_value_in_type_id(type_id, value, || {
                     "Gate::Constant constant".to_string()
                 });
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             AssertZero(type_id, inp) => {
+                self.ensure_field_type(type_id);
                 self.ensure_defined_and_set(type_id, *inp);
             }
 
             Copy(type_id, out, inp) => {
+                self.ensure_field_type(type_id);
                 self.ensure_defined_and_set(type_id, *inp);
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             Add(type_id, out, left, right) => {
+                self.ensure_field_type(type_id);
                 self.ensure_defined_and_set(type_id, *left);
                 self.ensure_defined_and_set(type_id, *right);
 
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             Mul(type_id, out, left, right) => {
+                self.ensure_field_type(type_id);
                 self.ensure_defined_and_set(type_id, *left);
                 self.ensure_defined_and_set(type_id, *right);
 
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             AddConstant(type_id, out, inp, constant) => {
+                self.ensure_field_type(type_id);
                 self.ensure_value_in_type_id(type_id, constant, || {
                     format!("Gate::AddConstant_{}", *out)
                 });
                 self.ensure_defined_and_set(type_id, *inp);
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             MulConstant(type_id, out, inp, constant) => {
+                self.ensure_field_type(type_id);
                 self.ensure_value_in_type_id(type_id, constant, || {
                     format!("Gate::MulConstant_{}", *out)
                 });
                 self.ensure_defined_and_set(type_id, *inp);
-                self.ensure_undefined_and_set(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
             }
 
             Public(type_id, out) => {
-                self.declare(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
                 // Consume value.
                 self.consume_public_inputs(type_id, 1);
             }
 
             Private(type_id, out) => {
-                self.declare(type_id, *out);
+                self.ensure_undefined_not_deleted_and_set(type_id, *out);
                 // Consume value.
                 self.consume_private_inputs(type_id, 1);
             }
@@ -395,15 +491,17 @@ impl Validator {
                         *last, *first
                     ));
                 }
+                // Ensure wires have not already been deleted and are not already set
+                (*first..=*last).for_each(|wire_id| {
+                    self.ensure_not_deleted(type_id, wire_id);
+                    self.ensure_undefined(type_id, wire_id)
+                });
+
                 // Ensure wires have not already been allocated
                 if self.belong_to_allocations(type_id, first, last) {
                     self.violate("For New gates, wires should not have already been allocated.");
                 }
 
-                // Ensure wires are not already set
-                for wire_id in *first..=*last {
-                    self.ensure_undefined(type_id, wire_id);
-                }
                 // Add this new wire range into wire_allocations
                 self.allocations.insert((*type_id, *first, *last));
             }
@@ -436,7 +534,7 @@ impl Validator {
 
                 // For all wires between first and last INCLUSIVE
                 // - check that they are already set
-                // - delete them
+                // - remove them (i.e. remove them from live_wires and add them into deleted_wires)
                 for wire_id in *first..=*last {
                     self.ensure_defined_and_set(type_id, wire_id);
                     self.remove(type_id, wire_id);
@@ -451,6 +549,9 @@ impl Validator {
                 in_first_id,
                 in_last_id,
             ) => {
+                self.ensure_field_type(out_type_id);
+                self.ensure_field_type(in_type_id);
+
                 // Check that out_ids is not empty
                 if *out_first_id > *out_last_id {
                     self.violate(format!(
@@ -482,14 +583,19 @@ impl Validator {
                     ))
                 }
 
-                // Check inputs are already set
+                // Ensure inputs are already set
                 (*in_first_id..=*in_last_id)
                     .for_each(|wire_id| self.ensure_defined_and_set(in_type_id, wire_id));
 
-                // Check inputs belong to a single allocation
+                // Ensure inputs belong to a single allocation
                 if !self.belong_to_a_single_allocation(in_type_id, in_first_id, in_last_id) {
                     self.violate("Gate::Convert: all inputs do not belong to the same allocation)")
                 }
+
+                // Ensure that output wires are unset, have not already been deleted and set them
+                (*out_first_id..=*out_last_id).for_each(|wire_id| {
+                    self.ensure_undefined_not_deleted_and_set(out_type_id, wire_id)
+                });
 
                 // Check that all outputs belong to a single allocation or no output belongs to an allocation
                 // If no output belongs to allocations, add this output WireRange to the list of allocations
@@ -505,22 +611,20 @@ impl Validator {
                             .insert((*out_type_id, *out_first_id, *out_last_id));
                     }
                 }
-
-                // Set the output wires as defined
-                (*out_first_id..=*out_last_id)
-                    .for_each(|wire_id| self.ensure_undefined_and_set(out_type_id, wire_id));
             }
 
             Call(name, out_ids, in_ids) => {
-                // - Check exists
-                // - Outputs and inputs match function signature
-                // - define outputs, check inputs
-                // - consume public/private inputs.
+                // Check input and output WireRanges
+                out_ids
+                    .iter()
+                    .for_each(|wire_range| self.check_wire_range(wire_range));
+                in_ids
+                    .iter()
+                    .for_each(|wire_range| self.check_wire_range(wire_range));
 
                 // Check that function is declared and retrieve its parameters
                 let function_counts_result =
                     FunctionCounts::get_function_counts(&self.known_functions, name);
-
                 match function_counts_result {
                     Err(_) => self.violate(format!("Unknown Function gate {}", name)),
                     Ok(func_counts) => {
@@ -551,15 +655,17 @@ impl Validator {
                         self.consume_public_count(&func_counts.public_count);
                         self.consume_private_count(&func_counts.private_count);
 
-                        // Set the output wires as defined and check out_ids WireRange allocations
+                        // Ensure that the output wires have not already been deleted
+                        // Set the output wires as defined
+                        // Check out_ids WireRange allocations
                         let out_ids_with_types_result =
                             add_types_to_wire_ranges(out_ids, &func_counts.output_count);
                         if let Ok(out_ids_with_types) = out_ids_with_types_result {
-                            // Set the output wires as defined
                             out_ids_with_types.iter().for_each(|wire_range_with_type| {
                                 (wire_range_with_type.first_id..=wire_range_with_type.last_id)
                                     .for_each(|wire_id| {
-                                        self.ensure_undefined_and_set(
+                                        // Ensure that output wires are unset, have not already been deleted and set them
+                                        self.ensure_undefined_not_deleted_and_set(
                                             &wire_range_with_type.type_id,
                                             wire_id,
                                         );
@@ -681,9 +787,9 @@ impl Validator {
                 HashMap::new()
             },
             live_wires: Default::default(),
+            deleted_wires: Default::default(),
             allocations: Default::default(),
-            got_header: self.got_header,
-            header_version: self.header_version.clone(),
+            version: self.version.clone(),
             types: self.types.clone(),
             known_plugins: self.known_plugins.clone(),
             known_conversions: self.known_conversions.clone(),
@@ -731,6 +837,7 @@ impl Validator {
         if !self.live_wires.remove(&(*type_id, id)) {
             self.violate(format!("The variable ({}: {}) is being deleted, but was not defined previously, or has been already deleted", *type_id,id));
         }
+        self.deleted_wires.insert((*type_id, id));
     }
 
     fn consume_inputs(
@@ -821,10 +928,42 @@ impl Validator {
         }
     }
 
-    fn ensure_undefined_and_set(&mut self, type_id: &TypeId, id: WireId) {
+    /// This function ensures that type is defined and is a Field type
+    fn ensure_field_type(&mut self, type_id: &TypeId) {
+        let type_option = self.types.get(usize::try_from(*type_id).unwrap());
+        match type_option {
+            Some(validator_type) => match validator_type {
+                ValidatorType::Field(_) => (),
+                ValidatorType::PluginType(_, _, _) => {
+                    self.violate(
+                        "Standard and conversion gates should be used with Field type only",
+                    );
+                }
+            },
+            None => {
+                self.violate(format!("Type id {} is not defined.", *type_id));
+            }
+        };
+    }
+
+    /// This function
+    /// - ensures that (type_id, id) is undefined
+    /// - ensures that (type_id, id) has not already been deleted
+    /// - deines (type_id, id)
+    fn ensure_undefined_not_deleted_and_set(&mut self, type_id: &TypeId, id: WireId) {
         self.ensure_undefined(type_id, id);
+        self.ensure_not_deleted(type_id, id);
         // define it.
         self.declare(type_id, id);
+    }
+
+    fn ensure_not_deleted(&mut self, type_id: &TypeId, id: WireId) {
+        if self.deleted_wires.contains(&(*type_id, id)) {
+            self.violate(format!(
+                "The wire ({}: {}) has been deleted before. It is no longer possible to re-use it.",
+                *type_id, id
+            ));
+        }
     }
 
     /// This function checks that the `value` belong to the type `type_id`.
@@ -929,6 +1068,96 @@ impl Validator {
             }
         }
         false
+    }
+
+    /// This function performs the following checks
+    /// - name, operation and string parameters match the NAMES_REGEX
+    /// - numerical parameters match the NUMERICAL_REGEX
+    fn check_plugin_content(&mut self, name: &str, operation: &str, params: &[String]) {
+        let re_str = Regex::new(NAMES_REGEX).unwrap();
+        let re_num = Regex::new(NUMERICAL_REGEX).unwrap();
+        if !re_str.is_match(name) {
+            self.violate(format!(
+                "The plugin name ({}) should match the proper format ({}).",
+                name, NAMES_REGEX
+            ));
+        }
+        if !re_str.is_match(operation) {
+            self.violate(format!(
+                "The plugin operation ({}) should match the proper format ({}).",
+                operation, NAMES_REGEX
+            ));
+        }
+        params.iter().for_each(|param| {
+            if !(re_str.is_match(param) || re_num.is_match(param)) {
+                self.violate(format!(
+                    "Each plugin param ({}) should match the proper format ({} or {}).",
+                    param, NAMES_REGEX, NUMERICAL_REGEX
+                ));
+            }
+        });
+    }
+
+    /// The function performs the following checks on a ValidatorType
+    /// Ensure that for Field type, modulo is prime
+    /// Ensure for Plugin type, that
+    /// - name, operation and string parameters have the correct format
+    ///   (i.e. matches the following regular expression “^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$“)
+    /// - numerical parameters have the correct format
+    ///   (i.e. matches the following regular expression “^[1-9][0-9]*$“)
+    /// This function returns
+    /// - for Field type, true
+    /// - for Plugin type, true if the plugin name has been declared and false otherwise
+    fn check_validator_type(&mut self, validator_type: &ValidatorType) -> bool {
+        match validator_type {
+            ValidatorType::Field(modulo) => {
+                if !is_probably_prime(modulo) {
+                    self.violate("All Field type should have a prime modulo.")
+                }
+                true
+            }
+            ValidatorType::PluginType(name, operation, params) => {
+                self.check_plugin_content(name, operation, params);
+                self.known_plugins.contains(name)
+            }
+        }
+    }
+
+    /// This function
+    /// - if there is no version, stores version in self.version and ensures that version matches VERSION_REGEX
+    /// - If there is a version, check that self.version and version are identical
+    fn check_version(&mut self, version: &str) {
+        if self.version.is_empty() {
+            let re_version = Regex::new(VERSION_REGEX).unwrap();
+            if !re_version.is_match(version) {
+                self.violate(format!(
+                    "The version ({}) should match the proper format ({}).",
+                    version, VERSION_REGEX
+                ));
+            }
+            self.version = version.to_string();
+        } else if self.version != *version {
+            self.violate("The version is not consistent across resources.");
+        }
+    }
+
+    /// This function ensures that
+    /// - the type in count has been defined
+    /// - the count in count is strictly greater than 0
+    fn check_count(&mut self, count: &Count) {
+        if (count.type_id as usize) >= self.types.len() {
+            self.violate("In a Count, count.type_id is not defined.");
+        }
+        if count.count == 0 {
+            self.violate("In a Count, count.count should be strictly greater than 0.");
+        }
+    }
+
+    /// This function ensures that wire_range.first_id <= wire_range.last_id
+    fn check_wire_range(&mut self, wire_range: &WireRange) {
+        if wire_range.first_id > wire_range.last_id {
+            self.violate("In a WireRange, last_id should be greater than first_id.");
+        }
     }
 }
 
@@ -1188,4 +1417,24 @@ fn test_validator_convert_violations() {
             "Gate::Convert: used an undeclared conversion Conversion(0:1, 1:1)",
         ]
     );
+}
+
+pub fn is_probably_prime(value: &BigUint) -> bool {
+    let value = num_bigint_dig::BigUint::from_bytes_le(&value.to_bytes_le());
+    probably_prime(&value, 10)
+}
+
+#[test]
+fn test_is_probably_prime() {
+    let value = BigUint::from_bytes_le(&[187]); // 187=11*17
+    assert!(!is_probably_prime(&value));
+
+    let value = BigUint::from_bytes_le(&[101]);
+    assert!(is_probably_prime(&value));
+
+    let value = BigUint::from_bytes_le(&[1]);
+    assert!(!is_probably_prime(&value));
+
+    let value = BigUint::from_bytes_le(&[0]);
+    assert!(!is_probably_prime(&value));
 }

@@ -904,7 +904,11 @@ impl ZKBackend for PlaintextBackend {
 
         // Take the modulo (to avoid overflow)
         // number = number mod  (output_modulo ^ output_wire_count)
-        number %= Pow::pow(output_modulo, output_wire_count);
+        let modulo = Pow::pow(output_modulo, output_wire_count);
+        if number >= modulo {
+            println!("WARNING: overflow during a conversion")
+        }
+        number %= modulo;
 
         // Convert BigUint value into output elements
         let mut result = vec![];

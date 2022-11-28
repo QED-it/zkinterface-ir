@@ -28,7 +28,7 @@ impl<S: Sink> FromR1CSConverter<S> {
     /// the ZKI CircuitHeader will be used to preallocate things
     pub fn new(sink: S, zki_header: &zkiCircuitHeader) -> Self {
         let mut conv = Self {
-            b: GateBuilder::new(sink, &zki_header_to_types(zki_header).unwrap()),
+            b: GateBuilder::new(sink, &[], &zki_header_to_types(zki_header).unwrap(), &[]),
             r1cs_to_ir_wire: Default::default(),
             minus_one: 0,
         };
