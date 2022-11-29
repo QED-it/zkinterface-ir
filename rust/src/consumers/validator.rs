@@ -1162,7 +1162,7 @@ impl Validator {
 }
 
 #[test]
-fn test_validator() -> crate::Result<()> {
+fn test_validator() {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -1180,12 +1180,10 @@ fn test_validator() -> crate::Result<()> {
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
-
-    Ok(())
 }
 
 #[test]
-fn test_validator_as_verifier() -> crate::Result<()> {
+fn test_validator_as_verifier() {
     use crate::producers::examples::*;
 
     let public_inputs = example_public_inputs();
@@ -1199,12 +1197,10 @@ fn test_validator_as_verifier() -> crate::Result<()> {
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
-
-    Ok(())
 }
 
 #[test]
-fn test_validator_violations() -> crate::Result<()> {
+fn test_validator_violations() {
     use crate::structs::IR_VERSION;
 
     let public_inputs = PublicInputs {
@@ -1245,12 +1241,10 @@ fn test_validator_violations() -> crate::Result<()> {
             "Not enough private input value to consume.",
         ]
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_validator_delete_violations() -> crate::Result<()> {
+fn test_validator_delete_violations() {
     use crate::producers::simple_examples::*;
 
     let public_inputs = simple_example_public_inputs();
@@ -1278,12 +1272,10 @@ fn test_validator_delete_violations() -> crate::Result<()> {
             "The wire (0: 4) is used but was not assigned a value, or has been deleted already.",
         ]
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_validator_memory_management_violations() -> crate::Result<()> {
+fn test_validator_memory_management_violations() {
     use crate::structs::function::Function;
     use crate::structs::plugin::PluginBody;
     use crate::structs::wirerange::WireRange;
@@ -1387,8 +1379,6 @@ fn test_validator_memory_management_violations() -> crate::Result<()> {
             "Call: all wires in an input WireRange should belong to the same allocation"
         ]
     );
-
-    Ok(())
 }
 
 #[test]
@@ -1457,4 +1447,73 @@ fn test_is_probably_prime() {
 
     let value = BigUint::from_bytes_le(&[0]);
     assert!(!is_probably_prime(&value));
+}
+
+#[test]
+fn test_validator_with_functions_with_several_input_output_types() {
+    use crate::structs::function::Function;
+    use crate::structs::IR_VERSION;
+
+    let public_inputs = PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![3], vec![5], vec![5]],
+    };
+    let private_inputs = PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![101]),
+        inputs: vec![vec![10], vec![20], vec![100]],
+    };
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![Type::Field(vec![7]), Type::Field(vec![101])],
+        conversions: vec![
+            Conversion::new(Count::new(0, 1), Count::new(1, 1)),
+            Conversion::new(Count::new(1, 1), Count::new(0, 1)),
+        ],
+        directives: vec![
+            Directive::Gate(Gate::New(0, 0, 1)),
+            Directive::Gate(Gate::New(1, 0, 1)),
+            Directive::Gate(Gate::Public(0, 0)),
+            Directive::Gate(Gate::Public(0, 1)),
+            Directive::Gate(Gate::Private(1, 0)),
+            Directive::Gate(Gate::Private(1, 1)),
+            Directive::Function(Function::new(
+                "custom".to_string(),
+                vec![Count::new(0, 1), Count::new(1, 1)],
+                vec![Count::new(0, 2), Count::new(1, 2)],
+                FunctionBody::Gates(vec![
+                    // 3 + 5 = 1 mod 7
+                    Gate::Add(0, 3, 1, 2),
+                    // 1 mod 7 -> 1 mod 101
+                    Gate::Convert(1, 0, 0, 0, 3, 3),
+                    // 10 + 20 = 30 mod 101
+                    Gate::Add(1, 3, 1, 2),
+                    // 30 mod 101 -> 2 mod 7
+                    Gate::Convert(0, 0, 0, 1, 3, 3),
+                ]),
+            )),
+            Directive::Gate(Gate::Call(
+                "custom".to_string(),
+                vec![WireRange::new(2, 2), WireRange::new(2, 2)],
+                vec![WireRange::new(0, 1), WireRange::new(0, 1)],
+            )),
+            Directive::Gate(Gate::Public(0, 3)),
+            Directive::Gate(Gate::Add(0, 4, 2, 3)),
+            Directive::Gate(Gate::AssertZero(0, 4)),
+            Directive::Gate(Gate::Private(1, 3)),
+            Directive::Gate(Gate::Add(1, 4, 2, 3)),
+            Directive::Gate(Gate::AssertZero(1, 4)),
+            Directive::Gate(Gate::Delete(0, 0, 4)),
+            Directive::Gate(Gate::Delete(1, 0, 4)),
+        ],
+    };
+
+    let mut validator = Validator::new_as_prover();
+    validator.ingest_public_inputs(&public_inputs);
+    validator.ingest_private_inputs(&private_inputs);
+    validator.ingest_relation(&relation);
+
+    assert_eq!(validator.get_violations(), Vec::<String>::new());
 }
