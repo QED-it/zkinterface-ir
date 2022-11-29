@@ -210,7 +210,6 @@ fn write_example(
         );
     } else {
         let mut sink = FilesSink::new_clean(out_dir)?;
-        sink.print_filenames();
         public_inputs
             .iter()
             .try_for_each(|inputs| sink.push_public_inputs_message(inputs))?;
@@ -218,6 +217,7 @@ fn write_example(
             .iter()
             .try_for_each(|inputs| sink.push_private_inputs_message(inputs))?;
         sink.push_relation_message(relation)?;
+        sink.print_filenames();
     }
     Ok(())
 }

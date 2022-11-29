@@ -25,7 +25,6 @@ Rust:
 - in FBS, rename some field names in gates
 - in FBS, replace WireList by [WireRange] and remove type_id from WireRange
 - add conversion declarations in Relation
-- split public/private inputs files into one file per type
 - update conversion to be compliant with the last version of the specs
 - add plugin types
 - update validity checks on memory management
@@ -33,6 +32,7 @@ Rust:
 - rename Public/PrivateInput gates by Public/Private
 - replace table by struct for WireRange in Flatbuffers schema
 - update validator with all new validity checks
+- split public/private inputs files into one file per type
 
 # SIEVE IR v1.0.1, 2022-08
 
