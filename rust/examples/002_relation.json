@@ -1,592 +1,584 @@
 {
   message_type: "Relation",
   message: {
-    header: {
-      version: "1.0.0",
-      field_characteristic: {
-        value: [
-          101
-        ]
-      },
-      field_degree: 1
-    },
-    gateset: "@add,@mul,@mulc,",
-    features: "@for,@switch,@function,",
-    functions: [
+    version: "2.0.0",
+    plugins: [
+      "vector",
+      "assert_equal",
+      "ring"
+    ],
+    types: [
       {
-        name: "com.example::mul",
-        output_count: 1,
-        input_count: 2,
-        body: [
-          {
-            directive_type: "GateMul",
-            directive: {
-              output: {
-              },
-              left: {
-                id: 1
-              },
-              right: {
-                id: 2
-              }
-            }
+        element_type: "Field",
+        element: {
+          modulo: {
+            value: [
+              7
+            ]
           }
-        ]
+        }
+      },
+      {
+        element_type: "Field",
+        element: {
+          modulo: {
+            value: [
+              101
+            ]
+          }
+        }
+      },
+      {
+        element_type: "PluginType",
+        element: {
+          name: "ring",
+          operation: "type",
+          params: [
+            "2",
+            "8"
+          ]
+        }
+      }
+    ],
+    conversions: [
+      {
+        output_count: {
+          type_id: 1,
+          count: 1
+        },
+        input_count: {
+          type_id: 0,
+          count: 1
+        }
       }
     ],
     directives: [
       {
-        directive_type: "GateWitness",
+        directive_type: "Function",
         directive: {
-          output: {
-            id: 1
-          }
-        }
-      },
-      {
-        directive_type: "GateSwitch",
-        directive: {
-          condition: {
-            id: 1
-          },
-          output_wires: {
-            elements: [
-              {
-                element_type: "Wire",
-                element: {
-                }
-              },
-              {
-                element_type: "Wire",
-                element: {
-                  id: 2
-                }
-              },
-              {
-                element_type: "WireRange",
-                element: {
-                  first: {
-                    id: 4
-                  },
-                  last: {
-                    id: 6
-                  }
-                }
-              },
-              {
-                element_type: "WireRange",
-                element: {
-                  first: {
-                    id: 9
-                  },
-                  last: {
-                    id: 11
-                  }
-                }
-              }
-            ]
-          },
-          cases: [
+          name: "assert_equal_private",
+          output_count: [
+
+          ],
+          input_count: [
             {
-              value: [
-                3
-              ]
-            },
-            {
-              value: [
-                5
-              ]
+              type_id: 1,
+              count: 1
             }
           ],
-          branches: [
-            {
-              invocation_type: "AbstractAnonCall",
-              invocation: {
-                input_wires: {
-                  elements: [
-                    {
-                      element_type: "Wire",
-                      element: {
-                        id: 1
-                      }
-                    }
-                  ]
-                },
-                instance_count: 3,
-                witness_count: 2,
-                subcircuit: [
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateWitness",
-                    directive: {
-                      output: {
-                        id: 1
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateCall",
-                    directive: {
-                      name: "com.example::mul",
-                      output_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 2
-                            }
-                          }
-                        ]
-                      },
-                      input_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 8
-                            }
-                          },
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 8
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateCall",
-                    directive: {
-                      name: "com.example::mul",
-                      output_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 3
-                            }
-                          }
-                        ]
-                      },
-                      input_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 1
-                            }
-                          },
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 1
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateAdd",
-                    directive: {
-                      output: {
-                        id: 4
-                      },
-                      left: {
-                        id: 2
-                      },
-                      right: {
-                        id: 3
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateWitness",
-                    directive: {
-                      output: {
-                        id: 5
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                        id: 6
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                        id: 7
-                      }
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              invocation_type: "AbstractAnonCall",
-              invocation: {
-                input_wires: {
-                  elements: [
-                    {
-                      element_type: "Wire",
-                      element: {
-                        id: 1
-                      }
-                    }
-                  ]
-                },
-                instance_count: 3,
-                witness_count: 2,
-                subcircuit: [
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateCall",
-                    directive: {
-                      name: "com.example::mul",
-                      output_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 1
-                            }
-                          }
-                        ]
-                      },
-                      input_wires: {
-                        elements: [
-                          {
-                            element_type: "Wire",
-                            element: {
-                              id: 8
-                            }
-                          },
-                          {
-                            element_type: "Wire",
-                            element: {
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateWitness",
-                    directive: {
-                      output: {
-                        id: 2
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateMul",
-                    directive: {
-                      output: {
-                        id: 3
-                      },
-                      left: {
-                        id: 1
-                      },
-                      right: {
-                        id: 2
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateAdd",
-                    directive: {
-                      output: {
-                        id: 4
-                      },
-                      left: {
-                        id: 2
-                      },
-                      right: {
-                        id: 3
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                        id: 5
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateInstance",
-                    directive: {
-                      output: {
-                        id: 6
-                      }
-                    }
-                  },
-                  {
-                    directive_type: "GateWitness",
-                    directive: {
-                      output: {
-                        id: 7
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      {
-        directive_type: "GateConstant",
-        directive: {
-          output: {
-            id: 3
-          },
-          constant: [
-            100,
-            0,
-            0,
-            0
-          ]
-        }
-      },
-      {
-        directive_type: "GateCall",
-        directive: {
-          name: "com.example::mul",
-          output_wires: {
-            elements: [
+          body_type: "PluginBody",
+          body: {
+            name: "assert_equal",
+            operation: "private",
+            params: [
+              "1",
+              "1"
+            ],
+            public_count: [
+
+            ],
+            private_count: [
               {
-                element_type: "Wire",
-                element: {
-                  id: 7
+                type_id: 1,
+                count: 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateNew",
+          gate: {
+            type_id: 1,
+            last_id: 8
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePublic",
+          gate: {
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePrivate",
+          gate: {
+            out_id: 1
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePrivate",
+          gate: {
+            out_id: 2
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateConvert",
+          gate: {
+            out_type_id: 1
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateConvert",
+          gate: {
+            out_type_id: 1,
+            out_first_id: 1,
+            out_last_id: 1,
+            in_first_id: 1,
+            in_last_id: 1
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateConvert",
+          gate: {
+            out_type_id: 1,
+            out_first_id: 2,
+            out_last_id: 2,
+            in_first_id: 2,
+            in_last_id: 2
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateDelete",
+          gate: {
+            last_id: 2
+          }
+        }
+      },
+      {
+        directive_type: "Function",
+        directive: {
+          name: "square",
+          output_count: [
+            {
+              type_id: 1,
+              count: 1
+            }
+          ],
+          input_count: [
+            {
+              type_id: 1,
+              count: 1
+            }
+          ],
+          body_type: "Gates",
+          body: {
+            gates: [
+              {
+                gate_type: "GateMul",
+                gate: {
+                  type_id: 1,
+                  left_id: 1,
+                  right_id: 1
                 }
               }
             ]
-          },
-          input_wires: {
-            elements: [
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateCall",
+          gate: {
+            name: "square",
+            out_ids: [
               {
-                element_type: "Wire",
-                element: {
-                  id: 3
-                }
+                first_id: 3,
+                last_id: 3
+              }
+            ],
+            in_ids: [
+              {
+                first_id: 0,
+                last_id: 0
+              }
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Function",
+        directive: {
+          name: "vector_mul_7_2",
+          output_count: [
+            {
+              type_id: 1,
+              count: 2
+            }
+          ],
+          input_count: [
+            {
+              type_id: 1,
+              count: 2
+            },
+            {
+              type_id: 1,
+              count: 2
+            }
+          ],
+          body_type: "PluginBody",
+          body: {
+            name: "vector",
+            operation: "mul",
+            params: [
+              "1",
+              "2"
+            ],
+            public_count: [
+
+            ],
+            private_count: [
+
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateCall",
+          gate: {
+            name: "vector_mul_7_2",
+            out_ids: [
+              {
+                first_id: 4,
+                last_id: 5
+              }
+            ],
+            in_ids: [
+              {
+                first_id: 1,
+                last_id: 2
               },
               {
-                element_type: "Wire",
-                element: {
-                }
+                first_id: 1,
+                last_id: 2
               }
             ]
           }
         }
       },
       {
-        directive_type: "GateAdd",
+        directive_type: "Gate",
         directive: {
-          output: {
-            id: 8
-          },
-          left: {
-            id: 6
-          },
-          right: {
-            id: 7
+          gate_type: "GateAdd",
+          gate: {
+            type_id: 1,
+            out_id: 6,
+            left_id: 4,
+            right_id: 5
           }
         }
       },
       {
-        directive_type: "GateFree",
+        directive_type: "Gate",
         directive: {
-          first: {
-          },
-          last: {
-            id: 7
+          gate_type: "GateMulConstant",
+          gate: {
+            type_id: 1,
+            out_id: 7,
+            in_id: 3,
+            constant: [
+              100
+            ]
           }
         }
       },
       {
-        directive_type: "GateAssertZero",
+        directive_type: "Gate",
         directive: {
-          input: {
-            id: 8
+          gate_type: "GateAdd",
+          gate: {
+            type_id: 1,
+            out_id: 8,
+            left_id: 6,
+            right_id: 7
           }
         }
       },
       {
-        directive_type: "GateFor",
+        directive_type: "Gate",
         directive: {
-          outputs: {
-            elements: [
+          gate_type: "GateAssertZero",
+          gate: {
+            type_id: 1,
+            in_id: 8
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateCall",
+          gate: {
+            name: "assert_equal_private",
+            out_ids: [
+
+            ],
+            in_ids: [
               {
-                element_type: "WireRange",
-                element: {
-                  first: {
-                    id: 12
-                  },
-                  last: {
-                    id: 32
-                  }
-                }
+                first_id: 3,
+                last_id: 3
               }
             ]
-          },
-          iterator: "i",
-          last: 20,
-          body_type: "IterExprAnonFunction",
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateDelete",
+          gate: {
+            type_id: 1,
+            last_id: 8
+          }
+        }
+      },
+      {
+        directive_type: "Function",
+        directive: {
+          name: "ring_add",
+          output_count: [
+            {
+              type_id: 2,
+              count: 1
+            }
+          ],
+          input_count: [
+            {
+              type_id: 2,
+              count: 1
+            },
+            {
+              type_id: 2,
+              count: 1
+            }
+          ],
+          body_type: "PluginBody",
           body: {
-            outputs: {
-              elements: [
-                {
-                  element_type: "IterExprWireNumber",
-                  element: {
-                    value_type: "IterExprAdd",
-                    value: {
-                      left: {
-                        value_type: "IterExprName",
-                        value: {
-                          name: "i"
-                        }
-                      },
-                      right: {
-                        value_type: "IterExprConst",
-                        value: {
-                          value: 12
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
+            name: "ring",
+            operation: "add",
+            params: [
+              "2"
+            ],
+            public_count: [
+
+            ],
+            private_count: [
+
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Function",
+        directive: {
+          name: "ring_mul",
+          output_count: [
+            {
+              type_id: 2,
+              count: 1
+            }
+          ],
+          input_count: [
+            {
+              type_id: 2,
+              count: 1
             },
-            inputs: {
-              elements: [
-                {
-                  element_type: "IterExprWireNumber",
-                  element: {
-                    value_type: "IterExprAdd",
-                    value: {
-                      left: {
-                        value_type: "IterExprName",
-                        value: {
-                          name: "i"
-                        }
-                      },
-                      right: {
-                        value_type: "IterExprConst",
-                        value: {
-                          value: 10
-                        }
-                      }
-                    }
-                  }
-                },
-                {
-                  element_type: "IterExprWireNumber",
-                  element: {
-                    value_type: "IterExprAdd",
-                    value: {
-                      left: {
-                        value_type: "IterExprName",
-                        value: {
-                          name: "i"
-                        }
-                      },
-                      right: {
-                        value_type: "IterExprConst",
-                        value: {
-                          value: 11
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
+            {
+              type_id: 2,
+              count: 1
+            }
+          ],
+          body_type: "PluginBody",
+          body: {
+            name: "ring",
+            operation: "mul",
+            params: [
+              "2"
+            ],
+            public_count: [
+
+            ],
+            private_count: [
+
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Function",
+        directive: {
+          name: "ring_equal",
+          output_count: [
+
+          ],
+          input_count: [
+            {
+              type_id: 2,
+              count: 1
             },
-            body: [
+            {
+              type_id: 2,
+              count: 1
+            }
+          ],
+          body_type: "PluginBody",
+          body: {
+            name: "ring",
+            operation: "equal",
+            params: [
+              "2"
+            ],
+            public_count: [
+
+            ],
+            private_count: [
+
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePrivate",
+          gate: {
+            type_id: 2
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePrivate",
+          gate: {
+            type_id: 2,
+            out_id: 1
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GatePrivate",
+          gate: {
+            type_id: 2,
+            out_id: 2
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateCall",
+          gate: {
+            name: "ring_add",
+            out_ids: [
               {
-                directive_type: "GateAdd",
-                directive: {
-                  output: {
-                  },
-                  left: {
-                    id: 1
-                  },
-                  right: {
-                    id: 2
-                  }
-                }
+                first_id: 3,
+                last_id: 3
+              }
+            ],
+            in_ids: [
+              {
+                first_id: 0,
+                last_id: 0
+              },
+              {
+                first_id: 1,
+                last_id: 1
               }
             ]
           }
         }
       },
       {
-        directive_type: "GateMulConstant",
+        directive_type: "Gate",
         directive: {
-          output: {
-            id: 33
-          },
-          input: {
-            id: 32
-          },
-          constant: [
-            100,
-            0,
-            0,
-            0
-          ]
-        }
-      },
-      {
-        directive_type: "GateAdd",
-        directive: {
-          output: {
-            id: 34
-          },
-          left: {
-            id: 9
-          },
-          right: {
-            id: 33
+          gate_type: "GateCall",
+          gate: {
+            name: "ring_mul",
+            out_ids: [
+              {
+                first_id: 4,
+                last_id: 4
+              }
+            ],
+            in_ids: [
+              {
+                first_id: 2,
+                last_id: 2
+              },
+              {
+                first_id: 3,
+                last_id: 3
+              }
+            ]
           }
         }
       },
       {
-        directive_type: "GateAssertZero",
+        directive_type: "Gate",
         directive: {
-          input: {
-            id: 34
+          gate_type: "GatePublic",
+          gate: {
+            type_id: 2,
+            out_id: 5
           }
         }
       },
       {
-        directive_type: "GateFree",
+        directive_type: "Gate",
         directive: {
-          first: {
-            id: 8
-          },
-          last: {
-            id: 34
+          gate_type: "GateCall",
+          gate: {
+            name: "ring_equal",
+            out_ids: [
+
+            ],
+            in_ids: [
+              {
+                first_id: 4,
+                last_id: 4
+              },
+              {
+                first_id: 5,
+                last_id: 5
+              }
+            ]
+          }
+        }
+      },
+      {
+        directive_type: "Gate",
+        directive: {
+          gate_type: "GateDelete",
+          gate: {
+            type_id: 2,
+            last_id: 5
           }
         }
       }

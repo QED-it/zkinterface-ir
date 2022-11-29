@@ -33,6 +33,7 @@ Rust:
 - replace table by struct for WireRange in Flatbuffers schema
 - update validator with all new validity checks
 - split public/private inputs files into one file per type
+- update examples in src/examples directory
 
 # SIEVE IR v1.0.1, 2022-08
 

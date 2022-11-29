@@ -1,0 +1,34 @@
+{
+  message_type: "PrivateInputs",
+  message: {
+    version: "2.0.0",
+    type: {
+      element_type: "PluginType",
+      element: {
+        name: "ring",
+        operation: "type",
+        params: [
+          "2",
+          "8"
+        ]
+      }
+    },
+    inputs: [
+      {
+        value: [
+          5
+        ]
+      },
+      {
+        value: [
+          10
+        ]
+      },
+      {
+        value: [
+          2
+        ]
+      }
+    ]
+  }
+}
