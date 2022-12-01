@@ -1,38 +1,45 @@
 # Unreleased
 
+Schema (.fbs):
+- remove
+  - gate_set and features from Relation struct
+  - Boolean gates (and, xor, not)
+  - AnonCall gate
+  - Switch anf For loop
+  - instance/witness counts from custom function signature
+  - FieldId and use direcltly uint64
+  - Header table and move its content into Relation, PublicInputs, PrivateInputs
+  - field_id from WireRange
+  - WireList and use directly [WireRange]
+- rename
+  - Instance/Wirness by Public/Private
+  - Free gate by Delete gate
+  - FieldId by TypeId
+  - some field names in gates
+- replace
+  - field_id by tyep_id which refers to either a Field or a PluginType
+  - table by struct for WireRange
+- create
+  - Count struct to store pairs (type_id, count)
+    (Count is used in Conversion declaration, PluginBody, Function declaration)
+  - Conversion struct to store conversion declaration
+  - Directive table to store either a Gate or a Function declaration
+  - Type table to store either a Field or a PluginType
+  - PluginType table and PluginBody table to store a Plugin type and a Plugin function parameters
+- add
+  - conversions and plugins names list in Relation to declared used conversions and plugins
+  - types list in Relation to declared used types (a type is either a Field or a PluginType)
+  - type_id (ubyte) into standard gates
+  - Convert and New gates
+  - plugin function (now a Function declaration is either a custom function or a Plugin function)
+  - type into Public/PrivateInputs (we have now one Public/PrivateInputs Message per type)
+- merge functions and directives into directives
+  (now gates and functions declarations are intermingled into a list of directives)
+
 Rust:
-- add field switching (breaking change)
-    - Header contains now a list of fields
-    - Instances/witnesses contains now one list of values per field
-    - Add field id into gates and WireListElement
-    - Add convert gate
 - remove ExpandDefinable
-- remove gate_set and features from Relation struct
-- remove Boolean gates (and, xor, not)
-- remove Switch
-- remove For loop
-- rename Instance/Witness by PublicInputs/PrivateInputs
-- rename Free gate by Delete gate
-- add New gate
-- add plugin functions
-- rename FieldId by TypeId
-- remove AnonCall gate
-- in FBS, remove CountList table and use directly [Count]
-- remove public/private counts from custom function signature
-- add public/private counts into PluginBody
-- in FBS, remove WireId and TypeId tables and use directly ubyte and uint64
-- in FBS, remove Header table and move its content into Relation, PublicInputs, PrivateInputs
-- in FBS, rename some field names in gates
-- in FBS, replace WireList by [WireRange] and remove type_id from WireRange
-- add conversion declarations in Relation
-- update conversion to be compliant with the last version of the specs
-- add plugin types
-- update validity checks on memory management
-- intermingle gates and function declarations into a list of directives
-- rename Public/PrivateInput gates by Public/Private
-- replace table by struct for WireRange in Flatbuffers schema
-- update validator with all new validity checks
-- split public/private inputs files into one file per type
+- Structures, Builder, Validator and Evaluator adapted to the new schema.
+- update validator with all new validity checks (especially on memory management)
 - update examples in src/examples directory
 
 # SIEVE IR v1.0.1, 2022-08
