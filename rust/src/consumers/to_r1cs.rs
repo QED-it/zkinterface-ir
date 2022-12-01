@@ -103,38 +103,37 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
     }
 
     fn set_types(&mut self, types: &[Type]) -> Result<()> {
-        if types.len() != 1 {
-            return Err("One type must be defined to convert to R1CS.".into());
-        }
-        let first_type = types
-            .get(0)
-            .ok_or("One type must be defined to convert to R1CS.")?;
-        let mut modulus: &[u8] = match first_type {
-            Type::Field(modulo) => modulo,
-            Type::PluginType(_, _, _) => {
-                return Err(
-                    "To convert to R1CS, one type must be defined and it must be a Field type."
-                        .into(),
-                )
+        if self.src_modulus.is_zero() {
+            if types.len() != 1 {
+                return Err("One type must be defined to convert to R1CS.".into());
             }
-        };
-        // This assumes that finite field elements can be zero padded in their byte reprs. For prime
-        // types, this assumes that the byte representation is little-endian.
-        while modulus.last() == Some(&0) {
-            modulus = &modulus[0..modulus.len() - 1];
+            let first_type = types
+                .get(0)
+                .ok_or("One type must be defined to convert to R1CS.")?;
+            let mut modulus: &[u8] =
+                match first_type {
+                    Type::Field(modulo) => modulo,
+                    Type::PluginType(_, _, _) => return Err(
+                        "To convert to R1CS, one type must be defined and it must be a Field type."
+                            .into(),
+                    ),
+                };
+            // This assumes that finite field elements can be zero padded in their byte reprs. For prime
+            // types, this assumes that the byte representation is little-endian.
+            while modulus.last() == Some(&0) {
+                modulus = &modulus[0..modulus.len() - 1];
+            }
+
+            // modulus
+            self.src_modulus = value_to_biguint(modulus);
+
+            self.byte_len = modulus.len();
+
+            self.one = 0; // spec convention
+            self.make_assignment(self.one, Some(BigUint::one()))?;
+
+            self.builder.header.field_maximum = Some(self.minus_one(&0)?.to_bytes_le());
         }
-
-        // modulus
-        self.src_modulus = value_to_biguint(modulus);
-
-        self.byte_len = modulus.len();
-
-        self.one = 0; // spec convention
-        self.make_assignment(self.one, Some(BigUint::one()))?;
-
-        self.builder.header.field_maximum = Some(self.minus_one(&0)?.to_bytes_le());
-
-        // (Optional) add dummy constraints to force use of newly introduced wires
 
         Ok(())
     }

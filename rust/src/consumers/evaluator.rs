@@ -770,29 +770,28 @@ impl ZKBackend for PlaintextBackend {
     }
 
     fn set_types(&mut self, types: &[Type]) -> Result<()> {
-        if !self.types.is_empty() {
-            self.types = vec![];
-        }
-        types
-            .iter()
-            .try_for_each::<_, Result<()>>(|type_value| match type_value {
-                Type::Field(modulo) => {
-                    let biguint_val = &value_to_biguint(modulo);
-                    if biguint_val.is_zero() {
-                        return Err("Modulus cannot be zero.".into());
+        if self.types.is_empty() {
+            types
+                .iter()
+                .try_for_each::<_, Result<()>>(|type_value| match type_value {
+                    Type::Field(modulo) => {
+                        let biguint_val = &value_to_biguint(modulo);
+                        if biguint_val.is_zero() {
+                            return Err("Modulus cannot be zero.".into());
+                        }
+                        self.types.push(PlaintextType::Field(biguint_val.clone()));
+                        Ok(())
                     }
-                    self.types.push(PlaintextType::Field(biguint_val.clone()));
-                    Ok(())
-                }
-                Type::PluginType(name, operation, params) => {
-                    self.types.push(PlaintextType::PluginType(
-                        name.clone(),
-                        operation.clone(),
-                        params.clone(),
-                    ));
-                    Ok(())
-                }
-            })?;
+                    Type::PluginType(name, operation, params) => {
+                        self.types.push(PlaintextType::PluginType(
+                            name.clone(),
+                            operation.clone(),
+                            params.clone(),
+                        ));
+                        Ok(())
+                    }
+                })?;
+        }
         Ok(())
     }
 

@@ -47,6 +47,9 @@ struct MessageBuilder<S: Sink> {
     private_inputs: HashMap<TypeId, PrivateInputs>,
     relation: Relation,
 
+    /// Types
+    types: Vec<Type>,
+
     /// Current size (sum of the number of gates) of the relation's functions vector
     functions_size: usize,
 
@@ -62,6 +65,7 @@ impl<S: Sink> MessageBuilder<S> {
             sink,
             public_inputs: HashMap::new(),
             private_inputs: HashMap::new(),
+            types: types.to_vec(),
             relation: Relation {
                 version: IR_VERSION.to_string(),
                 plugins: plugins.to_owned(),
@@ -75,14 +79,10 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_public_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        let type_value = self
-            .relation
-            .types
-            .get(usize::try_from(type_id)?)
-            .ok_or(format!(
-                "When pushing a public input value, the type id ({}) is unknown.",
-                type_id
-            ))?;
+        let type_value = self.types.get(usize::try_from(type_id)?).ok_or(format!(
+            "When pushing a public input value, the type id ({}) is unknown.",
+            type_id
+        ))?;
 
         // Push value into the PublicInputs corresponding to type_id
         let public_input = self.public_inputs.entry(type_id).or_insert(PublicInputs {
@@ -99,14 +99,10 @@ impl<S: Sink> MessageBuilder<S> {
     }
 
     fn push_private_input_value(&mut self, type_id: TypeId, value: Value) -> Result<()> {
-        let type_value = self
-            .relation
-            .types
-            .get(usize::try_from(type_id)?)
-            .ok_or(format!(
-                "When pushing a public input value, the type id ({}) is unknown.",
-                type_id
-            ))?;
+        let type_value = self.types.get(usize::try_from(type_id)?).ok_or(format!(
+            "When pushing a public input value, the type id ({}) is unknown.",
+            type_id
+        ))?;
 
         // Push value into the PrivateInputs corresponding to type_id
         let private_input = self.private_inputs.entry(type_id).or_insert(PrivateInputs {
@@ -277,7 +273,7 @@ fn multiple_alloc(
 impl<S: Sink> GateBuilderT for GateBuilder<S> {
     fn create_gate(&mut self, mut gate: BuildGate) -> Result<WireId> {
         let type_id = gate.get_type_id();
-        if usize::try_from(type_id)? >= self.msg_build.relation.types.len() {
+        if usize::try_from(type_id)? >= self.msg_build.types.len() {
             return Err(format!(
                 "Type id {} is not defined, we cannot create the gate",
                 type_id
@@ -1195,6 +1191,97 @@ fn test_builder_with_functions_with_several_input_output_types() {
     assert_eq!(out.len(), 2);
     assert_eq!(out[0].first_id, out[0].last_id);
     assert_eq!(out[1].first_id, out[0].last_id);
+
+    let res_0 = b
+        .create_gate(AddConstant(0, out[0].first_id, vec![5]))
+        .unwrap();
+    b.create_gate(AssertZero(0, res_0)).unwrap();
+    let res_1 = b
+        .create_gate(AddConstant(1, out[1].first_id, vec![100]))
+        .unwrap();
+    b.create_gate(AssertZero(1, res_1)).unwrap();
+
+    b.create_gate(Delete(0, 0, res_0)).unwrap();
+    b.create_gate(Delete(1, 0, res_1)).unwrap();
+
+    let sink = b.finish();
+
+    let mut zkbackend = PlaintextBackend::default();
+    let source: Source = sink.into();
+    let evaluator = Evaluator::from_messages(source.iter_messages(), &mut zkbackend);
+    assert_eq!(evaluator.get_violations(), Vec::<String>::new());
+}
+
+#[test]
+fn test_builder_with_flush() {
+    use crate::consumers::evaluator::{Evaluator, PlaintextBackend};
+    use crate::consumers::source::Source;
+    use crate::producers::builder::{BuildComplexGate::*, BuildGate::*, GateBuilder, GateBuilderT};
+    use crate::producers::sink::MemorySink;
+
+    let mut b = GateBuilder::new(
+        MemorySink::default(),
+        &[],
+        &[Type::Field(vec![7]), Type::Field(vec![101])],
+        &[
+            Conversion::new(Count::new(0, 1), Count::new(1, 1)),
+            Conversion::new(Count::new(1, 1), Count::new(0, 1)),
+        ],
+    );
+
+    b.create_gate(New(0, 0, 1)).unwrap();
+    b.create_gate(New(1, 0, 1)).unwrap();
+
+    let pub_0 = b.create_gate(Public(0, Some(vec![3]))).unwrap();
+    let pub_1 = b.create_gate(Public(0, Some(vec![5]))).unwrap();
+    let priv_0 = b.create_gate(Private(1, Some(vec![10]))).unwrap();
+    let priv_1 = b.create_gate(Private(1, Some(vec![20]))).unwrap();
+
+    b.msg_build.flush_relation();
+    b.msg_build.flush_all_private_inputs();
+    b.msg_build.flush_all_public_inputs();
+
+    let custom_function = {
+        let mut fb = b.new_function_builder(
+            "custom".to_string(),
+            vec![Count::new(0, 1), Count::new(1, 1)],
+            vec![Count::new(0, 2), Count::new(1, 2)],
+        );
+        let input_wires = fb.input_wires();
+        let add_0 = fb.create_gate(Add(0, input_wires[0].1, input_wires[1].1));
+        let out_0 = fb
+            .create_complex_gate(Convert(1, 1, 0, add_0, add_0))
+            .unwrap();
+        assert_eq!(out_0.len(), 1);
+        assert_eq!(out_0[0].first_id, out_0[0].last_id);
+        let add_1 = fb.create_gate(Add(1, input_wires[2].1, input_wires[3].1));
+        let out_1 = fb
+            .create_complex_gate(Convert(0, 1, 1, add_1, add_1))
+            .unwrap();
+        assert_eq!(out_1.len(), 1);
+        assert_eq!(out_1[0].first_id, out_1[0].last_id);
+        fb.finish(vec![out_1[0].clone(), out_0[0].clone()]).unwrap()
+    };
+
+    b.push_function(custom_function).unwrap();
+
+    let out = b
+        .create_complex_gate(
+            Call(
+                "custom".to_string(),
+                vec![WireRange::new(pub_0, pub_1), WireRange::new(priv_0, priv_1)],
+            ),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(out.len(), 2);
+    assert_eq!(out[0].first_id, out[0].last_id);
+    assert_eq!(out[1].first_id, out[0].last_id);
+
+    b.msg_build.flush_relation();
+    b.msg_build.flush_all_private_inputs();
+    b.msg_build.flush_all_public_inputs();
 
     let res_0 = b
         .create_gate(AddConstant(0, out[0].first_id, vec![5]))
