@@ -25,9 +25,9 @@ const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
 const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
 const NUMERICAL_REGEX: &str = r"^[0-9]+$";
 const IMPLEMENTED_CHECKS: &str = r"
-VERSION_REGEX = “^\d+.\d+.\d+“
+VERSION_REGEX = “^\d+.\d+.\d+$“
 STRING_REGEX = “^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$“
-INTEGER_REGEX = “^[0-9]+“
+INTEGER_REGEX = “^[0-9]+$“
 
 Here is the list of implemented semantic/syntactic checks:
 

@@ -436,67 +436,6 @@ impl Count {
   }
 }
 
-// struct WireRange, aligned to 8
-#[repr(C, align(8))]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct WireRange {
-  first_id_: u64,
-  last_id_: u64,
-} // pub struct WireRange
-impl flatbuffers::SafeSliceAccess for WireRange {}
-impl<'a> flatbuffers::Follow<'a> for WireRange {
-  type Inner = &'a WireRange;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    <&'a WireRange>::follow(buf, loc)
-  }
-}
-impl<'a> flatbuffers::Follow<'a> for &'a WireRange {
-  type Inner = &'a WireRange;
-  #[inline]
-  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-    flatbuffers::follow_cast_ref::<WireRange>(buf, loc)
-  }
-}
-impl<'b> flatbuffers::Push for WireRange {
-    type Output = WireRange;
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(self as *const WireRange as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-impl<'b> flatbuffers::Push for &'b WireRange {
-    type Output = WireRange;
-
-    #[inline]
-    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
-        let src = unsafe {
-            ::std::slice::from_raw_parts(*self as *const WireRange as *const u8, Self::size())
-        };
-        dst.copy_from_slice(src);
-    }
-}
-
-
-impl WireRange {
-  pub fn new<'a>(_first_id: u64, _last_id: u64) -> Self {
-    WireRange {
-      first_id_: _first_id.to_little_endian(),
-      last_id_: _last_id.to_little_endian(),
-
-    }
-  }
-  pub fn first_id<'a>(&'a self) -> u64 {
-    self.first_id_.from_little_endian()
-  }
-  pub fn last_id<'a>(&'a self) -> u64 {
-    self.last_id_.from_little_endian()
-  }
-}
-
 // struct Conversion, aligned to 8
 #[repr(C, align(8))]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -555,6 +494,67 @@ impl Conversion {
   }
   pub fn input_count<'a>(&'a self) -> &'a Count {
     &self.input_count_
+  }
+}
+
+// struct WireRange, aligned to 8
+#[repr(C, align(8))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WireRange {
+  first_id_: u64,
+  last_id_: u64,
+} // pub struct WireRange
+impl flatbuffers::SafeSliceAccess for WireRange {}
+impl<'a> flatbuffers::Follow<'a> for WireRange {
+  type Inner = &'a WireRange;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    <&'a WireRange>::follow(buf, loc)
+  }
+}
+impl<'a> flatbuffers::Follow<'a> for &'a WireRange {
+  type Inner = &'a WireRange;
+  #[inline]
+  fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+    flatbuffers::follow_cast_ref::<WireRange>(buf, loc)
+  }
+}
+impl<'b> flatbuffers::Push for WireRange {
+    type Output = WireRange;
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(self as *const WireRange as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+impl<'b> flatbuffers::Push for &'b WireRange {
+    type Output = WireRange;
+
+    #[inline]
+    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+        let src = unsafe {
+            ::std::slice::from_raw_parts(*self as *const WireRange as *const u8, Self::size())
+        };
+        dst.copy_from_slice(src);
+    }
+}
+
+
+impl WireRange {
+  pub fn new<'a>(_first_id: u64, _last_id: u64) -> Self {
+    WireRange {
+      first_id_: _first_id.to_little_endian(),
+      last_id_: _last_id.to_little_endian(),
+
+    }
+  }
+  pub fn first_id<'a>(&'a self) -> u64 {
+    self.first_id_.from_little_endian()
+  }
+  pub fn last_id<'a>(&'a self) -> u64 {
+    self.last_id_.from_little_endian()
   }
 }
 
