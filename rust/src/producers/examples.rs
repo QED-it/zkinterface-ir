@@ -19,7 +19,7 @@ pub fn example_public_inputs() -> Vec<PublicInputs> {
         PublicInputs {
             version: IR_VERSION.to_string(),
             type_value: Type::PluginType(
-                "ring".to_string(),
+                "zkif_ring".to_string(),
                 "type".to_string(),
                 vec!["2".to_string(), "8".to_string()],
             ),
@@ -43,7 +43,7 @@ pub fn example_private_inputs() -> Vec<PrivateInputs> {
         PrivateInputs {
             version: IR_VERSION.to_string(),
             type_value: Type::PluginType(
-                "ring".to_string(),
+                "zkif_ring".to_string(),
                 "type".to_string(),
                 vec!["2".to_string(), "8".to_string()],
             ),
@@ -67,7 +67,7 @@ pub fn example_incorrect_private_inputs() -> Vec<PrivateInputs> {
         PrivateInputs {
             version: IR_VERSION.to_string(),
             type_value: Type::PluginType(
-                "ring".to_string(),
+                "zkif_ring".to_string(),
                 "type".to_string(),
                 vec!["2".to_string(), "8".to_string()],
             ),
@@ -87,15 +87,15 @@ pub fn example_relation() -> Relation {
     Relation {
         version: IR_VERSION.to_string(),
         plugins: vec![
-            "vector".to_string(),
-            "assert_equal".to_string(),
-            "ring".to_string(),
+            "zkif_vector".to_string(),
+            "zkif_assert_equal".to_string(),
+            "zkif_ring".to_string(),
         ],
         types: vec![
             Type::Field(vec![7]),
             Type::Field(vec![101]),
             Type::PluginType(
-                "ring".to_string(),
+                "zkif_ring".to_string(),
                 "type".to_string(),
                 vec!["2".to_string(), "8".to_string()],
             ),
@@ -110,7 +110,7 @@ pub fn example_relation() -> Relation {
                 vec![],
                 vec![Count::new(type_id_101, 1)],
                 FunctionBody::PluginBody(PluginBody {
-                    name: "assert_equal".to_string(),
+                    name: "zkif_assert_equal".to_string(),
                     operation: "private".to_string(),
                     params: vec![type_id_101.to_string(), "1".to_string()],
                     public_count: HashMap::new(),
@@ -142,7 +142,7 @@ pub fn example_relation() -> Relation {
                 vec![Count::new(type_id_101, 2)],
                 vec![Count::new(type_id_101, 2), Count::new(type_id_101, 2)],
                 FunctionBody::PluginBody(PluginBody {
-                    name: "vector".to_string(),
+                    name: "zkif_vector".to_string(),
                     operation: "mul".to_string(),
                     params: vec![type_id_101.to_string(), "2".to_string()],
                     public_count: HashMap::new(),
@@ -170,7 +170,7 @@ pub fn example_relation() -> Relation {
                 vec![Count::new(type_id_ring, 1)],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
                 FunctionBody::PluginBody(PluginBody {
-                    name: "ring".to_string(),
+                    name: "zkif_ring".to_string(),
                     operation: "add".to_string(),
                     params: vec![type_id_ring.to_string()],
                     public_count: HashMap::new(),
@@ -182,7 +182,7 @@ pub fn example_relation() -> Relation {
                 vec![Count::new(type_id_ring, 1)],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
                 FunctionBody::PluginBody(PluginBody {
-                    name: "ring".to_string(),
+                    name: "zkif_ring".to_string(),
                     operation: "mul".to_string(),
                     params: vec![type_id_ring.to_string()],
                     public_count: HashMap::new(),
@@ -194,7 +194,7 @@ pub fn example_relation() -> Relation {
                 vec![],
                 vec![Count::new(type_id_ring, 1), Count::new(type_id_ring, 1)],
                 FunctionBody::PluginBody(PluginBody {
-                    name: "ring".to_string(),
+                    name: "zkif_ring".to_string(),
                     operation: "equal".to_string(),
                     params: vec![type_id_ring.to_string()],
                     public_count: HashMap::new(),

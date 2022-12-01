@@ -981,7 +981,7 @@ fn test_builder_with_plugin() {
 
     let mut b = GateBuilder::new(
         MemorySink::default(),
-        &["vector".to_string()],
+        &["zkif_vector".to_string()],
         &[Type::new_field_type(vec![101])],
         &[],
     );
@@ -995,7 +995,7 @@ fn test_builder_with_plugin() {
             Count::new(type_id, vector_len),
         ],
         PluginBody {
-            name: "vector".to_string(),
+            name: "zkif_vector".to_string(),
             operation: "add".to_string(),
             params: vec![type_id.to_string(), vector_len.to_string()],
             public_count: HashMap::new(),
@@ -1057,9 +1057,9 @@ fn test_builder_with_plugin_type() {
 
     let mut b = GateBuilder::new(
         MemorySink::default(),
-        &["ring".to_string()],
+        &["zkif_ring".to_string()],
         &[Type::new_plugin_type(
-            "ring".to_string(),
+            "zkif_ring".to_string(),
             "type".to_string(),
             vec!["2".to_string(), "4".to_string()],
         )],
@@ -1071,7 +1071,7 @@ fn test_builder_with_plugin_type() {
         vec![Count::new(type_id, 1)],
         vec![Count::new(type_id, 1), Count::new(type_id, 1)],
         PluginBody {
-            name: "ring".to_string(),
+            name: "zkif_ring".to_string(),
             operation: "add".to_string(),
             params: vec![type_id.to_string()],
             public_count: HashMap::new(),
@@ -1103,7 +1103,7 @@ fn test_builder_with_plugin_type() {
         vec![],
         vec![Count::new(type_id, 1), Count::new(type_id, 1)],
         PluginBody {
-            name: "ring".to_string(),
+            name: "zkif_ring".to_string(),
             operation: "equal".to_string(),
             params: vec![type_id.to_string()],
             public_count: HashMap::new(),

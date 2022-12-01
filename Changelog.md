@@ -39,6 +39,7 @@ Schema (.fbs):
 Rust:
 - remove ExpandDefinable
 - Structures, Builder, Validator and Evaluator adapted to the new schema.
+- add some custom plugins (prefixed by zkif)
 - update validator with all new validity checks (especially on memory management)
 - update examples in src/examples directory
 

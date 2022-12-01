@@ -3,9 +3,9 @@
   message: {
     version: "2.0.0",
     plugins: [
-      "vector",
-      "assert_equal",
-      "ring"
+      "zkif_vector",
+      "zkif_assert_equal",
+      "zkif_ring"
     ],
     types: [
       {
@@ -31,7 +31,7 @@
       {
         element_type: "PluginType",
         element: {
-          name: "ring",
+          name: "zkif_ring",
           operation: "type",
           params: [
             "2",
@@ -68,7 +68,7 @@
           ],
           body_type: "PluginBody",
           body: {
-            name: "assert_equal",
+            name: "zkif_assert_equal",
             operation: "private",
             params: [
               "1",
@@ -240,7 +240,7 @@
           ],
           body_type: "PluginBody",
           body: {
-            name: "vector",
+            name: "zkif_vector",
             operation: "mul",
             params: [
               "1",
@@ -378,7 +378,7 @@
           ],
           body_type: "PluginBody",
           body: {
-            name: "ring",
+            name: "zkif_ring",
             operation: "add",
             params: [
               "2"
@@ -414,7 +414,7 @@
           ],
           body_type: "PluginBody",
           body: {
-            name: "ring",
+            name: "zkif_ring",
             operation: "mul",
             params: [
               "2"
@@ -447,7 +447,7 @@
           ],
           body_type: "PluginBody",
           body: {
-            name: "ring",
+            name: "zkif_ring",
             operation: "equal",
             params: [
               "2"

@@ -272,7 +272,7 @@ fn test_stats() {
             Type::Field(vec![7]),
             Type::Field(vec![101]),
             Type::PluginType(
-                "ring".to_string(),
+                "zkif_ring".to_string(),
                 "type".to_string(),
                 vec!["2".to_string(), "8".to_string()],
             ),
@@ -306,7 +306,7 @@ fn test_stats() {
     expected_stats.functions.insert(
         "assert_equal_private".to_string(),
         FunctionContent::Plugin(
-            "assert_equal".to_string(),
+            "zkif_assert_equal".to_string(),
             "private".to_string(),
             vec!["1".to_string(), "1".to_string()],
             0,
@@ -323,7 +323,7 @@ fn test_stats() {
     expected_stats.functions.insert(
         "vector_mul_7_2".to_string(),
         FunctionContent::Plugin(
-            "vector".to_string(),
+            "zkif_vector".to_string(),
             "mul".to_string(),
             vec!["1".to_string(), "2".to_string()],
             0,
@@ -333,7 +333,7 @@ fn test_stats() {
     expected_stats.functions.insert(
         "ring_add".to_string(),
         FunctionContent::Plugin(
-            "ring".to_string(),
+            "zkif_ring".to_string(),
             "add".to_string(),
             vec!["2".to_string()],
             0,
@@ -343,7 +343,7 @@ fn test_stats() {
     expected_stats.functions.insert(
         "ring_mul".to_string(),
         FunctionContent::Plugin(
-            "ring".to_string(),
+            "zkif_ring".to_string(),
             "mul".to_string(),
             vec!["2".to_string()],
             0,
@@ -353,7 +353,7 @@ fn test_stats() {
     expected_stats.functions.insert(
         "ring_equal".to_string(),
         FunctionContent::Plugin(
-            "ring".to_string(),
+            "zkif_ring".to_string(),
             "equal".to_string(),
             vec!["2".to_string()],
             0,
