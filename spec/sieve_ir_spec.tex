@@ -1,0 +1,88 @@
+\documentclass[12pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage[export]{adjustbox}
+\usepackage[title,titletoc]{appendix}
+
+\usepackage{amssymb,amsmath}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\usepackage{tabularx}
+\usepackage{cleveref}
+\usepackage{ltablex}
+\usepackage{alltt}
+\usepackage{listings}
+\usepackage{enumitem}
+
+
+\usepackage[normalem]{ulem}
+
+\input{people.tex}
+
+\definecolor{InternalLinkColor}{HTML}{282888}
+\definecolor{ExternalLinkColor}{HTML}{3333BB}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=InternalLinkColor,
+  urlcolor=ExternalLinkColor
+}
+
+\definecolor{light-gray}{gray}{0.95}
+
+\lstdefinelanguage{ir}
+{
+  backgroundcolor=\color{light-gray},
+  morekeywords={version, circuit, public_input, private_input, configuration, field, @field, @begin, @end, @function, @out, @in, @public, @private, @call, @anon_call, @type, @plugin},
+  morekeywords=[2]{@add, @addc, @mul, @mulc, @assert_zero, @delete, @convert, @new},
+  keywordstyle={[2]\it},
+  morecomment=[l]{//}
+}
+
+\lstdefinelanguage{flatbuffer}
+{
+  backgroundcolor=\color{light-gray},
+  morekeywords={table,struct,union},
+  morekeywords=[2]{uint32,uint64,ubyte,string},
+  keywordstyle={[2]\it}
+}
+
+\lstdefinelanguage{json}{
+    backgroundcolor=\color{light-gray},
+    basicstyle=\ttfamily\small,
+}
+
+\lstset{escapechar=\#}
+
+\definecolor{SyntaxGreen}{HTML}{116611}
+\definecolor{SemanticPurple}{HTML}{550077}
+
+\renewcommand{\familydefault}{\sfdefault}
+
+\title{Circuit Intermediate Representation}
+\date{Last Updated: 2022-12-01}
+
+\newcommand{\maxfieldcount}{256}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+%%%%
+\input{01-intro}
+%%%%
+\input{02-circuitIR}
+%%%%
+\input{03-plugins}
+%%%%
+\input{04-input_streams}
+%%%%
+\newpage
+\input{05-appendix}
+
+
+\end{document}

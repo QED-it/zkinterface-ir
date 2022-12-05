@@ -42,6 +42,7 @@ Rust:
 - add some custom plugins (prefixed by zkif)
 - update validator with all new validity checks (especially on memory management)
 - update examples in src/examples directory
+- update README
 
 # SIEVE IR v1.0.1, 2022-08
 

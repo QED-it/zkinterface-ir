@@ -1,0 +1,40 @@
+\section{Input Streams}
+\label{sec:streams}
+
+Public and private inputs are provided as separate resources. 
+We have one input file per type and per visibility level (\texttt{public\_input} or \texttt{private\_input}).
+These input files start with the same headers as described in \cref{sec:headers}: the version, the resource type (\texttt{public\_input} or \texttt{private\_input}), and one type.
+Then, a sequence of numeric literals representing type elements is provided between \texttt{@begin} and \texttt{@end} tags.
+These sequences act as a stream, and certain directives in the circuit consume a value from one of these streams.
+If values in either stream are exhausted, this is a failure of evaluation validity.
+If values remain in a stream after processing, then this is also an evaluation invalidity.
+Here is an example for public and private inputs. 
+
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+public_input;
+@type field 7;
+@begin
+  < 5 >;
+@end
+\end{lstlisting}
+%
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+public_input;
+@type field 19;
+@begin
+  < 2 >;
+  < 15 >;
+@end
+\end{lstlisting}
+%
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+private_input;
+@type field 7;
+@begin
+  < 3 >;
+  < 4 >;
+@end
+\end{lstlisting}

@@ -1,0 +1,171 @@
+\section{Plugins}
+\label{sec:plugins}
+
+\subsection{Motivation}
+
+In the previous section, we describe the Circuit IR which contains the core IR functionalities.
+In this intermediate representation, we would like to add some (complex) features (e.g. RAM operations).
+Unfortunately, each update in the basic syntax forces frontends and backends to update their IR generator and parser.
+We would like to avoid this burden while increasing expressibility of the language.
+The goal of plugins is to allow IR extensions without changing the core IR.
+
+\subsection{Plugin Syntax}
+Plugins allow a circuit to refer to specific functionalities.
+Those functionalities are defined in a document.
+Only backends that have an implementation of a plugin can evaluate statements containing that plugin.
+
+In the circuit's syntax, plugins are similar to functions except the function body is replaced by the plugin.
+The declaration of a plugin function starts with the signature of a function followed by the use of a \texttt{@plugin} directive with plugin parameters that includes the plugin name, the operation name, and its generic parameters.
+Invocation will remain the same as for functions.
+A function bound to a plugin must be declared before its invocation.
+
+The names of plugins used
+must be specified in the header.
+This ensures that backends can easily check which plugins are used and reject the circuit if needed, prior to starting circuit evaluation.
+
+ Here is an example use of a \texttt{vector} plugin that provides a \texttt{mul} operation over ranges of wires.
+ The type index and length are given as generic arguments to \texttt{mul}. 
+\begin{lstlisting}[language=ir]
+...
+@plugin vector;
+...
+@begin
+  ...
+  // declare the function signature with a plugin body
+  @function(vec_mul_4, @out: 0:4, @in: 0:4, 0:4)
+      @plugin(vector, mul, 0, 4);
+  ...
+  // call the vec_mul_4 plugin
+  $8 ... $11 <- @call(vec_mul_4, $0 ... $3, $4 ... $7);
+  ...
+@end
+\end{lstlisting}
+
+Plugin operations are generic, so \texttt{@plugin} takes a list of generic arguments after the plugin and operation names.
+Function definitions bound to plugin operations are fully instantiated so all generic arguments are concretized. 
+As a result, function calls (\texttt{@call}) remain non-generic.
+Each instantiation of a generic operation % that's used in the circuit 
+requires a separate function declaration and \texttt{@plugin} binding.
+Generic arguments consist of a comma separated sequence
+of identifiers and numeric literals.
+In practice, this enables generics to specify parameters like fields, lengths, and functions.
+Providing functions as generic arguments enables higher order operations like maps and folds. 
+%
+\begin{lstlisting}[language=ir]
+/* ... */
+@plugin vector;
+/* ... */
+@begin
+  /* ... */
+  // Multiple instantiations of the same plugin (vector, mul)
+  @function(vec_mul_4, @out: 0:4, @in: 0:4, 0:4)
+      @plugin(vector, mul, 0, 4);
+  @function(vec_mul_2, @out: 0:2, @in: 0:2, 0:2)
+      @plugin(vector, mul, 0, 2);
+
+  // Higher order map operation.
+  @function(plus1_0, @out: 0:1, @in: 0:1) /* ... */ @end
+  @function(vec_plus1_4, @out: 0:4, @in: 0:4)
+      @plugin(higher_order, map, 0, 0, 4, plus1_0);
+  /* ... */
+@end
+\end{lstlisting}
+
+Each plugin operation has a signature, which is defined as part of the standard for the plugin.
+If the backend sees a \texttt{@plugin} for a known plugin, and the signature of the operation doesn't match the signature of the function it is being bound to, then the circuit is invalid.
+Further, the plugin's name must have been declared in the circuit header.
+Either of these errors would make the circuit \textbf{poorly formed}.
+
+Plugin operations may consume some public and private inputs.
+If a plugin operation consumes public or private input, its plugin binding
+must contain the count of the number of consumed public or private inputs
+per field.
+%
+Here is an example use of an \texttt{assert\_equal} plugin that checks that the five inputs are equal to the five next private inputs.
+\begin{lstlisting}[language=ir]
+/* ... */
+@plugin assert_equal;
+/* ... */
+@begin
+  /* ... */
+  // declare the function signature with a plugin body
+  @function(equal_to_private, @in: 0:5)
+    @plugin(assert_equal, private, 0, 5, @private: 0:5);
+  /* ... */
+  // call the equal_to_private plugin
+  @call(equal_to_private, $4 ... $8);
+  /* ... */
+@end
+\end{lstlisting}
+
+\subsection{Plugin Types}
+%
+For some plugins, it is useful to declare additional types that are distinct from ordinary field types.
+Plugins can define new types by using the 
+\texttt{@plugin} directive in the circuit header, which again takes a list of generic parameters. 
+Types declared by plugins have no built-in gates and must be manipulated via its plugin functions.
+%
+\begin{lstlisting}[language=ir]
+/* ... */
+@plugin ring;
+// Wire type 0 is the field mod 127
+@type field 127;
+// Wire type  is the field mod 2**7
+@type @plugin(ring, base, 2, exponent, 7);
+/* ... */
+@begin
+  /* ... */
+  // interaction with plugin fields is allowed via plugin functions
+  @function(int7_mul, @out: 1:1, @in: 1:1, 1:1)
+      @plugin(ring, mul, 1);
+  @function(int7_add, @out: 1:1, @in: 1:1, 1:1)
+      @plugin(ring, add, 1);
+  /* ... */
+@end
+\end{lstlisting}
+
+\subsubsection{RAM Example}
+
+Here is an example demonstrating how to use plugins for RAM operations. % using abstract types.
+
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+circuit;
+@plugin ram;
+@plugin assert_equal;
+// Wire type 0 is the field mod 127
+@type field 127;
+// Wire type 1 is the ram.state plugin type, with addresses and
+// values both drawn from field 0.
+@type @plugin(ram, state, 0, 0);
+
+@begin
+  // Declare RAM operations as abstract functions.
+  // ram.init takes a size and returns a RAM state.
+  @function(ram_init, @out: 1:1, @in: 0:1) 
+    @plugin(ram, init, 1);
+  // ram.read takes an address and a RAM
+  // and returns the value at that address.
+  @function(ram_read, @out: 0:1, @in: 0:1, 1:1)
+    @plugin(ram, read, 1);
+  // ram_write takes a address, value, and RAM
+  // writes the value to the address,
+  // and returns the updated RAM.
+  @function(ram_write, @out: 1:1, @in: 0:1, 0:1, 1:1)
+    @plugin(ram, write, 1);
+
+  @function(assert_eq, @in: 0:1, 0:1)
+    @plugin(assert_equal, wire, 0);
+
+  $0 <- /* ... */; // address
+  $1 <- /* ... */; // value
+  $2 <- 0:<5>;
+  // Create a new ram.state<field 0, field 0> object.
+  $10 <- @call(ram_init, $2);
+  // Store $1 at address $0.
+  // This produces an updated ram.state object.
+  $11 <- @call(ram_write, $0, $1, $10);
+  // Load from address $0.
+  $3 <- @call(ram_read, $0, $11);
+@end
+\end{lstlisting}

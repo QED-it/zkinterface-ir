@@ -1,0 +1,412 @@
+\section{Headers}
+\label{sec:headers}
+
+All SIEVE IR files start with a header.
+The header contains:
+a version number for quick recognition of the IR
+and
+a resource type (\texttt{circuit}, \texttt{translation}, \texttt{public\_input}, \texttt{private\_input}, or \texttt{configuration}).
+Each resource type may define additional header declarations that appear after the version and resource type.
+% 
+Here is an example header.
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+private_input;
+\end{lstlisting}
+This indicates the file is a private input resource for version 2.0.0 of the SIEVE IR. 
+
+\section{Circuit IR}
+\label{sec:circuitir}
+
+\subsection{Header}
+\label{subsec:headers}
+
+As stated in \cref{sec:headers}, the Circuit IR header starts with the version number and resource type.
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+circuit;
+\end{lstlisting}
+Next, all plugins (\Cref{sec:plugins}), types, and conversion gates that are used in the file are declared up front in the header, before 
+the \texttt{@begin} keyword.
+The order of these declarations must be sorted.
+Plugins must appear first, followed by types, and then conversion gates come last.
+
+A type declaration specifies the types that are used in the rest of the file.
+Most types specify a \texttt{field} and indicate the field's characteristic (prime).
+Type declarations also implicitly specify a type-index, assigned incrementally as each type is specified. The maximum number of types that can be defined is \maxfieldcount. 
+%
+\begin{lstlisting}[language=ir]
+// index 0: Boolean
+@type field 2;
+// index 1: 2^61 - 1
+@type field 2305843009213693951;
+// index 2: 2^255 - 19
+@type field 5789604461865809771178...;
+\end{lstlisting}
+%
+This example declares three types for the Boolean, $2^{61}-1$, and $2^{255}-19$ fields, respectively indexed by 0, 1, and 2.
+
+All conversion gates used in the file must be declared in the header. 
+Each conversion gate declaration specifies which fields are converted between and how many of each field is input and output.
+Here are a few examples.
+%
+\begin{lstlisting}[language=ir]
+// Convert Booleans to Mersenne61 and back
+@convert(@out: 1:1, @in: 0:61);
+@convert(@out: 0:61, @in: 1:1);
+// Convert Mersenne61 to 25519 and back
+@convert(@out: 1:5, @in: 2:1);
+@convert(@out: 2:1, @in: 1:5);
+\end{lstlisting}
+Conversion gates are fully specified in \cref{subsec:conversiongates}.
+
+\subsection{Public and Private Inputs}
+Inputs to the circuit are provided through separate resources (See Section \ref{sec:streams}) and accessed as streams.
+There are two streams per type, one for public inputs and one for private (prover only) inputs.
+
+Stream access uses the syntax \texttt{\$output\_wire <- @public([type\_idx]);} for public inputs and \texttt{\$output\_wire <- @private([type\_idx]);} for private inputs.
+An item is read from the stream corresponding to the type index and assigned to the output wire.
+If the type index is not specified, it defaults to zero.
+
+\subsection{Memory Management}
+
+Backends that consume SIEVE IR are highly optimized. 
+To minimize their overhead in managing memory, the IR exposes primitives to allocate and deallocate ranges of memory. 
+There are strict restrictions 
+on memory management: many operations require a range of input or output wires
+that are not only consecutive but also are part of the same allocation.
+This allows optimized backends to ensure that the input or output wires are
+stored in contiguous memory.
+Two wires may have consecutive wire-numbers, but be non-contiguous in memory,
+depending on the backend's internal memory management strategy.
+
+Each type is given its own numbering space, with wire-numbers in the range of $0 ... 2^{64}-1$.
+Most directives will use a type-index parameter to select in which type, and in which numbering-space, they will act.
+For example, \texttt{0: \$123} and \texttt{1: \$123} may both be defined, with each wire residing in different numbering space due to their different types.
+
+To allocate a range of wires explicitly, the \texttt{@new([ type\_idx: ] \$first ... \$last);} directive may be used.
+This creates a new allocation containing exactly the wire numbers \texttt{\$first ... \$last},
+but does not assign values to those wires.
+Reads from uninitialized wires is a failure of resource validity. 
+The new allocation must not overlap any previous allocation.
+If the type index is not specified, it defaults to zero.
+
+%
+\begin{lstlisting}[language=ir]
+@new(1: $100 ... $200);
+\end{lstlisting}
+
+Directives that assign to wires will implicitly allocate the output wires if needed.
+For a directive that assigns to a range of output wires \texttt{type\_idx: \$first ... \$last},
+if all wires in the range are unallocated, it first creates an allocation as by
+the directive \texttt{@new(type\_idx: \$first ... \$last)} and then assigns to
+the newly-allocated wires.
+If, instead, any of those wires were previously allocated, then they all must
+be part of a single allocation; if only some of the wires in the range were
+allocated, or different wires are part of different allocations, this is a
+failure of resource validity.
+This applies even for single wires; a single output wire such as \texttt{type\_idx: \$wire}
+is treated as a one-element range \texttt{type\_idx: \$wire ... \$wire}.
+If a directive has multiple output wire ranges, each is handled independently,
+even if the ranges use consecutive numbers.
+
+\begin{lstlisting}[language=ir]
+// Assume no wires are previously allocated.
+
+// Implicitly allocates the range $100 ... $199
+$100 ... $199 <- @call(foo1);
+
+// Implicitly allocates the single wire $200
+$200 <- @call(foo2);
+
+@new($300 ... $399);
+// All wires $300 ... $399 are already allocated, so this does
+// not implicitly allocate.
+$300 ... $399 <- @call(foo3);
+
+@new($400 ... $449);
+// Error: only some of the wires are allocated.
+$400 ... $499 <- @call(foo4);
+
+@new($500 ... $549);
+@new($550 ... $599);
+// Error: wires are not all part of a single allocation.
+$500 ... $599 <- @call(foo5);
+
+// This creates a separate allocation for each output range.
+$600 ... $649, $650 ... $699 <- @call(foo6);
+\end{lstlisting}
+%stopzone
+
+The \texttt{@delete} directive deallocates wires with the form \texttt{@delete([ type\_idx: ] \$first ... \$last );}.
+All wires in the range \texttt{type\_idx: \$first ... \$last} must be assigned
+and must not have been previously deleted.
+The range may span multiple allocations, but it must cover each allocation in
+full; deallocating only part of an allocation is a failure of resource
+validity.
+If the type index is not specified, it defaults to zero.
+
+%
+\begin{lstlisting}[language=ir]
+// Set up some allocations
+@new(1: $100 ... $199)
+@new(1: $200 ... $299)
+// Implicit allocations are treated the same as @new
+$300 ... $399 <- @call(foo)
+
+// Error: @delete includes wires that were never allocated
+@delete(1: $300 ... $499)
+
+// Error: @delete covers only part of the $300 ... $399 allocation
+@delete(1: $300 ... $310)
+
+// Delete the entire $100 ... $199 allocation
+@delete(1: $100 ... $199)
+
+// Delete the $200 ... $299 and $300 ... $399 allocations
+@delete(1: $200 ... $399)
+\end{lstlisting}
+
+Once a wire has been deleted, its wire number may not be reused and it may not be deleted again.
+
+\paragraph{IMPORTANT} Notice that the form of nearly all ranges in the IR is \texttt{first ... last} rather than \texttt{first ... length}.
+Ranges are inclusive on both ends.
+
+
+\subsection{Standard Gates}
+\label{subsec:standardgates}
+The form of most standard gates is \texttt{\$out <- gate\_name([ type\_idx: ] \$left\_in, \$right\_in);}.
+For a circuit to be well-formed, the type index must refer to a field type.
+The type index is optional and defaults to type \texttt{0} when omitted.
+Other gates have variations on this, and are described as necessary.\\
+
+\begin{itemize}
+\item \texttt{@add} arithmetic addition
+\item \texttt{@mul} arithmetic multiplication
+\item \texttt{@addc} arithmetic addition by a constant
+\begin{itemize}
+    \item Has the form \texttt{\$out <- @addc([ type\_idx: ] \$left\_in, < right\_constant >);}
+\end{itemize}
+\item \texttt{@mulc} arithmetic multiplication by a constant
+\begin{itemize}
+    \item Has the form \texttt{\$out <- @mulc([ type\_idx: ] \$left\_in, < right\_constant >);}
+\end{itemize}
+\item Copy the input wire to the output wire
+\begin{itemize}
+    \item Has the form \texttt{\$out <- [ type\_idx: ] \$left\_in;}
+\end{itemize}
+\item Assign the input constant to the output wire
+\begin{itemize}
+    \item Has the form \texttt{\$out <- [ type\_idx: ] < left\_constant >;}
+\end{itemize}
+\item \texttt{@assert\_zero}
+\begin{itemize}
+    \item Has the form \texttt{@assert\_zero([ type\_idx: ] \$wire);}
+\end{itemize}
+\end{itemize}
+
+For simplicity boolean gates are replaced with mathematically equivalent arithmetic operations.
+This table summarizes alternative gates. \\
+
+\noindent\begin{tabular}{|c|c|}
+  \hline
+  \textbf{Boolean Gate} & \textbf{Arithmetic Replacement} \\
+  \hline
+  \verb|@and| & \verb|@mul| \\
+  \verb|@xor| & \verb|@add| \\
+  \verb|@not| & \verb|@addc(x, <1>)| \\
+  \hline
+\end{tabular} \\
+
+For a circuit to be well formed, two rules must be obeyed when using and assigning wires.
+First, \textbf{topological ordering} requires that when a wire is used as the input to a gate, it must have been previously defined by an earlier gate in the scope.
+Second, \textbf{single static assignment (SSA)} requires that within a scope a particular wire is never redefined after its original assignment, even if it removed with the \texttt{@delete} directive.\\
+
+\subsection{Conversion Gates}
+\label{subsec:conversiongates}
+Conversion gates enable conversion of wires from one field to another.
+Conceptually a list of wires in field A is converted to a list of wires in field B.
+Within the circuit, a conversion gate has the form:
+%
+\begin{lstlisting}[language=ir]
+out_type_idx: $out_first [... $out_last] <- @convert(
+    in_type_idx: $in_first [... $in_last]);
+\end{lstlisting}
+%
+The conversion's fields and number of wires must match a conversion specification from the front matter. If it is not the case, there is a resource invalidity.
+Here is an example that uses conversion gates:
+\begin{lstlisting}[language=ir]
+version: 2.0.0;
+circuit;
+// field 0: Boolean
+@type field 2;
+// field 1: 2^61 - 1
+@type field 2305843009213693951;
+// field 2: 2^255 - 19
+@type field 5789604461865809771178...;
+// Declare used convert gates
+@convert(@out: 1:1, @in: 0:61);
+@convert(@out: 1:5, @in: 2:1);
+@begin
+    ...
+    // convert Booleans to a single Mersenne61
+    1: $0 <- @convert(0: $1 ... $61);
+    // convert a single 25519 to 5 Mersenne61s
+    1: $1 ... $5 <- @convert(2: $0);
+    ...
+@end
+\end{lstlisting}
+%
+The input range \texttt{in\_type\_idx: \$in\_first ... \$in\_last} must be part
+of a single allocation.
+The output range \texttt{out\_type\_idx: \$out\_first ... \$out\_last} must
+either be part of a single allocation or be unallocated; if it is unallocated,
+the range will be implicitly allocated, as with \texttt{@new}.
+
+Here, we define in detail the specification of a \texttt{@convert} gate.
+Inputs and outputs are expressed in big endian representation.
+To convert p wires $x_1 ... x_p$ in field A into q wires $y_1 ... y_q$ in field B, we first convert the p wires in field A into a natural number $N = \sum_{i=1}^p x_i \times A^{p-i} \mod B^q$.
+Then we represent $N$ into q wires in field B $y_1 ... y_q$: $N = \sum_{i=1}^q y_i \times B^{q-i}$.
+%
+
+\subsection{Function Gates}
+
+Function gates define a sub-circuit which may be reused multiple times.
+The function's outputs and inputs are given as ranges mapped sequentially, and by type, into the function's scopes.
+In the function's signature, each range is defined by a length and a type index.
+When the function is invoked, each range is mapped into its scope incrementally from 0.
+
+Function declaration and invocation have the following forms:
+%
+\begin{lstlisting}[language=ir]
+@function(function_name,
+    [@out: out_type_idx_0: out_field_count_0
+	    [, out_type_idx_n: out_field_count_n],]
+    [@in: in_type_idx_0: in_field_count_0
+	    [, in_type_idx_n: in_field_count_n],]
+    )
+  /* gate list */
+@end
+
+[$out_first_0 [ ... $out_last_0 ]
+  [, $out_first_n [ ... $out_last_n ] ] <- ]
+  @call(function_name [, $in_first_0 [ ... $in_last_0 ]
+      [, $in_first_n [ ... $in_last_n ] ] ]);
+\end{lstlisting}
+Note that function invocations do not specify the type index for inputs and outputs since they can be inferred from the function signature.
+
+\subsubsection{Function Gate Example}
+\begin{lstlisting}[language=ir]
+@function(dot_prod_10, @out: 1:1; @in: 1:10, 1:10)
+  // omitted
+@end
+
+@new(1: $0 ... $9);
+@new(1: $10 ... $22);
+// assign $0 ... $19
+
+$25 <- @call(dot_prod_10, $0 ... $9, $10 ... $19);
+\end{lstlisting}
+%stopzone
+
+The \texttt{@call} directive must have one range of input wires for each input
+range declared in the \texttt{@function} declaration.
+Each range of input wires must be part of a single allocation.
+Similarly, the \texttt{@call} must have one range of output wires for each
+output range declared in the \texttt{@function}.
+Each range of output wires must either be part of a single allocation or be
+unallocated; if it is unallocated, the range will be implicitly allocated, as
+with \texttt{new}.
+
+\subsubsection{Function Declaration Ordering and Recursion}
+Functions are declared at the top level of the circuit. 
+Function names come into scope after their declaration. 
+This prevents recursive functions and allows typechecking while processing the file as a stream.
+%
+For example, the following invocation is valid.
+\begin{lstlisting}[language=ir]
+@function(a) /* ... */ @end
+
+@function(b)
+  @call(a);
+@end
+
+@call(b)
+\end{lstlisting}
+The next example is invalid since the function \texttt{a} has not been declared and is not yet in scope when \texttt{b} is defined.
+\begin{lstlisting}[language=ir]
+@function(b)
+  @call(a);
+@end
+
+@function(a) /* ... */ @end
+
+@call(b)
+\end{lstlisting}
+
+\subsection{Example}
+Here is a full example of a right-triangle using the Circuit IR.
+%
+\begin{lstlisting}[language=ir]
+version 2.0.0;
+circuit;
+@type field 7;
+@type field 127;
+@convert(1:1, 0:1);
+
+@begin
+  // mod 7 hypotenuse
+  $0 <- @public(0);
+  // mod 7 legs
+  $1 <- @private(0);
+  $2 <- @private(0);
+
+  // mod 7 is too small to square them
+  1:$0 <- @convert(0:$0);
+  1:$1 <- @convert(0:$1);
+  1:$2 <- @convert(0:$2);
+
+  // square them
+  $3 <- @mul(1: $0, $0);
+  $4 <- @mul(1: $1, $1);
+  $5 <- @mul(1: $2, $2);
+  $6 <- @add(1: $4, $5);
+
+  // invert the hypotenuse
+  $7 <- @mulc(1: $3, <126>);
+
+  // assert equal
+  $8 <- @add(1: $6, $7);
+  @assert_zero(1: $8);
+@end
+\end{lstlisting}
+
+\subsection{Circuit Semantics and Validity}\label{circuit_ir_validity}
+When working with the Circuit-IR there are three levels of semantics and validity to be considered.
+Each level builds upon the prior level.
+
+\begin{enumerate}
+  \item \textbf{Syntactic Validity:} The IR resource is recognizable in the language defined by the IR's grammar (see appendix \ref{binary_syntax}).
+  \item \textbf{Resource Validity:} The IR resource obeys semantic rules which are falsifiable with just the single resource.
+  \item \textbf{Evaluation Validity:} Three IR resources (relation, public inputs, and private inputs) obey semantic rules which are only falsififiable in tandem.
+\end{enumerate}
+
+While syntactic validity is important, it is easy to check using off the shelf parsing tools.
+The focus of this subsection is on resource validity and evaluation validity.
+
+Each resource is checked individually for \textbf{Circuit Well-formedness} or \textbf{Stream Well-formedness} (See Section \ref{sec:streams} for details).
+Circuit Well-formedness focuses on ensuring that wires are connected correctly -- a ``broken'' wire would make the circuit poorly-formed.
+
+\begin{description}
+  \item[Topological Ordering] For a wire to be the input to a gate, it must have previously been assigned as an output wire within the same scope.
+  \item[Static Single Assignment] Each wire which is allocated must be assigned exactly once within its scope.
+  \item[Allocation of Range Arguments] When passing a range of wires (as either an input or an output), all wires in the range must belong to the same allocation, and the range's cardinality must match the called function or conversion gate's specification.
+  \item[Deletion of Whole Allocations] When passing a range of wires to a \texttt{@delete} directive, all wires within the range must have previously been assigned and all allocates within the range must be whole allocations. E.g. a \texttt{@delete} directive may not split an allocation into smaller portions.
+\end{description}
+
+To meet \textbf{Evaluation Validity}, all three resources are evaluated together, and the following conditions must be met.
+
+\begin{description}
+  \item[Assertions] Each input to an \texttt{@assert\_zero} directive must carry the value $0$.
+  \item[Stream Length Requirement] When the end of the circuit is reached each stream has exactly zero items remaining: it must not have run out of items before reaching the end, and there may not be any extra items.
+\end{description}

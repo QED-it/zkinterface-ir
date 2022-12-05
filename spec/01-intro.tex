@@ -1,0 +1,53 @@
+\section{Introduction}\label{sec:intro}
+
+In Phase II of the SIEVE Program, we are currently defining two Intermediate Representations
+called Circuit IR and Translation IR and a Circuit Configuration Communication file.
+This document will only present the current version of Circuit IR.
+
+The IR is an interaction between the frontend and the backend portions of a Zero Knowledge (ZK) proof pipeline.
+The frontend transforms high level statements in a target domain into the IR.
+It is the producer of the three resources which are the subject of this document.
+The backend is the consumer of them: it is an interaction between a Prover and a Verifier, where the Prover wishes to prove a statement to the Verifier without revealing a secret component of the proof.
+
+\subsection{Overview}
+
+At a high level, this interaction involves three resources provided by the frontend and used by the backend, as the fact is being proven. \\
+
+\begin{itemize}
+  \item Relation (Circuit or Translation IR) -- a mathematical relationship between the inputs.
+  \item Public inputs -- inputs to the relation given to both the Prover and Verifier.
+  \item Private inputs -- inputs to the relation given only to the Prover.
+\end{itemize}
+
+Version 2 of the SIEVE IR seeks to resolve the conflict between the necessity for frontend and backend interoperability and the variety of design choices, capabilities, and requirements in each system.
+The SIEVE program has seen everything from C++ libraries through R1CS as viable backend-specific IRs.
+
+To resolve this issue, the SIEVE IR introduces two types of relation: the Circuit-IR and the Translation-IR.
+\begin{itemize}
+\item The Circuit-IR is defined by flat lists of gates and wires; functions may be defined and reused within the circuit.
+\item The Translation-IR is a program which outputs a relation in the Circuit-IR format.
+The backend is given some amount of control over how the Translation-IR is translated, and is free to reimplement common or even standardized libraries.
+\end{itemize}
+
+At QEDIT, we decided to focus on the Circuit IR for the following reasons 
+\begin{itemize}
+\item it is easily plugable to frontends/backends because it is close to existing representations (e.g. R1CS, PLONK)
+\item it supports complex features and it is easily extensible thanks to plugins
+\item it is a simple representation that simplifies newcomers' adoption and maintainability
+\end{itemize}
+
+
+\subsection{Multi Field Circuits}
+To most practitioners of ZK, a single prime field is chosen at the beginning of a proof and used throughout.
+However, for some applications, it is desirable to use multiple primes for different elements within a single larger proof.
+For example, a large and expensive prime may be needed to verify public-key signatures, while a medium sized prime is necessary for large scale business logic.
+
+To accommodate these applications, the IR must allow for multiple fields within a single relation.
+To the frontend, each field must describe the type of a wire, while to the backend, these wires actually belong to multiple independent proofs.
+An analogy to the real world might be a circuit card with transistor logic on one side and high voltage on the other.
+
+Occasionally information from one field will be required in another.
+The IR models this using a conversion gate with inputs in one field and outputs in another.
+To continue the analogy, a relay would allow information to flow from transistor logic into high voltage, or in reverse, an analog-digital converter.
+In ZK, methodologies must be developed and used to show the equivalence of inputs and outputs across independent proofs or even across different proof systems.
+

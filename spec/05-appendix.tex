@@ -1,0 +1,34 @@
+
+\begin{appendices}
+
+\section{Binary Syntax}\label{binary_syntax}
+The binary serialization of Circuit-IR will be described here using the \href{https://google.github.io/flatbuffers/}{open-source FlatBuffers cross-platform serialization library}, originally developed by Google.
+FlatBuffers is a metaformat that specifies the superficial aspects of the syntax, such as representations of literals, structured data and arrays.
+It moreover supports formal schemas that concretely define what elements (e.g., structures and arrays) can appear in the specific format.
+FlatBuffers was chosen for the following reasons:
+\begin{itemize}
+\item It offers an existing compact encoding of the format with efficient (de)serialization.
+\item It is supported by a wide-range of community-based tools and libraries for the most common languages (and is also easy to parse from scratch).
+\end{itemize}
+
+We will use the below FlatBuffers schema to represent \texttt{circuit}, \texttt{public\_input}, and \texttt{private\_input} ressources. This schema is isomorphic to the Circuit-IR representation presented in Section~\ref{sec:circuitir}.
+
+\lstinputlisting[language=flatbuffer]{../sieve_ir.fbs}
+
+As a structured format, the FlatBuffers schema provides a concrete, readable and typed syntax,
+ensuring syntactic validity.
+However, it does not provide resource or evaluation validity as it is not a language.
+Refer to Section~\ref{circuit_ir_validity} to a description of syntactic, resource and evaluation validity.
+
+A limitation of the Flatbuffer technology is its 32-bit internal pointer representation, which prevents it from storing buffers larger than approximately 2GB.
+The IR specifies the following workaround for this limitation.
+
+\begin{itemize}
+  \item The \texttt{Root} message may be repeated within a file or stream as manytimes as is necessary: each message holding a portion of the IR resource.
+  \item Each message must be prefixed by its length in bytes, as a 4-byte unsigned little-endian number. (See \href{https://google.github.io/flatbuffers/class_flat_buffers_1_1_flat_buffer_builder.html#a425ab2bd13a0e4331a7190ec2d17c3b2}{FinishSizePrefix}).
+  \item Each message's \texttt{version} attribute must be the same as the first message's \texttt{version}. All other attributes must be empty except for the resource's body.
+\end{itemize}
+
+Unfortunately, there is no way for a Flatbuffer to hold a single function which is larger than 2GB.
+
+\end{appendices}

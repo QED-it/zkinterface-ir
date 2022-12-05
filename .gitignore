@@ -1,3 +1,11 @@
 target/
 local/
 .idea/
+
+# LaTeX temporary files
+*.aux
+*.log
+*.toc
+*.fdb_latexmk
+*.out
+*.fls
