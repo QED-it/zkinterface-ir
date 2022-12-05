@@ -43,6 +43,8 @@ Rust:
 - update validator with all new validity checks (especially on memory management)
 - update examples in src/examples directory
 - update README
+- refactor
+  - remove get and set macros in Evaluator
 
 # SIEVE IR v1.0.1, 2022-08
 

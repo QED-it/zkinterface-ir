@@ -353,26 +353,14 @@ impl<B: ZKBackend> Evaluator<B> {
     ) -> Result<()> {
         use Gate::*;
 
-        macro_rules! get {
-            ($type_id:expr, $wire_id:expr) => {{
-                get::<B>(scope, $type_id, $wire_id)
-            }};
-        }
-
-        macro_rules! set {
-            ($type_id: expr, $wire_id:expr, $wire_name:expr) => {{
-                set::<B>(scope, $type_id, $wire_id, $wire_name)
-            }};
-        }
-
         match gate {
             Constant(type_id, out, value) => {
                 let wire = backend.constant(type_id, B::from_bytes_le(value)?)?;
-                set!(*type_id, *out, wire)?;
+                set::<B>(scope, *type_id, *out, wire)?;
             }
 
             AssertZero(type_id, inp) => {
-                let inp_wire = get!(*type_id, *inp)?;
+                let inp_wire = get::<B>(scope, *type_id, *inp)?;
                 if backend.assert_zero(type_id, inp_wire).is_err() {
                     return Err(format!(
                         "Wire ({}: {}) should be 0, while it is not",
@@ -383,37 +371,37 @@ impl<B: ZKBackend> Evaluator<B> {
             }
 
             Copy(type_id, out, inp) => {
-                let in_wire = get!(*type_id, *inp)?;
+                let in_wire = get::<B>(scope, *type_id, *inp)?;
                 let out_wire = backend.copy(type_id, in_wire)?;
-                set!(*type_id, *out, out_wire)?;
+                set::<B>(scope, *type_id, *out, out_wire)?;
             }
 
             Add(type_id, out, left, right) => {
-                let l = get!(*type_id, *left)?;
-                let r = get!(*type_id, *right)?;
+                let l = get::<B>(scope, *type_id, *left)?;
+                let r = get::<B>(scope, *type_id, *right)?;
                 let sum = backend.add(type_id, l, r)?;
-                set!(*type_id, *out, sum)?;
+                set::<B>(scope, *type_id, *out, sum)?;
             }
 
             Mul(type_id, out, left, right) => {
-                let l = get!(*type_id, *left)?;
-                let r = get!(*type_id, *right)?;
+                let l = get::<B>(scope, *type_id, *left)?;
+                let r = get::<B>(scope, *type_id, *right)?;
                 let prod = backend.multiply(type_id, l, r)?;
-                set!(*type_id, *out, prod)?;
+                set::<B>(scope, *type_id, *out, prod)?;
             }
 
             AddConstant(type_id, out, inp, constant) => {
-                let l = get!(*type_id, *inp)?;
+                let l = get::<B>(scope, *type_id, *inp)?;
                 let r = B::from_bytes_le(constant)?;
                 let sum = backend.add_constant(type_id, l, r)?;
-                set!(*type_id, *out, sum)?;
+                set::<B>(scope, *type_id, *out, sum)?;
             }
 
             MulConstant(type_id, out, inp, constant) => {
-                let l = get!(*type_id, *inp)?;
+                let l = get::<B>(scope, *type_id, *inp)?;
                 let r = B::from_bytes_le(constant)?;
                 let prod = backend.mul_constant(type_id, l, r)?;
-                set!(*type_id, *out, prod)?;
+                set::<B>(scope, *type_id, *out, prod)?;
             }
 
             Public(type_id, out) => {
