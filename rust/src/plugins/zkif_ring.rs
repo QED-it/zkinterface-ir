@@ -1,8 +1,10 @@
 use num_bigint::BigUint;
 use num_traits::Pow;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 use crate::consumers::evaluator::PlaintextType;
+use crate::plugins::evaluate_plugin::extract_number;
 use crate::structs::count::Count;
 use crate::{Result, TypeId};
 
@@ -33,7 +35,7 @@ fn zkif_ring_check(
             "plugin(zkif_ring, add/mul/equal) must be declared with 1 param (type_id).".into(),
         );
     }
-    let param_type_id = params[0].parse::<u8>()?;
+    let param_type_id = u8::try_from(extract_number(&params[0])?)?;
 
     // Check that `type_id` is defined and is a zkif_ring plugin type.
     let type_ = types.get(param_type_id as usize).ok_or_else(|| {
@@ -61,8 +63,8 @@ fn zkif_ring_check(
                         .into(),
                 );
             }
-            let ring_base = BigUint::from(ring_params[0].parse::<u64>()?);
-            let ring_exponent = ring_params[1].parse::<u64>()?;
+            let ring_base = BigUint::from(extract_number(&ring_params[0])?);
+            let ring_exponent = extract_number(&ring_params[1])?;
             Pow::pow(ring_base, ring_exponent)
         }
     };

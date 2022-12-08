@@ -4,8 +4,8 @@ namespace sieve_ir;
 
 // REGEX used:
 // - VERSION_REGEX = "^\d+.\d+.\d+$"
-// - STRING_REGEX = "^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$"
-// - INTEGER_REGEX = "^[0-9]+$"
+// - STRING_REGEX = "^[a-zA-Z_][\w]*((\.|::)[a-zA-Z_][\w]*)*$"
+// - NUMBER_REGEX = "^((\d+)|(0x[0-9a-fA-F]+))$"
 
 // ==== Message types that can be exchanged. ====
 union Message {
@@ -83,7 +83,7 @@ table Field {
 
 // 'name' and 'operation' must match STRING_REGEX
 // Strings of the 'params' list must match either
-// STRING_REGEX or INTEGER_REGEX
+// STRING_REGEX or NUMBER_REGEX
 table PluginType {
   name       :string;
   operation  :string;
@@ -94,6 +94,9 @@ table PluginType {
 table GateConstant {
   type_id   :ubyte;
   out_id    :uint64;
+  // 'constant' is encoded in a vector of bytes in little-endian
+  // order. There is no minimum or maximum length; trailing zeros
+  // may be omitted.
   constant  :[ubyte];
 }
 
@@ -126,6 +129,9 @@ table GateAddConstant {
   type_id   :ubyte;
   out_id    :uint64;
   in_id     :uint64;
+  // 'constant' is encoded in a vector of bytes in little-endian
+  // order. There is no minimum or maximum length; trailing zeros
+  // may be omitted.
   constant  :[ubyte];
 }
 
@@ -133,6 +139,9 @@ table GateMulConstant {
   type_id   :ubyte;
   out_id    :uint64;
   in_id     :uint64;
+  // 'constant' is encoded in a vector of bytes in little-endian
+  // order. There is no minimum or maximum length; trailing zeros
+  // may be omitted.
   constant  :[ubyte];
 }
 
@@ -181,7 +190,7 @@ table Gates {
 
 // 'name' and 'operation' must match STRING_REGEX
 // Strings of the 'params' list must match either
-// STRING_REGEX or INTEGER_REGEX
+// STRING_REGEX or NUMBER_REGEX
 table PluginBody {
   name           :string;
   operation      :string;
@@ -190,9 +199,9 @@ table PluginBody {
   private_count  :[Count]; // Each type_id must be unique
 }
 
+// Declare a Function gate as a custom computation or from a plugin
 // The 'name' must match STRING_REGEX
 table Function {
-  // Declare a Function gate as a custom computation or from a plugin
   name          :string;
   output_count  :[Count];
   input_count   :[Count];

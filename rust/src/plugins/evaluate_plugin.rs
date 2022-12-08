@@ -109,3 +109,40 @@ pub fn evaluate_plugin_for_plaintext_backend(
         _ => Err("Unknown plugin".into()),
     }
 }
+
+/// Convert a string number into a u64
+/// The string number must matches the following regex
+/// NUMBER_REGEX = “^((\d+)|(0x[0-9a-fA-F]+))$“
+pub fn extract_number(param: &str) -> Result<u64> {
+    if param.starts_with("0x") {
+        u64::from_str_radix(param.trim_start_matches("0x"), 16).map_err(|e| e.into())
+    } else {
+        param.parse::<u64>().map_err(|e| e.into())
+    }
+}
+
+#[test]
+fn test_extract_number() {
+    let param = "81335";
+    let result = extract_number(param).unwrap();
+    let expected_result = 81335;
+    assert_eq!(result, expected_result);
+
+    let param = "0xAf2b";
+    let result = extract_number(param).unwrap();
+    let expected_result = 44843;
+    assert_eq!(result, expected_result);
+
+    let param = "0x0";
+    let result = extract_number(param).unwrap();
+    let expected_result = 0;
+    assert_eq!(result, expected_result);
+
+    let param = "Af2b";
+    let result = extract_number(param);
+    assert!(result.is_err());
+
+    let param = "0XAf2b";
+    let result = extract_number(param);
+    assert!(result.is_err());
+}

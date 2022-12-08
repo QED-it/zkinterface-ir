@@ -22,12 +22,12 @@ type TypeElement = BigUint;
 /// Used to check the validity of the version.
 const VERSION_REGEX: &str = r"^\d+.\d+.\d+$";
 /// Used to check the validity of names of functions, names of plugins, names of operation, string params in plugin
-const NAMES_REGEX: &str = r"^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$";
-const NUMERICAL_REGEX: &str = r"^[0-9]+$";
+const STRING_REGEX: &str = r"^[a-zA-Z_][\w]*((\.|::)[a-zA-Z_][\w]*)*$";
+const NUMBER_REGEX: &str = r"^((\d+)|(0x[0-9a-fA-F]+))$";
 const IMPLEMENTED_CHECKS: &str = r"
 VERSION_REGEX = “^\d+.\d+.\d+$“
-STRING_REGEX = “^[a-zA-Z_][\w]*(?:(?:\.|:{2})[a-zA-Z_][\w]*)*$“
-INTEGER_REGEX = “^[0-9]+$“
+STRING_REGEX = “^[a-zA-Z_][\w]*((\.|::)[a-zA-Z_][\w]*)*$“
+NUMBER_REGEX = “^((\d+)|(0x[0-9a-fA-F]+))$“
 
 Here is the list of implemented semantic/syntactic checks:
 
@@ -40,7 +40,7 @@ Type Validation
  - Ensure for Plugin type, that
      - plugin name has been declared
      - name, operation and string parameters match STRING_REGEX
-     - numerical parameters match INTEGER_REGEX
+     - numerical parameters match NUMBER_REGEX
 
 Inputs Validation (PublicInputs / PrivateInputs Messages)
  - Ensure that there are enough values in PublicInputs messages for the evaluation of the circuit.
@@ -68,7 +68,7 @@ Function declaration Validation
  - Ensure for Plugin function, that
      - plugin name has been declared
      - name, operation and string parameters match STRING_REGEX
-     - numerical parameters match INTEGER_REGEX
+     - numerical parameters match NUMBER_REGEX
 
 Standard Gate Validation (@add, @mul, @addc, @mulc, @copy, @constant, @assert_zero)
  - Ensure that the type index refers to a Field type
@@ -253,11 +253,11 @@ impl Validator {
             // Check and ingest plugins
             relation.plugins.iter().for_each(|plugin_name| {
                 // Check plugin name
-                let re_str = Regex::new(NAMES_REGEX).unwrap();
+                let re_str = Regex::new(STRING_REGEX).unwrap();
                 if !re_str.is_match(plugin_name) {
                     self.violate(format!(
                         "The plugin name ({}) should match the proper format ({}).",
-                        plugin_name, NAMES_REGEX
+                        plugin_name, STRING_REGEX
                     ));
                 }
                 // Insert plugin name into known_plugins
@@ -329,11 +329,11 @@ impl Validator {
                     );
 
                     // Check that the name follows the proper REGEX
-                    let re = Regex::new(NAMES_REGEX).unwrap();
+                    let re = Regex::new(STRING_REGEX).unwrap();
                     if !re.is_match(name.trim()) {
                         self.violate(format!(
                             "The function name ({}) should match the proper format ({}).",
-                            name, NAMES_REGEX
+                            name, STRING_REGEX
                         ));
                     }
 
@@ -1071,28 +1071,28 @@ impl Validator {
     }
 
     /// This function performs the following checks
-    /// - name, operation and string parameters match the NAMES_REGEX
-    /// - numerical parameters match the NUMERICAL_REGEX
+    /// - name, operation and string parameters match the STRING_REGEX
+    /// - numerical parameters match the NUMBER_REGEX
     fn check_plugin_content(&mut self, name: &str, operation: &str, params: &[String]) {
-        let re_str = Regex::new(NAMES_REGEX).unwrap();
-        let re_num = Regex::new(NUMERICAL_REGEX).unwrap();
+        let re_str = Regex::new(STRING_REGEX).unwrap();
+        let re_num = Regex::new(NUMBER_REGEX).unwrap();
         if !re_str.is_match(name) {
             self.violate(format!(
                 "The plugin name ({}) should match the proper format ({}).",
-                name, NAMES_REGEX
+                name, STRING_REGEX
             ));
         }
         if !re_str.is_match(operation) {
             self.violate(format!(
                 "The plugin operation ({}) should match the proper format ({}).",
-                operation, NAMES_REGEX
+                operation, STRING_REGEX
             ));
         }
         params.iter().for_each(|param| {
             if !(re_str.is_match(param) || re_num.is_match(param)) {
                 self.violate(format!(
                     "Each plugin param ({}) should match the proper format ({} or {}).",
-                    param, NAMES_REGEX, NUMERICAL_REGEX
+                    param, STRING_REGEX, NUMBER_REGEX
                 ));
             }
         });

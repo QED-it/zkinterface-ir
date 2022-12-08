@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 
 use crate::consumers::evaluator::PlaintextType;
+use crate::plugins::evaluate_plugin::extract_number;
 use crate::structs::count::Count;
 use crate::{Result, TypeId};
 
@@ -35,8 +36,8 @@ fn zkif_vector_check<'a>(
             "plugin(zkif_vector, add/mul) must be declared with 2 params (type_id, length).".into(),
         );
     }
-    let param_type_id = params[0].parse::<u8>()?;
-    let param_len = params[1].parse::<usize>()?;
+    let param_type_id = u8::try_from(extract_number(&params[0])?)?;
+    let param_len = usize::try_from(extract_number(&params[1])?)?;
     if param_len == 0 {
         return Err("plugin(zkif_vector, add/mul) cannot be called without inputs.".into());
     }
