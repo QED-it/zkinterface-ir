@@ -6,7 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
 
 use crate::structs::conversion::Conversion;
-use crate::structs::count::{count_list_to_hashmap, Count};
+use crate::structs::count::Count;
 use crate::structs::directives::Directive;
 use crate::structs::function::{FunctionBody, FunctionCounts};
 use crate::structs::types::Type;
@@ -678,7 +678,7 @@ impl Validator {
                                 if !self.belong_to_a_single_allocation(&wire_range_with_type.type_id, &wire_range_with_type.first_id, &wire_range_with_type.last_id) {
                                     if self.belong_to_allocations(&wire_range_with_type.type_id, &wire_range_with_type.first_id, &wire_range_with_type.last_id) {
                                         self.violate(
-                                            "Call: in an output WireRange, wires should not belong to different allocations)")
+                                            "Call: in an output WireRange, wires should not belong to different allocations")
                                     } else {
                                         // No wire belongs to allocations
                                         self.allocations
@@ -797,17 +797,37 @@ impl Validator {
             violations: vec![],
         };
 
-        // input wires should be already defined, and they are numbered from
-        // output_wire, so we will artificially define them in the inner
-        // validator.
-        let output_count_map = count_list_to_hashmap(output_count);
-        let input_count_map = count_list_to_hashmap(input_count);
-        for (type_id, count) in input_count_map.iter() {
-            let first_idx = *output_count_map.get(type_id).unwrap_or(&0);
-            for wire_id in first_idx..(first_idx + *count) {
-                current_validator.live_wires.insert((*type_id, wire_id));
-            }
-        }
+        // Create allocations for output wire ranges in the inner validator
+        let mut output_count_map = HashMap::new(); // type_id -> next available wire id
+        output_count.iter().for_each(|count| {
+            let first_idx = output_count_map.entry(count.type_id).or_insert(0_u64);
+            let last_idx = *first_idx + count.count - 1;
+            current_validator
+                .allocations
+                .insert((count.type_id, *first_idx, last_idx));
+            *first_idx = last_idx + 1;
+        });
+
+        // Create allocations for input wire ranges, and
+        // artificially define input wires in the inner validator
+        // (input wires are numbered from last output wires of each type)
+        let mut input_count_map = output_count_map.clone();
+        input_count.iter().for_each(|count| {
+            // Create allocations
+            let first_idx = input_count_map.entry(count.type_id).or_insert(0_u64);
+            let last_idx = *first_idx + count.count - 1;
+            current_validator
+                .allocations
+                .insert((count.type_id, *first_idx, last_idx));
+            // Artificially define input wires
+            (*first_idx..=last_idx).for_each(|wire_id| {
+                current_validator
+                    .live_wires
+                    .insert((count.type_id, wire_id));
+            });
+            // Update input_count_map
+            *first_idx = last_idx + 1;
+        });
 
         // Evaluate the subcircuit
         for gate in subcircuit.iter() {
@@ -1516,4 +1536,177 @@ fn test_validator_with_functions_with_several_input_output_types() {
     validator.ingest_relation(&relation);
 
     assert_eq!(validator.get_violations(), Vec::<String>::new());
+}
+
+#[test]
+fn test_validator_with_custom_functions() {
+    use crate::structs::function::Function;
+    use crate::structs::IR_VERSION;
+
+    let public_inputs = vec![
+        PublicInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::Field(vec![7]),
+            inputs: vec![vec![1]],
+        },
+        PublicInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::Field(vec![101]),
+            inputs: vec![vec![92]],
+        },
+    ];
+    let private_inputs = vec![
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::Field(vec![7]),
+            inputs: vec![vec![0], vec![1], vec![2]],
+        },
+        PrivateInputs {
+            version: IR_VERSION.to_string(),
+            type_value: Type::Field(vec![101]),
+            inputs: vec![vec![3], vec![4]],
+        },
+    ];
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![Type::Field(vec![7]), Type::Field(vec![101])],
+        conversions: vec![],
+        directives: vec![
+            Directive::Function(Function::new(
+                "add_1_mod_7".to_string(),
+                vec![Count::new(0, 3)],
+                vec![Count::new(0, 3)],
+                FunctionBody::Gates(vec![
+                    Gate::AddConstant(0, 0, 3, vec![1]),
+                    Gate::AddConstant(0, 1, 4, vec![1]),
+                    Gate::AddConstant(0, 2, 5, vec![1]),
+                ]),
+            )),
+            Directive::Function(Function::new(
+                "add_1".to_string(),
+                vec![Count::new(0, 3), Count::new(1, 2)],
+                vec![Count::new(0, 3), Count::new(1, 2)],
+                FunctionBody::Gates(vec![
+                    Gate::Call(
+                        "add_1_mod_7".to_string(),
+                        vec![WireRange::new(0, 2)],
+                        vec![WireRange::new(3, 5)],
+                    ),
+                    Gate::AddConstant(1, 0, 2, vec![1]),
+                    Gate::AddConstant(1, 1, 3, vec![1]),
+                ]),
+            )),
+            Directive::Gate(Gate::New(0, 0, 2)),
+            Directive::Gate(Gate::New(1, 0, 1)),
+            Directive::Gate(Gate::Private(0, 0)), // 0
+            Directive::Gate(Gate::Private(0, 1)), // 1
+            Directive::Gate(Gate::Private(0, 2)), // 2
+            Directive::Gate(Gate::Private(1, 0)), // 3
+            Directive::Gate(Gate::Private(1, 1)), // 4
+            Directive::Gate(Gate::Call(
+                "add_1".to_string(),
+                vec![WireRange::new(3, 5), WireRange::new(2, 3)], // [1, 2, 3], [4, 5]
+                vec![WireRange::new(0, 2), WireRange::new(0, 1)],
+            )),
+            Directive::Gate(Gate::Add(0, 6, 3, 4)), // 1 + 2 = 3
+            Directive::Gate(Gate::Add(0, 7, 5, 6)), // 3 + 3 = 6
+            Directive::Gate(Gate::Public(0, 8)),    // 1
+            Directive::Gate(Gate::Add(0, 9, 7, 8)), // 6 + 1 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 9)),
+            Directive::Gate(Gate::Delete(0, 0, 9)),
+            Directive::Gate(Gate::Add(1, 4, 2, 3)), // 4 + 5 = 9
+            Directive::Gate(Gate::Public(1, 5)),    // 92
+            Directive::Gate(Gate::Add(1, 6, 4, 5)), // 92 + 9 = 0 mod 101
+            Directive::Gate(Gate::AssertZero(1, 6)),
+            Directive::Gate(Gate::Delete(1, 0, 6)),
+        ],
+    };
+
+    let mut validator = Validator::new_as_prover();
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_private_inputs(inputs));
+    validator.ingest_relation(&relation);
+
+    assert_eq!(validator.get_violations(), Vec::<String>::new());
+
+    let public_inputs = vec![PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![5]],
+    }];
+    let private_inputs = vec![PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![0], vec![1]],
+    }];
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![Type::Field(vec![7])],
+        conversions: vec![],
+        directives: vec![
+            Directive::Function(Function::new(
+                "duplicate".to_string(),
+                vec![Count::new(0, 4)],
+                vec![Count::new(0, 2)],
+                FunctionBody::Gates(vec![
+                    Gate::Copy(0, 0, 4),
+                    Gate::Copy(0, 1, 5),
+                    Gate::Copy(0, 2, 4),
+                    Gate::Copy(0, 3, 5),
+                ]),
+            )),
+            Directive::Function(Function::new(
+                "duplicate_2".to_string(),
+                vec![Count::new(0, 2), Count::new(0, 2)],
+                vec![Count::new(0, 2)],
+                // The following call should return an error because wires from 0 to 3 does not
+                // belong to the same allocation
+                FunctionBody::Gates(vec![Gate::Call(
+                    "duplicate".to_string(),
+                    vec![WireRange::new(0, 3)],
+                    vec![WireRange::new(4, 5)],
+                )]),
+            )),
+            Directive::Gate(Gate::New(0, 0, 2)),
+            Directive::Gate(Gate::Private(0, 0)), // 0
+            Directive::Gate(Gate::Private(0, 1)), // 1
+            Directive::Gate(Gate::Call(
+                "duplicate_2".to_string(),
+                vec![WireRange::new(2, 3), WireRange::new(4, 5)], // [0, 1], [0, 1]
+                vec![WireRange::new(0, 1)],                       // [0, 1]
+            )),
+            Directive::Gate(Gate::Add(0, 6, 2, 3)), // 0 + 1 = 1
+            Directive::Gate(Gate::Add(0, 7, 4, 5)), // 0 + 1 = 1
+            Directive::Gate(Gate::Add(0, 8, 6, 7)), // 1 + 1 = 2
+            Directive::Gate(Gate::Public(0, 9)),    // 5
+            Directive::Gate(Gate::Add(0, 10, 8, 9)), // 2 + 5 = 0 mod 7
+            Directive::Gate(Gate::AssertZero(0, 10)),
+            Directive::Gate(Gate::Delete(0, 0, 10)),
+        ],
+    };
+
+    let mut validator = Validator::new_as_prover();
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_private_inputs(inputs));
+    validator.ingest_relation(&relation);
+
+    assert_eq!(
+        validator.get_violations(),
+        vec![
+            "Call: in an output WireRange, wires should not belong to different allocations"
+                .to_string(),
+            "Call: in an output WireRange, wires should not belong to different allocations"
+                .to_string(),
+        ]
+    );
 }
