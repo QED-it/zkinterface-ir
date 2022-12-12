@@ -78,7 +78,7 @@ Standard Gate Validation (@add, @mul, @addc, @mulc, @copy, @constant, @assert_ze
  - Ensure that output wires of gates are unset and have not been previously deleted (Single Static Assignment)
 
 Memory Management Validation
- - Ensure for New/Delete gates of the format @new/delete(type_id, first, last), that we have (last >= first).
+ - Ensure for New/Delete gates of the format @new/delete(type_id, first, last), that we have (first <= last).
  - Ensure for New gates of the format @new(type_id, first, last), that all wires between first and
    last inclusive are not already allocated, set or have not been previously deleted.
  - Ensure for Delete gates of the format @delete(type_id, first, last), that all wires between first
@@ -484,10 +484,10 @@ impl Validator {
             }
 
             New(type_id, first, last) => {
-                // Ensure first < last
-                if *last <= *first {
+                // Ensure first <= last
+                if *last < *first {
                     self.violate(format!(
-                        "For New gates, last WireId ({}) should be strictly greater than first WireId ({}).",
+                        "For New gates, last WireId ({}) should be equal or greater than first WireId ({}).",
                         *last, *first
                     ));
                 }
@@ -507,10 +507,10 @@ impl Validator {
             }
 
             Delete(type_id, first, last) => {
-                // first < last
+                // first <= last
                 if *last < *first {
                     self.violate(format!(
-                            "For Delete gates, last WireId ({}) should be greater than first WireId ({}).",
+                            "For Delete gates, last WireId ({}) should be equal or greater than first WireId ({}).",
                             *last, *first
                         ));
                 }
@@ -1709,4 +1709,48 @@ fn test_validator_with_custom_functions() {
                 .to_string(),
         ]
     );
+}
+
+#[test]
+fn test_validator_with_new_delete_on_one_wire() {
+    use crate::structs::IR_VERSION;
+
+    let public_inputs = vec![PublicInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![1]],
+    }];
+    let private_inputs = vec![PrivateInputs {
+        version: IR_VERSION.to_string(),
+        type_value: Type::Field(vec![7]),
+        inputs: vec![vec![6]],
+    }];
+    let relation = Relation {
+        version: IR_VERSION.to_string(),
+        plugins: vec![],
+        types: vec![Type::Field(vec![7])],
+        conversions: vec![],
+        directives: vec![
+            Directive::Gate(Gate::New(0, 0, 0)),
+            Directive::Gate(Gate::Public(0, 0)),
+            Directive::Gate(Gate::New(0, 1, 1)),
+            Directive::Gate(Gate::Private(0, 1)),
+            Directive::Gate(Gate::Add(0, 2, 0, 1)),
+            Directive::Gate(Gate::Delete(0, 0, 0)),
+            Directive::Gate(Gate::Delete(0, 1, 1)),
+            Directive::Gate(Gate::AssertZero(0, 2)),
+            Directive::Gate(Gate::Delete(0, 2, 2)),
+        ],
+    };
+
+    let mut validator = Validator::new_as_prover();
+    public_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_public_inputs(inputs));
+    private_inputs
+        .iter()
+        .for_each(|inputs| validator.ingest_private_inputs(inputs));
+    validator.ingest_relation(&relation);
+
+    assert_eq!(validator.get_violations(), Vec::<String>::new());
 }
