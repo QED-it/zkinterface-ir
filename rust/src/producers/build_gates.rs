@@ -5,7 +5,7 @@ use crate::{Gate, TypeId, Value, WireId};
 
 /// BuildGate is similar to Gate but without output wires.
 /// Useful in combination with GateBuilder.
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum BuildGate {
     Constant(TypeId, Value),
     AssertZero(TypeId, WireId),
@@ -73,7 +73,7 @@ impl BuildGate {
 
 /// BuildComplexGate is similar to a complex Gate (Call, or For) but without output wires.
 /// Useful in combination with GateBuilder.
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum BuildComplexGate {
     // Call(name, in_ids)
     Call(String, Vec<WireRange>),

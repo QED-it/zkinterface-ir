@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::error::Error;
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub struct WireRange {
     pub first_id: WireId,
     pub last_id: WireId,
