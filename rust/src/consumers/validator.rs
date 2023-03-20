@@ -2,7 +2,7 @@ use num_bigint::BigUint;
 use num_bigint_dig;
 use num_bigint_dig::prime::probably_prime;
 use regex::Regex;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 
 use crate::structs::conversion::Conversion;
@@ -106,31 +106,31 @@ Call Gate Validation
    (if they are unallocated, the output range will be implicitly allocated as with @new gate)
 ";
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Eq, PartialEq)]
 pub struct Validator {
     as_prover: bool,
 
-    public_inputs_counts: HashMap<ValidatorType, u64>,
-    private_inputs_counts: HashMap<ValidatorType, u64>,
+    public_inputs_counts: BTreeMap<ValidatorType, u64>,
+    private_inputs_counts: BTreeMap<ValidatorType, u64>,
     live_wires: BTreeSet<(TypeId, WireId)>,
     deleted_wires: BTreeSet<(TypeId, WireId)>,
     // (type_id, first_wire, last_wire)
-    allocations: HashSet<(TypeId, WireId, WireId)>,
+    allocations: BTreeSet<(TypeId, WireId, WireId)>,
 
     version: String,
 
     types: Vec<ValidatorType>,
 
-    known_plugins: HashSet<String>,
-    known_conversions: HashSet<Conversion>,
+    known_plugins: BTreeSet<String>,
+    known_conversions: BTreeSet<Conversion>,
     // name => (output_count, input_count, public_count, private_count)
-    known_functions: HashMap<String, FunctionCounts>,
+    known_functions: BTreeMap<String, FunctionCounts>,
 
     violations: Vec<String>,
 }
 
 /// A `ValidatorType` is similar to a `Type` except that the value in `Type::Field` is a `TypeElement` instead of a `Value`
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum ValidatorType {
     Field(TypeElement),
     PluginType(String, String, Vec<String>),
@@ -707,10 +707,10 @@ impl Validator {
         subcircuit: &[Gate],
         output_count: &[Count],
         input_count: &[Count],
-    ) -> (HashMap<TypeId, u64>, HashMap<TypeId, u64>) {
+    ) -> (BTreeMap<TypeId, u64>, BTreeMap<TypeId, u64>) {
         // Count public/private input consumed in this function
-        let mut public_count = HashMap::new();
-        let mut private_count = HashMap::new();
+        let mut public_count = BTreeMap::new();
+        let mut private_count = BTreeMap::new();
         for gate in subcircuit.iter() {
             match gate {
                 Gate::Public(type_id, _) => {
@@ -752,8 +752,8 @@ impl Validator {
         }
 
         // Type => count
-        let mut public_count_with_type = HashMap::new();
-        let mut private_count_with_type = HashMap::new();
+        let mut public_count_with_type = BTreeMap::new();
+        let mut private_count_with_type = BTreeMap::new();
         for (type_id, count) in public_count.iter() {
             let type_option = self.types.get(usize::try_from(*type_id).unwrap());
             match type_option {
@@ -784,7 +784,7 @@ impl Validator {
             private_inputs_counts: if self.as_prover {
                 private_count_with_type.clone()
             } else {
-                HashMap::new()
+                BTreeMap::new()
             },
             live_wires: Default::default(),
             deleted_wires: Default::default(),
@@ -798,7 +798,7 @@ impl Validator {
         };
 
         // Create allocations for output wire ranges in the inner validator
-        let mut output_count_map = HashMap::new(); // type_id -> next available wire id
+        let mut output_count_map = BTreeMap::new(); // type_id -> next available wire id
         output_count.iter().for_each(|count| {
             let first_idx = output_count_map.entry(count.type_id).or_insert(0_u64);
             let last_idx = *first_idx + count.count - 1;
@@ -901,7 +901,7 @@ impl Validator {
         self.consume_inputs(type_id, how_many, true);
     }
 
-    fn consume_public_count(&mut self, public_count: &HashMap<TypeId, u64>) {
+    fn consume_public_count(&mut self, public_count: &BTreeMap<TypeId, u64>) {
         public_count
             .iter()
             .for_each(|(type_id, count)| self.consume_public_inputs(type_id, *count));
@@ -913,7 +913,7 @@ impl Validator {
         }
     }
 
-    fn consume_private_count(&mut self, private_count: &HashMap<TypeId, u64>) {
+    fn consume_private_count(&mut self, private_count: &BTreeMap<TypeId, u64>) {
         if self.as_prover {
             private_count
                 .iter()
@@ -1321,8 +1321,8 @@ fn test_validator_memory_management_violations() {
                     name: "vector".to_string(),
                     operation: "add".to_string(),
                     params: vec!["0".to_string(), "2".to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::new(),
                 }),
             )),
         ],

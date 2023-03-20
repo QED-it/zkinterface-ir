@@ -1,7 +1,7 @@
 use crate::structs::types::Type;
 use crate::{consumers::source::has_sieve_extension, Source};
 use crate::{PrivateInputs, PublicInputs, Relation, Result, FILE_EXTENSION};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::{create_dir_all, read_dir, remove_file, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -62,8 +62,8 @@ impl From<MemorySink> for Source {
 pub struct FilesSink {
     pub workspace: PathBuf,
 
-    public_inputs_files: HashMap<Type, File>,
-    private_inputs_files: HashMap<Type, File>,
+    public_inputs_files: BTreeMap<Type, File>,
+    private_inputs_files: BTreeMap<Type, File>,
     relation_file: File,
 }
 
@@ -78,8 +78,8 @@ impl FilesSink {
         Ok(FilesSink {
             workspace: workspace.as_ref().to_path_buf(),
 
-            public_inputs_files: HashMap::new(),
-            private_inputs_files: HashMap::new(),
+            public_inputs_files: BTreeMap::new(),
+            private_inputs_files: BTreeMap::new(),
             relation_file: File::create(Self::relation_path(workspace))?,
         })
     }

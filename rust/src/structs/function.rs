@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -153,19 +153,19 @@ impl Function {
 }
 
 /// FunctionCounts contains the number of inputs, outputs, public/private inputs of a function.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct FunctionCounts {
     pub input_count: Vec<Count>,
     pub output_count: Vec<Count>,
-    pub public_count: HashMap<TypeId, u64>,
-    pub private_count: HashMap<TypeId, u64>,
+    pub public_count: BTreeMap<TypeId, u64>,
+    pub private_count: BTreeMap<TypeId, u64>,
 }
 
 impl FunctionCounts {
     /// This function returns the FunctionCounts of the function with name `name`.
-    /// If no function with name `name` belongs to the HashMap `known_functions`, then it returns an error.
+    /// If no function with name `name` belongs to the BTreeMap `known_functions`, then it returns an error.
     pub fn get_function_counts(
-        known_functions: &HashMap<String, Self>,
+        known_functions: &BTreeMap<String, Self>,
         name: &str,
     ) -> Result<Self> {
         match known_functions.get(name) {
@@ -179,8 +179,8 @@ impl FunctionCounts {
         name: &str,
         input_count: Option<Vec<Count>>,
         output_count: Option<Vec<Count>>,
-        public_count: Option<HashMap<TypeId, u64>>,
-        private_count: Option<HashMap<TypeId, u64>>,
+        public_count: Option<BTreeMap<TypeId, u64>>,
+        private_count: Option<BTreeMap<TypeId, u64>>,
     ) -> Result<()> {
         if let Some(count) = input_count {
             if count != self.input_count {

@@ -1,14 +1,14 @@
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::TypeId;
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash, Ord, PartialOrd)]
 pub struct Count {
     pub type_id: TypeId,
     pub count: u64,
@@ -55,8 +55,8 @@ impl Count {
     }
 }
 
-pub fn count_list_to_hashmap(count_list: &[Count]) -> HashMap<TypeId, u64> {
-    let mut map = HashMap::new();
+pub fn count_list_to_hashmap(count_list: &[Count]) -> BTreeMap<TypeId, u64> {
+    let mut map = BTreeMap::new();
     count_list.iter().for_each(|count| {
         let current_count = map.entry(count.type_id).or_insert(0_u64);
         *current_count += count.count
@@ -68,6 +68,6 @@ pub fn count_list_to_hashmap(count_list: &[Count]) -> HashMap<TypeId, u64> {
 fn test_count_list_to_hashmap() {
     let countlist = vec![Count::new(1, 5), Count::new(0, 3), Count::new(1, 2)];
     let result = count_list_to_hashmap(&countlist);
-    let expected_result: HashMap<TypeId, u64> = HashMap::from([(0, 3), (1, 7)]);
+    let expected_result: BTreeMap<TypeId, u64> = BTreeMap::from([(0, 3), (1, 7)]);
     assert_eq!(result, expected_result);
 }

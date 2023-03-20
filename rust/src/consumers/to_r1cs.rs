@@ -10,7 +10,7 @@ use zkinterface::{BilinearConstraint, Sink, StatementBuilder, Variables};
 
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 pub struct ToR1CSConverter<S: Sink> {
     builder: StatementBuilder<S>,
@@ -455,8 +455,8 @@ impl<S: Sink> ZKBackend for ToR1CSConverter<S> {
         _output_count: &[Count],
         _input_count: &[Count],
         _inputs: &[&Self::Wire],
-        _public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
-        _private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        _public_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
+        _private_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
         _plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
         Err("Not possible to convert to R1CS circuit circuit containing plugin calls".into())
@@ -500,7 +500,7 @@ use crate::{
     Message, PrivateInputs, PublicInputs, Source,
 };
 #[cfg(test)]
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf};
 #[cfg(test)]
 use zkinterface::{CircuitHeader as zkiCircuitHeader, Workspace, WorkspaceSink};
 
@@ -509,7 +509,7 @@ fn assert_same_io_values(
     public_inputs: &[PublicInputs],
     zki_headers: &[zkiCircuitHeader],
 ) -> Result<()> {
-    let zki_vals: HashSet<BigUint> = zki_headers
+    let zki_vals: BTreeSet<BigUint> = zki_headers
         .iter()
         .flat_map(|zki_header| {
             zki_header
@@ -520,7 +520,7 @@ fn assert_same_io_values(
                 .collect::<Vec<BigUint>>()
         })
         .collect();
-    let ir_vals: HashSet<BigUint> = public_inputs
+    let ir_vals: BTreeSet<BigUint> = public_inputs
         .iter()
         .flat_map(|pub_inp| {
             pub_inp
@@ -543,7 +543,7 @@ fn assert_same_witness_values(
     private_inputs: &[PrivateInputs],
     zki_witness: &[zkiWitness],
 ) -> Result<()> {
-    let zki_vals: HashSet<BigUint> = zki_witness
+    let zki_vals: BTreeSet<BigUint> = zki_witness
         .iter()
         .flat_map(|zki_witness| {
             zki_witness
@@ -555,7 +555,7 @@ fn assert_same_witness_values(
         })
         .collect();
 
-    let ir_vals: HashSet<BigUint> = private_inputs
+    let ir_vals: BTreeSet<BigUint> = private_inputs
         .iter()
         .flat_map(|priv_inp| {
             priv_inp

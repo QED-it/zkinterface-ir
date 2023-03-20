@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -16,8 +16,8 @@ pub struct PluginBody {
     pub name: String,
     pub operation: String,
     pub params: Vec<String>,
-    pub public_count: HashMap<TypeId, u64>,
-    pub private_count: HashMap<TypeId, u64>,
+    pub public_count: BTreeMap<TypeId, u64>,
+    pub private_count: BTreeMap<TypeId, u64>,
 }
 
 /// This function imports a FBS binary PluginBody declaration into a Rust equivalent.
@@ -70,8 +70,8 @@ impl PluginBody {
         name: String,
         operation: String,
         params: Vec<String>,
-        public_count: HashMap<TypeId, u64>,
-        private_count: HashMap<TypeId, u64>,
+        public_count: BTreeMap<TypeId, u64>,
+        private_count: BTreeMap<TypeId, u64>,
     ) -> Self {
         PluginBody {
             name,

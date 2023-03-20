@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::consumers::evaluator::PlaintextType;
 use crate::plugins::{zkif_assert_equal, zkif_ring, zkif_vector};
@@ -12,8 +12,8 @@ pub fn evaluate_plugin_for_plaintext_backend(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     plugin_body: &PluginBody,
     types: &[PlaintextType],
 ) -> Result<Vec<BigUint>> {

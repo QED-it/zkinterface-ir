@@ -7,7 +7,7 @@ use crate::structs::types::Type;
 use crate::structs::wirerange::WireRange;
 use crate::structs::IR_VERSION;
 use crate::{PrivateInputs, PublicInputs, Relation};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub fn example_public_inputs() -> Vec<PublicInputs> {
     vec![
@@ -113,8 +113,8 @@ pub fn example_relation() -> Relation {
                     name: "zkif_assert_equal".to_string(),
                     operation: "private".to_string(),
                     params: vec![type_id_101.to_string(), "1".to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::from([(type_id_101, 1)]),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::from([(type_id_101, 1)]),
                 }),
             )),
             // Right-triangle example
@@ -145,8 +145,8 @@ pub fn example_relation() -> Relation {
                     name: "zkif_vector".to_string(),
                     operation: "mul".to_string(),
                     params: vec![type_id_101.to_string(), "2".to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::new(),
                 }),
             )),
             Directive::Gate(Call(
@@ -173,8 +173,8 @@ pub fn example_relation() -> Relation {
                     name: "zkif_ring".to_string(),
                     operation: "add".to_string(),
                     params: vec![type_id_ring.to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::new(),
                 }),
             )),
             Directive::Function(Function::new(
@@ -185,8 +185,8 @@ pub fn example_relation() -> Relation {
                     name: "zkif_ring".to_string(),
                     operation: "mul".to_string(),
                     params: vec![type_id_ring.to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::new(),
                 }),
             )),
             Directive::Function(Function::new(
@@ -197,8 +197,8 @@ pub fn example_relation() -> Relation {
                     name: "zkif_ring".to_string(),
                     operation: "equal".to_string(),
                     params: vec![type_id_ring.to_string()],
-                    public_count: HashMap::new(),
-                    private_count: HashMap::new(),
+                    public_count: BTreeMap::new(),
+                    private_count: BTreeMap::new(),
                 }),
             )),
             Directive::Gate(Private(type_id_ring, 0)),

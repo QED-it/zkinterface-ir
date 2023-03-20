@@ -1,7 +1,7 @@
 extern crate serde;
 extern crate serde_json;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -57,7 +57,7 @@ pub struct Stats {
 
     pub gate_stats: GateStats,
 
-    pub functions: HashMap<String, FunctionContent>,
+    pub functions: BTreeMap<String, FunctionContent>,
 }
 
 impl Stats {
@@ -146,7 +146,7 @@ impl Stats {
 
 fn ingest_subcircuit(
     subcircuit: &[Gate],
-    known_functions: &HashMap<String, FunctionContent>,
+    known_functions: &BTreeMap<String, FunctionContent>,
 ) -> GateStats {
     let mut local_stats = GateStats::default();
     for gate in subcircuit {
@@ -156,7 +156,7 @@ fn ingest_subcircuit(
 }
 
 impl GateStats {
-    fn ingest_gate(&mut self, gate: &Gate, known_functions: &HashMap<String, FunctionContent>) {
+    fn ingest_gate(&mut self, gate: &Gate, known_functions: &BTreeMap<String, FunctionContent>) {
         use Gate::*;
 
         match gate {
@@ -301,7 +301,7 @@ fn test_stats() {
             private_inputs_messages: 3,
             relation_messages: 1,
         },
-        functions: HashMap::new(),
+        functions: BTreeMap::new(),
     };
     expected_stats.functions.insert(
         "assert_equal_private".to_string(),

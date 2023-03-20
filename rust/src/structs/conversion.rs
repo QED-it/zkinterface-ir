@@ -7,7 +7,7 @@ use std::error::Error;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::count::Count;
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash, PartialOrd, Ord)]
 pub struct Conversion {
     pub output_count: Count,
     pub input_count: Count,

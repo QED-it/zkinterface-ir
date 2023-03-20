@@ -1,5 +1,5 @@
 use num_bigint::BigUint;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use crate::consumers::evaluator::PlaintextType;
@@ -17,8 +17,8 @@ fn zkif_vector_check<'a>(
     output_count: &'a [Count],
     input_count: &'a [Count],
     inputs: &'a [&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &'a [String],
     types: &'a [PlaintextType],
 ) -> Result<(usize, &'a BigUint)> {
@@ -95,8 +95,8 @@ pub fn zkif_vector_add(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<Vec<BigUint>> {
@@ -125,8 +125,8 @@ pub fn zkif_vector_mul(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<Vec<BigUint>> {
@@ -164,8 +164,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )
@@ -179,8 +179,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -192,8 +192,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -205,8 +205,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -218,8 +218,8 @@ fn test_zkif_vector_check() {
         &incorrect_output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -231,8 +231,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &incorrect_input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -248,8 +248,8 @@ fn test_zkif_vector_check() {
         &output_count,
         &input_count,
         &incorrect_inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -272,8 +272,8 @@ fn test_vector_add() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )
@@ -287,8 +287,8 @@ fn test_vector_add() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -311,8 +311,8 @@ fn test_vector_mul() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )
@@ -326,8 +326,8 @@ fn test_vector_mul() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );

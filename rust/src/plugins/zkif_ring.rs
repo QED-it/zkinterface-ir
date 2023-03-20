@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use num_traits::Pow;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use crate::consumers::evaluator::PlaintextType;
@@ -16,8 +16,8 @@ use crate::{Result, TypeId};
 /// - `inputs` belongs to the targeted ring
 fn zkif_ring_check(
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<(u8, BigUint)> {
@@ -95,8 +95,8 @@ pub fn zkif_ring_add_mul_check(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<BigUint> {
@@ -135,8 +135,8 @@ pub fn zkif_ring_equal_check(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<()> {
@@ -170,8 +170,8 @@ pub fn zkif_ring_add(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<BigUint> {
@@ -196,8 +196,8 @@ pub fn zkif_ring_mul(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<BigUint> {
@@ -222,8 +222,8 @@ pub fn zkif_ring_equal(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
     types: &[PlaintextType],
 ) -> Result<()> {
@@ -262,7 +262,7 @@ fn test_zkif_ring_check() {
     ];
     let params = ["1".to_string()];
     let result =
-        zkif_ring_check(&inputs, &HashMap::new(), &HashMap::new(), &params, &types).unwrap();
+        zkif_ring_check(&inputs, &BTreeMap::new(), &BTreeMap::new(), &params, &types).unwrap();
     let expected_result = (1_u8, BigUint::from_bytes_le(&[64]));
     assert_eq!(result, expected_result);
 
@@ -270,8 +270,8 @@ fn test_zkif_ring_check() {
     let incorrect_params = ["0".to_string()];
     let result = zkif_ring_check(
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -281,8 +281,8 @@ fn test_zkif_ring_check() {
     let incorrect_params = ["2".to_string()];
     let result = zkif_ring_check(
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -292,8 +292,8 @@ fn test_zkif_ring_check() {
     let incorrect_params = ["a".to_string()];
     let result = zkif_ring_check(
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &incorrect_params,
         &types,
     );
@@ -307,8 +307,8 @@ fn test_zkif_ring_check() {
     ];
     let result = zkif_ring_check(
         &incorrect_inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -321,8 +321,8 @@ fn test_zkif_ring_check() {
     ];
     let result = zkif_ring_check(
         &incorrect_inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -347,8 +347,8 @@ fn test_zkif_ring_add_mul_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )
@@ -362,8 +362,8 @@ fn test_zkif_ring_add_mul_check() {
         &output_count,
         &incorrect_input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -375,8 +375,8 @@ fn test_zkif_ring_add_mul_check() {
         &incorrect_output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -401,8 +401,8 @@ fn test_zkif_ring_equal_check() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -414,8 +414,8 @@ fn test_zkif_ring_equal_check() {
         &output_count,
         &incorrect_input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -427,8 +427,8 @@ fn test_zkif_ring_equal_check() {
         &incorrect_output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     );
@@ -456,8 +456,8 @@ fn test_zkif_ring_add() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )
@@ -487,8 +487,8 @@ fn test_zkif_ring_mul() {
         &output_count,
         &input_count,
         &inputs,
-        &HashMap::new(),
-        &HashMap::new(),
+        &BTreeMap::new(),
+        &BTreeMap::new(),
         &params,
         &types,
     )

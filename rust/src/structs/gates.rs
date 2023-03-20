@@ -1,7 +1,7 @@
 use crate::Result;
 use flatbuffers::{FlatBufferBuilder, ForwardsUOffset, Vector, WIPOffset};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 use std::error::Error;
 
@@ -474,11 +474,11 @@ impl Gate {
 pub fn replace_output_wires(
     gates: &mut Vec<Gate>,
     out_wires: &[WireRangeWithType],
-    known_functions: &HashMap<String, FunctionCounts>,
+    known_functions: &BTreeMap<String, FunctionCounts>,
 ) -> Result<()> {
     // It is not easily doable to replace a WireId in a wire range.
     // Therefor, if an output wire belongs to a wire range, we will add a Copy gate and not modify this WireId.
-    let mut do_no_modify_wires: HashSet<(TypeId, WireId)> = HashSet::new();
+    let mut do_no_modify_wires: BTreeSet<(TypeId, WireId)> = BTreeSet::new();
     for gate in gates.iter() {
         match gate {
             New(type_id, first_id, last_id) => {
@@ -525,7 +525,7 @@ pub fn replace_output_wires(
         }
     }
 
-    let mut map: HashMap<TypeId, WireId> = HashMap::new();
+    let mut map: BTreeMap<TypeId, WireId> = BTreeMap::new();
     for wire_range_with_type in out_wires.iter() {
         let old_type_id = wire_range_with_type.type_id;
         for old_wire in wire_range_with_type.first_id..=wire_range_with_type.last_id {
@@ -614,13 +614,13 @@ fn test_replace_output_wires() {
         WireRangeWithType::new(0, 4, 6),
         WireRangeWithType::new(0, 12, 12),
     ];
-    let known_functions = HashMap::from([(
+    let known_functions = BTreeMap::from([(
         "custom".to_string(),
         FunctionCounts {
             input_count: vec![Count::new(0, 2)],
             output_count: vec![Count::new(0, 4)],
-            public_count: HashMap::new(),
-            private_count: HashMap::new(),
+            public_count: BTreeMap::new(),
+            private_count: BTreeMap::new(),
         },
     )]);
     replace_output_wires(&mut gates, &output_wires, &known_functions).unwrap();
@@ -660,7 +660,7 @@ fn test_replace_output_wires_with_forbidden_delete() {
         WireRangeWithType::new(0, 8, 8),
         WireRangeWithType::new(0, 4, 4),
     ];
-    let test = replace_output_wires(&mut gates, &output_wires, &HashMap::new());
+    let test = replace_output_wires(&mut gates, &output_wires, &BTreeMap::new());
     assert!(test.is_err());
 
     let mut gates = vec![
@@ -676,7 +676,7 @@ fn test_replace_output_wires_with_forbidden_delete() {
         WireRangeWithType::new(0, 8, 8),
         WireRangeWithType::new(0, 4, 4),
     ];
-    let test = replace_output_wires(&mut gates, &output_wires, &HashMap::new());
+    let test = replace_output_wires(&mut gates, &output_wires, &BTreeMap::new());
     assert!(test.is_err());
 }
 

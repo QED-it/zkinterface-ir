@@ -1,6 +1,6 @@
 use num_bigint::BigUint;
 use num_traits::Zero;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use crate::plugins::evaluate_plugin::extract_number;
@@ -17,8 +17,8 @@ fn zkif_assert_equal_check<'a>(
     output_count: &'a [Count],
     input_count: &'a [Count],
     inputs: &'a [&BigUint],
-    public_inputs: &'a HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &'a HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &'a BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &'a BTreeMap<TypeId, Vec<BigUint>>,
     params: &'a [String],
     is_public: bool,
 ) -> Result<&'a Vec<BigUint>> {
@@ -104,8 +104,8 @@ pub fn zkif_assert_equal_public(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
 ) -> Result<()> {
     let pub_inputs = zkif_assert_equal_check(
@@ -143,8 +143,8 @@ pub fn zkif_assert_equal_private(
     output_count: &[Count],
     input_count: &[Count],
     inputs: &[&BigUint],
-    public_inputs: &HashMap<TypeId, Vec<BigUint>>,
-    private_inputs: &HashMap<TypeId, Vec<BigUint>>,
+    public_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
+    private_inputs: &BTreeMap<TypeId, Vec<BigUint>>,
     params: &[String],
 ) -> Result<()> {
     let priv_inputs = zkif_assert_equal_check(
@@ -183,7 +183,7 @@ fn test_zkif_assert_equal_check() {
         &BigUint::from_bytes_le(&[2]),
         &BigUint::from_bytes_le(&[3]),
     ];
-    let public_inputs = HashMap::from([(
+    let public_inputs = BTreeMap::from([(
         1,
         vec![
             BigUint::from_bytes_le(&[1]),
@@ -191,7 +191,7 @@ fn test_zkif_assert_equal_check() {
             BigUint::from_bytes_le(&[3]),
         ],
     )]);
-    let private_inputs = HashMap::new();
+    let private_inputs = BTreeMap::new();
     let params = ["1".to_string(), "3".to_string()];
     let result = zkif_assert_equal_check(
         &output_count,
@@ -262,7 +262,7 @@ fn test_zkif_assert_equal_check() {
     assert!(result.is_err());
 
     // Try to use the plugin zkif_assert_equal with an incorrect number of public inputs
-    let incorrect_public_inputs = HashMap::from([(
+    let incorrect_public_inputs = BTreeMap::from([(
         1,
         vec![
             BigUint::from_bytes_le(&[1]),
@@ -283,7 +283,7 @@ fn test_zkif_assert_equal_check() {
     assert!(result.is_err());
 
     // Try to use the plugin zkif_assert_equal with an incorrect type_id for the public inputs
-    let incorrect_public_inputs = HashMap::from([(
+    let incorrect_public_inputs = BTreeMap::from([(
         2,
         vec![
             BigUint::from_bytes_le(&[1]),
@@ -312,7 +312,7 @@ fn test_zkif_assert_equal_public() {
         &BigUint::from_bytes_le(&[2]),
         &BigUint::from_bytes_le(&[3]),
     ];
-    let public_inputs = HashMap::from([(
+    let public_inputs = BTreeMap::from([(
         1,
         vec![
             BigUint::from_bytes_le(&[1]),
@@ -320,7 +320,7 @@ fn test_zkif_assert_equal_public() {
             BigUint::from_bytes_le(&[3]),
         ],
     )]);
-    let private_inputs = HashMap::new();
+    let private_inputs = BTreeMap::new();
     let params = ["1".to_string(), "3".to_string()];
     let result = zkif_assert_equal_public(
         &output_count,
@@ -357,8 +357,8 @@ fn test_zkif_assert_equal_private() {
         &BigUint::from_bytes_le(&[2]),
         &BigUint::from_bytes_le(&[3]),
     ];
-    let public_inputs = HashMap::new();
-    let private_inputs = HashMap::from([(
+    let public_inputs = BTreeMap::new();
+    let private_inputs = BTreeMap::from([(
         1,
         vec![
             BigUint::from_bytes_le(&[1]),

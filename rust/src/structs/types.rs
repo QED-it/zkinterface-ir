@@ -7,7 +7,7 @@ use std::error::Error;
 use crate::sieve_ir_generated::sieve_ir as generated;
 use crate::structs::value::{build_value, remove_trailing_zeros, try_from_value, Value};
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Deserialize, PartialOrd, Ord, Serialize)]
 pub enum Type {
     Field(Value),
     // PluginType(name, operation, params)

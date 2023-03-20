@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 use std::mem::take;
 
@@ -43,8 +43,8 @@ pub trait GateBuilderT {
 struct MessageBuilder<S: Sink> {
     sink: S,
 
-    public_inputs: HashMap<TypeId, PublicInputs>,
-    private_inputs: HashMap<TypeId, PrivateInputs>,
+    public_inputs: BTreeMap<TypeId, PublicInputs>,
+    private_inputs: BTreeMap<TypeId, PrivateInputs>,
     relation: Relation,
 
     /// Types
@@ -63,8 +63,8 @@ impl<S: Sink> MessageBuilder<S> {
     fn new(sink: S, plugins: &[String], types: &[Type], conversions: &[Conversion]) -> Self {
         Self {
             sink,
-            public_inputs: HashMap::new(),
-            private_inputs: HashMap::new(),
+            public_inputs: BTreeMap::new(),
+            private_inputs: BTreeMap::new(),
             types: types.to_vec(),
             relation: Relation {
                 version: IR_VERSION.to_string(),
@@ -220,10 +220,10 @@ pub struct GateBuilder<S: Sink> {
     msg_build: MessageBuilder<S>,
 
     // name => FunctionCounts
-    known_functions: HashMap<String, FunctionCounts>,
-    known_plugins: HashSet<String>,
-    known_conversions: HashSet<Conversion>,
-    next_available_id: HashMap<TypeId, WireId>,
+    known_functions: BTreeMap<String, FunctionCounts>,
+    known_plugins: BTreeSet<String>,
+    known_conversions: BTreeSet<Conversion>,
+    next_available_id: BTreeMap<TypeId, WireId>,
 }
 
 pub fn create_plugin_function(
@@ -250,7 +250,7 @@ pub fn create_plugin_function(
 }
 
 /// alloc allocates a new wire ID.
-fn alloc(type_id: TypeId, next_available_id: &mut HashMap<TypeId, WireId>) -> WireId {
+fn alloc(type_id: TypeId, next_available_id: &mut BTreeMap<TypeId, WireId>) -> WireId {
     let id = next_available_id.entry(type_id).or_insert(0);
     let out_id = *id;
     *id = out_id + 1;
@@ -260,7 +260,7 @@ fn alloc(type_id: TypeId, next_available_id: &mut HashMap<TypeId, WireId>) -> Wi
 /// alloc allocates n wire IDs.
 fn multiple_alloc(
     type_id: TypeId,
-    next_available_id: &mut HashMap<TypeId, WireId>,
+    next_available_id: &mut BTreeMap<TypeId, WireId>,
     n: u64,
 ) -> WireRange {
     let id = next_available_id.entry(type_id).or_insert(0);
@@ -321,7 +321,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                     .into());
                 }
                 // Check public inputs
-                let mut public_count_map = HashMap::new();
+                let mut public_count_map = BTreeMap::new();
                 for (i, inputs) in public_inputs.iter().enumerate() {
                     if !inputs.is_empty() {
                         public_count_map.insert(u8::try_from(i)?, u64::try_from(inputs.len())?);
@@ -335,7 +335,7 @@ impl<S: Sink> GateBuilderT for GateBuilder<S> {
                     .into());
                 }
                 // Check private inputs
-                let mut private_count_map = HashMap::new();
+                let mut private_count_map = BTreeMap::new();
                 for (i, inputs) in private_inputs.iter().enumerate() {
                     if !inputs.is_empty() {
                         private_count_map.insert(u8::try_from(i)?, u64::try_from(inputs.len())?);
@@ -408,11 +408,11 @@ impl<S: Sink> GateBuilder<S> {
     pub fn new(sink: S, plugins: &[String], types: &[Type], conversions: &[Conversion]) -> Self {
         // Plugins and conversion cannot be filled on the fly
         // because they must be flushed in the first relation message
-        let mut known_plugins = HashSet::new();
+        let mut known_plugins = BTreeSet::new();
         plugins.iter().for_each(|plugin_name| {
             known_plugins.insert(plugin_name.clone());
         });
-        let mut known_conversions = HashSet::new();
+        let mut known_conversions = BTreeSet::new();
         conversions.iter().for_each(|conversion| {
             known_conversions.insert(conversion.clone());
         });
@@ -421,8 +421,8 @@ impl<S: Sink> GateBuilder<S> {
             msg_build: MessageBuilder::new(sink, plugins, types, conversions),
             known_plugins,
             known_conversions,
-            known_functions: HashMap::new(),
-            next_available_id: HashMap::new(),
+            known_functions: BTreeMap::new(),
+            next_available_id: BTreeMap::new(),
         }
     }
 
@@ -432,7 +432,7 @@ impl<S: Sink> GateBuilder<S> {
         output_count: Vec<Count>,
         input_count: Vec<Count>,
     ) -> FunctionBuilder {
-        let mut next_available_id = HashMap::new();
+        let mut next_available_id = BTreeMap::new();
         output_count.iter().for_each(|count| {
             next_available_id.insert(count.type_id, count.count);
         });
@@ -445,8 +445,8 @@ impl<S: Sink> GateBuilder<S> {
             output_count,
             input_count,
             gates: vec![],
-            public_count: HashMap::new(),
-            private_count: HashMap::new(),
+            public_count: BTreeMap::new(),
+            private_count: BTreeMap::new(),
             known_conversions: &self.known_conversions,
             known_functions: &self.known_functions,
             next_available_id,
@@ -527,8 +527,8 @@ pub fn new_example_builder() -> GateBuilder<MemorySink> {
 
 pub struct FunctionWithInfos {
     function: Function,
-    public_count: HashMap<TypeId, u64>,
-    private_count: HashMap<TypeId, u64>,
+    public_count: BTreeMap<TypeId, u64>,
+    private_count: BTreeMap<TypeId, u64>,
 }
 
 /// FunctionBuilder builds a Function by allocating wire IDs and building gates.
@@ -537,7 +537,7 @@ pub struct FunctionWithInfos {
 ///
 /// # Example
 /// ```
-/// use std::collections::HashMap;
+/// use std::collections::BTreeMap;
 /// use zki_sieve::producers::builder::{FunctionBuilder, GateBuilder,  BuildGate::*};
 /// use zki_sieve::producers::sink::MemorySink;
 /// use zki_sieve::structs::count::Count;
@@ -560,17 +560,17 @@ pub struct FunctionBuilder<'a> {
     input_count: Vec<Count>,
     gates: Vec<Gate>,
 
-    public_count: HashMap<TypeId, u64>,  // evaluated on the fly
-    private_count: HashMap<TypeId, u64>, // evaluated on the fly
-    known_conversions: &'a HashSet<Conversion>,
-    known_functions: &'a HashMap<String, FunctionCounts>,
-    next_available_id: HashMap<TypeId, WireId>,
+    public_count: BTreeMap<TypeId, u64>,  // evaluated on the fly
+    private_count: BTreeMap<TypeId, u64>, // evaluated on the fly
+    known_conversions: &'a BTreeSet<Conversion>,
+    known_functions: &'a BTreeMap<String, FunctionCounts>,
+    next_available_id: BTreeMap<TypeId, WireId>,
 }
 
 impl FunctionBuilder<'_> {
     /// Returns a Vec<(TypeId, WireId)> containing the inputs wires (without WireRange).
     pub fn input_wires(&self) -> Vec<(TypeId, WireId)> {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         for count in self.output_count.iter() {
             map.insert(count.type_id, count.count);
         }
@@ -752,8 +752,8 @@ fn test_builder_with_function() {
             vec![],
             FunctionBody::Gates(vec![]),
         ),
-        public_count: HashMap::new(),
-        private_count: HashMap::new(),
+        public_count: BTreeMap::new(),
+        private_count: BTreeMap::new(),
     };
     assert!(b.push_function(custom_function).is_err());
 
@@ -994,8 +994,8 @@ fn test_builder_with_plugin() {
             name: "zkif_vector".to_string(),
             operation: "add".to_string(),
             params: vec![type_id.to_string(), vector_len.to_string()],
-            public_count: HashMap::new(),
-            private_count: HashMap::new(),
+            public_count: BTreeMap::new(),
+            private_count: BTreeMap::new(),
         },
     )
     .unwrap();
@@ -1070,8 +1070,8 @@ fn test_builder_with_plugin_type() {
             name: "zkif_ring".to_string(),
             operation: "add".to_string(),
             params: vec![type_id.to_string()],
-            public_count: HashMap::new(),
-            private_count: HashMap::new(),
+            public_count: BTreeMap::new(),
+            private_count: BTreeMap::new(),
         },
     )
     .unwrap();
@@ -1102,8 +1102,8 @@ fn test_builder_with_plugin_type() {
             name: "zkif_ring".to_string(),
             operation: "equal".to_string(),
             params: vec![type_id.to_string()],
-            public_count: HashMap::new(),
-            private_count: HashMap::new(),
+            public_count: BTreeMap::new(),
+            private_count: BTreeMap::new(),
         },
     )
     .unwrap();

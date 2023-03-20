@@ -12,7 +12,7 @@ use crate::{Gate, Message, PrivateInputs, PublicInputs, Relation, Result, TypeId
 use num_bigint::BigUint;
 use num_traits::identities::{One, Zero};
 use num_traits::Pow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 use std::convert::TryFrom;
 
 /// The `ZKBackend` trait should be implemented by any backend that wants to evaluate SIEVE IR circuits.
@@ -114,8 +114,8 @@ pub trait ZKBackend {
         output_count: &[Count],
         input_count: &[Count],
         inputs: &[&Self::Wire],
-        public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
-        private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        public_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
+        private_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>>;
 }
@@ -149,10 +149,10 @@ struct FunctionDeclaration {
 /// let _ = simulator.ingest_relation(&relation, &mut zkbackend);
 /// ```
 pub struct Evaluator<B: ZKBackend> {
-    values: HashMap<(TypeId, WireId), B::Wire>,
+    values: BTreeMap<(TypeId, WireId), B::Wire>,
     inputs: EvaluatorInputs<B>,
     // name => (body, output_count, input_count)
-    known_functions: HashMap<String, FunctionDeclaration>,
+    known_functions: BTreeMap<String, FunctionDeclaration>,
 
     found_error: Option<String>,
 }
@@ -170,8 +170,8 @@ impl<B: ZKBackend> Default for Evaluator<B> {
 
 pub struct EvaluatorInputs<B: ZKBackend> {
     types: Vec<Type>,
-    public_inputs_queue: HashMap<Type, VecDeque<B::TypeElement>>,
-    private_inputs_queue: HashMap<Type, VecDeque<B::TypeElement>>,
+    public_inputs_queue: BTreeMap<Type, VecDeque<B::TypeElement>>,
+    private_inputs_queue: BTreeMap<Type, VecDeque<B::TypeElement>>,
 }
 
 impl<B: ZKBackend> Default for EvaluatorInputs<B> {
@@ -347,8 +347,8 @@ impl<B: ZKBackend> Evaluator<B> {
     fn ingest_gate(
         gate: &Gate,
         backend: &mut B,
-        scope: &mut HashMap<(TypeId, WireId), B::Wire>,
-        known_functions: &HashMap<String, FunctionDeclaration>,
+        scope: &mut BTreeMap<(TypeId, WireId), B::Wire>,
+        known_functions: &BTreeMap<String, FunctionDeclaration>,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
         use Gate::*;
@@ -533,7 +533,7 @@ impl<B: ZKBackend> Evaluator<B> {
                             })?;
 
                         // Retrieve public inputs
-                        let mut public_inputs = HashMap::new();
+                        let mut public_inputs = BTreeMap::new();
                         plugin_body
                             .public_count
                             .iter()
@@ -543,7 +543,7 @@ impl<B: ZKBackend> Evaluator<B> {
                                 Ok(())
                             })?;
                         // Retrieve private inputs
-                        let mut private_inputs = HashMap::new();
+                        let mut private_inputs = BTreeMap::new();
                         plugin_body
                             .private_count
                             .iter()
@@ -607,14 +607,14 @@ impl<B: ZKBackend> Evaluator<B> {
         backend: &mut B,
         out_ids_with_types: &[WireRangeWithType],
         in_ids_with_types: &[WireRangeWithType],
-        scope: &mut HashMap<(TypeId, WireId), B::Wire>,
-        known_functions: &HashMap<String, FunctionDeclaration>,
+        scope: &mut BTreeMap<(TypeId, WireId), B::Wire>,
+        known_functions: &BTreeMap<String, FunctionDeclaration>,
         inputs: &mut EvaluatorInputs<B>,
     ) -> Result<()> {
-        let mut new_scope: HashMap<(TypeId, WireId), B::Wire> = HashMap::new();
+        let mut new_scope: BTreeMap<(TypeId, WireId), B::Wire> = BTreeMap::new();
 
         // copy the inputs required by this function into the new scope, at the proper index
-        let mut input_indexes = HashMap::new();
+        let mut input_indexes = BTreeMap::new();
         out_ids_with_types.iter().for_each(|wirerange_with_type| {
             let idx = input_indexes
                 .entry(wirerange_with_type.type_id)
@@ -643,7 +643,7 @@ impl<B: ZKBackend> Evaluator<B> {
         }
 
         // copy the outputs produced from 'new_scope', into 'scope'
-        let mut output_indexes = HashMap::new();
+        let mut output_indexes = BTreeMap::new();
         for wirerange_with_type in out_ids_with_types.iter() {
             for wire_id in wirerange_with_type.first_id..=wirerange_with_type.last_id {
                 let idx = output_indexes
@@ -672,7 +672,7 @@ impl<B: ZKBackend> Evaluator<B> {
 
 fn set_public_input<I: ZKBackend>(
     backend: &mut I,
-    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    scope: &mut BTreeMap<(TypeId, WireId), I::Wire>,
     type_id: TypeId,
     wire_id: WireId,
     value: I::TypeElement,
@@ -683,7 +683,7 @@ fn set_public_input<I: ZKBackend>(
 
 fn set_private_input<I: ZKBackend>(
     backend: &mut I,
-    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    scope: &mut BTreeMap<(TypeId, WireId), I::Wire>,
     type_id: TypeId,
     wire_id: WireId,
     value: Option<I::TypeElement>,
@@ -693,7 +693,7 @@ fn set_private_input<I: ZKBackend>(
 }
 
 fn set<I: ZKBackend>(
-    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    scope: &mut BTreeMap<(TypeId, WireId), I::Wire>,
     type_id: TypeId,
     wire_id: WireId,
     wire: I::Wire,
@@ -710,7 +710,7 @@ fn set<I: ZKBackend>(
 }
 
 pub fn get<I: ZKBackend>(
-    scope: &HashMap<(TypeId, WireId), I::Wire>,
+    scope: &BTreeMap<(TypeId, WireId), I::Wire>,
     type_id: TypeId,
     wire_id: WireId,
 ) -> Result<&I::Wire> {
@@ -720,7 +720,7 @@ pub fn get<I: ZKBackend>(
 }
 
 fn remove<I: ZKBackend>(
-    scope: &mut HashMap<(TypeId, WireId), I::Wire>,
+    scope: &mut BTreeMap<(TypeId, WireId), I::Wire>,
     type_id: TypeId,
     wire_id: WireId,
 ) -> Result<I::Wire> {
@@ -912,8 +912,8 @@ impl ZKBackend for PlaintextBackend {
         output_count: &[Count],
         input_count: &[Count],
         inputs: &[&Self::Wire],
-        public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
-        private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+        public_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
+        private_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
         plugin_body: &PluginBody,
     ) -> Result<Vec<Self::Wire>> {
         evaluate_plugin_for_plaintext_backend(
@@ -1070,8 +1070,8 @@ fn test_evaluator_as_verifier() {
             output_count: &[Count],
             _input_count: &[Count],
             _inputs: &[&Self::Wire],
-            _public_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
-            _private_inputs: &HashMap<TypeId, Vec<Self::TypeElement>>,
+            _public_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
+            _private_inputs: &BTreeMap<TypeId, Vec<Self::TypeElement>>,
             _plugin_body: &PluginBody,
         ) -> Result<Vec<Self::Wire>> {
             let count = output_count.iter().map(|count| count.count).sum::<u64>();
