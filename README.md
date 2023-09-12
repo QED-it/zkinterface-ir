@@ -6,6 +6,10 @@ and details how to integrate their systems using the zkInterface SIEVE IR toolbo
 In this guide, we first generate example SIEVE IR statements, and we then consume them. These steps can serve 
 as a starting point for a new implementation in a statement generator, or in a proving system, respectively.
 
+Compared to [SIEVE IR specification v2.1.0](spec/circuit-ir-v2.1.0.pdf), our implementation is slightly different
+- Extension fields and rings are not included.
+- Only the modulus mode is included for the convert gate.
+
 ## Introduction
 
 The zkInterface SIEVE IR is an Intermediate Representation to communicate a zero-knwoledge statement
