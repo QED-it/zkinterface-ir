@@ -1,5 +1,7 @@
 # Unreleased
 
+# v4.0.0 and SIEVE IR v2.1.0, 2023-09
+
 Schema (.fbs):
 - remove
   - gate_set and features from Relation struct
