@@ -1,13 +1,14 @@
 [package]
 name = "zki_sieve"
-version = "4.0.0"
+version = "4.0.1"
 authors = ["Aurélien Nicolas <aurel@qed-it.com>", "Michael Adjedj <michael@qed-it.com>", "Constance Beguier <constance@qed-it.com>"]
 license = "MIT"
 build = "build.rs"
 edition = '2018'
 description = "An implementation of SIEVE IR"
-homepage = "https://github.mit.edu/sieve-all/zkinterface-sieve"
-repository = "https://github.mit.edu/sieve-all/zkinterface-sieve/tree/master/rust"
+homepage = "https://github.com/QED-it/zkinterface-ir"
+repository = "https://github.com/QED-it/zkinterface-ir/tree/master/rust"
+readme = "../README.md"
 keywords = ["zero-knowledge", "zkproof", "cryptography"]
 
 [features]

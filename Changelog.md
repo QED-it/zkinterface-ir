@@ -1,5 +1,10 @@
 # Unreleased
 
+# v4.0.1, 2023-09
+
+Rust:
+- update homepage, repository and readme in Cargo.toml
+
 # v4.0.0 and SIEVE IR v2.1.0, 2023-09
 
 Schema (.fbs):
